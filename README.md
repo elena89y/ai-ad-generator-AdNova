@@ -1,0 +1,222 @@
+# 🎨 AI Ad Generator (AdNova)
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white"/>
+  <img src="https://img.shields.io/badge/FastAPI-Backend-009688?style=flat-square&logo=fastapi&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Streamlit-Frontend-FF4B4B?style=flat-square&logo=streamlit&logoColor=white"/>
+  <img src="https://img.shields.io/badge/OpenAI-GPT--Image_API-412991?style=flat-square"/>
+  <img src="https://img.shields.io/badge/SQLite-Database-003B57?style=flat-square"/>
+  <img src="https://img.shields.io/badge/Docker-Container-2496ED?style=flat-square&logo=docker&logoColor=white"/>
+</p>
+
+<p align="center">
+  <b>AI8기 고급 프로젝트 | Team AdNova</b><br/>
+  AI-powered Advertisement Content Generation Platform
+  <br><br>
+  유연정(PM) · 김범수 · 정봄 · 한의정
+</p>
+
+<p align="center">
+  <a href="https://app.notion.com/p/AI8-_-_3-AdNova-2481fffab02c823bbed781ab8fe32242?source=copy_link">📋 협업노트/회의록 & 프로젝트 가이드 </a>
+</p>
+
+---
+
+# 📌 프로젝트 개요
+
+소상공인과 온라인 판매자는 상품 홍보를 위해 광고 이미지를 제작해야 하지만, 전문 디자인 툴이나 마케팅 경험이 부족한 경우가 많습니다.
+
+본 프로젝트는 **생성형 AI**를 활용하여 사용자가 업로드한 **상품 이미지**를 기반으로 광고 스타일이 적용된 **광고 이미지**와 **광고 카피**를 자동 생성하는 서비스를 제공합니다.
+
+| 항목 | 내용 |
+|------|------|
+| 프로젝트명 | AI Ad Generator |
+| 대상 사용자 | 소상공인, 자영업자, 온라인 셀러, 마케터 |
+| 기간 | 2026.07.01 ~ 2026.07.30 |
+| 핵심 기능 | 상품 이미지 기반 광고 이미지 생성 및 광고 카피 생성 |
+
+---
+
+# 📷 Demo
+
+## Login
+
+(이미지)
+
+---
+
+## Advertisement Generation
+
+(이미지)
+
+---
+
+## Result
+
+(이미지)
+
+---
+
+# ✨ 주요 기능
+
+- 🔐 회원가입 및 로그인 (bcrypt + JWT)
+- 🖼 상품 이미지 업로드
+- 🎨 광고 스타일 선택
+- ✨ 상품 이미지 전처리
+- 🤖 AI 광고 이미지 생성
+- 📝 AI 광고 카피 생성
+- 🔄 광고 재생성
+- 📂 생성 이력 관리
+- 📤 SNS 공유용 Export
+
+---
+
+# 🗂️ 프로젝트 구조
+
+```text
+ai-ad-generator-AdNova/
+│
+├── backend/
+│   ├── auth/
+│   ├── api/
+│   ├── services/
+│   ├── models/
+│   └── database/
+│
+├── frontend/
+│   └── streamlit/
+│
+├── images/
+│
+├── prompts/
+│
+├── docker/
+│
+├── README.md
+└── requirements.txt
+```
+
+---
+
+# 🛠 기술 스택
+
+| 구성 요소 | 기술 |
+|-----------|------|
+| Backend | FastAPI |
+| Frontend | Streamlit |
+| Authentication | JWT + bcrypt |
+| AI Image | OpenAI Image API |
+| AI Copy | OpenAI GPT |
+| Database | SQLite |
+| Deployment | Docker + GCP |
+
+---
+
+# 🚀 실행 방법
+
+### 환경 설치
+
+```bash
+git clone https://github.com/elena89y/ai-ad-generator-AdNova.git
+
+cd ai-ad-generator-AdNova
+
+pip install -r requirements.txt
+```
+
+### 환경 변수
+
+```
+OPENAI_API_KEY=xxxxxxxx
+```
+
+### 실행
+
+```bash
+uvicorn app.main:app --reload
+```
+
+또는
+
+```bash
+streamlit run app.py
+```
+
+---
+
+# 🧩 서비스 구조
+
+```text
+상품 이미지 업로드
+        │
+        ▼
+이미지 전처리
+        │
+        ▼
+광고 스타일 선택
+        │
+        ▼
+Prompt Builder
+        │
+        ▼
+OpenAI Image API
+        │
+        ▼
+광고 이미지 생성
+        │
+        ▼
+OpenAI GPT
+        │
+        ▼
+광고 카피 생성
+        │
+        ▼
+최종 광고 콘텐츠
+```
+
+---
+
+# 📡 API
+
+| Method | Endpoint | 설명 |
+|---------|----------|------|
+| POST | /auth/signup | 회원가입 |
+| POST | /auth/login | 로그인 |
+| POST | /auth/logout | 로그아웃 |
+| POST | /images/upload | 상품 이미지 업로드 |
+| POST | /images/process | 상품 이미지 전처리 |
+| POST | /ads/generate | 광고 이미지 생성 |
+| POST | /ads/regenerate | 광고 재생성 |
+| POST | /copy/generate | 광고 문구 생성 |
+| GET | /history | 생성 이력 조회 |
+| POST | /export/sns | SNS 공유용 Export |
+
+---
+
+# 👥 Team AdNova
+
+| 이름 | 역할 |
+|------|------|
+| **유연정** | **Project Manager (PM)**<br>Backend (FastAPI / API)<br>DevOps (Docker / GCP / Deployment) |
+| **김범수** | Backend (FastAPI / API)<br>DevOps (Docker / GCP / Deployment) |
+| **한의정** | AI Model / Prompt Engineering |
+| **정봄** | Frontend (Streamlit / UI·UX) |
+
+---
+
+# 📎 참고 자료
+
+- [📋 협업 노트 (Notion)](https://app.notion.com/p/Daily-Logs-b201fffab02c8269a55c01286e7eed21?source=copy_link)
+- [📋 회의록 (Notion)](https://app.notion.com/p/Daily-Logs-b201fffab02c8269a55c01286e7eed21?source=copy_link)
+- [고급프로젝트 가이드라인](https://app.notion.com/p/AI8-_-_3-AdNova-2481fffab02c823bbed781ab8fe32242?source=copy_link)
+- [📄 최종 발표 자료]()
+- [📚 OpenAI API Documentation]()
+- [📚 FastAPI Documentation]()
+- [📚 Streamlit Documentation]()
+
+
+---
+
+<p align="center">
+  <sub>AI8기 고급 프로젝트 | 2026 · Team AdNova</sub>
+</p>
