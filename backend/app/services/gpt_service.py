@@ -40,12 +40,13 @@ class SnsCopyResult:
 # --- 클라이언트 (골격) --------------------------------------------------------
 def _get_client():  # noqa: ANN202
     """OpenAI 클라이언트 생성. key 는 env 에서만."""
+    from openai import OpenAI
+
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY 미설정 (env 로드 필요)")
-    raise NotImplementedError("클라이언트 초기화 미구현")
-    # TODO: 모델 string 확정(GPT-5.4 Nano/Mini/일반). 비용 기준 Nano 우선 검토.
-
+    return OpenAI(api_key=api_key)
+    # TODO: 모델 string 확정(GPT-5.4 Nano/Mini/일반). 비용 기준 Mini 검토 중.
 
 # --- FR-09 광고 문구 생성 -----------------------------------------------------
 def generate_copy(
