@@ -28,12 +28,12 @@
 
 본 프로젝트는 **생성형 AI**를 활용하여 사용자가 업로드한 **상품 이미지**를 기반으로 광고 스타일이 적용된 **광고 이미지**와 **광고 카피**를 자동 생성하는 서비스를 제공합니다.
 
-| 항목 | 내용 |
-|------|------|
-| 프로젝트명 | AI Ad Generator |
-| 대상 사용자 | 소상공인, 자영업자, 온라인 셀러, 마케터 |
-| 기간 | 2026.07.01 ~ 2026.07.30 |
-| 핵심 기능 | 상품 이미지 기반 광고 이미지 생성 및 광고 카피 생성 |
+| 항목        | 내용                                                |
+| ----------- | --------------------------------------------------- |
+| 프로젝트명  | AI Ad Generator                                     |
+| 대상 사용자 | 소상공인, 자영업자, 온라인 셀러, 마케터             |
+| 기간        | 2026.07.01 ~ 2026.07.30                             |
+| 핵심 기능   | 상품 이미지 기반 광고 이미지 생성 및 광고 카피 생성 |
 
 ---
 
@@ -75,40 +75,76 @@
 
 ```text
 ai-ad-generator-AdNova/
-│
-├── backend/
-│   ├── auth/
-│   ├── api/
-│   ├── services/
-│   ├── models/
-│   └── database/
+├── .gitignore
+├── README.md
+├── docker-compose.yml
+├── .env.example
 │
 ├── frontend/
-│   └── streamlit/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── src/
+│       ├── main.py
+│       ├── pages/
+│       │   ├── login.py
+│       │   ├── signup.py
+│       │   ├── generate.py
+│       │   └── history.py
+│       ├── components/
+│       │   ├── sidebar.py
+│       │   ├── upload_box.py
+│       │   └── result_card.py
+│       └── utils/
+│           └── api_client.py
 │
-├── images/
-│
-├── prompts/
-│
-├── docker/
-│
-├── README.md
-└── requirements.txt
+└── backend/
+    ├── Dockerfile
+    ├── requirements.txt
+    ├── uploads/
+    │   └── .gitkeep
+    ├── processed/
+    │   └── .gitkeep
+    ├── results/
+    │   └── .gitkeep
+    └── app/
+        ├── main.py
+        ├── core/
+        │   ├── config.py
+        │   └── security.py
+        ├── database/
+        │   ├── connection.py
+        │   └── models.py
+        ├── schemas/
+        │   ├── auth.py
+        │   ├── image.py
+        │   └── ads.py
+        ├── api/
+        │   ├── auth.py
+        │   ├── images.py
+        │   ├── ads.py
+        │   ├── copy.py
+        │   ├── history.py
+        │   └── export.py
+        └── services/
+            ├── image_service.py
+            ├── gpt_service.py
+            ├── prompt_service.py
+            └── history_service.py
 ```
 
 ---
 
 # 🛠 기술 스택
 
-| 구성 요소 | 기술 |
-|-----------|------|
-| Backend | FastAPI |
-| Frontend | Streamlit |
-| Authentication | JWT + bcrypt |
-| AI Image | OpenAI Image API |
-| AI Copy | OpenAI GPT |
-| Database | SQLite |
-| Deployment | Docker + GCP |
+| 구성 요소      | 기술             |
+| -------------- | ---------------- |
+| Backend        | FastAPI          |
+| Frontend       | Streamlit        |
+| Authentication | JWT + bcrypt     |
+| AI Image       | OpenAI Image API |
+| AI Copy        | OpenAI GPT       |
+| Database       | SQLite           |
+| Deployment     | Docker + GCP     |
 
 ---
 
@@ -178,29 +214,29 @@ OpenAI GPT
 
 # 📡 API
 
-| Method | Endpoint | 설명 |
-|---------|----------|------|
-| POST | /auth/signup | 회원가입 |
-| POST | /auth/login | 로그인 |
-| POST | /auth/logout | 로그아웃 |
-| POST | /images/upload | 상품 이미지 업로드 |
-| POST | /images/process | 상품 이미지 전처리 |
-| POST | /ads/generate | 광고 이미지 생성 |
-| POST | /ads/regenerate | 광고 재생성 |
-| POST | /copy/generate | 광고 문구 생성 |
-| GET | /history | 생성 이력 조회 |
-| POST | /export/sns | SNS 공유용 Export |
+| Method | Endpoint        | 설명               |
+| ------ | --------------- | ------------------ |
+| POST   | /auth/signup    | 회원가입           |
+| POST   | /auth/login     | 로그인             |
+| POST   | /auth/logout    | 로그아웃           |
+| POST   | /images/upload  | 상품 이미지 업로드 |
+| POST   | /images/process | 상품 이미지 전처리 |
+| POST   | /ads/generate   | 광고 이미지 생성   |
+| POST   | /ads/regenerate | 광고 재생성        |
+| POST   | /copy/generate  | 광고 문구 생성     |
+| GET    | /history        | 생성 이력 조회     |
+| POST   | /export/sns     | SNS 공유용 Export  |
 
 ---
 
 # 👥 Team AdNova
 
-| 이름 | 역할 |
-|------|------|
-| **유연정** | **Project Manager (PM)**<br>Backend (FastAPI / API)<br>DevOps (Docker / GCP / Deployment) |
-| **김범수** | Backend (FastAPI / API)<br>DevOps (Docker / GCP / Deployment) |
-| **한의정** | AI Model / Prompt Engineering |
-| **정봄** | Frontend (Streamlit / UI·UX) |
+| 이름             | 역할                                                                                    |
+| ---------------- | --------------------------------------------------------------------------------------- |
+| **유연정** | **Project Manager (PM)**Backend (FastAPI / API)DevOps (Docker / GCP / Deployment) |
+| **김범수** | Backend (FastAPI / API)DevOps (Docker / GCP / Deployment)                               |
+| **한의정** | AI Model / Prompt Engineering                                                           |
+| **정봄**   | Frontend (Streamlit / UI·UX)                                                           |
 
 ---
 
