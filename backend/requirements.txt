@@ -1,8 +1,13 @@
-fastapi
-uvicorn[standard]
-pydantic
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+sqlalchemy==2.0.36
+bcrypt==4.2.1
+PyJWT==2.10.1
+pydantic[email]==2.10.4
+passlib[bcrypt]
+python-jose[cryptography]
+email-validator
 python-multipart
 python-dotenv
-bcrypt
 openai
 Pillow
