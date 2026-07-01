@@ -2,7 +2,6 @@
 .env
 .env.local
 .env.*.local
-
 # ====== 파이썬 가상환경 및 캐시 ======
 __pycache__/
 *.py[cod]
@@ -11,16 +10,13 @@ __pycache__/
 venv/
 ENV/
 env/
-
 # ====== 데이터베이스 및 OS 임시 파일 ======
 *.db
 .DS_Store
 Thumbs.db
-
 # ====== 개발 툴 세팅 ======
 .vscode/
 .idea/
-
 # ====== 프로젝트 특정 데이터 (구조 유지용 .gitkeep은 예외) ======
 backend/uploads/*
 backend/processed/*
