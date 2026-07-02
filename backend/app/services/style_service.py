@@ -1,4 +1,4 @@
-"""스타일 결정 서비스 (스캐폴드) — 담당: 한의정. 신설.
+"""스타일 결정 서비스 — 담당: 한의정.
 
 엔드포인트: POST /ads/style  (신설, 팀장 공유 미실행)
 호출 계층:  api/ads.py → style_service.py → gpt_service.py
@@ -12,7 +12,10 @@
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from ..schemas.ads import StyleCandidate, StylePreset, StyleRequest, StyleResponse
+from . import gpt_service
 
 
 def decide_style(req: StyleRequest) -> StyleResponse:
@@ -20,21 +23,28 @@ def decide_style(req: StyleRequest) -> StyleResponse:
 
     image_path 존재 → _decide_from_image (경로1)
     free_text 존재  → _decide_from_text  (경로2)
+    둘 다 제공/둘 다 없음 → ValueError (상호배타)
     """
+    if req.image_path and req.free_text:
+        raise ValueError("image_path 와 free_text 는 동시에 지정할 수 없습니다")
     if req.image_path:
         return _decide_from_image(req.image_path)
     if req.free_text:
         return _decide_from_text(req.free_text)
     raise ValueError("image_path 또는 free_text 중 하나 필요")
-    # TODO: 둘 다/둘 다 없음 케이스 검증 규칙 확정
 
 
 def _decide_from_image(image_path: str) -> StyleResponse:
-    """경로1: Vision 분석 → 후보 3개.
+    """경로1: Vision 분석 → 후보 3개 → 유저 선택 대기 (resolved=None).
 
-    gpt_service.analyze_image_for_style() 호출 전제(미구현).
+    ⚠️ Vision 호출 = 비용 발생 ($30 한도). 호출 전 파일 존재를 먼저 검증해
+    무의미한 API 소모를 방지.
     """
-    raise NotImplementedError("경로1 Vision 추천 미구현 — STY-001 실험 후")
+    if not Path(image_path).is_file():
+        raise FileNotFoundError(f"이미지 파일이 존재하지 않습니다: {image_path}")
+
+    candidates = gpt_service.analyze_image_for_style(image_path)
+    return StyleResponse(candidates=candidates, resolved=None)
 
 
 def _decide_from_text(free_text: str) -> StyleResponse:
