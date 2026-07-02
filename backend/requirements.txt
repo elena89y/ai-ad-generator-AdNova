@@ -11,3 +11,6 @@ python-multipart
 python-dotenv
 openai
 Pillow
+rembg
+onnxruntime-gpu[cuda,cudnn]; sys_platform == "linux"
+onnxruntime; sys_platform != "linux"
