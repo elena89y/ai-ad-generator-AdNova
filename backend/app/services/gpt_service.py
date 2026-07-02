@@ -16,6 +16,9 @@
 """
 from __future__ import annotations
 
+import base64
+import json
+import mimetypes
 import os
 from dataclasses import dataclass
 from typing import Optional
@@ -83,6 +86,10 @@ def analyze_image_for_style(image_path: str) -> list[StyleCandidate]:
     with open(image_path, "rb") as f:
         image_b64 = base64.b64encode(f.read()).decode("utf-8")
 
+    media_type, _ = mimetypes.guess_type(image_path)
+    if media_type is None or not media_type.startswith("image/"):
+        media_type = "image/jpeg"
+
     preset_values = [p.value for p in StylePreset]
 
     prompt = (
@@ -104,7 +111,7 @@ def analyze_image_for_style(image_path: str) -> list[StyleCandidate]:
                     {"type": "text", "text": prompt},
                     {
                         "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"},
+                        "image_url": {"url": f"data:{media_type};base64,{image_b64}"},
                     },
                 ],
             }
@@ -112,9 +119,15 @@ def analyze_image_for_style(image_path: str) -> list[StyleCandidate]:
         response_format={"type": "json_object"},
     )
 
-    result = json.loads(response.choices[0].message.content)
-    candidates = [
-        StyleCandidate(preset=StylePreset(c["preset"]), reason=c["reason"])
-        for c in result["candidates"]
-    ]
+    try:
+        result = json.loads(response.choices[0].message.content)
+        candidates = [
+            StyleCandidate(preset=StylePreset(c["preset"]), reason=c["reason"])
+            for c in result["candidates"]
+        ]
+    except (KeyError, ValueError, TypeError) as e:
+        raise RuntimeError(f"Vision 응답 파싱 실패: {e}") from e
+
+    if not candidates:
+        raise RuntimeError("Vision 응답에 스타일 후보가 없습니다")
     return candidates
