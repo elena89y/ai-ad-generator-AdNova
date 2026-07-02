@@ -40,12 +40,13 @@ class SnsCopyResult:
 # --- 클라이언트 (골격) --------------------------------------------------------
 def _get_client():  # noqa: ANN202
     """OpenAI 클라이언트 생성. key 는 env 에서만."""
+    from openai import OpenAI
+
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY 미설정 (env 로드 필요)")
-    raise NotImplementedError("클라이언트 초기화 미구현")
-    # TODO: 모델 string 확정(GPT-5.4 Nano/Mini/일반). 비용 기준 Nano 우선 검토.
-
+    return OpenAI(api_key=api_key)
+    # TODO: 모델 string 확정(GPT-5.4 Nano/Mini/일반). 비용 기준 Mini 검토 중.
 
 # --- FR-09 광고 문구 생성 -----------------------------------------------------
 def generate_copy(
@@ -77,4 +78,43 @@ def analyze_image_for_style(image_path: str) -> list[StyleCandidate]:
 
     ⚠️ Vision 호출 = 비용 발생. 개발 중 반복 호출 금지.
     """
-    raise NotImplementedError("Vision 스타일 분석 미구현 — STY-001 후")
+    client = _get_client()
+
+    with open(image_path, "rb") as f:
+        image_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+    preset_values = [p.value for p in StylePreset]
+
+    prompt = (
+        "이 상품 이미지를 보고 어울리는 광고 스타일(문구 톤·색상) 후보 3개를 추천해줘. "
+        f"각 후보는 다음 중 하나여야 해: {preset_values}. "
+        "각 후보에 대해 왜 이 이미지에 어울리는지 간단한 이유도 함께 작성해줘. "
+        '반드시 아래 JSON 형식으로만 응답해: '
+        '{"candidates": [{"preset": "monotone", "reason": "..."}, '
+        '{"preset": "warm_vintage", "reason": "..."}, '
+        '{"preset": "pop", "reason": "..."}]}'
+    )
+
+    response = client.chat.completions.create(
+        model="gpt-5.4-mini",
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"},
+                    },
+                ],
+            }
+        ],
+        response_format={"type": "json_object"},
+    )
+
+    result = json.loads(response.choices[0].message.content)
+    candidates = [
+        StyleCandidate(preset=StylePreset(c["preset"]), reason=c["reason"])
+        for c in result["candidates"]
+    ]
+    return candidates
