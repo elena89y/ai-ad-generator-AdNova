@@ -2,17 +2,19 @@
 
 대응 FR:
   - FR-06 상품 이미지 전처리 (배경 제거/마스킹 · 크기 조정 · 품질 보정) ← 구현 완료
-  - FR-08 상품 이미지 기반 광고 생성 (제품 보존 + 배경 교체 inpainting) ← 미구현
-  - FR-12 재생성 (동일 입력 · seed 변경) ← 미구현
+  - FR-08 상품 이미지 기반 광고 생성 (제품 보존 + 배경 교체 inpainting) ← 구현 완료
+  - FR-12 재생성 (동일 입력 · seed 변경) ← 구현 완료
 
 파이프라인 위치 (4단계 확정):
   전처리(FR-06) → 스타일 결정(2경로) → [이미지 생성 FR-08] → 문구 생성(FR-09)
 
 마스킹(A-2) 확정: rembg(u2net, ONNX). GPU 환경(onnxruntime-gpu)에서 가속,
   미지원 환경에서는 onnxruntime(CPU)로 자동 폴백.
-모델 결정(A-1) 미확정:
-  후보 = SDXL Inpainting(1순위) / FLUX.1 Fill(2순위, offload) / SD1.5(속도 비교군).
-  실측(IMG-001~) 전까지 로더 구현 보류. VRAM · 추론시간 실측 후 확정.
+모델(A-1): SDXL Inpainting 1순위로 구현 (IMG-001: 8.45s, VRAM 8.95GB — L4 안정권).
+  FLUX.1 Fill 비교(IMG-002)는 gated 모델 접근 확보 후. 생성 파라미터는 A-4 실험으로 조정.
+
+제품 보존 전략: inpainting 후 원본 제품 픽셀을 마스크 기준으로 재합성(post-composite)
+  → 제품 영역 픽셀 보존 보장 (A-3 SSIM/L1 지표 유리).
 
 실행 환경: 전처리(FR-06)는 CPU에서도 동작(느림). FR-08은 GPU 필요(GCP L4).
 """
@@ -20,11 +22,15 @@ from __future__ import annotations
 
 import io
 import logging
+import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from PIL import Image, ImageEnhance, ImageOps
+
+if TYPE_CHECKING:
+    from .prompt_service import ImagePrompt
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +38,17 @@ logger = logging.getLogger(__name__)
 DEFAULT_OUTPUT_SIZE: tuple[int, int] = (1024, 1024)
 MAX_INPUT_DIMENSION = 2048  # 과도하게 큰 업로드 이미지에 대한 리사이즈 상한
 
-# 전처리 산출물 저장 위치: backend/processed/
+# 전처리 산출물 저장 위치: backend/processed/ · AI 생성 결과물: backend/results/ai/ (gitignore)
 PROCESSED_DIR = Path(__file__).resolve().parents[2] / "processed"
+RESULTS_DIR = Path(__file__).resolve().parents[2] / "results" / "ai"
+
+# FR-08 생성 파라미터 (v1 잠정치 — A-4 실험으로 조정)
+SDXL_INPAINT_MODEL = "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
+DEFAULT_STEPS = 30
+DEFAULT_GUIDANCE = 7.5
+# ⚠️ strength < 1.0 이면 init(흰 배경) 잔재로 배경 생성이 붕괴됨 (IMG-002 실측: 0.99 → 흰 배경)
+DEFAULT_STRENGTH = 1.0
+MASK_EDGE_BLUR = 4  # 배경/제품 경계 블렌딩용 (0 = 미사용)
 
 # rembg 세션은 최초 사용 시 1회만 생성 (요청마다 재생성하면 GPU 초기화 비용 발생).
 # 모듈 import 시점에 만들지 않는 이유: rembg 미설치 환경(로컬 CPU 개발 등)에서도
@@ -45,8 +60,15 @@ def _get_rembg_session():  # noqa: ANN202
     """u2net 세션 lazy 초기화. 범용 배경 제거 모델, L4 24GB 환경에서 VRAM 여유."""
     global _rembg_session
     if _rembg_session is None:
-        # onnxruntime-gpu 가 pip 으로 설치된 NVIDIA 라이브러리(nvidia-cublas-cu12 등)를
-        # 찾으려면 세션 생성 전에 preload 가 필요 (없으면 CPU 로 조용히 폴백됨).
+        # onnxruntime-gpu(CU13 빌드)는 import 시 libcudart.so.13 을 요구하지만
+        # pip NVIDIA 라이브러리 경로를 스스로 찾지 못함 → torch(CU13)를 먼저 import
+        # 하면 RPATH 로 CUDA 런타임이 프로세스에 로드됨. torch 미설치 환경(CPU 개발)은 무시.
+        try:
+            import torch  # noqa: F401
+        except Exception:
+            pass
+        # pip 으로 설치된 cuDNN 등 나머지 라이브러리는 preload 필요
+        # (없으면 CPU 로 조용히 폴백됨).
         try:
             import onnxruntime
 
@@ -96,10 +118,12 @@ def _load_image(image_bytes: bytes) -> Image.Image:
 
 def _remove_background(img: Image.Image) -> Image.Image:
     """rembg를 이용한 배경 제거. 결과는 알파 채널 포함 RGBA."""
+    # 세션 초기화를 rembg import 보다 먼저 수행 (내부에서 torch 선로드 → ORT 로드 순서 보장)
+    session = _get_rembg_session()
     from rembg import remove
 
     try:
-        return remove(img, session=_get_rembg_session())
+        return remove(img, session=session)
     except Exception as e:
         logger.error(f"배경 제거 실패: {e}")
         raise RuntimeError("배경 제거 처리 중 오류가 발생했습니다") from e
@@ -227,37 +251,125 @@ def _preprocess_to_image(
     return img
 
 
-# --- FR-08 / FR-12 (미구현 — A-1 모델 확정 후) --------------------------------
+# --- FR-08 광고 이미지 생성 ---------------------------------------------------
+_sdxl_pipeline = None
+
+
+def _load_pipeline():  # noqa: ANN202
+    """SDXL Inpainting 파이프라인 lazy 싱글턴 (fp16, CUDA).
+
+    IMG-001 실측 기준 L4 안정권 (VRAM ~9GB). 요청마다 재로드 금지.
+    """
+    global _sdxl_pipeline
+    if _sdxl_pipeline is None:
+        import torch
+        from diffusers import AutoPipelineForInpainting
+
+        logger.info(f"SDXL Inpainting 파이프라인 로드 시작: {SDXL_INPAINT_MODEL}")
+        _sdxl_pipeline = AutoPipelineForInpainting.from_pretrained(
+            SDXL_INPAINT_MODEL,
+            torch_dtype=torch.float16,
+            variant="fp16",
+        ).to("cuda")
+        logger.info("SDXL Inpainting 파이프라인 로드 완료")
+    return _sdxl_pipeline
+
+
 def generate_ad_image(
     processed: PreprocessResult,
-    prompt: str,
+    prompt: "ImagePrompt",
     seed: Optional[int] = None,
+    output_dir: Optional[str] = None,
 ) -> GenerateResult:
     """FR-08: 전처리 이미지 + 프롬프트 → 최종 광고 이미지.
 
     inpainting으로 제품 보존 + 배경 교체. seed 고정 시 재현.
-    prompt 는 prompt_service.build_image_prompt() 산출물(FR-07) 전제.
-    마스크는 processed.mask_path 사용 (제품=흰색 → 배경 재생성 시 invert).
+    prompt 는 prompt_service.build_image_prompt() 산출물(FR-07).
+
+    단계:
+      1. 전처리 이미지(RGBA) → 흰 배경 합성 RGB (inpainting 입력)
+      2. 제품 마스크(제품=흰색) invert → 배경 마스크 (inpaint 대상=흰색) + 경계 블러
+      3. SDXL Inpainting 실행 (seed 고정 가능)
+      4. 원본 제품 픽셀 재합성 → 제품 영역 보존 보장
+      5. backend/results/ 저장
     """
-    raise NotImplementedError("FR-08 이미지 생성 미구현 — 모델(A-1) 확정 후")
+    import random
+
+    import torch
+    from PIL import ImageFilter
+
+    src = Path(processed.processed_image_path)
+    if not src.is_file():
+        raise FileNotFoundError(f"전처리 이미지가 없습니다: {src}")
+    if not processed.mask_path or not Path(processed.mask_path).is_file():
+        raise FileNotFoundError(f"마스크 파일이 없습니다: {processed.mask_path}")
+
+    product_rgba = Image.open(src).convert("RGBA")
+    product_mask = Image.open(processed.mask_path).convert("L")  # 제품=흰색
+
+    # 1. 흰 배경 합성 (inpainting 입력은 RGB)
+    base = Image.new("RGBA", product_rgba.size, (255, 255, 255, 255))
+    base.alpha_composite(product_rgba)
+    init_image = base.convert("RGB")
+
+    # 2. 배경 마스크 (inpaint 대상=흰색) + 경계 블렌딩
+    background_mask = ImageOps.invert(product_mask)
+    if MASK_EDGE_BLUR > 0:
+        background_mask = background_mask.filter(
+            ImageFilter.GaussianBlur(MASK_EDGE_BLUR)
+        )
+
+    # 3. inpainting 실행
+    if seed is None:
+        seed = random.randint(0, 2**32 - 1)
+    generator = torch.Generator(device="cuda").manual_seed(seed)
+
+    pipe = _load_pipeline()
+    started = time.perf_counter()
+    result = pipe(
+        prompt=prompt.positive,
+        negative_prompt=prompt.negative,
+        image=init_image,
+        mask_image=background_mask,
+        num_inference_steps=DEFAULT_STEPS,
+        guidance_scale=DEFAULT_GUIDANCE,
+        strength=DEFAULT_STRENGTH,
+        generator=generator,
+    ).images[0]
+    infer_seconds = time.perf_counter() - started
+
+    # 4. 원본 제품 픽셀 재합성 (제품 보존 보장, A-3)
+    result = result.convert("RGB")
+    if result.size != product_rgba.size:
+        result = result.resize(product_rgba.size, Image.LANCZOS)
+    result.paste(init_image, (0, 0), product_mask)
+
+    # 5. 저장
+    out_dir = Path(output_dir) if output_dir else RESULTS_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
+    final_path = out_dir / f"{src.stem.replace('_processed', '')}_ad_{seed}.png"
+    result.save(final_path, format="PNG")
+
+    logger.info(f"광고 이미지 생성 완료: {final_path} (seed={seed}, {infer_seconds:.2f}s)")
+    return GenerateResult(
+        final_image_path=str(final_path),
+        seed=seed,
+        infer_seconds=infer_seconds,
+    )
 
 
 def regenerate(
     processed: PreprocessResult,
-    prompt: str,
+    prompt: "ImagePrompt",
     prev_seed: Optional[int] = None,
 ) -> GenerateResult:
-    """FR-12: 동일 입력 · 새 seed 로 재생성."""
-    raise NotImplementedError("FR-12 재생성 미구현")
+    """FR-12: 동일 입력 · 새 seed 로 재생성 (이전 seed 와 중복 방지)."""
+    import random
 
-
-def _load_pipeline():  # noqa: ANN202
-    """diffusers inpainting 파이프라인 로드.
-
-    후보: diffusers/stable-diffusion-xl-1.0-inpainting-0.1
-    VRAM/추론시간 실측(IMG-001) 후 모델 string · dtype · offload 확정.
-    """
-    raise NotImplementedError("A-1 모델 미확정")
+    new_seed = random.randint(0, 2**32 - 1)
+    while prev_seed is not None and new_seed == prev_seed:
+        new_seed = random.randint(0, 2**32 - 1)
+    return generate_ad_image(processed, prompt, seed=new_seed)
 
 
 if __name__ == "__main__":
