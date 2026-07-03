@@ -12,5 +12,11 @@ python-dotenv
 openai
 Pillow
 rembg
-onnxruntime-gpu[cuda,cudnn]; sys_platform == "linux"
+# onnxruntime-gpu 1.27+ = CUDA 13 빌드 — torch(CU13 스택)와 라이브러리 공유. 1.26 이하(CU12)와 혼용 금지
+onnxruntime-gpu>=1.27; sys_platform == "linux"
 onnxruntime; sys_platform != "linux"
+torch
+diffusers
+transformers
+accelerate
+safetensors
