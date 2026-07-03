@@ -1,4 +1,4 @@
-"""OpenAI 호출 래퍼 (스캐폴드) — 담당: 한의정.
+"""OpenAI 호출 래퍼 — 담당: 한의정.
 
 역할: OpenAI API(문구 생성 · Vision 분석) 단일 진입 지점.
   - FR-09 광고 문구 생성 (생성 이미지 기반 — 파이프라인 확정안)
@@ -40,7 +40,10 @@ class SnsCopyResult:
     hashtags: list[str]
 
 
-# --- 클라이언트 (골격) --------------------------------------------------------
+# --- 클라이언트 ----------------------------------------------------------------
+GPT_MODEL = "gpt-5.4-mini"  # STY-001 검증 완료. Nano 다운그레이드는 비용/품질 실험 후
+
+
 def _get_client():  # noqa: ANN202
     """OpenAI 클라이언트 생성. key 는 env 에서만."""
     from openai import OpenAI
@@ -49,20 +52,113 @@ def _get_client():  # noqa: ANN202
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY 미설정 (env 로드 필요)")
     return OpenAI(api_key=api_key)
-    # TODO: 모델 string 확정(GPT-5.4 Nano/Mini/일반). 비용 기준 Mini 검토 중.
+
+
+# --- 스타일 → 문구 톤 매핑 (v1 잠정치, 실험 후 확정) ---------------------------
+_STYLE_TONE: dict[StylePreset, str] = {
+    StylePreset.MONOTONE: "절제되고 미니멀한 톤. 짧고 세련된 표현, 불필요한 수식어 배제",
+    StylePreset.WARM_VINTAGE: "따뜻하고 감성적인 톤. 포근한 정서와 추억을 자극하는 표현",
+    StylePreset.POP: "발랄하고 에너지 넘치는 톤. 리듬감 있는 표현과 감탄사 활용 가능",
+}
+
+_PURPOSE_GUIDE: dict[AdPurpose, str] = {
+    AdPurpose.SNS: "인스타그램 피드 게시물. 첫 줄에 후킹, 이모지 적절히 활용, 해시태그 5~8개",
+    AdPurpose.CARD_NEWS: "카드뉴스 표지. 호기심을 유발하는 한 줄, 해시태그 3~5개",
+    AdPurpose.BANNER: "웹 배너. 매우 짧고 강한 한 줄, 해시태그 최소",
+    AdPurpose.DETAIL_PAGE: "상세페이지 도입부. 신뢰감 있는 설명형, 해시태그 불필요 시 빈 배열",
+    AdPurpose.FLYER: "오프라인 전단지. 직관적 혜택 강조, 해시태그 불필요 시 빈 배열",
+}
+
+
+# --- 이미지 캡셔닝 (B-0 저비용 경로, 로컬 BLIP) --------------------------------
+_blip = None  # (processor, model, device) 튜플 lazy 싱글턴
+
+
+def _caption_image(image_path: str) -> str:
+    """BLIP 로컬 캡셔닝 — API 비용 없음. GPU 있으면 사용, 없으면 CPU.
+
+    생성 이미지의 장면 묘사(영어)를 반환. generate_copy 저비용 경로 입력.
+    """
+    global _blip
+    import torch
+    from PIL import Image
+
+    if _blip is None:
+        from transformers import BlipForConditionalGeneration, BlipProcessor
+
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
+        model = BlipForConditionalGeneration.from_pretrained(
+            "Salesforce/blip-image-captioning-base"
+        ).to(device)
+        _blip = (processor, model, device)
+
+    processor, model, device = _blip
+    img = Image.open(image_path).convert("RGB")
+    inputs = processor(img, return_tensors="pt").to(device)
+    with torch.no_grad():
+        out = model.generate(**inputs, max_new_tokens=40)
+    return processor.decode(out[0], skip_special_tokens=True)
+
+
+def _chat_json(messages: list) -> dict:
+    """JSON 강제 chat 호출 공통 래퍼."""
+    client = _get_client()
+    response = client.chat.completions.create(
+        model=GPT_MODEL,
+        messages=messages,
+        response_format={"type": "json_object"},
+    )
+    return json.loads(response.choices[0].message.content)
+
 
 # --- FR-09 광고 문구 생성 -----------------------------------------------------
 def generate_copy(
     final_image_path: str,
     product: ProductInfo,
     style: StylePreset,
+    use_vision: bool = False,
 ) -> CopyResult:
     """생성된 광고 이미지 기반 광고 문구 생성 (확정 파이프라인).
 
-    개발 단계: BLIP 캡션 → 텍스트 API (저비용).
-    검증/데모: Vision API 직접 입력 (정합성 입증 시에만, B-0).
+    use_vision=False (기본, 개발): BLIP 캡션 → 텍스트 API (저비용, B-0)
+    use_vision=True  (검증/데모): 이미지를 Vision 으로 직접 입력 (비용 ↑, 호출 최소화)
     """
-    raise NotImplementedError("FR-09 문구 생성 미구현")
+    product_context = " — ".join(
+        p.strip() for p in (product.name, product.description) if p and p.strip()
+    ) or "(상품 정보 없음)"
+
+    instruction = (
+        "아래 광고 이미지와 상품 정보를 바탕으로 한국어 광고 카피를 작성해줘.\n"
+        f"- 상품: {product_context}\n"
+        f"- 문구 톤: {_STYLE_TONE[style]}\n"
+        "요구사항: 헤드라인 1줄 + 서브카피 1문장. 이미지에 실제로 보이는 분위기·소품과 "
+        "어울려야 하고, 이미지에 없는 요소를 지어내지 마.\n"
+        '반드시 JSON 으로만 응답: {"copy": "헤드라인\\n서브카피"}'
+    )
+
+    if use_vision:
+        with open(final_image_path, "rb") as f:
+            image_b64 = base64.b64encode(f.read()).decode("utf-8")
+        media_type, _ = mimetypes.guess_type(final_image_path)
+        if media_type is None or not media_type.startswith("image/"):
+            media_type = "image/png"
+        content = [
+            {"type": "text", "text": instruction},
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:{media_type};base64,{image_b64}"},
+            },
+        ]
+    else:
+        caption = _caption_image(final_image_path)
+        content = f"{instruction}\n- 이미지 장면 묘사(캡션): {caption}"
+
+    result = _chat_json([{"role": "user", "content": content}])
+    copy_text = str(result.get("copy", "")).strip()
+    if not copy_text:
+        raise RuntimeError("문구 생성 응답에 copy 필드가 없습니다")
+    return CopyResult(copy_text=copy_text)
 
 
 # --- FR-23 SNS 문구 생성 ------------------------------------------------------
@@ -71,8 +167,26 @@ def generate_sns_copy(
     style: StylePreset,
     purpose: AdPurpose,
 ) -> SnsCopyResult:
-    """플랫폼(purpose)별 캡션 + 해시태그 생성."""
-    raise NotImplementedError("FR-23 SNS 문구 미구현")
+    """용도(purpose)별 캡션 + 해시태그 생성 (텍스트 API, 저비용)."""
+    product_context = " — ".join(
+        p.strip() for p in (product.name, product.description) if p and p.strip()
+    ) or "(상품 정보 없음)"
+
+    instruction = (
+        "아래 상품의 홍보 문구를 한국어로 작성해줘.\n"
+        f"- 상품: {product_context}\n"
+        f"- 문구 톤: {_STYLE_TONE[style]}\n"
+        f"- 용도: {_PURPOSE_GUIDE[purpose]}\n"
+        "해시태그는 # 포함 문자열 배열로. "
+        '반드시 JSON 으로만 응답: {"caption": "...", "hashtags": ["#...", "#..."]}'
+    )
+
+    result = _chat_json([{"role": "user", "content": instruction}])
+    caption = str(result.get("caption", "")).strip()
+    if not caption:
+        raise RuntimeError("SNS 문구 응답에 caption 필드가 없습니다")
+    hashtags = [str(h).strip() for h in result.get("hashtags", []) if str(h).strip()]
+    return SnsCopyResult(caption=caption, hashtags=hashtags)
 
 
 # --- 스타일 경로1: Vision 분석 -----------------------------------------------
@@ -103,7 +217,7 @@ def analyze_image_for_style(image_path: str) -> list[StyleCandidate]:
     )
 
     response = client.chat.completions.create(
-        model="gpt-5.4-mini",
+        model=GPT_MODEL,
         messages=[
             {
                 "role": "user",
