@@ -125,11 +125,15 @@ ai-ad-generator-AdNova/
         │   ├── copy.py
         │   ├── history.py
         │   └── export.py
-        └── services/
-            ├── image_service.py
-            ├── gpt_service.py
-            ├── prompt_service.py
-            └── history_service.py
+        ├── services/
+        │   ├── image_service.py
+        │   ├── gpt_service.py
+        │   ├── prompt_service.py
+        │   └── history_service.py
+        └── scripts
+            ├── smoke_create_tables.py
+            ├── smoke_preprocess_image.py
+            └── sty001_vision_style.py
 ```
 
 ---
