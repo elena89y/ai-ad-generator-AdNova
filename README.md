@@ -4,7 +4,8 @@
   <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white"/>
   <img src="https://img.shields.io/badge/FastAPI-Backend-009688?style=flat-square&logo=fastapi&logoColor=white"/>
   <img src="https://img.shields.io/badge/Streamlit-Frontend-FF4B4B?style=flat-square&logo=streamlit&logoColor=white"/>
-  <img src="https://img.shields.io/badge/OpenAI-GPT--Image_API-412991?style=flat-square"/>
+  <img src="https://img.shields.io/badge/SDXL-Inpainting-8A2BE2?style=flat-square"/>
+  <img src="https://img.shields.io/badge/OpenAI-GPT_API-412991?style=flat-square"/>
   <img src="https://img.shields.io/badge/SQLite-Database-003B57?style=flat-square"/>
   <img src="https://img.shields.io/badge/Docker-Container-2496ED?style=flat-square&logo=docker&logoColor=white"/>
 </p>
@@ -61,10 +62,10 @@
 
 - 🔐 회원가입 및 로그인 (bcrypt + JWT)
 - 🖼 상품 이미지 업로드
-- 🎨 광고 스타일 선택
-- ✨ 상품 이미지 전처리
-- 🤖 AI 광고 이미지 생성
-- 📝 AI 광고 카피 생성
+- ✨ 상품 이미지 전처리 (배경 제거 · 리사이즈 · 품질 보정)
+- 🎨 광고 스타일 결정 — 2경로 (AI 추천 후보 선택 / 자유 텍스트 입력)
+- 🤖 AI 광고 이미지 생성 (제품 보존 + 배경 교체)
+- 📝 AI 광고 카피 생성 (생성된 광고 이미지 기반)
 - 🔄 광고 재생성
 - 📂 생성 이력 관리
 - 📤 SNS 공유용 Export
@@ -136,15 +137,16 @@ ai-ad-generator-AdNova/
 
 # 🛠 기술 스택
 
-| 구성 요소      | 기술             |
-| -------------- | ---------------- |
-| Backend        | FastAPI          |
-| Frontend       | Streamlit        |
-| Authentication | JWT + bcrypt     |
-| AI Image       | OpenAI Image API |
-| AI Copy        | OpenAI GPT       |
-| Database       | SQLite           |
-| Deployment     | Docker + GCP     |
+| 구성 요소      | 기술                                       |
+| -------------- | ------------------------------------------ |
+| Backend        | FastAPI                                    |
+| Frontend       | Streamlit                                  |
+| Authentication | JWT + bcrypt                               |
+| AI Preprocess  | rembg (u2net, ONNX / GPU 가속)             |
+| AI Image       | SDXL Inpainting (diffusers, GCP L4)        |
+| AI Copy        | OpenAI GPT (Vision / BLIP 캡셔닝)          |
+| Database       | SQLite                                     |
+| Deployment     | Docker + GCP                               |
 
 ---
 
@@ -180,35 +182,38 @@ streamlit run app.py
 
 ---
 
-# 🧩 서비스 구조
+# 🧩 서비스 구조 (4단계 파이프라인)
 
 ```text
 상품 이미지 업로드
         │
         ▼
-이미지 전처리
+① 이미지 전처리 (FR-06)
+   배경 제거(rembg) · 리사이즈 · 품질 보정 · 제품 마스크 생성
         │
         ▼
-광고 스타일 선택
+② 광고 스타일 결정 — 2경로 (FR-05)
+   경로1: Vision 분석 → 스타일 후보 3개 추천 → 유저 선택
+   경로2: 유저 자유 텍스트 입력 → 스타일 결정
         │
         ▼
-Prompt Builder
+   Prompt Builder (FR-07)
+   상품 정보 + 스타일 → positive/negative 프롬프트
         │
         ▼
-OpenAI Image API
+③ 광고 이미지 생성 (FR-08)
+   SDXL Inpainting — 제품 보존(마스크) + 배경 교체
         │
         ▼
-광고 이미지 생성
+④ 광고 카피 생성 (FR-09)
+   생성된 광고 이미지 기반 — BLIP 캡션(저비용) / Vision(검증·데모)
         │
         ▼
-OpenAI GPT
-        │
-        ▼
-광고 카피 생성
-        │
-        ▼
-최종 광고 콘텐츠
+최종 광고 콘텐츠 (이미지 + 카피)
 ```
+
+> 스타일(문구 톤·색상: 모노톤/웜빈티지/팝)과 용도(채널·목적: SNS/카드뉴스/배너/상세페이지/전단지)는
+> 별개 축으로 분리되어 있습니다. 자세한 실험 기록은 실험로그 문서를 참조하세요.
 
 ---
 
@@ -221,6 +226,7 @@ OpenAI GPT
 | POST   | /auth/logout    | 로그아웃           |
 | POST   | /images/upload  | 상품 이미지 업로드 |
 | POST   | /images/process | 상품 이미지 전처리 |
+| POST   | /ads/style      | 광고 스타일 결정 (경로1: AI 추천 / 경로2: 자유 입력) |
 | POST   | /ads/generate   | 광고 이미지 생성   |
 | POST   | /ads/regenerate | 광고 재생성        |
 | POST   | /copy/generate  | 광고 문구 생성     |
