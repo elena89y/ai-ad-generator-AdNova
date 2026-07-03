@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import ads
+from app.api import ads, dashboard
 from app.api.auth import router as auth_router
 from app.database import models
 from app.database.connection import Base, engine
@@ -27,6 +27,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(ads.router)
+app.include_router(dashboard.router)
 
 
 @app.get("/health", tags=["Health"])
