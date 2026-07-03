@@ -11,6 +11,8 @@
 
 ⚠️ 실행 1회 = 텍스트 API 2회(+ --vision 시 Vision 1회). 반복 실행 주의.
 
+결과는 stdout 출력과 동시에 backend/results/cmp001_<타임스탬프>.md 로 저장된다.
+
 실행:  .venv/bin/python backend/scripts/cmp001_generated_copy.py <생성이미지경로> [--vision]
 """
 from __future__ import annotations
@@ -18,6 +20,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -41,31 +44,47 @@ def main() -> None:
 
     product = ProductInfo(name=args.name, description=args.desc)
     style = StylePreset.WARM_VINTAGE
+    lines: list[str] = [
+        f"# CMP-G01 결과 — {datetime.now().isoformat(timespec='seconds')}",
+        f"- 입력 이미지: {args.image}",
+        f"- 상품: {args.name} — {args.desc} / 스타일: {style.value}",
+        "",
+    ]
+
+    def record(text: str) -> None:
+        print(text)
+        lines.append(text)
 
     # 0) BLIP 캡션 자체 확인 (비용 없음)
     t0 = time.perf_counter()
     caption = _caption_image(args.image)
-    print(f"[BLIP 캡션] ({time.perf_counter() - t0:.2f}s) {caption}")
+    record(f"[BLIP 캡션] ({time.perf_counter() - t0:.2f}s) {caption}")
 
     # 1) 저비용 경로 (BLIP 캡션 → 텍스트 API)
     t0 = time.perf_counter()
     r1 = generate_copy(args.image, product, style, use_vision=False)
-    print(f"\n[경로 B-0 저비용: BLIP→텍스트] ({time.perf_counter() - t0:.2f}s)")
-    print(r1.copy_text)
+    record(f"\n[경로 B-0 저비용: BLIP→텍스트] ({time.perf_counter() - t0:.2f}s)")
+    record(r1.copy_text)
 
     # 2) Vision 직접 입력 경로 (옵션)
     if args.vision:
         t0 = time.perf_counter()
         r2 = generate_copy(args.image, product, style, use_vision=True)
-        print(f"\n[경로 Vision 직접] ({time.perf_counter() - t0:.2f}s)")
-        print(r2.copy_text)
+        record(f"\n[경로 Vision 직접] ({time.perf_counter() - t0:.2f}s)")
+        record(r2.copy_text)
 
     # 3) SNS 문구 (FR-23, 텍스트 전용)
     t0 = time.perf_counter()
     sns = generate_sns_copy(product, style, AdPurpose.SNS)
-    print(f"\n[SNS 문구 (FR-23)] ({time.perf_counter() - t0:.2f}s)")
-    print(sns.caption)
-    print(" ".join(sns.hashtags))
+    record(f"\n[SNS 문구 (FR-23)] ({time.perf_counter() - t0:.2f}s)")
+    record(sns.caption)
+    record(" ".join(sns.hashtags))
+
+    results_dir = BACKEND_DIR / "results"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    out_path = results_dir / f"cmp001_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+    out_path.write_text("\n".join(lines), encoding="utf-8")
+    print(f"\n결과 저장: {out_path}")
 
 
 if __name__ == "__main__":
