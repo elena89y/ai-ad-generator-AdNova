@@ -11,7 +11,7 @@
 
 ⚠️ 실행 1회 = 텍스트 API 2회(+ --vision 시 Vision 1회). 반복 실행 주의.
 
-결과는 stdout 출력과 동시에 backend/results/cmp001_<타임스탬프>.md 로 저장된다.
+결과는 stdout 출력과 동시에 backend/results/ai/cmp001_<타임스탬프>.md 로 저장된다.
 
 실행:  .venv/bin/python backend/scripts/cmp001_generated_copy.py <생성이미지경로> [--vision]
 """
@@ -80,7 +80,7 @@ def main() -> None:
     record(sns.caption)
     record(" ".join(sns.hashtags))
 
-    results_dir = BACKEND_DIR / "results"
+    results_dir = BACKEND_DIR / "results" / "ai"
     results_dir.mkdir(parents=True, exist_ok=True)
     out_path = results_dir / f"cmp001_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
     out_path.write_text("\n".join(lines), encoding="utf-8")
