@@ -19,3 +19,10 @@ class ImageResponse(BaseModel):
     width: Optional[int] = None
     height: Optional[int] = None
     created_at: datetime
+
+
+class ImageUploadResponse(BaseModel):
+    image_id: int
+    filename: str
+    content_type: str
+    image_url: str
