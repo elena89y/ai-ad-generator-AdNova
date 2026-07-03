@@ -29,11 +29,9 @@ class ImagePrompt:
 
 # --- 공통 키워드 (스타일 무관) -------------------------------------------------
 # SDXL 계열은 영어 프롬프트 기준. 상품명 등 한국어 입력은 문맥 정보로만 덧붙인다.
-_BASE_POSITIVE = (
-    "professional product advertisement photography, "
-    "product placed on elegant surface, clean composition, "
-    "high quality, high resolution, sharp focus"
-)
+# ⚠️ CLIP 텍스트 인코더 한도 77토큰 — 초과분은 잘려나감. 공통 키워드는 최소로 유지하고
+#    스타일 키워드를 앞쪽에 배치한다 (IMG-002 1차 실행에서 스타일 잘림 확인).
+_BASE_POSITIVE = "professional product advertisement photo, sharp focus"
 
 # 광고 문구는 FR-09에서 별도 생성 → 이미지 안에 글자가 생기면 안 됨.
 # inpainting 결과 배경에 손·인물 파편이 생기는 흔한 실패 모드도 차단.
@@ -78,11 +76,11 @@ def build_image_prompt(
 ) -> ImagePrompt:
     """상품 정보 + 스타일 (+ 이미지 캡션) → 이미지 생성 프롬프트.
 
-    구성 순서 (positive):
-      1. 공통 광고 사진 키워드
-      2. 상품 문맥 (name/description — 있는 필드만)
+    구성 순서 (positive — CLIP 77토큰 한도 내 중요도순):
+      1. 공통 광고 사진 키워드 (짧게)
+      2. 스타일 키워드 (배경·조명·무드) — 뒤에 두면 잘려서 미반영 (IMG-002 교훈)
       3. 이미지 캡션 (B-0 저비용 경로에서 BLIP 캡션 주입. None 이면 생략)
-      4. 스타일 키워드 (배경·조명·무드)
+      4. 상품 문맥 (name/description — 있는 필드만)
     negative 는 공통 금지 키워드 + 스타일별 금지 키워드.
     """
     if style not in _STYLE_KEYWORDS:
@@ -90,7 +88,10 @@ def build_image_prompt(
 
     style_kw = _STYLE_KEYWORDS[style]
 
-    positive_parts = [_BASE_POSITIVE]
+    positive_parts = [_BASE_POSITIVE, style_kw["positive"]]
+
+    if image_caption and image_caption.strip():
+        positive_parts.append(f"scene of {image_caption.strip()}")
 
     product_context = ", ".join(
         part.strip()
@@ -99,11 +100,6 @@ def build_image_prompt(
     )
     if product_context:
         positive_parts.append(f"product: {product_context}")
-
-    if image_caption and image_caption.strip():
-        positive_parts.append(f"scene of {image_caption.strip()}")
-
-    positive_parts.append(style_kw["positive"])
 
     return ImagePrompt(
         positive=", ".join(positive_parts),
