@@ -21,6 +21,8 @@ Thumbs.db
 backend/uploads/*
 backend/processed/*
 backend/results/*
+# AI 생성 결과물(이미지·검증 로그)은 backend/results/ai/ 에 저장 — git 업로드 금지
+backend/results/ai/
 !backend/uploads/.gitkeep
 !backend/processed/.gitkeep
 !backend/results/.gitkeep

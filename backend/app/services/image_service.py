@@ -38,9 +38,9 @@ logger = logging.getLogger(__name__)
 DEFAULT_OUTPUT_SIZE: tuple[int, int] = (1024, 1024)
 MAX_INPUT_DIMENSION = 2048  # 과도하게 큰 업로드 이미지에 대한 리사이즈 상한
 
-# 전처리 산출물 저장 위치: backend/processed/ · 생성 결과: backend/results/
+# 전처리 산출물 저장 위치: backend/processed/ · AI 생성 결과물: backend/results/ai/ (gitignore)
 PROCESSED_DIR = Path(__file__).resolve().parents[2] / "processed"
-RESULTS_DIR = Path(__file__).resolve().parents[2] / "results"
+RESULTS_DIR = Path(__file__).resolve().parents[2] / "results" / "ai"
 
 # FR-08 생성 파라미터 (v1 잠정치 — A-4 실험으로 조정)
 SDXL_INPAINT_MODEL = "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
