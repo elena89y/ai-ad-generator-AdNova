@@ -295,6 +295,7 @@ def _load_harmonize_pipeline():  # noqa: ANN202
             tokenizer_2=inpaint.tokenizer_2,
             vae=inpaint.vae,
         ).to("cuda")
+        _harmonize_pipeline.enable_vae_slicing()
         logger.info("조화 파이프라인 로드 완료 (GPU 상주, UNet 만 추가)")
     return _harmonize_pipeline
 
@@ -400,6 +401,7 @@ def _load_pipeline():  # noqa: ANN202
             torch_dtype=torch.float16,
             variant="fp16",
         ).to("cuda")
+        _sdxl_pipeline.enable_vae_slicing()  # 1024² decode 피크 VRAM 절감 (속도 영향 미미)
         logger.info("SDXL Inpainting 파이프라인 로드 완료")
     return _sdxl_pipeline
 
@@ -481,6 +483,9 @@ def generate_ad_image(
         started = time.perf_counter()
         result = _harmonize(result, product_mask, prompt, seed)
         harmonize_seconds = time.perf_counter() - started
+
+    # 연속 요청 시 단편화 누적으로 OOM 발생 (서비스 실측) → 요청마다 캐시 정리
+    torch.cuda.empty_cache()
 
     # 6. 저장
     out_dir = Path(output_dir) if output_dir else RESULTS_DIR

@@ -67,6 +67,38 @@ _STYLE_KEYWORDS: dict[StylePreset, dict[str, str]] = {
         ),
         "negative": "dull muted colors, dark moody lighting, monochrome, plain background",
     },
+    # --- 6종 확장 (2026-07-03, Issue #25) — 레퍼런스: 에디토리얼 포스터·레트로 포스터·파스텔 광고
+    StylePreset.EDITORIAL: {
+        "positive": (
+            "premium editorial campaign, bold deep solid color backdrop, rich saturated "
+            "tone, clean empty studio background, soft key light, contact shadow, luxury minimal"
+        ),
+        "negative": (
+            "gray, dull washed out colors, props, clutter, table setting, "
+            "patterns, gradients, busy background"
+        ),
+    },
+    # ⚠️ 'poster/print' 류 메타 단어 금지 — SDXL 이 액자 속 포스터를 그려버림 (QUA-007 실측)
+    StylePreset.RETRO_PAPER: {
+        "positive": (
+            "warm cream ivory background, subtle aged paper grain, flat minimal retro "
+            "backdrop, soft warm muted tones, gentle grounding shadow, nostalgic mood"
+        ),
+        "negative": (
+            "gray, cold tones, glossy, neon, 3d render, frame, border, "
+            "framed picture, photorealistic room"
+        ),
+    },
+    StylePreset.PASTEL_FLOAT: {
+        "positive": (
+            "soft peach pink pastel gradient background, dreamy airy atmosphere, small "
+            "floating ingredient pieces and bubbles around product, weightless, glossy droplets"
+        ),
+        "negative": (
+            "gray, murky colors, dark tones, pouring liquid, waterfall, streams, "
+            "table surface, wooden texture"
+        ),
+    },
 }
 
 

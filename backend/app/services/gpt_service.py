@@ -107,6 +107,9 @@ _STYLE_TONE: dict[StylePreset, str] = {
     StylePreset.MONOTONE: "절제되고 미니멀한 톤. 짧고 세련된 표현, 불필요한 수식어 배제",
     StylePreset.WARM_VINTAGE: "따뜻하고 감성적인 톤. 포근한 정서와 추억을 자극하는 표현",
     StylePreset.POP: "발랄하고 에너지 넘치는 톤. 리듬감 있는 표현과 감탄사 활용 가능",
+    StylePreset.EDITORIAL: "고급스럽고 정제된 톤. 프리미엄 매거진 헤드라인처럼 짧고 단정한 단문",
+    StylePreset.RETRO_PAPER: "복고풍의 정겨운 톤. 오래된 간판·손글씨 광고 같은 친근하고 담백한 표현",
+    StylePreset.PASTEL_FLOAT: "가볍고 산뜻한 톤. 부드럽고 몽글몽글한 표현, 상큼함과 설렘 강조",
 }
 
 _PURPOSE_GUIDE: dict[AdPurpose, str] = {
@@ -134,7 +137,9 @@ def _caption_image(image_path: str) -> str:
     if _blip is None:
         from transformers import BlipForConditionalGeneration, BlipProcessor
 
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        # CPU 고정: L4 에서 SDXL 2종+rembg 와 동시 상주 시 OOM (서비스 실측).
+        # BLIP-base 는 CPU 추론 ~2s 로 지연 예산 내 — VRAM 1GB+ 절약이 이득.
+        device = "cpu"
         processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
         model = BlipForConditionalGeneration.from_pretrained(
             "Salesforce/blip-image-captioning-base"
