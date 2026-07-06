@@ -107,3 +107,27 @@ class ProductInfo(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     # TODO: 명세서 FR-03(상품 정보 입력) 필드와 정합 맞추기
+
+
+# --- 통합 광고 생성 (FR-06~09, /ads/generate — 프론트 app.py 연동 스펙) --------
+class GenerateAdResponse(BaseModel):
+    """통합 파이프라인 응답. 프론트 결과 페이지가 사용하는 필드 구성."""
+    asset_id: str                    # 재생성(/ads/regenerate)에 필요한 산출물 식별자
+    seed: int                        # 재현/재생성용
+    style: StylePreset
+    copy_text: str                   # '헤드라인\n서브카피' (FR-09)
+    image_url: str                   # GET /ads/image/{filename} 상대 경로
+    poster: bool                     # 타이포 오버레이 적용 여부
+    generate_seconds: float
+    harmonize_seconds: float
+
+
+class RegenerateAdRequest(BaseModel):
+    """FR-12: 동일 입력(전처리 산출물 재사용) · 새 seed 재생성."""
+    asset_id: str
+    style: StylePreset
+    product_name: Optional[str] = None
+    product_description: Optional[str] = None
+    prev_seed: Optional[int] = None
+    use_vision: bool = False
+    poster: bool = False
