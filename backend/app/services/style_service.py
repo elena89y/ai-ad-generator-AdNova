@@ -53,8 +53,16 @@ def _decide_from_text(free_text: str) -> StyleResponse:
     TODO: 임시 규칙 기반 구현. STY-002 실험 후 gpt_service.resolve_style_from_text()로 교체 예정.
     """
     text = free_text.lower()
-    if "빈티지" in free_text or "vintage" in text:
+    if "빈티지" in free_text or "카페" in free_text or "vintage" in text:
         preset = StylePreset.WARM_VINTAGE
+    elif "레트로" in free_text or "복고" in free_text or "포스터" in free_text or "retro" in text:
+        preset = StylePreset.RETRO_PAPER
+    elif "럭셔리" in free_text or "고급" in free_text or "프리미엄" in free_text or \
+            "luxury" in text or "editorial" in text:
+        preset = StylePreset.EDITORIAL
+    elif "파스텔" in free_text or "몽환" in free_text or "산뜻" in free_text or \
+            "pastel" in text or "float" in text:
+        preset = StylePreset.PASTEL_FLOAT
     elif "팝" in free_text or "pop" in text:
         preset = StylePreset.POP
     else:
