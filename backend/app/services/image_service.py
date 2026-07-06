@@ -8,13 +8,16 @@
 파이프라인 위치 (4단계 확정):
   전처리(FR-06) → 스타일 결정(2경로) → [이미지 생성 FR-08] → 문구 생성(FR-09)
 
-마스킹(A-2) 확정: rembg(u2net, ONNX). GPU 환경(onnxruntime-gpu)에서 가속,
-  미지원 환경에서는 onnxruntime(CPU)로 자동 폴백.
-모델(A-1): SDXL Inpainting 1순위로 구현 (IMG-001: 8.45s, VRAM 8.95GB — L4 안정권).
-  FLUX.1 Fill 비교(IMG-002)는 gated 모델 접근 확보 후. 생성 파라미터는 A-4 실험으로 조정.
+마스킹(A-2): BiRefNet (rembg birefnet-general) — QUA-001 에서 u2net 대비
+  다중 객체·프레임 잘림 입력 커버리지 압승 (쿠키2: 0.2%→95.3%). GPU 가속, CPU 폴백.
+모델(A-1): SDXL Inpainting (IMG-001/002: 추론 ~11.5s, VRAM 8.95GB — L4 안정권).
 
-제품 보존 전략: inpainting 후 원본 제품 픽셀을 마스크 기준으로 재합성(post-composite)
-  → 제품 영역 픽셀 보존 보장 (A-3 SSIM/L1 지표 유리).
+제품 보존 + 품질 전략 (QUA-003, 실험로그 v4):
+  1. inpainting 후 원본 제품 픽셀 재합성(post-composite)
+  2. 접촉 그림자 합성 → 조화 패스(SDXL base img2img, strength 0.25)
+  3. 코어 보호 재합성(마스크 침식+페더) — 제품 내부는 원본, 경계 링만 조화 픽셀
+  → 코어 SSIM 0.97+ 유지하면서 '붙여넣은 티' 제거.
+  ⚠️ L4 22GB 에서 inpaint+img2img 동시 상주 시 OOM 실측 → 조화 파이프라인은 cpu offload.
 
 실행 환경: 전처리(FR-06)는 CPU에서도 동작(느림). FR-08은 GPU 필요(GCP L4).
 """
@@ -42,13 +45,24 @@ MAX_INPUT_DIMENSION = 2048  # 과도하게 큰 업로드 이미지에 대한 리
 PROCESSED_DIR = Path(__file__).resolve().parents[2] / "processed"
 RESULTS_DIR = Path(__file__).resolve().parents[2] / "results" / "ai"
 
-# FR-08 생성 파라미터 (v1 잠정치 — A-4 실험으로 조정)
+# FR-08 생성 파라미터 (IMG-002/LAT-001/QUA-003 실측 기반)
 SDXL_INPAINT_MODEL = "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
-DEFAULT_STEPS = 30
+REMBG_MODEL = "birefnet-general"  # QUA-001 채택 (u2net 은 다중 객체·잘림 입력에서 누락)
+DEFAULT_STEPS = 30  # 25로 낮추면 -3.4s 가능하나 품질 우선 결정 (2026-07-03)
 DEFAULT_GUIDANCE = 7.5
 # ⚠️ strength < 1.0 이면 init(흰 배경) 잔재로 배경 생성이 붕괴됨 (IMG-002 실측: 0.99 → 흰 배경)
 DEFAULT_STRENGTH = 1.0
 MASK_EDGE_BLUR = 4  # 배경/제품 경계 블렌딩용 (0 = 미사용)
+
+# 조화(harmonization) 패스 파라미터 (QUA-002/003 확정)
+SDXL_BASE_MODEL = "stabilityai/stable-diffusion-xl-base-1.0"
+HARMONIZE_STRENGTH = 0.25
+HARMONIZE_GUIDANCE = 5.0
+SHADOW_OFFSET = (10, 14)   # 접촉 그림자 오프셋 (x, y)
+SHADOW_BLUR = 18
+SHADOW_OPACITY = 0.35
+CORE_ERODE_PX = 6          # 코어 보호: 마스크 침식/페더 (제품 내부 원본 보존)
+CORE_FEATHER_PX = 6
 
 # rembg 세션은 최초 사용 시 1회만 생성 (요청마다 재생성하면 GPU 초기화 비용 발생).
 # 모듈 import 시점에 만들지 않는 이유: rembg 미설치 환경(로컬 CPU 개발 등)에서도
@@ -57,7 +71,7 @@ _rembg_session = None
 
 
 def _get_rembg_session():  # noqa: ANN202
-    """u2net 세션 lazy 초기화. 범용 배경 제거 모델, L4 24GB 환경에서 VRAM 여유."""
+    """마스킹 세션 lazy 초기화 (REMBG_MODEL, QUA-001 채택 모델)."""
     global _rembg_session
     if _rembg_session is None:
         # onnxruntime-gpu(CU13 빌드)는 import 시 libcudart.so.13 을 요구하지만
@@ -79,7 +93,7 @@ def _get_rembg_session():  # noqa: ANN202
 
         from rembg import new_session
 
-        _rembg_session = new_session("u2net")
+        _rembg_session = new_session(REMBG_MODEL)
         logger.info(
             f"rembg 세션 초기화 완료 (providers: {_rembg_session.inner_session.get_providers()})"
         )
@@ -100,7 +114,8 @@ class GenerateResult:
     """FR-08 산출물."""
     final_image_path: str
     seed: int
-    infer_seconds: float          # A-1 추론시간 실측 기록용
+    infer_seconds: float          # 배경 생성(inpainting) 시간
+    harmonize_seconds: float = 0.0  # 조화 패스 시간 (미실행 시 0)
     # TODO: 제품 보존율(SSIM/L1) 필드 — A-3 지표 확정 후 추가
 
 
@@ -251,6 +266,120 @@ def _preprocess_to_image(
     return img
 
 
+# --- 조화(harmonization) 패스 — QUA-002/003 ------------------------------------
+_harmonize_pipeline = None
+
+
+def _load_harmonize_pipeline():  # noqa: ANN202
+    """SDXL base img2img lazy 싱글턴 — inpaint 파이프라인과 컴포넌트 공유.
+
+    L4 22GB 제약: 두 파이프라인을 통째로 올리면 OOM (QUA-003 실측),
+    cpu offload 는 스텝마다 가중치 전송으로 12배 느림 (4.2s → 49.5s 실측).
+    → text encoder ×2 / VAE / tokenizer 를 inpaint 와 공유하고 UNet 만 추가 상주
+      (약 +5GB) 시켜 둘 다 GPU 에 유지한다.
+    """
+    global _harmonize_pipeline
+    if _harmonize_pipeline is None:
+        import torch
+        from diffusers import StableDiffusionXLImg2ImgPipeline
+
+        inpaint = _load_pipeline()
+        logger.info(f"조화 파이프라인 로드 시작 (컴포넌트 공유): {SDXL_BASE_MODEL}")
+        _harmonize_pipeline = StableDiffusionXLImg2ImgPipeline.from_pretrained(
+            SDXL_BASE_MODEL,
+            torch_dtype=torch.float16,
+            variant="fp16",
+            text_encoder=inpaint.text_encoder,
+            text_encoder_2=inpaint.text_encoder_2,
+            tokenizer=inpaint.tokenizer,
+            tokenizer_2=inpaint.tokenizer_2,
+            vae=inpaint.vae,
+        ).to("cuda")
+        logger.info("조화 파이프라인 로드 완료 (GPU 상주, UNet 만 추가)")
+    return _harmonize_pipeline
+
+
+def _add_contact_shadow(img: Image.Image, product_mask: Image.Image) -> Image.Image:
+    """제품 마스크 기반 접촉 그림자: 오프셋+블러 후 배경 영역만 어둡게."""
+    import numpy as np
+    from PIL import ImageFilter
+
+    mask = np.array(product_mask, dtype=np.float64) / 255.0
+    shadow = np.zeros_like(mask)
+    dx, dy = SHADOW_OFFSET
+    shadow[dy:, dx:] = mask[:-dy, :-dx]
+    shadow = np.array(
+        Image.fromarray((shadow * 255).astype(np.uint8)).filter(
+            ImageFilter.GaussianBlur(SHADOW_BLUR)
+        ),
+        dtype=np.float64,
+    ) / 255.0
+    shadow *= 1.0 - mask  # 제품 위에는 그림자 없음
+
+    arr = np.array(img, dtype=np.float64)
+    darken = 1.0 - SHADOW_OPACITY * shadow[..., None]
+    return Image.fromarray((arr * darken).clip(0, 255).astype(np.uint8))
+
+
+def _protect_core(
+    harmonized: Image.Image, composite: Image.Image, product_mask: Image.Image
+) -> Image.Image:
+    """코어 보호 재합성: 제품 내부=원본 합성본, 경계 링=조화 픽셀 (침식+페더 블렌딩)."""
+    import numpy as np
+    from PIL import ImageFilter
+
+    binary = (np.array(product_mask) >= 128).astype(np.uint8)
+    inv = 1 - binary
+    for _ in range(CORE_ERODE_PX):
+        stacked = [inv]
+        for sy in (-1, 0, 1):
+            for sx in (-1, 0, 1):
+                if sy or sx:
+                    stacked.append(np.roll(np.roll(inv, sy, axis=0), sx, axis=1))
+        inv = np.max(np.stack(stacked), axis=0)
+    eroded = 1 - inv
+
+    feather = np.array(
+        Image.fromarray((eroded * 255).astype(np.uint8)).filter(
+            ImageFilter.GaussianBlur(CORE_FEATHER_PX)
+        ),
+        dtype=np.float64,
+    ) / 255.0
+    h = np.array(harmonized, dtype=np.float64)
+    c = np.array(composite, dtype=np.float64)
+    out = h * (1 - feather[..., None]) + c * feather[..., None]
+    return Image.fromarray(out.clip(0, 255).astype(np.uint8))
+
+
+def _harmonize(
+    composite: Image.Image,
+    product_mask: Image.Image,
+    prompt: "ImagePrompt",
+    seed: int,
+) -> Image.Image:
+    """그림자 → 저강도 img2img → 코어 보호. 실패 시 합성본 그대로 반환 (품질 패스는 best-effort)."""
+    import torch
+
+    try:
+        shadowed = _add_contact_shadow(composite, product_mask)
+        pipe = _load_harmonize_pipeline()
+        harmonized = pipe(
+            prompt=prompt.positive,
+            negative_prompt=prompt.negative,
+            image=shadowed,
+            strength=HARMONIZE_STRENGTH,
+            guidance_scale=HARMONIZE_GUIDANCE,
+            num_inference_steps=DEFAULT_STEPS,
+            generator=torch.Generator("cuda").manual_seed(seed),
+        ).images[0]
+        if harmonized.size != composite.size:
+            harmonized = harmonized.resize(composite.size, Image.LANCZOS)
+        return _protect_core(harmonized, composite, product_mask)
+    except Exception as e:
+        logger.error(f"조화 패스 실패 — 합성본으로 폴백: {e}")
+        return composite
+
+
 # --- FR-08 광고 이미지 생성 ---------------------------------------------------
 _sdxl_pipeline = None
 
@@ -280,6 +409,7 @@ def generate_ad_image(
     prompt: "ImagePrompt",
     seed: Optional[int] = None,
     output_dir: Optional[str] = None,
+    harmonize: bool = True,
 ) -> GenerateResult:
     """FR-08: 전처리 이미지 + 프롬프트 → 최종 광고 이미지.
 
@@ -291,7 +421,8 @@ def generate_ad_image(
       2. 제품 마스크(제품=흰색) invert → 배경 마스크 (inpaint 대상=흰색) + 경계 블러
       3. SDXL Inpainting 실행 (seed 고정 가능)
       4. 원본 제품 픽셀 재합성 → 제품 영역 보존 보장
-      5. backend/results/ 저장
+      5. 조화 패스 (그림자 + img2img + 코어 보호) — harmonize=False 로 생략 가능
+      6. backend/results/ai/ 저장
     """
     import random
 
@@ -344,17 +475,28 @@ def generate_ad_image(
         result = result.resize(product_rgba.size, Image.LANCZOS)
     result.paste(init_image, (0, 0), product_mask)
 
-    # 5. 저장
+    # 5. 조화 패스 (QUA-003: 코어 SSIM 0.97+ 유지, '붙여넣은 티' 제거)
+    harmonize_seconds = 0.0
+    if harmonize:
+        started = time.perf_counter()
+        result = _harmonize(result, product_mask, prompt, seed)
+        harmonize_seconds = time.perf_counter() - started
+
+    # 6. 저장
     out_dir = Path(output_dir) if output_dir else RESULTS_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
     final_path = out_dir / f"{src.stem.replace('_processed', '')}_ad_{seed}.png"
     result.save(final_path, format="PNG")
 
-    logger.info(f"광고 이미지 생성 완료: {final_path} (seed={seed}, {infer_seconds:.2f}s)")
+    logger.info(
+        f"광고 이미지 생성 완료: {final_path} "
+        f"(seed={seed}, 생성 {infer_seconds:.2f}s + 조화 {harmonize_seconds:.2f}s)"
+    )
     return GenerateResult(
         final_image_path=str(final_path),
         seed=seed,
         infer_seconds=infer_seconds,
+        harmonize_seconds=harmonize_seconds,
     )
 
 

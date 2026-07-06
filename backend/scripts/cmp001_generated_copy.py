@@ -31,7 +31,12 @@ from dotenv import load_dotenv
 load_dotenv(BACKEND_DIR / ".env")
 
 from app.schemas.ads import AdPurpose, ProductInfo, StylePreset
-from app.services.gpt_service import _caption_image, generate_copy, generate_sns_copy
+from app.services.gpt_service import (
+    _caption_image,
+    generate_copy,
+    generate_sns_copy,
+    usage_summary,
+)
 
 
 def main() -> None:
@@ -79,6 +84,9 @@ def main() -> None:
     record(f"\n[SNS 문구 (FR-23)] ({time.perf_counter() - t0:.2f}s)")
     record(sns.caption)
     record(" ".join(sns.hashtags))
+
+    record("\n## OpenAI 토큰 사용량")
+    record(usage_summary())
 
     results_dir = BACKEND_DIR / "results" / "ai"
     results_dir.mkdir(parents=True, exist_ok=True)

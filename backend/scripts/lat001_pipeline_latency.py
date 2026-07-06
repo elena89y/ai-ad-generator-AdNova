@@ -122,6 +122,10 @@ def main() -> None:
             mark = "✅" if total_v <= 20 else "⚠️ 초과"
             record(f"- ①+②({steps_label})+③(Vision) = {t_style:.2f}+{t_img:.2f}+{t_copy_vision:.2f} = {total_v:.2f}s {mark}")
 
+    record("")
+    record("## OpenAI 토큰 사용량")
+    record(gpt_service.usage_summary())
+
     out_dir = BACKEND_DIR / "results" / "ai"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"lat001_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"

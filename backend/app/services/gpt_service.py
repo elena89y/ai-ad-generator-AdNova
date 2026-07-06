@@ -18,12 +18,15 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import mimetypes
 import os
 from dataclasses import dataclass
 from typing import Optional
 
 from ..schemas.ads import AdPurpose, ProductInfo, StyleCandidate, StylePreset
+
+logger = logging.getLogger(__name__)
 
 
 # --- 산출물 ------------------------------------------------------------------
@@ -38,6 +41,51 @@ class SnsCopyResult:
     """FR-23 산출물."""
     caption: str
     hashtags: list[str]
+
+
+@dataclass
+class ApiUsage:
+    """OpenAI 호출 1건의 토큰 사용량. $30 한도 관리용 — 모든 호출에서 기록."""
+    label: str
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+
+
+# 프로세스 내 누적 사용량. 실험 스크립트가 결과 md 에 함께 저장한다.
+API_USAGE_LOG: list[ApiUsage] = []
+
+
+def _record_usage(label: str, response) -> None:  # noqa: ANN001
+    """응답의 usage 를 로그·누적 기록. usage 미제공 시 경고만."""
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        logger.warning(f"[OpenAI usage] {label}: usage 정보 없음")
+        return
+    entry = ApiUsage(
+        label=label,
+        prompt_tokens=usage.prompt_tokens,
+        completion_tokens=usage.completion_tokens,
+        total_tokens=usage.total_tokens,
+    )
+    API_USAGE_LOG.append(entry)
+    logger.info(
+        f"[OpenAI usage] {label}: prompt={entry.prompt_tokens}, "
+        f"completion={entry.completion_tokens}, total={entry.total_tokens}"
+    )
+
+
+def usage_summary() -> str:
+    """누적 사용량 요약 문자열 (실험 결과 md 저장용)."""
+    if not API_USAGE_LOG:
+        return "OpenAI 호출 없음"
+    lines = [
+        f"- {u.label}: prompt {u.prompt_tokens} + completion {u.completion_tokens} = {u.total_tokens} tokens"
+        for u in API_USAGE_LOG
+    ]
+    total = sum(u.total_tokens for u in API_USAGE_LOG)
+    lines.append(f"- **합계: {len(API_USAGE_LOG)}회 호출, {total} tokens ({GPT_MODEL})**")
+    return "\n".join(lines)
 
 
 # --- 클라이언트 ----------------------------------------------------------------
@@ -101,14 +149,15 @@ def _caption_image(image_path: str) -> str:
     return processor.decode(out[0], skip_special_tokens=True)
 
 
-def _chat_json(messages: list) -> dict:
-    """JSON 강제 chat 호출 공통 래퍼."""
+def _chat_json(messages: list, label: str) -> dict:
+    """JSON 강제 chat 호출 공통 래퍼. 토큰 사용량 기록 포함."""
     client = _get_client()
     response = client.chat.completions.create(
         model=GPT_MODEL,
         messages=messages,
         response_format={"type": "json_object"},
     )
+    _record_usage(label, response)
     return json.loads(response.choices[0].message.content)
 
 
@@ -154,7 +203,8 @@ def generate_copy(
         caption = _caption_image(final_image_path)
         content = f"{instruction}\n- 이미지 장면 묘사(캡션): {caption}"
 
-    result = _chat_json([{"role": "user", "content": content}])
+    label = f"generate_copy/{'vision' if use_vision else 'blip'}"
+    result = _chat_json([{"role": "user", "content": content}], label=label)
     copy_text = str(result.get("copy", "")).strip()
     if not copy_text:
         raise RuntimeError("문구 생성 응답에 copy 필드가 없습니다")
@@ -181,7 +231,7 @@ def generate_sns_copy(
         '반드시 JSON 으로만 응답: {"caption": "...", "hashtags": ["#...", "#..."]}'
     )
 
-    result = _chat_json([{"role": "user", "content": instruction}])
+    result = _chat_json([{"role": "user", "content": instruction}], label="generate_sns_copy")
     caption = str(result.get("caption", "")).strip()
     if not caption:
         raise RuntimeError("SNS 문구 응답에 caption 필드가 없습니다")
@@ -232,6 +282,7 @@ def analyze_image_for_style(image_path: str) -> list[StyleCandidate]:
         ],
         response_format={"type": "json_object"},
     )
+    _record_usage("analyze_image_for_style/vision", response)
 
     try:
         result = json.loads(response.choices[0].message.content)

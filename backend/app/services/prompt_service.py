@@ -29,17 +29,18 @@ class ImagePrompt:
 
 # --- 공통 키워드 (스타일 무관) -------------------------------------------------
 # SDXL 계열은 영어 프롬프트 기준. 상품명 등 한국어 입력은 문맥 정보로만 덧붙인다.
-# ⚠️ CLIP 텍스트 인코더 한도 77토큰 — 초과분은 잘려나감. 공통 키워드는 최소로 유지하고
-#    스타일 키워드를 앞쪽에 배치한다 (IMG-002 1차 실행에서 스타일 잘림 확인).
-_BASE_POSITIVE = "professional product advertisement photo, sharp focus"
+# ⚠️ CLIP 텍스트 인코더 한도 77토큰 — positive/negative 모두 초과분은 잘려나감.
+#    (IMG-002: positive 스타일 잘림 / QUA-003: negative 84토큰 잘림 실측)
+# 'sharp focus' 는 이미지에 'SHARP' 텍스트로 누출된 사례가 있어 제거 (A-4 v2 채택).
+_BASE_POSITIVE = "professional product advertisement photo, high detail"
 
-# 광고 문구는 FR-09에서 별도 생성 → 이미지 안에 글자가 생기면 안 됨.
-# inpainting 결과 배경에 손·인물 파편이 생기는 흔한 실패 모드도 차단.
+# 광고 문구는 FR-09에서 별도 생성 → 이미지 안에 글자·간판·포장 문구 금지 (A-4 v2).
+# inpainting 흔한 실패 모드(손·인물 파편, 소품/음식 환각, 제품 복제)도 차단.
 _BASE_NEGATIVE = (
-    "text, letters, watermark, logo, signature, "
-    "human, hands, fingers, "
-    "lowres, blurry, jpeg artifacts, distorted, deformed, "
-    "cropped product, duplicate product"
+    "text, typography, letters, watermark, logo, signage, label, "
+    "packaging, price tag, brand name, "
+    "human, hands, extra food, extra products, "
+    "lowres, blurry, distorted, deformed, cropped product, duplicate product"
 )
 
 

@@ -62,6 +62,11 @@ def _run_path1(image_path: str) -> None:
     for i, c in enumerate(r1.candidates, 1):
         print(f"  {i}. {c.preset.value}: {c.reason}")
 
+    from app.services.gpt_service import usage_summary
+
+    print("\n[OpenAI 토큰 사용량]")
+    print(usage_summary())
+
 
 if __name__ == "__main__":
     main()
