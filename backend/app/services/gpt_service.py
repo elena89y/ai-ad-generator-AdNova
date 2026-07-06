@@ -244,6 +244,35 @@ def generate_sns_copy(
     return SnsCopyResult(caption=caption, hashtags=hashtags)
 
 
+# --- 포스터용 영문 라벨 (층2 오버레이 — editorial/retro 헤드라인) ---------------
+def generate_english_labels(product: ProductInfo) -> tuple[str, str]:
+    """상품 정보 → 포스터용 영문 라벨 (레퍼런스: 영문 대문자 메뉴명 헤드라인).
+
+    반환: (name, phrase)
+      - name  : 메뉴명, UPPERCASE 2~4 단어 (예: STRAWBERRY ADE)
+      - phrase: 분위기 문구, UPPERCASE 3~6 단어 (에디토리얼 링용, 예: FRESH BERRY REFRESHMENT)
+    """
+    product_context = " — ".join(
+        p.strip() for p in (product.name, product.description) if p and p.strip()
+    ) or "(상품 정보 없음)"
+
+    instruction = (
+        "아래 상품의 광고 포스터용 영문 라벨 2개를 만들어줘.\n"
+        f"- 상품: {product_context}\n"
+        "규칙: name 은 상품의 실제 메뉴명을 영문 대문자 2~4단어로 (브랜드명·과장 금지), "
+        "phrase 는 상품 분위기를 담은 영문 대문자 3~6단어. 둘 다 영문자·공백·&만 사용.\n"
+        '반드시 JSON 으로만 응답: {"name": "STRAWBERRY ADE", "phrase": "FRESH BERRY REFRESHMENT"}'
+    )
+    result = _chat_json([{"role": "user", "content": instruction}], label="english_labels")
+    # 키 표기 변형(NAME/Name 등) 방어
+    lowered = {str(k).lower(): v for k, v in result.items()} if isinstance(result, dict) else {}
+    name = str(lowered.get("name", "")).strip().upper()
+    phrase = str(lowered.get("phrase", "")).strip().upper()
+    if not name:
+        raise RuntimeError(f"영문 라벨 응답에 name 이 없습니다 (원문: {result!r:.200})")
+    return name, (phrase or name)
+
+
 # --- 스타일 경로1: Vision 분석 -----------------------------------------------
 def analyze_image_for_style(image_path: str) -> list[StyleCandidate]:
     """이미지 Vision 분석 → 스타일 후보 3개 반환 (style_service 경로1).
