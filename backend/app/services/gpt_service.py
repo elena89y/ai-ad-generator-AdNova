@@ -137,7 +137,9 @@ def _caption_image(image_path: str) -> str:
     if _blip is None:
         from transformers import BlipForConditionalGeneration, BlipProcessor
 
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        # CPU 고정: L4 에서 SDXL 2종+rembg 와 동시 상주 시 OOM (서비스 실측).
+        # BLIP-base 는 CPU 추론 ~2s 로 지연 예산 내 — VRAM 1GB+ 절약이 이득.
+        device = "cpu"
         processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
         model = BlipForConditionalGeneration.from_pretrained(
             "Salesforce/blip-image-captioning-base"
