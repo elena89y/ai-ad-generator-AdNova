@@ -40,6 +40,10 @@ logger = logging.getLogger(__name__)
 # 광고 이미지 표준 규격 (FR-18의 비율 옵션 중 기본값 1:1 기준, 추후 옵션화)
 DEFAULT_OUTPUT_SIZE: tuple[int, int] = (1024, 1024)
 MAX_INPUT_DIMENSION = 2048  # 과도하게 큰 업로드 이미지에 대한 리사이즈 상한
+# 히어로 비율: 제품 bbox 가 캔버스에서 차지하는 목표 비율 (레퍼런스 포스터 60~80%)
+FILL_FRACTION = 0.62
+FILL_MAX_UPSCALE = 2.0   # 과도 업스케일 화질 저하 방지
+FILL_CENTER_Y = 0.56     # 제품 수직 중심 (약간 아래 — 상단 헤드라인 여백 확보)
 
 # 전처리 산출물 저장 위치: backend/processed/ · AI 생성 결과물: backend/results/ai/ (gitignore)
 PROCESSED_DIR = Path(__file__).resolve().parents[2] / "processed"
@@ -183,6 +187,38 @@ def _enhance_quality(img: Image.Image) -> Image.Image:
     return rgb_img
 
 
+def _fit_product(
+    img: Image.Image,
+    fill_frac: float = FILL_FRACTION,
+    target_size: Optional[tuple[int, int]] = None,
+) -> Image.Image:
+    """제품(알파 bbox)을 캔버스의 히어로 비율로 확대/축소 후 재배치.
+
+    포스터 체감 품질의 최대 요인 — 제품이 작으면 어떤 배경·오버레이도 허전함.
+    """
+    import numpy as np
+
+    alpha = np.array(img.split()[-1])
+    ys, xs = np.nonzero(alpha >= 16)
+    if len(xs) == 0:
+        return img
+
+    x0, x1, y0, y1 = xs.min(), xs.max(), ys.min(), ys.max()
+    bw, bh = int(x1 - x0 + 1), int(y1 - y0 + 1)
+    w, h = target_size if target_size else img.size
+    scale = min(fill_frac * w / bw, fill_frac * h / bh, FILL_MAX_UPSCALE)
+    nw, nh = max(1, int(bw * scale)), max(1, int(bh * scale))
+
+    crop = img.crop((int(x0), int(y0), int(x1 + 1), int(y1 + 1))).resize(
+        (nw, nh), Image.LANCZOS
+    )
+    canvas = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    px = (w - nw) // 2
+    py = min(max(int(h * FILL_CENTER_Y) - nh // 2, 0), h - nh)
+    canvas.paste(crop, (px, py), crop)
+    return canvas
+
+
 def _extract_mask(img: Image.Image) -> Image.Image:
     """RGBA 알파 채널 → 제품/배경 분리 마스크 (제품=흰색, 배경=검정, L모드).
 
@@ -262,6 +298,7 @@ def _preprocess_to_image(
 
     img = _remove_background(img)
     img = _resize_with_padding(img, target_size)
+    img = _fit_product(img)   # 히어로 비율 재배치 (FILL_FRACTION)
     img = _enhance_quality(img)
     return img
 
@@ -406,12 +443,95 @@ def _load_pipeline():  # noqa: ANN202
     return _sdxl_pipeline
 
 
+def _flat_color_background(
+    product_rgba: Image.Image, product_mask: Image.Image, mode: str = "editorial"
+) -> Image.Image:
+    """평면 배경 합성 (SDXL 미사용, 결정적 렌더링). 비용·지연 0.
+
+    mode:
+      - editorial: 제품 주도색 딥톤 + 수직 그라데이션 (SDXL 회색조 회귀 우회, QUA-007)
+      - retro    : 크림 아이보리 + 미세 종이 그레인 (레퍼런스 배경 — SDXL 로 만들면
+                   소품·색 편차가 생김, 포스터 v3 피드백)
+    """
+    import colorsys
+    import io as _io
+
+    import numpy as np
+
+    from .overlay_service import extract_signature_color
+
+    # 주도색 추출을 위해 임시로 제품 합성본 사용
+    buf = _io.BytesIO()
+    product_rgba.convert("RGB").save(buf, format="PNG")
+    tmp = RESULTS_DIR / "_sig_tmp.png"
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    tmp.write_bytes(buf.getvalue())
+    mask_tmp = RESULTS_DIR / "_sig_mask_tmp.png"
+    product_mask.save(mask_tmp)
+    sig = extract_signature_color(str(tmp), str(mask_tmp))
+    tmp.unlink(missing_ok=True)
+    mask_tmp.unlink(missing_ok=True)
+
+    w, h = product_rgba.size
+    if mode == "pastel":
+        # 파스텔 그라데이션 + 보케 방울 (SDXL 지브리시·소품 환각 원천 차단)
+        from PIL import ImageDraw, ImageFilter
+
+        top = np.array([255.0, 226.0, 212.0])     # 피치
+        bot = np.array([246.0, 197.0, 208.0])     # 핑크
+        t = np.linspace(0, 1, h)[:, None, None]
+        bg = (top[None, None, :] * (1 - t) + bot[None, None, :] * t)
+        canvas = Image.fromarray(np.tile(bg, (1, w, 1)).astype(np.uint8))
+
+        # 보케 방울: 반투명 원 + 상단 하이라이트, 제품 뒤 레이어
+        bubbles = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        bd = ImageDraw.Draw(bubbles)
+        rng = np.random.default_rng(5)
+        for _ in range(46):
+            r = int(rng.uniform(7, 34))
+            x, y = int(rng.uniform(0, w)), int(rng.uniform(0, h))
+            alpha = int(rng.uniform(50, 120))
+            bd.ellipse([x - r, y - r, x + r, y + r],
+                       fill=(255, 255, 255, alpha),
+                       outline=(255, 255, 255, min(alpha + 60, 255)), width=2)
+            hr = max(2, r // 3)
+            bd.ellipse([x - r // 2 - hr, y - r // 2 - hr, x - r // 2 + hr, y - r // 2 + hr],
+                       fill=(255, 255, 255, min(alpha + 90, 255)))
+        bubbles = bubbles.filter(ImageFilter.GaussianBlur(1.2))
+        canvas.paste(bubbles, (0, 0), bubbles)
+
+        canvas.paste(product_rgba, (0, 0), product_rgba)
+        return _add_contact_shadow(canvas, product_mask)
+
+    if mode == "retro":
+        # 크림 아이보리 + 종이 그레인 (레퍼런스: softly aged cream paper)
+        base = np.full((h, w, 3), (246.0, 238.0, 219.0), dtype=np.float64)
+        rng = np.random.default_rng(3)
+        grain = rng.normal(0, 4.5, (h, w, 1))
+        canvas = Image.fromarray((base + grain).clip(0, 255).astype(np.uint8))
+    else:
+        # 배경용 딥톤 (아이보리 타이포 대비 확보)
+        hh, ss, vv = colorsys.rgb_to_hsv(*(c / 255.0 for c in sig))
+        ss = min(max(ss, 0.42), 0.75)
+        vv = min(max(vv * 0.85, 0.34), 0.60)
+        r, g, b = (int(c * 255) for c in colorsys.hsv_to_rgb(hh, ss, vv))
+        # 수직 그라데이션 (상단 +8% 밝게 → 하단 -8%) 로 평면감 완화
+        grad = np.linspace(1.08, 0.92, h)[:, None, None]
+        bg = (np.array([r, g, b], dtype=np.float64)[None, None, :] * grad).clip(0, 255)
+        canvas = Image.fromarray(np.tile(bg, (1, w, 1)).astype(np.uint8))
+
+    canvas.paste(product_rgba, (0, 0), product_rgba)
+    return _add_contact_shadow(canvas, product_mask)
+
+
 def generate_ad_image(
     processed: PreprocessResult,
     prompt: "ImagePrompt",
     seed: Optional[int] = None,
     output_dir: Optional[str] = None,
     harmonize: bool = True,
+    flat_background: Optional[str] = None,  # "editorial" | "retro" | "pastel" | None(생성)
+    product_tilt: float = 0.0,  # 2.5D 연출: 제품 기울임 각도 (레퍼런스 플로팅 룩 ~ -12°)
 ) -> GenerateResult:
     """FR-08: 전처리 이미지 + 프롬프트 → 최종 광고 이미지.
 
@@ -440,6 +560,31 @@ def generate_ad_image(
     product_rgba = Image.open(src).convert("RGBA")
     product_mask = Image.open(processed.mask_path).convert("L")  # 제품=흰색
 
+    # 2.5D 기울임: 회전 후 히어로 비율로 재배치 (마스크는 알파에서 재유도)
+    if product_tilt:
+        rotated = product_rgba.rotate(product_tilt, expand=True, resample=Image.BICUBIC)
+        product_rgba = _fit_product(rotated, target_size=product_mask.size)
+        product_mask = product_rgba.split()[-1]
+
+    if seed is None:
+        seed = random.randint(0, 2**32 - 1)
+
+    # 평면 배경 경로 (editorial/retro): SDXL·조화 생략 — 코드 렌더링
+    if flat_background:
+        started = time.perf_counter()
+        result = _flat_color_background(product_rgba, product_mask, mode=flat_background)
+        infer_seconds = time.perf_counter() - started
+
+        out_dir = Path(output_dir) if output_dir else RESULTS_DIR
+        out_dir.mkdir(parents=True, exist_ok=True)
+        final_path = out_dir / f"{src.stem.replace('_processed', '')}_ad_{seed}.png"
+        result.convert("RGB").save(final_path, format="PNG")
+        logger.info(f"광고 이미지 생성 완료 (평면 배경 {flat_background}): {final_path}")
+        return GenerateResult(
+            final_image_path=str(final_path), seed=seed,
+            infer_seconds=infer_seconds, harmonize_seconds=0.0,
+        )
+
     # 1. 흰 배경 합성 (inpainting 입력은 RGB)
     base = Image.new("RGBA", product_rgba.size, (255, 255, 255, 255))
     base.alpha_composite(product_rgba)
@@ -453,8 +598,6 @@ def generate_ad_image(
         )
 
     # 3. inpainting 실행
-    if seed is None:
-        seed = random.randint(0, 2**32 - 1)
     generator = torch.Generator(device="cuda").manual_seed(seed)
 
     pipe = _load_pipeline()
