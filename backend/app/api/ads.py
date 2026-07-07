@@ -59,7 +59,12 @@ def _run_pipeline(
 ) -> GenerateAdResponse:
     """생성→문구(→포스터) 공통 구간. generate 와 regenerate 가 공유."""
     prompt = build_image_prompt(product, style)
-    gen = image_service.generate_ad_image(processed, prompt, seed=seed)
+    gen = image_service.generate_ad_image(
+        processed, prompt, seed=seed,
+        # editorial/retro 는 평면 배경 코드 렌더링 (SDXL 회색조 회귀·소품 잔재 우회)
+        flat_background={"editorial": "editorial", "retro_paper": "retro", "pastel_float": "pastel"}.get(style.value),
+        product_tilt=(-12.0 if style == StylePreset.PASTEL_FLOAT else 0.0),  # 플로팅 연출
+    )
 
     copy = gpt_service.generate_copy(
         gen.final_image_path, product, style, use_vision=use_vision
@@ -70,9 +75,15 @@ def _run_pipeline(
         from ..services.overlay_service import apply_overlay
 
         headline, _, subcopy = copy.copy_text.partition("\n")
+        headline, subcopy = headline.strip(), subcopy.strip() or (product.name or "")
+        # 레퍼런스 룩: editorial/retro 헤드라인은 영문 대문자 (GPT 변환, 텍스트 1회)
+        if style in (StylePreset.EDITORIAL, StylePreset.RETRO_PAPER):
+            en_name, en_phrase = gpt_service.generate_english_labels(product)
+            headline = en_name
+            if style == StylePreset.EDITORIAL:
+                subcopy = en_phrase  # 세리프 링 문구도 영문
         final_path = apply_overlay(
-            gen.final_image_path, style, headline.strip(),
-            subcopy.strip() or product.name or "", processed.mask_path,
+            gen.final_image_path, style, headline, subcopy, processed.mask_path,
         )
 
     asset_id = Path(processed.processed_image_path).stem.replace("_processed", "")

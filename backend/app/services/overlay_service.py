@@ -47,6 +47,7 @@ def _font(kind: str, size: int) -> ImageFont.FreeTypeFont:
         "gothic": "NanumGothic-Regular.ttf",
         "gothic_bold": "NanumGothic-Bold.ttf",
         "didone": "PlayfairDisplay.ttf",
+        "display": "Jua-Regular.ttf",
     }
     path = FONT_DIR / names[kind]
     if not path.is_file():
@@ -135,25 +136,26 @@ def _apply_ring(img, product_rgba, mask, info, headline, subcopy, color):
 
     # 1. 상단 헤드라인 (대문자·자간)
     head = headline.upper() if headline.isascii() else headline
-    fsize = int(h * 0.042)
+    fsize = int(h * 0.05)
     font = _headline_font(head, fsize)
-    _spaced_text(draw, (0, int(h * 0.085)), head, font, text_color,
+    _spaced_text(draw, (0, int(h * 0.07)), head, font, text_color,
                  spacing_frac=0.14, anchor_center_x=w / 2)
 
-    # 2. 원근 타원 텍스트 링 (제품 둘레, 반복 문구)
+    # 2. 원근 타원 텍스트 링 (제품 둘레, 반복 문구) — 레퍼런스처럼 큼직하게
     phrase = (subcopy.upper() if subcopy.isascii() else subcopy).strip()
     ring_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    cx, cy = info["cx"], int(info["cy"] + (info["y1"] - info["y0"]) * 0.18)
-    a = max(int((info["x1"] - info["x0"]) * 0.78), int(w * 0.30))
-    a = min(a, int(w * 0.44))
-    b = int(a * 0.40)
+    cx = info["cx"]
+    cy = int(info["y1"] - (info["y1"] - info["y0"]) * 0.12)  # 제품 하단부 = 바닥면
+    a = max(int((info["x1"] - info["x0"]) * 0.72), int(w * 0.34))
+    a = min(a, int(w * 0.46))
+    b = int(a * 0.34)
 
-    ring_font = _font("didone" if phrase.isascii() else "serif", int(h * 0.033))
-    letter_gap = 1.18  # 자간 (글자폭 배수)
+    ring_font = _font("didone" if phrase.isascii() else "serif", int(h * 0.046))
+    letter_gap = 1.15  # 자간 (글자폭 배수)
 
-    # 호 길이 테이블 — 그리기와 동일한 파라미터화(시작각 -π/2 포함)로 구축해야
-    # 간격이 정확함 (시프트 불일치 시 글자 뭉침)
-    phis = np.linspace(-math.pi / 2, 1.5 * math.pi, 1440)
+    # 진행 파라미터: 하단 중앙(φ=π/2)에서 시작, φ 감소 = 화면상 좌→우 진행.
+    # 이미지 좌표(y-down)에서 하단 호 텍스트가 정방향으로 읽히는 유일한 방향.
+    phis = np.linspace(math.pi / 2, math.pi / 2 - 2 * math.pi, 1440)
     pts = np.stack([a * np.cos(phis), b * np.sin(phis)], axis=1)
     seg = np.linalg.norm(np.diff(pts, axis=0), axis=1)
     cum = np.concatenate([[0], np.cumsum(seg)])
@@ -161,21 +163,25 @@ def _apply_ring(img, product_rgba, mask, info, headline, subcopy, color):
 
     unit = phrase + "  •  "
     unit_w = sum(ring_font.getlength(ch) * letter_gap for ch in unit)
-    reps = max(1, int(total_len // unit_w))
+    reps = max(1, round(total_len / unit_w))
     text = unit * reps
+    # 반복 문구가 정확히 한 바퀴를 채우도록 자간을 미세 조정
+    scale_gap = total_len / max(sum(ring_font.getlength(c) * letter_gap for c in text), 1)
 
     dist = 0.0
     for ch in text:
-        ch_w = ring_font.getlength(ch)
+        ch_w = ring_font.getlength(ch) * letter_gap * scale_gap
         phi = float(np.interp((dist + ch_w / 2) % total_len, cum, phis))
         x = cx + a * math.cos(phi)
         y = cy + b * math.sin(phi)
-        tangent = math.degrees(math.atan2(b * math.cos(phi), -a * math.sin(phi)))
-        glyph = Image.new("RGBA", (int(ch_w) + 8, ring_font.size + 8), (0, 0, 0, 0))
+        # 시각 기준 회전각 (y-down 보정 포함): 하단 0° / 우측 +90° / 상단 180°
+        rot = math.degrees(math.atan2(b * math.cos(phi), a * math.sin(phi)))
+        gw = int(ring_font.getlength(ch)) + 8
+        glyph = Image.new("RGBA", (gw, ring_font.size + 10), (0, 0, 0, 0))
         ImageDraw.Draw(glyph).text((4, 0), ch, font=ring_font, fill=text_color)
-        glyph = glyph.rotate(-tangent, expand=True, resample=Image.BICUBIC)
+        glyph = glyph.rotate(rot, expand=True, resample=Image.BICUBIC)
         ring_layer.paste(glyph, (int(x - glyph.width / 2), int(y - glyph.height / 2)), glyph)
-        dist += ch_w * letter_gap
+        dist += ch_w
 
     img.paste(ring_layer, (0, 0), ring_layer)
     # 3. 깊이: 제품을 링 위에 다시 얹음 (상단 호가 제품 뒤로)
@@ -190,60 +196,135 @@ def _bezier(p0, p1, p2, p3, n=120):
             + 3 * (1 - t) * t**2 * p2 + t**3 * p3)
 
 
-def _apply_banner(img, product_rgba, mask, info, headline, subcopy, color):
-    w, h = img.size
-    sig = _deepen(color)
-    thick = int(h * 0.058)
-
-    # 1. 제품 위·옆을 흐르는 리본 경로 (제품 bbox 회피)
-    top_y = max(int(info["y0"] * 0.55), int(h * 0.10))
-    side_x = int(w * 0.10) if info["cx"] > w // 2 else int(w * 0.90)
-    path = np.concatenate([
-        _bezier(np.array([w * 0.06, h * 0.30]), np.array([w * 0.10, top_y * 0.5]),
-                np.array([w * 0.45, top_y * 0.35]), np.array([w * 0.62, top_y])),
-        _bezier(np.array([w * 0.62, top_y]), np.array([w * 0.88, top_y * 1.25]),
-                np.array([side_x, h * 0.45]), np.array([side_x, h * 0.62])),
-    ])
-    ribbon = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    rd = ImageDraw.Draw(ribbon)
-    n = len(path)
-    for i, (x, y) in enumerate(path):
-        # 끝단 테이퍼: 중앙부 최대, 양 끝 45% (뭉툭한 벌레 느낌 방지)
-        r = thick * (0.45 + 0.55 * math.sin(math.pi * i / max(n - 1, 1)))
-        rd.ellipse([x - r, y - r, x + r, y + r], fill=sig + (255,))
-    img.paste(ribbon, (0, 0), ribbon)
-
-    # 2. 손글씨 메뉴명 — 리본 상단 벌지 위 (기울임)
-    fsize = int(h * 0.075)
-    font = _font("hand", fsize)
-    d = ImageDraw.Draw(img)
-    tw = d.textlength(headline, font=font)
-    tx, ty = int(w * 0.34 - tw / 2), int(top_y * 0.72 - fsize / 2)
-    glyph = Image.new("RGBA", (int(tw) + 20, fsize + 24), (0, 0, 0, 0))
-    ImageDraw.Draw(glyph).text((10, 4), headline, font=font, fill=IVORY)
-    glyph = glyph.rotate(-4, expand=True, resample=Image.BICUBIC)
-    img.paste(glyph, (tx, ty), glyph)
-
-    # 3. 제품 손그림 윤곽선 (마스크 팽창 밴드)
-    m = (np.array(mask.resize(img.size)) >= 128).astype(np.uint8)
-    grown = m.copy()
-    for _ in range(5):
-        s = [grown]
+def _dilate_np(binary: np.ndarray, iterations: int) -> np.ndarray:
+    out = binary.copy()
+    for _ in range(iterations):
+        s = [out]
         for dy in (-1, 0, 1):
             for dx in (-1, 0, 1):
                 if dy or dx:
-                    s.append(np.roll(np.roll(grown, dy, 0), dx, 1))
-        grown = np.max(np.stack(s), 0)
-    outline = (grown - m).astype(bool)
+                    s.append(np.roll(np.roll(out, dy, 0), dx, 1))
+        out = np.max(np.stack(s), 0)
+    return out
+
+
+def _split_headline(text: str) -> list[str]:
+    """긴 헤드라인을 균형 있게 1~2줄로 분할."""
+    words = text.split()
+    if len(words) <= 1 or len(text) <= 12:
+        return [text]
+    best, best_diff = None, 1e9
+    for i in range(1, len(words)):
+        l1, l2 = " ".join(words[:i]), " ".join(words[i:])
+        diff = abs(len(l1) - len(l2))
+        if diff < best_diff:
+            best, best_diff = [l1, l2], diff
+    return best
+
+
+def _organic_blob_pts(cx, cy, rx, ry, seed=11, harmonics=((2, 0.09), (3, 0.06), (5, 0.045))):
+    """저주파 하모닉 반경 함수 기반 유기 블롭 윤곽 (디자이너 잉크 블롭의 형태 특성)."""
+    rng = np.random.default_rng(seed)
+    theta = np.linspace(0, 2 * math.pi, 720)
+    r = np.ones_like(theta)
+    for k, amp in harmonics:
+        r += amp * np.sin(k * theta + rng.uniform(0, 2 * math.pi))
+    return np.stack([cx + rx * r * np.cos(theta), cy + ry * r * np.sin(theta)], axis=1)
+
+
+def _liquid_smooth(shape: Image.Image, blur: int = 12) -> Image.Image:
+    """블러+임계값 모폴로지 스무딩 — 획·블롭 접합부를 잉크처럼 융합."""
+    from PIL import ImageFilter
+
+    sm = shape.filter(ImageFilter.GaussianBlur(blur)).point(lambda p: 255 if p >= 128 else 0)
+    return sm.filter(ImageFilter.GaussianBlur(1.6))
+
+
+def _apply_banner(img, product_rgba, mask, info, headline, subcopy, color):
+    """레트로 배너: 유기 블롭(헤드라인 하우징) + 흐르는 꼬리를 하나의 잉크
+    실루엣으로 융합. 배경은 생성 단계에서 크림 아이보리 평면."""
+    w, h = img.size
+    sig = _deepen(color)
+    rng = np.random.default_rng(11)
+
+    head = headline.upper() if headline.isascii() else headline
+    lines = _split_headline(head)
+
+    # 1. 형태 마스크(L): 블롭 + 꼬리를 흰색으로 그린 뒤 액체 스무딩으로 융합
+    shape = Image.new("L", img.size, 0)
+    sd = ImageDraw.Draw(shape)
+
+    blob_cy = h * (0.115 if len(lines) == 1 else 0.145)
+    blob_rx, blob_ry = w * 0.40, h * (0.085 if len(lines) == 1 else 0.125)
+    sd.polygon([tuple(p) for p in _organic_blob_pts(w * 0.50, blob_cy, blob_rx, blob_ry)],
+               fill=255)
+
+    # 우측 꼬리: 블롭에서 흘러내려 제품 옆을 감싸는 스트로크
+    tail = np.concatenate([
+        _bezier(np.array([w * 0.82, blob_cy + blob_ry * 0.55]),
+                np.array([w * 0.97, h * 0.33]),
+                np.array([w * 0.935, h * 0.50]), np.array([w * 0.86, h * 0.64])),
+        _bezier(np.array([w * 0.86, h * 0.64]), np.array([w * 0.80, h * 0.75]),
+                np.array([w * 0.68, h * 0.80]), np.array([w * 0.575, h * 0.77])),
+    ])
+    thick = h * 0.040
+    n = len(tail)
+    for i, (x, y) in enumerate(tail):
+        r = thick * (1.0 - 0.55 * (i / max(n - 1, 1)))
+        sd.ellipse([x - r, y - r, x + r, y + r], fill=255)
+
+    # 좌측 짧은 꼬리 (비대칭 흐름)
+    tail2 = _bezier(np.array([w * 0.16, blob_cy + blob_ry * 0.62]),
+                    np.array([w * 0.02, h * 0.33]),
+                    np.array([w * 0.055, h * 0.45]), np.array([w * 0.125, h * 0.50]))
+    for i, (x, y) in enumerate(tail2):
+        r = thick * 0.85 * (1.0 - 0.55 * (i / (len(tail2) - 1)))
+        sd.ellipse([x - r, y - r, x + r, y + r], fill=255)
+
+    shape = _liquid_smooth(shape, blur=14)
+
+    # 2. 시그니처 컬러 채움 + 스크린프린트 그레인
+    fill = np.zeros((h, w, 4), dtype=np.float64)
+    fill[..., 0], fill[..., 1], fill[..., 2] = sig
+    fill[..., :3] += rng.normal(0, 9, (h, w, 1))
+    fill[..., 3] = np.array(shape, dtype=np.float64)
+    ribbon = Image.fromarray(fill.clip(0, 255).astype(np.uint8))
+    img.paste(ribbon, (0, 0), ribbon)
+
+    # 3. 헤드라인 (아이보리 손글씨, 블롭 안 가득, 살짝 기울임)
+    fsize = int((h * 0.092 if len(lines) == 1 else h * 0.085))
+    font = _font("display", fsize)
+    d = ImageDraw.Draw(img)
+    for li, line in enumerate(lines):
+        tw = d.textlength(line, font=font)
+        max_w = w * 0.74
+        if tw > max_w:  # 블롭 폭 초과 시 축소
+            fsize2 = int(fsize * max_w / tw)
+            font_l = _font("hand", fsize2)
+            tw = d.textlength(line, font=font_l)
+        else:
+            font_l = font
+        y = blob_cy - (len(lines) * fsize * 0.62) + li * fsize * 1.06
+        glyph = Image.new("RGBA", (int(tw) + 24, font_l.size + 30), (0, 0, 0, 0))
+        ImageDraw.Draw(glyph).text((12, 6), line, font=font_l, fill=IVORY)
+        glyph = glyph.rotate(-2.5, expand=True, resample=Image.BICUBIC)
+        img.paste(glyph, (int(w / 2 - glyph.width / 2), int(y)), glyph)
+
+    # 4. 제품 아이보리 손그림 윤곽선 (약간의 갭을 두고 — 레퍼런스 스타일)
+    m = (np.array(mask.resize(img.size)) >= 128).astype(np.uint8)
+    outline = (_dilate_np(m, 12) - _dilate_np(m, 7)).astype(bool)
     arr = np.array(img)
-    arr[outline] = sig
+    arr[outline] = IVORY
     img = Image.fromarray(arr)
 
-    # 4. 하단 설명 (시그니처 컬러)
+    # 5. 하단 설명 (시그니처 컬러, 고딕, 1~2줄)
     d = ImageDraw.Draw(img)
-    sub_font = _font("hand", int(h * 0.034))
-    sw = d.textlength(subcopy, font=sub_font)
-    d.text(((w - sw) / 2, int(h * 0.90)), subcopy, font=sub_font, fill=sig)
+    sub_font = _font("display", int(h * 0.028))
+    sub_lines = _split_headline(subcopy) if len(subcopy) > 24 else [subcopy]
+    for li, line in enumerate(sub_lines):
+        sw = d.textlength(line, font=sub_font)
+        d.text(((w - sw) / 2, int(h * 0.905) + li * int(h * 0.036)), line,
+               font=sub_font, fill=sig)
 
     img.paste(product_rgba, (0, 0), product_rgba)
     return img
@@ -258,22 +339,56 @@ _CAPTION_FONT = {
 }
 
 
-def _apply_caption(img, preset, info, headline, subcopy):
+def _apply_caption(img, preset, info, headline, subcopy, color=None):
     w, h = img.size
     draw = ImageDraw.Draw(img)
-    text_color = IVORY if not _bg_is_bright(img) else DARK
+    # 밝은 배경에서는 시그니처 딥톤(있으면), 어두우면 아이보리
+    if _bg_is_bright(img):
+        text_color = _deepen(color) if color else DARK
+    else:
+        text_color = IVORY
 
-    # 제품이 위쪽에 있으면 하단 배치, 아니면 상단
-    top = info["y0"] > h * 0.30
-    y = int(h * 0.07) if top else int(h * 0.82)
+    # 히어로 배치(FILL_CENTER_Y=0.56)로 상단 여백이 항상 확보됨 → 상단 고정
+    y = int(h * 0.06)
 
     kind = _CAPTION_FONT.get(preset, "gothic")
-    font = _font(kind, int(h * 0.05))
+    font = _font("display" if preset == StylePreset.PASTEL_FLOAT else kind, int(h * 0.055))
     _spaced_text(draw, (0, y), headline, font, text_color,
                  spacing_frac=0.06, anchor_center_x=w / 2)
     sub_font = _font(kind if kind != "gothic_bold" else "gothic", int(h * 0.026))
     sw = draw.textlength(subcopy, font=sub_font)
-    draw.text(((w - sw) / 2, y + int(h * 0.065)), subcopy, font=sub_font, fill=text_color)
+    draw.text(((w - sw) / 2, y + int(h * 0.075)), subcopy, font=sub_font, fill=text_color)
+    return img
+
+
+# --- 템플릿: text_only (그래픽 없이 타이포만 — FLUX 등 배경 자체가 그래픽인 경우) --
+def _apply_text_only(img, info, headline, subcopy, color):
+    """배경이 이미 완성된 그래픽(FLUX 생성)일 때: 블롭·리본 없이 글자만 얹는다.
+
+    역할 분리 원칙(그래픽=생성모델 / 타이포=코드)의 코드 측 구현.
+    헤드라인은 상단(배경 그래픽 위), 서브카피는 하단. 배경 명도로 색 자동 결정.
+    """
+    w, h = img.size
+    d = ImageDraw.Draw(img)
+    # 헤드라인 영역(상단) 명도로 색 결정
+    head_color = IVORY if not _bg_is_bright(img, y_frac=0.18) else _deepen(color)
+
+    head = headline.upper() if headline.isascii() else headline
+    lines = _split_headline(head)
+    fsize = int(h * (0.088 if len(lines) == 1 else 0.082))
+    font = _font("display", fsize)
+    for i, line in enumerate(lines):
+        tw = d.textlength(line, font=font)
+        if tw > w * 0.86:
+            font = _font("display", int(fsize * w * 0.86 / tw))
+            tw = d.textlength(line, font=font)
+        d.text(((w - tw) / 2, int(h * 0.045) + i * int(fsize * 1.05)), line,
+               font=font, fill=head_color)
+
+    # 서브카피(하단) — 항상 시그니처 딥톤
+    sub_font = _font("gothic_bold", int(h * 0.028))
+    sw = d.textlength(subcopy, font=sub_font)
+    d.text(((w - sw) / 2, int(h * 0.915)), subcopy, font=sub_font, fill=_deepen(color))
     return img
 
 
@@ -285,10 +400,12 @@ def apply_overlay(
     subcopy: str,
     mask_path: str,
     output_path: Optional[str] = None,
+    text_only: bool = False,
 ) -> str:
     """생성 이미지에 프리셋별 타이포 오버레이 적용 → 저장 경로 반환.
 
     headline/subcopy 는 FR-09 generate_copy 의 '헤드라인\\n서브카피' 를 분리해 전달.
+    text_only=True: 배경이 이미 완성 그래픽(FLUX)인 경우 — 블롭·리본 없이 글자만.
     """
     img = Image.open(final_image_path).convert("RGB")
     mask = Image.open(mask_path).convert("L").resize(img.size)
@@ -298,15 +415,17 @@ def apply_overlay(
     product_rgba = img.convert("RGBA").copy()
     product_rgba.putalpha(mask)
 
-    template = _TEMPLATE_BY_PRESET.get(preset, "caption")
     color = extract_signature_color(final_image_path, mask_path)
+    template = "text_only" if text_only else _TEMPLATE_BY_PRESET.get(preset, "caption")
 
-    if template == "ring":
+    if template == "text_only":
+        img = _apply_text_only(img, info, headline, subcopy, color)
+    elif template == "ring":
         img = _apply_ring(img, product_rgba, mask, info, headline, subcopy, color)
     elif template == "banner":
         img = _apply_banner(img, product_rgba, mask, info, headline, subcopy, color)
     else:
-        img = _apply_caption(img, preset, info, headline, subcopy)
+        img = _apply_caption(img, preset, info, headline, subcopy, color)
 
     out = Path(output_path) if output_path else \
         Path(final_image_path).with_name(Path(final_image_path).stem + "_poster.png")

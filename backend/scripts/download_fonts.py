@@ -22,6 +22,8 @@ FONTS = {
     # 한글 고딕 (캡션·서브카피)
     "NanumGothic-Regular.ttf": "https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Regular.ttf",
     "NanumGothic-Bold.ttf": "https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Bold.ttf",
+    # 굵은 라운드 디스플레이 (레트로 헤드라인 — 마커체 느낌, 한/영)
+    "Jua-Regular.ttf": "https://github.com/google/fonts/raw/main/ofl/jua/Jua-Regular.ttf",
     # 영문 Didone 세리프 (원형 링·영문 헤드라인, variable font)
     "PlayfairDisplay.ttf": "https://github.com/google/fonts/raw/main/ofl/playfairdisplay/PlayfairDisplay%5Bwght%5D.ttf",
 }
