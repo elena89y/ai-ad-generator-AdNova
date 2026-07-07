@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api import ads, dashboard, images
 from app.api.auth import router as auth_router
+from app.api.export import router as export_router
 from app.core.config import settings
 from app.database import models
 from app.database.connection import Base, engine
@@ -32,6 +33,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(export_router)
 app.include_router(ads.router)
 app.include_router(dashboard.router)
 app.include_router(images.router)
