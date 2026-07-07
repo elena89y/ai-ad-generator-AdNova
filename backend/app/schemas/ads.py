@@ -13,7 +13,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # --- 광고 생성 이력 (DB 연동, 담당: 김범수) -----------------------------------
@@ -124,7 +124,7 @@ class GenerateAdResponse(BaseModel):
 
 class RegenerateAdRequest(BaseModel):
     """FR-12: 동일 입력(전처리 산출물 재사용) · 새 seed 재생성."""
-    asset_id: str
+    asset_id: str = Field(..., min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
     style: StylePreset
     product_name: Optional[str] = None
     product_description: Optional[str] = None
