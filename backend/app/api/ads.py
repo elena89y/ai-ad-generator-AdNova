@@ -35,12 +35,25 @@ from ..schemas.ads import (
     StyleRequest,
     StyleResponse,
 )
-from ..services import gpt_service, image_service, style_service
-from ..services.prompt_service import ImagePrompt, build_image_prompt
+from ..services import generation_client, generation_service, image_service, style_service
+from ..services.prompt_service import build_image_prompt
 
 router = APIRouter(prefix="/ads", tags=["ads"])
 
 UPLOAD_DIR = Path(__file__).resolve().parents[2] / "uploads"
+
+
+def _to_response(out: generation_service.GenerationOutput) -> GenerateAdResponse:
+    return GenerateAdResponse(
+        asset_id=out.asset_id,
+        seed=out.seed,
+        style=out.style,
+        copy_text=out.copy_text,
+        image_url=f"/ads/image/{Path(out.final_image_path).name}",
+        poster=out.poster,
+        generate_seconds=out.generate_seconds,
+        harmonize_seconds=out.harmonize_seconds,
+    )
 
 
 @router.post("/style", response_model=StyleResponse)
@@ -52,56 +65,6 @@ def decide_style(req: StyleRequest) -> StyleResponse:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
-
-
-def _run_pipeline(
-    processed: "image_service.PreprocessResult",
-    product: ProductInfo,
-    style: StylePreset,
-    prompt: ImagePrompt,
-    seed: Optional[int],
-    use_vision: bool,
-    poster: bool,
-) -> GenerateAdResponse:
-    """생성→문구(→포스터) 공통 구간. generate 와 regenerate 가 공유."""
-    gen = image_service.generate_ad_image(
-        processed, prompt, seed=seed,
-        # editorial/retro 는 평면 배경 코드 렌더링 (SDXL 회색조 회귀·소품 잔재 우회)
-        flat_background={"editorial": "editorial", "retro_paper": "retro", "pastel_float": "pastel"}.get(style.value),
-        product_tilt=(-12.0 if style == StylePreset.PASTEL_FLOAT else 0.0),  # 플로팅 연출
-    )
-
-    copy = gpt_service.generate_copy(
-        gen.final_image_path, product, style, use_vision=use_vision
-    )
-
-    final_path = gen.final_image_path
-    if poster:
-        from ..services.overlay_service import apply_overlay
-
-        headline, _, subcopy = copy.copy_text.partition("\n")
-        headline, subcopy = headline.strip(), subcopy.strip() or (product.name or "")
-        # 레퍼런스 룩: editorial/retro 헤드라인은 영문 대문자 (GPT 변환, 텍스트 1회)
-        if style in (StylePreset.EDITORIAL, StylePreset.RETRO_PAPER):
-            en_name, en_phrase = gpt_service.generate_english_labels(product)
-            headline = en_name
-            if style == StylePreset.EDITORIAL:
-                subcopy = en_phrase  # 세리프 링 문구도 영문
-        final_path = apply_overlay(
-            gen.final_image_path, style, headline, subcopy, processed.mask_path,
-        )
-
-    asset_id = Path(processed.processed_image_path).stem.replace("_processed", "")
-    return GenerateAdResponse(
-        asset_id=asset_id,
-        seed=gen.seed,
-        style=style,
-        copy_text=copy.copy_text,
-        image_url=f"/ads/image/{Path(final_path).name}",
-        poster=poster,
-        generate_seconds=round(gen.infer_seconds, 2),
-        harmonize_seconds=round(gen.harmonize_seconds, 2),
-    )
 
 
 @router.post("/generate", response_model=GenerateAdResponse)
@@ -122,7 +85,8 @@ def generate_ad(
     이미지 입력 2방식 (둘 중 하나 필수):
       - image    : 직접 파일 업로드 (단독 호출)
       - image_id : /images/upload (PR #14) 로 업로드된 DB 이미지 참조
-    warm 기준 약 20초 소요 — 프론트는 timeout 여유(60s+) 필요.
+    실행 위치: settings.GENERATION_SERVICE_URL 있으면 GPU 서비스 HTTP 호출(배포 B),
+      없으면 로컬 실행(모놀리식). warm 약 20초 — 프론트 timeout 여유(60s+) 필요.
     """
     current_user_id = current_user.id
     input_image_id: Optional[int] = None
@@ -158,27 +122,24 @@ def generate_ad(
     else:
         raise HTTPException(status_code=400, detail="image 파일 또는 image_id 중 하나가 필요합니다")
 
-    try:
-        processed = image_service.preprocess(str(src_path))
-    except ValueError as e:
-        create_history(
-            db,
-            user_id=current_user_id,
-            action_type="ads.generate",
-            status="failed",
-            request_data=request_data,
-            error_message=str(e),
-        )
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
     product = ProductInfo(name=product_name, description=product_description or None)
     prompt = build_image_prompt(product, style)
     prompt_for_db = json.dumps(
         {"positive": prompt.positive, "negative": prompt.negative},
         ensure_ascii=False,
     )
+
     try:
-        result = _run_pipeline(processed, product, style, prompt, seed, use_vision, poster)
+        if generation_client.is_remote():
+            result = generation_client.generate_remote(
+                str(src_path), product, style, seed, use_vision, poster
+            )
+        else:
+            out = generation_service.run_from_upload(
+                str(src_path), product, style, seed, use_vision, poster
+            )
+            result = _to_response(out)
+
         advertisement = create_advertisement(
             db,
             user_id=current_user_id,
@@ -200,6 +161,16 @@ def generate_ad(
             response_data=json.dumps(result.model_dump(mode="json"), ensure_ascii=False),
         )
         return result
+    except ValueError as e:
+        create_history(
+            db,
+            user_id=current_user_id,
+            action_type="ads.generate",
+            status="failed",
+            request_data=request_data,
+            error_message=str(e),
+        )
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         db.rollback()
         create_history(
@@ -216,26 +187,21 @@ def generate_ad(
 @router.post("/regenerate", response_model=GenerateAdResponse)
 def regenerate_ad(req: RegenerateAdRequest) -> GenerateAdResponse:
     """FR-12: 기존 전처리 산출물 재사용, 새 seed 로 재생성 (전처리 생략 → 더 빠름)."""
-    processed_path = image_service.PROCESSED_DIR / f"{req.asset_id}_processed.png"
-    mask_path = image_service.PROCESSED_DIR / f"{req.asset_id}_mask.png"
-    if not processed_path.is_file() or not mask_path.is_file():
-        raise HTTPException(status_code=404, detail=f"산출물 없음: asset_id={req.asset_id}")
+    if not generation_service.is_valid_asset_id(req.asset_id):
+        raise HTTPException(status_code=400, detail=f"잘못된 asset_id 형식: {req.asset_id}")
 
-    processed = image_service.PreprocessResult(
-        processed_image_path=str(processed_path), mask_path=str(mask_path)
-    )
     product = ProductInfo(name=req.product_name, description=req.product_description)
-
-    import random
-
-    new_seed = random.randint(0, 2**32 - 1)
-    while req.prev_seed is not None and new_seed == req.prev_seed:
-        new_seed = random.randint(0, 2**32 - 1)
-
-    prompt = build_image_prompt(product, req.style)
     try:
-        return _run_pipeline(processed, product, req.style, prompt, new_seed,
-                             req.use_vision, req.poster)
+        if generation_client.is_remote():
+            return generation_client.regenerate_remote(req.model_dump())
+        out = generation_service.rerun(
+            req.asset_id, product, req.style, req.prev_seed, req.use_vision, req.poster
+        )
+        return _to_response(out)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"재생성 실패: {e}") from e
 
