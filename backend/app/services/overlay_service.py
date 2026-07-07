@@ -222,9 +222,27 @@ def _split_headline(text: str) -> list[str]:
     return best
 
 
+def _organic_blob_pts(cx, cy, rx, ry, seed=11, harmonics=((2, 0.09), (3, 0.06), (5, 0.045))):
+    """저주파 하모닉 반경 함수 기반 유기 블롭 윤곽 (디자이너 잉크 블롭의 형태 특성)."""
+    rng = np.random.default_rng(seed)
+    theta = np.linspace(0, 2 * math.pi, 720)
+    r = np.ones_like(theta)
+    for k, amp in harmonics:
+        r += amp * np.sin(k * theta + rng.uniform(0, 2 * math.pi))
+    return np.stack([cx + rx * r * np.cos(theta), cy + ry * r * np.sin(theta)], axis=1)
+
+
+def _liquid_smooth(shape: Image.Image, blur: int = 12) -> Image.Image:
+    """블러+임계값 모폴로지 스무딩 — 획·블롭 접합부를 잉크처럼 융합."""
+    from PIL import ImageFilter
+
+    sm = shape.filter(ImageFilter.GaussianBlur(blur)).point(lambda p: 255 if p >= 128 else 0)
+    return sm.filter(ImageFilter.GaussianBlur(1.6))
+
+
 def _apply_banner(img, product_rgba, mask, info, headline, subcopy, color):
-    """레트로 배너 (레퍼런스: 두툼한 유기 블롭이 영문 헤드라인을 품고, 꼬리가
-    제품 옆을 감아 내려가는 구조. 배경은 생성 단계에서 크림 아이보리 평면)."""
+    """레트로 배너: 유기 블롭(헤드라인 하우징) + 흐르는 꼬리를 하나의 잉크
+    실루엣으로 융합. 배경은 생성 단계에서 크림 아이보리 평면."""
     w, h = img.size
     sig = _deepen(color)
     rng = np.random.default_rng(11)
@@ -232,47 +250,45 @@ def _apply_banner(img, product_rgba, mask, info, headline, subcopy, color):
     head = headline.upper() if headline.isascii() else headline
     lines = _split_headline(head)
 
-    # 1. 헤드라인 블롭: 상단을 가로지르는 물결 경로를 따라 큰 원들을 겹쳐 유기 블롭 생성
-    ribbon = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    rd = ImageDraw.Draw(ribbon)
-    blob_cy = h * (0.10 if len(lines) == 1 else 0.13)
-    blob_r = h * (0.075 if len(lines) == 1 else 0.115)
-    ts = np.linspace(0, 1, 160)
-    for t in ts:
-        x = w * (0.10 + 0.80 * t)
-        y = blob_cy + h * 0.028 * math.sin(t * math.pi * 1.7 + 0.4)
-        r = blob_r * (1.0 + 0.10 * math.sin(t * math.pi * 2.3))
-        # 양 끝 라운딩
-        edge = min(t, 1 - t) / 0.12
-        r *= min(1.0, 0.55 + 0.45 * edge)
-        rd.ellipse([x - r, y - r, x + r, y + r], fill=sig + (255,))
+    # 1. 형태 마스크(L): 블롭 + 꼬리를 흰색으로 그린 뒤 액체 스무딩으로 융합
+    shape = Image.new("L", img.size, 0)
+    sd = ImageDraw.Draw(shape)
 
-    # 2. 꼬리: 블롭 끝에서 제품 옆을 감아 내려가는 테이퍼 곡선
+    blob_cy = h * (0.115 if len(lines) == 1 else 0.145)
+    blob_rx, blob_ry = w * 0.40, h * (0.085 if len(lines) == 1 else 0.125)
+    sd.polygon([tuple(p) for p in _organic_blob_pts(w * 0.50, blob_cy, blob_rx, blob_ry)],
+               fill=255)
+
+    # 우측 꼬리: 블롭에서 흘러내려 제품 옆을 감싸는 스트로크
     tail = np.concatenate([
-        _bezier(np.array([w * 0.88, blob_cy + blob_r * 0.5]),
-                np.array([w * 0.985, h * 0.36]),
-                np.array([w * 0.93, h * 0.52]), np.array([w * 0.88, h * 0.62])),
-        _bezier(np.array([w * 0.88, h * 0.62]), np.array([w * 0.83, h * 0.72]),
-                np.array([w * 0.72, h * 0.78]), np.array([w * 0.60, h * 0.76])),
+        _bezier(np.array([w * 0.82, blob_cy + blob_ry * 0.55]),
+                np.array([w * 0.97, h * 0.33]),
+                np.array([w * 0.935, h * 0.50]), np.array([w * 0.86, h * 0.64])),
+        _bezier(np.array([w * 0.86, h * 0.64]), np.array([w * 0.80, h * 0.75]),
+                np.array([w * 0.68, h * 0.80]), np.array([w * 0.575, h * 0.77])),
     ])
-    thick = h * 0.032
+    thick = h * 0.040
     n = len(tail)
     for i, (x, y) in enumerate(tail):
-        r = thick * (1.0 - 0.62 * (i / max(n - 1, 1)))
-        rd.ellipse([x - r, y - r, x + r, y + r], fill=sig + (255,))
+        r = thick * (1.0 - 0.55 * (i / max(n - 1, 1)))
+        sd.ellipse([x - r, y - r, x + r, y + r], fill=255)
 
-    # 반대편 짧은 꼬리 (좌하 — 레퍼런스의 비대칭 흐름)
-    tail2 = _bezier(np.array([w * 0.12, blob_cy + blob_r * 0.6]),
-                    np.array([w * 0.015, h * 0.34]),
-                    np.array([w * 0.06, h * 0.46]), np.array([w * 0.13, h * 0.52]))
+    # 좌측 짧은 꼬리 (비대칭 흐름)
+    tail2 = _bezier(np.array([w * 0.16, blob_cy + blob_ry * 0.62]),
+                    np.array([w * 0.02, h * 0.33]),
+                    np.array([w * 0.055, h * 0.45]), np.array([w * 0.125, h * 0.50]))
     for i, (x, y) in enumerate(tail2):
-        r = thick * 0.9 * (1.0 - 0.62 * (i / (len(tail2) - 1)))
-        rd.ellipse([x - r, y - r, x + r, y + r], fill=sig + (255,))
+        r = thick * 0.85 * (1.0 - 0.55 * (i / (len(tail2) - 1)))
+        sd.ellipse([x - r, y - r, x + r, y + r], fill=255)
 
-    # 스크린프린트 그레인
-    rib = np.array(ribbon, dtype=np.float64)
-    rib[..., :3] = (rib[..., :3] + rng.normal(0, 9, (h, w, 1))).clip(0, 255)
-    ribbon = Image.fromarray(rib.astype(np.uint8))
+    shape = _liquid_smooth(shape, blur=14)
+
+    # 2. 시그니처 컬러 채움 + 스크린프린트 그레인
+    fill = np.zeros((h, w, 4), dtype=np.float64)
+    fill[..., 0], fill[..., 1], fill[..., 2] = sig
+    fill[..., :3] += rng.normal(0, 9, (h, w, 1))
+    fill[..., 3] = np.array(shape, dtype=np.float64)
+    ribbon = Image.fromarray(fill.clip(0, 255).astype(np.uint8))
     img.paste(ribbon, (0, 0), ribbon)
 
     # 3. 헤드라인 (아이보리 손글씨, 블롭 안 가득, 살짝 기울임)
@@ -345,6 +361,37 @@ def _apply_caption(img, preset, info, headline, subcopy, color=None):
     return img
 
 
+# --- 템플릿: text_only (그래픽 없이 타이포만 — FLUX 등 배경 자체가 그래픽인 경우) --
+def _apply_text_only(img, info, headline, subcopy, color):
+    """배경이 이미 완성된 그래픽(FLUX 생성)일 때: 블롭·리본 없이 글자만 얹는다.
+
+    역할 분리 원칙(그래픽=생성모델 / 타이포=코드)의 코드 측 구현.
+    헤드라인은 상단(배경 그래픽 위), 서브카피는 하단. 배경 명도로 색 자동 결정.
+    """
+    w, h = img.size
+    d = ImageDraw.Draw(img)
+    # 헤드라인 영역(상단) 명도로 색 결정
+    head_color = IVORY if not _bg_is_bright(img, y_frac=0.18) else _deepen(color)
+
+    head = headline.upper() if headline.isascii() else headline
+    lines = _split_headline(head)
+    fsize = int(h * (0.088 if len(lines) == 1 else 0.082))
+    font = _font("display", fsize)
+    for i, line in enumerate(lines):
+        tw = d.textlength(line, font=font)
+        if tw > w * 0.86:
+            font = _font("display", int(fsize * w * 0.86 / tw))
+            tw = d.textlength(line, font=font)
+        d.text(((w - tw) / 2, int(h * 0.045) + i * int(fsize * 1.05)), line,
+               font=font, fill=head_color)
+
+    # 서브카피(하단) — 항상 시그니처 딥톤
+    sub_font = _font("gothic_bold", int(h * 0.028))
+    sw = d.textlength(subcopy, font=sub_font)
+    d.text(((w - sw) / 2, int(h * 0.915)), subcopy, font=sub_font, fill=_deepen(color))
+    return img
+
+
 # --- 공개 API -------------------------------------------------------------------
 def apply_overlay(
     final_image_path: str,
@@ -353,10 +400,12 @@ def apply_overlay(
     subcopy: str,
     mask_path: str,
     output_path: Optional[str] = None,
+    text_only: bool = False,
 ) -> str:
     """생성 이미지에 프리셋별 타이포 오버레이 적용 → 저장 경로 반환.
 
     headline/subcopy 는 FR-09 generate_copy 의 '헤드라인\\n서브카피' 를 분리해 전달.
+    text_only=True: 배경이 이미 완성 그래픽(FLUX)인 경우 — 블롭·리본 없이 글자만.
     """
     img = Image.open(final_image_path).convert("RGB")
     mask = Image.open(mask_path).convert("L").resize(img.size)
@@ -366,10 +415,12 @@ def apply_overlay(
     product_rgba = img.convert("RGBA").copy()
     product_rgba.putalpha(mask)
 
-    template = _TEMPLATE_BY_PRESET.get(preset, "caption")
     color = extract_signature_color(final_image_path, mask_path)
+    template = "text_only" if text_only else _TEMPLATE_BY_PRESET.get(preset, "caption")
 
-    if template == "ring":
+    if template == "text_only":
+        img = _apply_text_only(img, info, headline, subcopy, color)
+    elif template == "ring":
         img = _apply_ring(img, product_rgba, mask, info, headline, subcopy, color)
     elif template == "banner":
         img = _apply_banner(img, product_rgba, mask, info, headline, subcopy, color)
