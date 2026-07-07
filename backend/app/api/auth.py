@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -26,6 +27,14 @@ def signup(user_data: UserCreate, db: Session = Depends(get_db)):
             detail="이미 가입된 이메일입니다.",
         )
 
+    existing_username = db.query(User).filter(User.username == user_data.username).first()
+
+    if existing_username:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="이미 사용 중인 아이디입니다.",
+        )
+
     hashed_password = hash_password(user_data.password)
 
     new_user = User(
@@ -37,9 +46,16 @@ def signup(user_data: UserCreate, db: Session = Depends(get_db)):
         business_type=user_data.business_type,
     )
 
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    try:
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="이미 사용 중인 이메일 또는 아이디입니다.",
+        ) from exc
 
     return new_user
 
