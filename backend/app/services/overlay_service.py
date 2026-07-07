@@ -440,7 +440,7 @@ def apply_food_poster(
 
     타이포: 키커(레터스페이싱 대문자) → 얇은 룰 → 세리프 헤드라인 → 서브카피.
       한글 헤드라인=명조(Myeongjo), 영문=Playfair. 배달앱 룩(둥근폰트+스크림) 탈피,
-      LRAUM 급 절제/여백/세리프 지향.
+      절제된 여백·세리프 지향.
     layout:
       - overlay : 풀블리드 사진 + 하단 부드러운 그라데이션 위 좌측 정렬 텍스트
       - panel   : 사진 상단 + 하단 솔리드 딥톤 패널(에디토리얼 카드), 중앙 정렬
@@ -544,9 +544,9 @@ def apply_food_poster(
     return str(out)
 
 
-# --- 에디토리얼 포스터 (LRAUM 룩: 평면 단색 + 중앙 히어로 + 상단 세리프) -----------
+# --- 에디토리얼 포스터 (평면 단색 + 중앙 히어로 + 상단 세리프) ----------------------
 def _muted_bg_from_rgba(product_rgba: Image.Image) -> tuple[int, int, int]:
-    """누끼 제품의 주도색 → LRAUM식 채도 낮춘 중간 웜톤 배경색."""
+    """누끼 제품의 주도색 → 채도 낮춘 중간 웜톤 배경색 (제품과 조화)."""
     arr = np.asarray(product_rgba.convert("RGBA"), dtype=np.float64)
     rgb = arr[..., :3] / 255.0
     a = arr[..., 3]
@@ -579,7 +579,7 @@ def apply_editorial_poster(
     product_frac: float = 0.52,
     base_frac: float = 0.72,
 ) -> str:
-    """LRAUM식 에디토리얼 포스터 — 누끼 제품(RGBA) 입력.
+    """에디토리얼 포스터 (단색 배경 + 중앙 히어로) — 누끼 제품(RGBA) 입력.
 
     평면 단색 배경(제품색 뮤트) + 중앙 히어로 + 형상인식 그라운딩 그림자 + 상단 세리프.
     headline=대형 세리프(예 'SIGNATURE'), sub_headline=제품명, caption=서브헤드(sans).

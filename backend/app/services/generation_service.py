@@ -211,7 +211,7 @@ def generate_editorial(
     eyebrow: str = "SIGNATURE",
     output_dir: str = "backend/results/ai/editorial",
 ) -> str:
-    """LRAUM식 에디토리얼 포스터 — 누끼 + 클린보정 + 평면 단색 + 중앙 히어로 + 상단 세리프.
+    """에디토리얼 포스터 (단색 배경 + 중앙 히어로) — 누끼 + 클린보정 + 상단 세리프.
 
     카페 디저트·제품의 프리미엄 룩(FLUX 씬보다 싸고 통제 쉬움). 영문 라벨 GPT 1회.
     """
