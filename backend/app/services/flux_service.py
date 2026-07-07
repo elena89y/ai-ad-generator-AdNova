@@ -110,6 +110,19 @@ class FluxResult:
     peak_vram_gb: float = 0.0
 
 
+def unload() -> None:
+    """FLUX 파이프라인 언로드 — VRAM 확보 (SDXL/RealVis 로드 전). B모드 종료 후 호출."""
+    import gc
+
+    import torch
+
+    global _flux_pipeline
+    _flux_pipeline = None
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+
 def _load_flux_fill():  # noqa: ANN202
     """FLUX.1 Fill lazy 싱글턴 — transformer·T5 를 NF4 로 양자화해 L4 에 적재."""
     global _flux_pipeline
