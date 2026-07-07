@@ -3,10 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.security import get_current_user
 from app.crud.image import create_image
 from app.database.connection import get_db
 from app.database.models import User
@@ -54,17 +55,10 @@ def _validate_image_file(filename: str, content_type: str | None) -> str:
     status_code=status.HTTP_201_CREATED,
 )
 async def upload_image(
-    user_id: int = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> ImageUploadResponse:
-    user = db.query(User).filter(User.id == user_id).first()
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="사용자를 찾을 수 없습니다.",
-        )
-
     original_filename = _get_safe_filename(file.filename)
     suffix = _validate_image_file(original_filename, file.content_type)
 
@@ -90,7 +84,7 @@ async def upload_image(
         upload_path.write_bytes(content)
         image = create_image(
             db,
-            user_id=user_id,
+            user_id=current_user.id,
             image_type="upload",
             original_filename=original_filename,
             stored_filename=stored_filename,

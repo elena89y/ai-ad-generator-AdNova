@@ -12,6 +12,7 @@ advertisements CRUD(김범수님) 연동 시 추가 예정.
 """
 from __future__ import annotations
 
+import json
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -20,8 +21,12 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from ..core.security import get_current_user
+from ..crud.advertisement import create_advertisement
+from ..crud.history import create_history
 from ..crud.image import get_image_by_id
 from ..database.connection import get_db
+from ..database.models import User
 from ..schemas.ads import (
     GenerateAdResponse,
     ProductInfo,
@@ -31,7 +36,7 @@ from ..schemas.ads import (
     StyleResponse,
 )
 from ..services import gpt_service, image_service, style_service
-from ..services.prompt_service import build_image_prompt
+from ..services.prompt_service import ImagePrompt, build_image_prompt
 
 router = APIRouter(prefix="/ads", tags=["ads"])
 
@@ -53,12 +58,12 @@ def _run_pipeline(
     processed: "image_service.PreprocessResult",
     product: ProductInfo,
     style: StylePreset,
+    prompt: ImagePrompt,
     seed: Optional[int],
     use_vision: bool,
     poster: bool,
 ) -> GenerateAdResponse:
     """생성→문구(→포스터) 공통 구간. generate 와 regenerate 가 공유."""
-    prompt = build_image_prompt(product, style)
     gen = image_service.generate_ad_image(
         processed, prompt, seed=seed,
         # editorial/retro 는 평면 배경 코드 렌더링 (SDXL 회색조 회귀·소품 잔재 우회)
@@ -110,6 +115,7 @@ def generate_ad(
     poster: bool = Form(False),
     seed: Optional[int] = Form(None),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> GenerateAdResponse:
     """통합 광고 생성: 입력 → 전처리 → 배경 생성+조화 → 문구 (→ 포스터 오버레이).
 
@@ -118,11 +124,30 @@ def generate_ad(
       - image_id : /images/upload (PR #14) 로 업로드된 DB 이미지 참조
     warm 기준 약 20초 소요 — 프론트는 timeout 여유(60s+) 필요.
     """
+    current_user_id = current_user.id
+    input_image_id: Optional[int] = None
+    request_data = json.dumps(
+        {
+            "image_id": image_id,
+            "filename": image.filename if image else None,
+            "product_name": product_name,
+            "product_description": product_description,
+            "style": style.value,
+            "use_vision": use_vision,
+            "poster": poster,
+            "seed": seed,
+        },
+        ensure_ascii=False,
+    )
+
     if image_id is not None:
         row = get_image_by_id(db, image_id)
         if row is None or not row.file_path or not Path(row.file_path).is_file():
             raise HTTPException(status_code=404, detail=f"업로드 이미지 없음: image_id={image_id}")
+        if row.user_id != current_user_id:
+            raise HTTPException(status_code=403, detail="이미지 소유자만 광고를 생성할 수 있습니다")
         src_path = Path(row.file_path)
+        input_image_id = row.id
     elif image is not None:
         suffix = Path(image.filename or "upload.png").suffix.lower() or ".png"
         if suffix not in (".png", ".jpg", ".jpeg", ".webp"):
@@ -136,12 +161,55 @@ def generate_ad(
     try:
         processed = image_service.preprocess(str(src_path))
     except ValueError as e:
+        create_history(
+            db,
+            user_id=current_user_id,
+            action_type="ads.generate",
+            status="failed",
+            request_data=request_data,
+            error_message=str(e),
+        )
         raise HTTPException(status_code=400, detail=str(e)) from e
 
     product = ProductInfo(name=product_name, description=product_description or None)
+    prompt = build_image_prompt(product, style)
+    prompt_for_db = json.dumps(
+        {"positive": prompt.positive, "negative": prompt.negative},
+        ensure_ascii=False,
+    )
     try:
-        return _run_pipeline(processed, product, style, seed, use_vision, poster)
+        result = _run_pipeline(processed, product, style, prompt, seed, use_vision, poster)
+        advertisement = create_advertisement(
+            db,
+            user_id=current_user_id,
+            input_image_id=input_image_id,
+            title=product_name,
+            ad_type="poster" if poster else "image",
+            prompt=prompt_for_db,
+            generated_text=result.copy_text,
+            style=style.value,
+            status="completed",
+        )
+        create_history(
+            db,
+            user_id=current_user_id,
+            advertisement_id=advertisement.id,
+            action_type="ads.generate",
+            status="completed",
+            request_data=request_data,
+            response_data=json.dumps(result.model_dump(mode="json"), ensure_ascii=False),
+        )
+        return result
     except Exception as e:
+        db.rollback()
+        create_history(
+            db,
+            user_id=current_user_id,
+            action_type="ads.generate",
+            status="failed",
+            request_data=request_data,
+            error_message=str(e),
+        )
         raise HTTPException(status_code=500, detail=f"광고 생성 실패: {e}") from e
 
 
@@ -164,8 +232,9 @@ def regenerate_ad(req: RegenerateAdRequest) -> GenerateAdResponse:
     while req.prev_seed is not None and new_seed == req.prev_seed:
         new_seed = random.randint(0, 2**32 - 1)
 
+    prompt = build_image_prompt(product, req.style)
     try:
-        return _run_pipeline(processed, product, req.style, new_seed,
+        return _run_pipeline(processed, product, req.style, prompt, new_seed,
                              req.use_vision, req.poster)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"재생성 실패: {e}") from e
