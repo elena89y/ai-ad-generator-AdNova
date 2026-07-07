@@ -280,6 +280,127 @@ def generate_english_labels(product: ProductInfo) -> tuple[str, str]:
     return name, (phrase or name)
 
 
+@dataclass
+class MenuAnalysis:
+    """상품명 → 라우팅 정보 (A 음식 / C 사물 공통).
+
+    domain: 'food'(음식) | 'object'(하드굿즈 사물). 최상위 분기.
+    display_name: 입력 원문(포스터 헤드라인용, 언어 보존).
+    subject_en: 이미지 모델용 영어 설명(CLIP 한글 오염 방지 — 항상 영어).
+    category: 음식이면 fried|soup|bakery|grill|beef|pork|default,
+              사물이면 material 값을 반영(matte|reflective|transparent|default).
+    core_ingredients: (음식) 진짜 구성 재료 — 생성 허용 경계(외래 데코와 구분).
+    texture_hero: (음식) 텍스처가 상품인가 → True 면 보존 그레이드.
+    material: (사물) matte|reflective|transparent|default — 클린 보정 강도.
+    lang: ko|en (원문 언어).
+    """
+    domain: str
+    display_name: str
+    subject_en: str
+    category: str
+    core_ingredients: list[str]
+    texture_hero: bool
+    material: str
+    food_mode: str    # (food) 'dish'=음식점 접시(A, in-place) | 'cafe'=카페 이산제품(B, 누끼+씬)
+    lang: str
+
+    # 하위호환: 기존 코드가 쓰던 food_en 별칭
+    @property
+    def food_en(self) -> str:
+        return self.subject_en
+
+
+_MENU_CATEGORIES = "fried, soup, bakery, grill, beef, pork, default"
+_MATERIALS = ("matte", "reflective", "transparent", "default")
+
+
+def analyze_menu(name: str) -> MenuAnalysis:
+    """상품명(한/영) → 라우팅 정보. 사용자는 이름만 입력, 나머지는 GPT 매핑.
+
+    최상위로 domain(food/object) 을 판정 — 음식이면 category·재료·texture_hero,
+    사물이면 material 을 뽑는다. display_name 은 원문 보존(헤드라인용).
+    """
+    display_name = (name or "").strip()
+    instruction = (
+        "너는 소상공인 광고 파이프라인의 상품 분석기야. 아래 '상품명'을 분석해 JSON 으로만 응답해.\n"
+        f"- 상품명: {display_name or '(빈 입력)'}\n"
+        "규칙:\n"
+        "1. domain: 먹는 음식이면 'food', 사물·제품(전자기기·주방용품·뷰티툴·잡화 등)이면 'object'.\n"
+        f"2. category(food 일 때만 의미): [{_MENU_CATEGORIES}] 중 하나. "
+        "생소고기=beef, 생돼지고기=pork, 국·탕·찌개=soup, 튀김=fried, 빵·디저트=bakery, "
+        "구이=grill, 그 외=default. object 면 'default'.\n"
+        "3. subject_en: 이미지용 영어 설명(2~6단어, 항상 영어. 한글이면 번역). "
+        "브랜드명·과장 금지, 실제 상품만.\n"
+        "4. core_ingredients: (food) 원래 들어가는 핵심 재료 영어 배열(최대 4개). object 면 [].\n"
+        "5. texture_hero: (food) 미세 텍스처가 상품의 핵심이면 true "
+        "(마블링 생소고기·눈꽃치즈 파우더·회 등). 그 외 false. object 면 false.\n"
+        "6. material: (object) 'reflective'(금속·거울·유광), 'transparent'(유리·투명), "
+        "'matte'(무광 플라스틱·세라믹·천), 애매하면 'default'. food 면 'default'.\n"
+        "7. food_mode: (food) 그릇·용기에 담겨 나오는 음식점 요리(국·탕·밥·구이·정식·치킨 등)="
+        "'dish', 카페의 이산 제품(음료·커피·케이크·베이커리·디저트·마들렌 등)='cafe'. object 면 'dish'.\n"
+        "8. lang: 상품명이 한글이면 'ko', 영어면 'en'.\n"
+        '반드시 JSON: {"domain":"object","category":"default","subject_en":"wireless computer mouse",'
+        '"core_ingredients":[],"texture_hero":false,"material":"reflective","food_mode":"dish","lang":"ko"}'
+    )
+    result = _chat_json([{"role": "user", "content": instruction}], label="analyze_menu")
+    low = {str(k).lower(): v for k, v in result.items()} if isinstance(result, dict) else {}
+    domain = "object" if str(low.get("domain", "food")).lower().startswith("obj") else "food"
+    category = str(low.get("category", "default")).strip().lower()
+    if category not in ("fried", "soup", "bakery", "grill", "beef", "pork", "default"):
+        category = "default"
+    material = str(low.get("material", "default")).strip().lower()
+    if material not in _MATERIALS:
+        material = "default"
+    ings = low.get("core_ingredients") or []
+    if not isinstance(ings, list):
+        ings = []
+    return MenuAnalysis(
+        domain=domain,
+        display_name=display_name,
+        subject_en=str(low.get("subject_en") or low.get("food_en", "")).strip() or "product",
+        category=category,
+        core_ingredients=[str(x).strip() for x in ings][:4] if domain == "food" else [],
+        texture_hero=bool(low.get("texture_hero", False)) and domain == "food",
+        material=material,
+        food_mode="cafe" if str(low.get("food_mode", "dish")).lower() == "cafe" else "dish",
+        lang="en" if str(low.get("lang", "")).lower().startswith("en") else "ko",
+    )
+
+
+def detect_material(image_path: str) -> str:
+    """사물 사진 → 표면 재질 판정 (Vision). ⚠️ 이름만으론 유광/무광/투명 구분 불가 →
+    실제 사진을 보고 판정. 반환: matte|reflective|transparent|default. (Vision 비용 1회)"""
+    client = _get_client()
+    with open(image_path, "rb") as f:
+        image_b64 = base64.b64encode(f.read()).decode("utf-8")
+    media_type, _ = mimetypes.guess_type(image_path)
+    if media_type is None or not media_type.startswith("image/"):
+        media_type = "image/jpeg"
+    prompt = (
+        "이 사진 속 주된 사물의 표면 재질을 판정해 JSON 으로만 응답해.\n"
+        "- reflective: 금속·거울·유광 플라스틱 등 반사 강한 표면\n"
+        "- transparent: 유리·투명/반투명 재질\n"
+        "- matte: 무광 플라스틱·세라믹·천·나무 등\n"
+        "- default: 애매하거나 혼합\n"
+        '반드시 JSON: {"material": "reflective"}'
+    )
+    response = client.chat.completions.create(
+        model=GPT_MODEL,
+        messages=[{"role": "user", "content": [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{image_b64}"}},
+        ]}],
+        response_format={"type": "json_object"},
+    )
+    _record_usage("detect_material", response)
+    try:
+        result = json.loads(response.choices[0].message.content)
+    except Exception:
+        return "default"
+    m = str(result.get("material", "default")).strip().lower()
+    return m if m in _MATERIALS else "default"
+
+
 # --- 스타일 경로1: Vision 분석 -----------------------------------------------
 def analyze_image_for_style(image_path: str) -> list[StyleCandidate]:
     """이미지 Vision 분석 → 스타일 후보 3개 반환 (style_service 경로1).

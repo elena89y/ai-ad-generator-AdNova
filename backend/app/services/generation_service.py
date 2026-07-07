@@ -148,3 +148,89 @@ def rerun(
     while prev_seed is not None and new_seed == prev_seed:
         new_seed = random.randint(0, 2**32 - 1)
     return run_generation(processed, product, style, new_seed, use_vision, poster)
+
+
+# =============================================================================
+# 통합 엔트리 (신규 흐름) — 이름 기반 자동 모드 라우팅. 기존 run_generation 과 병행.
+#   사진 + 상품명 → router(A/B/C 자동) → 문구 → 포스터. StylePreset 불필요.
+#   HTTP API 계약 확정·이관은 팀 공유 후(PR 직전).
+# =============================================================================
+@dataclass
+class ProcessedAd:
+    final_image_path: str
+    domain: str               # food | cafe | object
+    engine: str               # grade | generative | cutout+flux | objectcut:<mat>
+    subject_en: str
+    copy_text: str            # '헤드라인\n서브카피' (FR-09)
+    poster: bool
+    seconds: float
+
+
+def process_ad(
+    image_path: str,
+    name: str,
+    knob: Optional[float] = None,
+    poster: bool = True,
+    layout: str = "overlay",
+    use_vision: bool = False,
+    output_dir: str = "backend/results/ai/route",
+) -> ProcessedAd:
+    """사진 + 상품명 → 자동 라우팅 리터치 + 문구 + 포스터. 사용자는 이름만 입력.
+
+    knob(0~1): 공통 강도 슬라이더. layout: overlay|panel(포스터). GPU 필요.
+    """
+    import time
+
+    from . import router
+    from .overlay_service import apply_food_poster
+
+    t0 = time.time()
+    route = router.process_input(image_path, name, knob=knob, output_dir=output_dir)
+    final = route.output_path
+
+    # 문구 (FR-09) — 상품명 + 리터치 이미지 기반. 톤은 EDITORIAL 기본.
+    product = ProductInfo(name=name)
+    copy = _generate_copy(final, product, StylePreset.EDITORIAL, use_vision)
+
+    if poster:
+        headline, _, subcopy = copy.copy_text.partition("\n")
+        headline = headline.strip() or name
+        subcopy = subcopy.strip()
+        final = apply_food_poster(final, headline, subcopy, layout=layout)
+
+    return ProcessedAd(
+        final_image_path=final, domain=route.domain, engine=route.engine,
+        subject_en=route.subject_en, copy_text=copy.copy_text, poster=poster,
+        seconds=round(time.time() - t0, 2),
+    )
+
+
+def generate_editorial(
+    image_path: str,
+    name: str,
+    eyebrow: str = "SIGNATURE",
+    output_dir: str = "backend/results/ai/editorial",
+) -> str:
+    """LRAUM식 에디토리얼 포스터 — 누끼 + 클린보정 + 평면 단색 + 중앙 히어로 + 상단 세리프.
+
+    카페 디저트·제품의 프리미엄 룩(FLUX 씬보다 싸고 통제 쉬움). 영문 라벨 GPT 1회.
+    """
+    from pathlib import Path as _P
+
+    from PIL import Image as _Img
+
+    from . import gpt_service, image_service, object_service
+    from .overlay_service import apply_editorial_poster
+
+    proc = image_service.preprocess(image_path, output_dir=output_dir)
+    prgba = _Img.open(proc.processed_image_path).convert("RGBA")
+    cleaned = object_service.clean_object(prgba, material="matte", intensity=0.8)
+
+    try:
+        en_name, en_phrase = gpt_service.generate_english_labels(ProductInfo(name=name))
+        caption = en_phrase.title() if en_phrase else "Handcrafted daily"
+    except Exception:  # 영문 라벨 응답 형태 변동 등 → 원문 이름으로 폴백
+        en_name, caption = name, "Handcrafted daily"
+
+    out = _P(output_dir) / f"{_P(image_path).stem}_editorial.png"
+    return apply_editorial_poster(cleaned, eyebrow, en_name, caption, output_path=str(out))
