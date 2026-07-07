@@ -25,5 +25,9 @@ class Settings:
     GENERATION_SERVICE_URL: str = os.getenv("GENERATION_SERVICE_URL", "")
     GENERATION_TIMEOUT_S: int = int(os.getenv("GENERATION_TIMEOUT_S", "180"))
 
+    # LangGraph 문구 품질 게이트 루프 사용 (1=사용, 0=끄고 gpt_service 직접 호출로 폴백).
+    # langgraph 미설치 시에도 자동 폴백 — 제거 가능 설계.
+    USE_COPY_GATE: bool = os.getenv("USE_COPY_GATE", "1") == "1"
+
 
 settings = Settings()

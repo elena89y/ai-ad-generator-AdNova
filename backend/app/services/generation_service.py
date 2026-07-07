@@ -31,6 +31,23 @@ from .prompt_service import build_image_prompt
 _FLAT_BG = {"editorial": "editorial", "retro_paper": "retro", "pastel_float": "pastel"}
 
 
+def _generate_copy(final_image_path, product, style, use_vision):  # noqa: ANN001
+    """문구 생성. USE_COPY_GATE + langgraph 있으면 품질 게이트 루프, 아니면 직접 호출.
+
+    제거 가능 설계: copy_graph 없거나 플래그 off 면 조용히 gpt_service 로 폴백.
+    """
+    from ..core.config import settings
+
+    if settings.USE_COPY_GATE:
+        try:
+            from .copy_graph import generate_copy_with_gate
+
+            return generate_copy_with_gate(final_image_path, product, style, use_vision)
+        except ImportError:
+            pass  # langgraph 미설치 → 폴백
+    return gpt_service.generate_copy(final_image_path, product, style, use_vision=use_vision)
+
+
 @dataclass
 class GenerationOutput:
     """순수 생성 결과 (DB·URL 성형 이전)."""
@@ -63,9 +80,7 @@ def run_generation(
         product_tilt=(-12.0 if style == StylePreset.PASTEL_FLOAT else 0.0),
     )
 
-    copy = gpt_service.generate_copy(
-        gen.final_image_path, product, style, use_vision=use_vision
-    )
+    copy = _generate_copy(gen.final_image_path, product, style, use_vision)
 
     final_path = gen.final_image_path
     if poster:

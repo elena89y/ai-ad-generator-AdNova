@@ -172,22 +172,29 @@ def generate_copy(
     product: ProductInfo,
     style: StylePreset,
     use_vision: bool = False,
+    feedback: str = "",
 ) -> CopyResult:
     """생성된 광고 이미지 기반 광고 문구 생성 (확정 파이프라인).
 
     use_vision=False (기본, 개발): BLIP 캡션 → 텍스트 API (저비용, B-0)
     use_vision=True  (검증/데모): 이미지를 Vision 으로 직접 입력 (비용 ↑, 호출 최소화)
+    feedback: 재시도 시 직전 위반 사항을 주입 (LangGraph 품질 게이트 루프용, 하위호환).
     """
     product_context = " — ".join(
         p.strip() for p in (product.name, product.description) if p and p.strip()
     ) or "(상품 정보 없음)"
 
+    retry_note = (
+        f"\n- ⚠️ 직전 시도가 규칙을 어겼어. 다음을 반드시 고쳐서 다시 써: {feedback}"
+        if feedback else ""
+    )
     instruction = (
         "아래 광고 이미지와 상품 정보를 바탕으로 한국어 광고 카피를 작성해줘.\n"
         f"- 상품: {product_context}\n"
         f"- 문구 톤: {_STYLE_TONE[style]}\n"
         "요구사항: 헤드라인 1줄 + 서브카피 1문장. 이미지에 실제로 보이는 분위기·소품과 "
-        "어울려야 하고, 이미지에 없는 요소를 지어내지 마.\n"
+        "어울려야 하고, 이미지에 없는 요소를 지어내지 마."
+        f"{retry_note}\n"
         '반드시 JSON 으로만 응답: {"copy": "헤드라인\\n서브카피"}'
     )
 

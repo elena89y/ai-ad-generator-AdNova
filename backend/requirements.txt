@@ -16,6 +16,10 @@ rembg
 # onnxruntime-gpu 1.27+ = CUDA 13 빌드 — torch(CU13 스택)와 라이브러리 공유. 1.26 이하(CU12)와 혼용 금지
 onnxruntime-gpu>=1.27; sys_platform == "linux"
 onnxruntime; sys_platform != "linux"
+# LangGraph 문구 품질 게이트 루프 (생성 서비스 측). 제거 가능 — copy_graph.py 삭제 + USE_COPY_GATE=0
+# pydantic 2.10.4 유지 확인됨(충돌 없음, pip check clean)
+langgraph
+langchain-openai
 torch
 diffusers
 transformers
