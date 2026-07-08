@@ -18,20 +18,22 @@ from ..schemas.ads import StyleCandidate, StylePreset, StyleRequest, StyleRespon
 from . import gpt_service
 
 
-def decide_style(req: StyleRequest) -> StyleResponse:
+def decide_style(req: StyleRequest, image_path: str | None = None) -> StyleResponse:
     """2경로 분기 진입점.
 
-    image_path 존재 → _decide_from_image (경로1)
+    image_id 존재 → API에서 검증한 image_path로 _decide_from_image (경로1)
     free_text 존재  → _decide_from_text  (경로2)
     둘 다 제공/둘 다 없음 → ValueError (상호배타)
     """
-    if req.image_path and req.free_text:
-        raise ValueError("image_path 와 free_text 는 동시에 지정할 수 없습니다")
-    if req.image_path:
-        return _decide_from_image(req.image_path)
+    if req.image_id and req.free_text:
+        raise ValueError("image_id 와 free_text 는 동시에 지정할 수 없습니다")
+    if req.image_id:
+        if not image_path:
+            raise ValueError("image_id에 해당하는 이미지 경로를 확인할 수 없습니다")
+        return _decide_from_image(image_path)
     if req.free_text:
         return _decide_from_text(req.free_text)
-    raise ValueError("image_path 또는 free_text 중 하나 필요")
+    raise ValueError("image_id 또는 free_text 중 하나 필요")
 
 
 def _decide_from_image(image_path: str) -> StyleResponse:
