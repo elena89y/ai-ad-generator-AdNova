@@ -160,10 +160,26 @@ def generate_ad(
             )
             result = _to_response(out)
 
+        # 생성 결과 이미지를 Image 테이블에 저장하고 광고에 연결 (PR #40)
+        output_filename = Path(result.image_url).name
+        output_path = image_service.RESULTS_DIR / output_filename
+        output_image = create_image(
+            db,
+            user_id=current_user_id,
+            image_type="generated",
+            original_filename=output_filename,
+            stored_filename=output_filename,
+            file_path=str(output_path),
+            image_url=result.image_url,
+            content_type="image/png",
+            file_size=output_path.stat().st_size if output_path.exists() else None,
+        )
+
         advertisement = create_advertisement(
             db,
             user_id=current_user_id,
             input_image_id=input_image_id,
+            output_image_id=output_image.id,
             title=product_name,
             ad_type="poster" if poster else "image",
             prompt=prompt_for_db,
