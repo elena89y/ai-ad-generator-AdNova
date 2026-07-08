@@ -23,7 +23,7 @@ def is_remote() -> bool:
 def _fetch_and_localize(body: dict) -> GenerateAdResponse:
     """생성 서비스 응답의 이미지를 로컬로 내려받고, image_url 을 웹 서빙 경로로 재작성.
 
-    생성 서비스는 /result/{name} 로 반환 → 웹 백엔드는 로컬 저장 후 /ads/image/{name} 로 서빙.
+    생성 서비스는 /result/{name} 로 반환 → 웹 백엔드는 로컬 저장 후 api/ads/image/{name} 로 서빙.
     """
     import requests
 
@@ -35,7 +35,8 @@ def _fetch_and_localize(body: dict) -> GenerateAdResponse:
     resp.raise_for_status()
     image_service.RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     (image_service.RESULTS_DIR / name).write_bytes(resp.content)
-    body["image_url"] = f"/ads/image/{name}"  # 웹 백엔드 서빙 경로로 교체
+    # body["image_url"] = f"/ads/image/{name}"  # 웹 백엔드 서빙 경로로 교체
+    body["image_url"] = f"{settings.API_PREFIX}/ads/image/{Path(out.final_image_path).name}" #PREFIX 적용 경로로 통일
     return GenerateAdResponse(**body)
 
 
