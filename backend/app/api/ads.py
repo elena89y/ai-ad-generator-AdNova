@@ -45,10 +45,23 @@ UPLOAD_DIR = Path(__file__).resolve().parents[2] / "uploads"
 
 
 @router.post("/style", response_model=StyleResponse)
-def decide_style(req: StyleRequest) -> StyleResponse:
+def decide_style(
+    req: StyleRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StyleResponse:
     """스타일 결정 2경로 진입점 (경로1: 추천 / 경로2: 자유 텍스트)."""
     try:
-        return style_service.decide_style(req)
+        image_path: str | None = None
+        if req.image_id is not None:
+            row = get_image_by_id(db, req.image_id)
+            if row is None or not row.file_path or not Path(row.file_path).is_file():
+                raise HTTPException(status_code=404, detail=f"업로드 이미지 없음: image_id={req.image_id}")
+            if row.user_id != current_user.id:
+                raise HTTPException(status_code=403, detail="이미지 소유자만 스타일을 분석할 수 있습니다")
+            image_path = row.file_path
+
+        return style_service.decide_style(req, image_path=image_path)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except FileNotFoundError as e:

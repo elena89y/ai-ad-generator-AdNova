@@ -79,11 +79,11 @@ class AdPurpose(str, Enum):
 class StyleRequest(BaseModel):
     """스타일 결정 요청.
 
-    경로1: image_path 제공 → Vision 분석 → 후보 추천
+    경로1: image_id 제공 → Vision 분석 → 후보 추천
     경로2: free_text 제공  → 자유 텍스트 → 스타일 결정
     둘 중 하나만 채워지는 것을 전제. 상호배타 검증 TODO.
     """
-    image_path: Optional[str] = None   # 경로1
+    image_id: Optional[int] = Field(default=None, gt=0)   # 경로1
     free_text: Optional[str] = None    # 경로2
     # TODO: 상품 정보 필드 추가 여부 결정
 
