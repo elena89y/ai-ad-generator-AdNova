@@ -37,6 +37,7 @@ from ..schemas.ads import (
 )
 from ..services import gpt_service, image_service, style_service
 from ..services.prompt_service import build_image_prompt
+from ..services.upload_validation import read_image_upload_file_sync
 
 router = APIRouter(prefix="/ads", tags=["ads"])
 
@@ -100,12 +101,10 @@ def generate_ad(
         src_path = Path(row.file_path)
         input_image_id = row.id
     elif image is not None:
-        suffix = Path(image.filename or "upload.png").suffix.lower() or ".png"
-        if suffix not in (".png", ".jpg", ".jpeg", ".webp"):
-            raise HTTPException(status_code=400, detail=f"지원하지 않는 이미지 형식: {suffix}")
+        _, suffix, content = read_image_upload_file_sync(image)
         UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
         src_path = UPLOAD_DIR / f"{uuid.uuid4().hex[:12]}{suffix}"
-        src_path.write_bytes(image.file.read())
+        src_path.write_bytes(content)
     else:
         raise HTTPException(status_code=400, detail="image 파일 또는 image_id 중 하나가 필요합니다")
 
