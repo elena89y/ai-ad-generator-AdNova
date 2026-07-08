@@ -53,12 +53,19 @@ _STYLE_KEYWORDS: dict[StylePreset, dict[str, str]] = {
         ),
         "negative": "vivid saturated colors, cluttered background, busy patterns",
     },
+    # ⚠️ 'vintage/nostalgic/film grain/wooden table' 금지 — SDXL 이 마른 꽃·앤티크 소품
+    #   낀 '오래된 한정식집' 룩을 소환(촌스러움). 웜톤은 유지하되 모던·미니멀로 재정의.
     StylePreset.WARM_VINTAGE: {
         "positive": (
-            "warm vintage atmosphere, cozy retro cafe mood, soft warm film grain tones, "
-            "wooden table texture, golden hour window light, nostalgic feeling"
+            "warm minimal studio background, soft cream and honey beige tones, "
+            "gentle warm natural sunlight, clean contemporary cafe mood, "
+            "smooth seamless backdrop, soft diffused key light, subtle warm shadow"
         ),
-        "negative": "cold blue tones, futuristic, neon lights, sterile white background",
+        "negative": (
+            "cold blue tones, futuristic, neon lights, sterile white background, "
+            "dried flowers, eucalyptus, herbs, twigs, rustic wooden table, antique props, "
+            "tablecloth, cluttered, vintage ornaments, aged paper, film grain, sepia"
+        ),
     },
     StylePreset.POP: {
         "positive": (

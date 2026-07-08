@@ -62,6 +62,9 @@ MASK_EDGE_BLUR = 4  # 배경/제품 경계 블렌딩용 (0 = 미사용)
 SDXL_BASE_MODEL = "stabilityai/stable-diffusion-xl-base-1.0"
 HARMONIZE_STRENGTH = 0.25
 HARMONIZE_GUIDANCE = 5.0
+# A모드 음식 리터치 전용 포토리얼 체크포인트 — SDXL base 는 img2img 에서 스타일화
+#   편향으로 사진 붕괴(육개장·꽃등심 실측). RealVis 는 사실감 특화라 구조·질감 보존.
+FOOD_IMG2IMG_MODEL = "SG161222/RealVisXL_V5.0"
 SHADOW_OFFSET = (10, 14)   # 접촉 그림자 오프셋 (x, y)
 SHADOW_BLUR = 18
 SHADOW_OPACITY = 0.35
@@ -418,6 +421,65 @@ def _harmonize(
         return composite
 
 
+_food_pipeline = None
+
+
+def _load_food_pipeline():  # noqa: ANN202
+    """A모드 음식 리터치용 RealVisXL img2img lazy 싱글턴 (독립 로드).
+
+    B모드 조화(SDXL base)와 분리 — 서로 다른 체크포인트라 컴포넌트 공유 불가.
+    A·B 파이프라인 동시 상주 대비 cpu offload (음식 요청은 대개 단독이라 부담 적음).
+    """
+    global _food_pipeline
+    if _food_pipeline is None:
+        import torch
+        from diffusers import StableDiffusionXLImg2ImgPipeline
+
+        logger.info(f"음식 img2img 파이프라인 로드 시작: {FOOD_IMG2IMG_MODEL}")
+        try:
+            _food_pipeline = StableDiffusionXLImg2ImgPipeline.from_pretrained(
+                FOOD_IMG2IMG_MODEL, torch_dtype=torch.float16, variant="fp16",
+            )
+        except Exception:  # fp16 variant 없으면 기본 가중치로 (다운캐스트)
+            _food_pipeline = StableDiffusionXLImg2ImgPipeline.from_pretrained(
+                FOOD_IMG2IMG_MODEL, torch_dtype=torch.float16,
+            )
+        _food_pipeline.enable_model_cpu_offload()
+        _food_pipeline.enable_vae_slicing()
+        logger.info("음식 img2img 파이프라인 로드 완료 (RealVisXL, cpu offload)")
+    return _food_pipeline
+
+
+def img2img(
+    image: Image.Image,
+    positive: str,
+    negative: str,
+    strength: float,
+    seed: int = 7,
+    guidance: float = 6.5,
+    steps: int = 32,
+    photoreal: bool = False,
+) -> Image.Image:
+    """SDXL img2img — GPU 파이프라인 단독 소유 지점.
+
+    photoreal=False: 조화 파이프라인(SDXL base) 재사용 (B모드 등).
+    photoreal=True : RealVisXL 전용 파이프라인 (A모드 음식 리터치 — 사실감 보존).
+    strength 로 변형 강도 조절 (0.3 안전 ~ 0.65 글램).
+    """
+    import torch
+
+    pipe = _load_food_pipeline() if photoreal else _load_harmonize_pipeline()
+    return pipe(
+        prompt=positive,
+        negative_prompt=negative,
+        image=image,
+        strength=strength,
+        guidance_scale=guidance,
+        num_inference_steps=steps,
+        generator=torch.Generator("cuda").manual_seed(seed),
+    ).images[0]
+
+
 # --- FR-08 광고 이미지 생성 ---------------------------------------------------
 _sdxl_pipeline = None
 
@@ -441,6 +503,28 @@ def _load_pipeline():  # noqa: ANN202
         _sdxl_pipeline.enable_vae_slicing()  # 1024² decode 피크 VRAM 절감 (속도 영향 미미)
         logger.info("SDXL Inpainting 파이프라인 로드 완료")
     return _sdxl_pipeline
+
+
+def unload_pipelines(keep: tuple = ()) -> None:
+    """VRAM 확보 — 지정(keep) 외 SDXL/RealVis 파이프라인 언로드. 대형 모델(FLUX) 로드 전 호출.
+
+    keep: {"sdxl","harmonize","food"} 부분집합. B모드는 리터치(food) 후 전부 비우고 FLUX 로드.
+    """
+    import gc
+
+    import torch
+
+    global _sdxl_pipeline, _harmonize_pipeline, _food_pipeline
+    if "sdxl" not in keep:
+        _sdxl_pipeline = None
+    if "harmonize" not in keep:
+        _harmonize_pipeline = None
+    if "food" not in keep:
+        _food_pipeline = None
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    logger.info(f"파이프라인 언로드 (keep={keep}) — VRAM 확보")
 
 
 def _flat_color_background(
@@ -500,6 +584,20 @@ def _flat_color_background(
         bubbles = bubbles.filter(ImageFilter.GaussianBlur(1.2))
         canvas.paste(bubbles, (0, 0), bubbles)
 
+        canvas.paste(product_rgba, (0, 0), product_rgba)
+        return _add_contact_shadow(canvas, product_mask)
+
+    if mode == "studio":
+        # 클린 스튜디오 스윕 (C모드 사물 제품컷): 중립 밝은 그라데이션 + 중앙 소프트광.
+        #   음식·카페와 달리 사물은 '먹음직'이 아니라 '정확·깔끔'이 목표 → 무채색 배경.
+        top = np.array([248.0, 248.0, 249.0])
+        bot = np.array([225.0, 223.0, 222.0])
+        t = np.linspace(0, 1, h)[:, None, None]
+        canvas = np.tile(top[None, None, :] * (1 - t) + bot[None, None, :] * t, (1, w, 1))
+        yy, xx = np.mgrid[0:h, 0:w]
+        r = np.sqrt(((xx - w * 0.5) / (w * 0.5)) ** 2 + ((yy - h * 0.42) / (h * 0.55)) ** 2)
+        canvas = np.clip(canvas + np.clip(1 - r, 0, 1)[..., None] * 12.0, 0, 255)
+        canvas = Image.fromarray(canvas.astype(np.uint8))
         canvas.paste(product_rgba, (0, 0), product_rgba)
         return _add_contact_shadow(canvas, product_mask)
 
