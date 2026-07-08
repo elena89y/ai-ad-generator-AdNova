@@ -35,8 +35,8 @@ def _fetch_and_localize(body: dict) -> GenerateAdResponse:
     resp.raise_for_status()
     image_service.RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     (image_service.RESULTS_DIR / name).write_bytes(resp.content)
-    # body["image_url"] = f"/ads/image/{name}"  # 웹 백엔드 서빙 경로로 교체
-    body["image_url"] = f"{settings.API_PREFIX}/ads/image/{Path(out.final_image_path).name}" #PREFIX 적용 경로로 통일
+    # 웹 백엔드 서빙 경로(프리픽스 포함)로 통일
+    body["image_url"] = f"{settings.API_PREFIX}/ads/image/{name}"
     return GenerateAdResponse(**body)
 
 
