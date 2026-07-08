@@ -124,7 +124,7 @@ class GenerateAdResponse(BaseModel):
 
 class RegenerateAdRequest(BaseModel):
     """FR-12: 동일 입력(전처리 산출물 재사용) · 새 seed 재생성."""
-    asset_id: str = Field(..., min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
+    asset_id: str = Field(..., min_length=12, max_length=12, pattern=r"^[a-f0-9]{12}$")
     style: StylePreset
     product_name: Optional[str] = None
     product_description: Optional[str] = None
