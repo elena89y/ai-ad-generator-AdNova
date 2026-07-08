@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api import ads, dashboard, images
+from app.api import ads, dashboard, history, images
 from app.api.auth import router as auth_router
 from app.api.export import router as export_router
 from app.core.config import settings
@@ -36,6 +36,7 @@ app.include_router(auth_router)
 app.include_router(export_router)
 app.include_router(ads.router)
 app.include_router(dashboard.router)
+app.include_router(history.router)
 app.include_router(images.router)
 app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
 
