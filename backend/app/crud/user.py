@@ -9,6 +9,7 @@ def create_user(
     db: Session,
     *,
     email: str,
+    username: str,
     password_hash: str,
     name: Optional[str] = None,
     business_name: Optional[str] = None,
@@ -16,6 +17,7 @@ def create_user(
 ) -> User:
     user = User(
         email=email,
+        username=username,
         password_hash=password_hash,
         name=name,
         business_name=business_name,

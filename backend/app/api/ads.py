@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from ..core.security import get_current_user
 from ..crud.advertisement import create_advertisement
 from ..crud.history import create_history
-from ..crud.image import get_image_by_id
+from ..crud.image import create_image, get_image_by_id
 from ..database.connection import get_db
 from ..database.models import User
 from ..schemas.ads import (
@@ -109,8 +109,45 @@ def generate_ad(
     else:
         raise HTTPException(status_code=400, detail="image 파일 또는 image_id 중 하나가 필요합니다")
 
+    product = ProductInfo(name=product_name, description=product_description or None)
+    prompt = build_image_prompt(product, style)
+    prompt_for_db = json.dumps(
+        {"positive": prompt.positive, "negative": prompt.negative},
+        ensure_ascii=False,
+    )
+
     try:
-        processed = image_service.preprocess(str(src_path))
+        if generation_client.is_remote():
+            result = generation_client.generate_remote(
+                str(src_path), product, style, seed, use_vision, poster
+            )
+        else:
+            out = generation_service.run_from_upload(
+                str(src_path), product, style, seed, use_vision, poster
+            )
+            result = _to_response(out)
+
+        advertisement = create_advertisement(
+            db,
+            user_id=current_user_id,
+            input_image_id=input_image_id,
+            title=product_name,
+            ad_type="poster" if poster else "image",
+            prompt=prompt_for_db,
+            generated_text=result.copy_text,
+            style=style.value,
+            status="completed",
+        )
+        create_history(
+            db,
+            user_id=current_user_id,
+            advertisement_id=advertisement.id,
+            action_type="ads.generate",
+            status="completed",
+            request_data=request_data,
+            response_data=json.dumps(result.model_dump(mode="json"), ensure_ascii=False),
+        )
+        return result
     except ValueError as e:
         create_history(
             db,
