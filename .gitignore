@@ -29,3 +29,10 @@ backend/results/ai/
 !backend/processed/.gitkeep
 !backend/results/.gitkeep
 install_gpu_driver.py
+# ====== 로컬 테스트 및 임시 스크립트 ======
+*_test.py
+fetch*.py
+b_bg_compare.py
+flux_only.py
+lraum_v2.py
+route_full.py
