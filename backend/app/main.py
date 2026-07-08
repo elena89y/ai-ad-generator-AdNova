@@ -32,11 +32,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth_router)
-app.include_router(export_router)
-app.include_router(ads.router)
-app.include_router(dashboard.router)
-app.include_router(images.router)
+app.include_router(auth_router, prefix=settings.API_PREFIX)
+app.include_router(export_router, prefix=settings.API_PREFIX)
+app.include_router(ads.router, prefix=settings.API_PREFIX)
+app.include_router(dashboard.router, prefix=settings.API_PREFIX)
+app.include_router(images.router, prefix=settings.API_PREFIX)
 app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
 
 
