@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from ..core.config import settings
 from ..core.security import get_current_user
 from ..crud.advertisement import create_advertisement
 from ..crud.history import create_history
@@ -35,13 +36,33 @@ from ..schemas.ads import (
     StyleRequest,
     StyleResponse,
 )
-from ..services import gpt_service, image_service, style_service
+from ..services import (
+    generation_client,
+    generation_service,
+    gpt_service,
+    image_service,
+    style_service,
+)
 from ..services.prompt_service import build_image_prompt
 from ..services.upload_validation import read_image_upload_file_sync
 
 router = APIRouter(prefix="/ads", tags=["ads"])
 
 UPLOAD_DIR = Path(__file__).resolve().parents[2] / "uploads"
+
+
+def _to_response(out: generation_service.GenerationOutput) -> GenerateAdResponse:
+    """순수 생성 결과 → API 응답. image_url 은 프리픽스 포함 서빙 경로로 통일."""
+    return GenerateAdResponse(
+        asset_id=out.asset_id,
+        seed=out.seed,
+        style=out.style,
+        copy_text=out.copy_text,
+        image_url=f"{settings.API_PREFIX}/ads/image/{Path(out.final_image_path).name}",
+        poster=out.poster,
+        generate_seconds=out.generate_seconds,
+        harmonize_seconds=out.harmonize_seconds,
+    )
 
 
 @router.post("/style", response_model=StyleResponse)
@@ -139,10 +160,26 @@ def generate_ad(
             )
             result = _to_response(out)
 
+        # 생성 결과 이미지를 Image 테이블에 저장하고 광고에 연결 (PR #40)
+        output_filename = Path(result.image_url).name
+        output_path = image_service.RESULTS_DIR / output_filename
+        output_image = create_image(
+            db,
+            user_id=current_user_id,
+            image_type="generated",
+            original_filename=output_filename,
+            stored_filename=output_filename,
+            file_path=str(output_path),
+            image_url=result.image_url,
+            content_type="image/png",
+            file_size=output_path.stat().st_size if output_path.exists() else None,
+        )
+
         advertisement = create_advertisement(
             db,
             user_id=current_user_id,
             input_image_id=input_image_id,
+            output_image_id=output_image.id,
             title=product_name,
             ad_type="poster" if poster else "image",
             prompt=prompt_for_db,
