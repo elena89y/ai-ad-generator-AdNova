@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from ..core.security import get_current_user
 from ..crud.advertisement import create_advertisement
 from ..crud.history import create_history
-from ..crud.image import get_image_by_id
+from ..crud.image import create_image, get_image_by_id
 from ..database.connection import get_db
 from ..database.models import User
 from ..schemas.ads import (
@@ -140,10 +140,24 @@ def generate_ad(
             )
             result = _to_response(out)
 
+        output_filename = Path(result.image_url).name
+        output_path = image_service.RESULTS_DIR / output_filename
+        output_image = create_image(
+            db,
+            user_id=current_user_id,
+            image_type="generated",
+            original_filename=output_filename,
+            stored_filename=output_filename,
+            file_path=str(output_path),
+            image_url=result.image_url,
+            content_type="image/png",
+            file_size=output_path.stat().st_size if output_path.exists() else None,
+        )
         advertisement = create_advertisement(
             db,
             user_id=current_user_id,
             input_image_id=input_image_id,
+            output_image_id=output_image.id,
             title=product_name,
             ad_type="poster" if poster else "image",
             prompt=prompt_for_db,
