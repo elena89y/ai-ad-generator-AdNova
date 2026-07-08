@@ -24,7 +24,7 @@ backend/results/*
 # AI 생성 결과물(이미지·검증 로그)은 backend/results/ai/ 에 저장 — git 업로드 금지
 backend/results/ai/
 # 오버레이용 폰트(OFL) — scripts/download_fonts.py 로 받음, repo 미포함
-backend/assets/fonts/
+!backend/assets/fonts/
 !backend/uploads/.gitkeep
 !backend/processed/.gitkeep
 !backend/results/.gitkeep

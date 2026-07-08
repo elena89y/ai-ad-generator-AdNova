@@ -35,25 +35,12 @@ from ..schemas.ads import (
     StyleRequest,
     StyleResponse,
 )
-from ..services import generation_client, generation_service, image_service, style_service
+from ..services import gpt_service, image_service, style_service
 from ..services.prompt_service import build_image_prompt
 
 router = APIRouter(prefix="/ads", tags=["ads"])
 
 UPLOAD_DIR = Path(__file__).resolve().parents[2] / "uploads"
-
-
-def _to_response(out: generation_service.GenerationOutput) -> GenerateAdResponse:
-    return GenerateAdResponse(
-        asset_id=out.asset_id,
-        seed=out.seed,
-        style=out.style,
-        copy_text=out.copy_text,
-        image_url=f"/ads/image/{Path(out.final_image_path).name}",
-        poster=out.poster,
-        generate_seconds=out.generate_seconds,
-        harmonize_seconds=out.harmonize_seconds,
-    )
 
 
 @router.post("/style", response_model=StyleResponse)
@@ -122,45 +109,8 @@ def generate_ad(
     else:
         raise HTTPException(status_code=400, detail="image 파일 또는 image_id 중 하나가 필요합니다")
 
-    product = ProductInfo(name=product_name, description=product_description or None)
-    prompt = build_image_prompt(product, style)
-    prompt_for_db = json.dumps(
-        {"positive": prompt.positive, "negative": prompt.negative},
-        ensure_ascii=False,
-    )
-
     try:
-        if generation_client.is_remote():
-            result = generation_client.generate_remote(
-                str(src_path), product, style, seed, use_vision, poster
-            )
-        else:
-            out = generation_service.run_from_upload(
-                str(src_path), product, style, seed, use_vision, poster
-            )
-            result = _to_response(out)
-
-        advertisement = create_advertisement(
-            db,
-            user_id=current_user_id,
-            input_image_id=input_image_id,
-            title=product_name,
-            ad_type="poster" if poster else "image",
-            prompt=prompt_for_db,
-            generated_text=result.copy_text,
-            style=style.value,
-            status="completed",
-        )
-        create_history(
-            db,
-            user_id=current_user_id,
-            advertisement_id=advertisement.id,
-            action_type="ads.generate",
-            status="completed",
-            request_data=request_data,
-            response_data=json.dumps(result.model_dump(mode="json"), ensure_ascii=False),
-        )
-        return result
+        processed = image_service.preprocess(str(src_path))
     except ValueError as e:
         create_history(
             db,
