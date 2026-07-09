@@ -1,8 +1,9 @@
 from typing import Optional
 
 from sqlalchemy.orm import Session
+from sqlalchemy.orm import joinedload
 
-from app.database.models import History
+from app.database.models import Advertisement, History
 
 
 def create_history(
@@ -42,6 +43,10 @@ def list_histories_by_user(
 ) -> list[History]:
     return (
         db.query(History)
+        .options(
+            joinedload(History.advertisement).joinedload(Advertisement.input_image),
+            joinedload(History.advertisement).joinedload(Advertisement.output_image),
+        )
         .filter(History.user_id == user_id)
         .order_by(History.created_at.desc())
         .offset(skip)
