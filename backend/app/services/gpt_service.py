@@ -339,6 +339,82 @@ def generate_platform_copy(
     return out
 
 
+# --- 품질 저지 (GPT Vision — 골든셋 평가·캘리브레이션용, 실시간 아님) -----------
+# 역할분리: 실시간 결함검사는 로컬 vlm_service.inspect(빠르고 무료), 정밀 미세 순위는
+#   여기 GPT Vision(신뢰·저비용, 평가 호출량 적음). 2B 의 위치편향/점수압축 한계 극복(P2-2 재설계).
+_JUDGE_SYS = ("You are a strict, experienced food/product advertising art director. Score honestly — "
+              "a mediocre ad gets 5-6, not 8. Reserve 9-10 for images that could run in a real premium campaign.")
+
+
+def _vision_part(image_path: str) -> dict:
+    with open(image_path, "rb") as f:
+        b64 = base64.b64encode(f.read()).decode("utf-8")
+    mt, _ = mimetypes.guess_type(image_path)
+    if not mt or not mt.startswith("image/"):
+        mt = "image/png"
+    return {"type": "image_url", "image_url": {"url": f"data:{mt};base64,{b64}"}}
+
+
+def judge_ad(image_path: str, instruction: str = "", ref_path: Optional[str] = None) -> dict:
+    """GPT Vision 광고 품질 저지 — 루브릭 1~10 채점. 골든셋 평가/캘리브레이션 전용.
+
+    ref_path(원본)+instruction 주면 정체성 보존·명령 이행까지 평가.
+    반환: {appetizing, realism, artifact_free, composition, adherence, overall, reason}.
+    """
+    ident = (" Also judge how well it preserved the original product's identity and followed "
+             f'the edit "{instruction}" (first image = original, second = result).'
+             if ref_path and instruction else "")
+    rubric = (
+        "Rate this food/product advertisement image on each axis from 1(poor) to 10(excellent): "
+        "appetizing, realism(photographic, not CGI/plastic), artifact_free(no warping/extra fingers/"
+        "gibberish/melting), composition(lighting·framing·ad polish), adherence." + ident +
+        ' Reply ONLY JSON: {"appetizing":N,"realism":N,"artifact_free":N,"composition":N,'
+        '"adherence":N,"overall":N,"reason":"one short sentence"}')
+    content: list = [{"type": "text", "text": rubric}]
+    if ref_path and instruction:
+        content.append(_vision_part(ref_path))
+    content.append(_vision_part(image_path))
+    r = _chat_json([{"role": "system", "content": _JUDGE_SYS},
+                    {"role": "user", "content": content}], label="judge_ad/vision")
+    keys = ["appetizing", "realism", "artifact_free", "composition", "adherence", "overall"]
+    out = {k: r.get(k) for k in keys}
+    out["reason"] = str(r.get("reason", ""))[:200]
+    return out
+
+
+def compare_ads(image_a: str, image_b: str, ref_path: Optional[str] = None,
+                debias: bool = True) -> dict:
+    """두 광고 중 더 나은 쪽 — GPT Vision. debias=True 면 순서 뒤집어 2회, 일치해야 확정(위치편향 제거).
+
+    반환: {winner: 'A'|'B'|'tie', reason}. A=image_a, B=image_b.
+    """
+    q = ("As a strict food/product ad art director, which is the better advertisement — considering "
+         "appetite appeal, photographic realism, absence of artifacts, and faithfulness to the real "
+         "product? Richer color/gloss/enhancement is GOOD if it still looks like a real photo; penalize "
+         "only genuine flaws (warping, CGI/plastic look, fake blur). "
+         'Reply ONLY JSON: {"winner":"first" or "second","reason":"one short sentence"}')
+    lead = ("The first image is the ORIGINAL for reference. " if ref_path else "")
+
+    def _one(x: str, y: str) -> tuple:
+        content: list = [{"type": "text", "text": lead + q}]
+        if ref_path:
+            content.append(_vision_part(ref_path))
+        content += [_vision_part(x), _vision_part(y)]
+        r = _chat_json([{"role": "system", "content": _JUDGE_SYS},
+                        {"role": "user", "content": content}], label="compare_ads/vision")
+        w = str(r.get("winner", "")).lower()
+        return ("x" if "first" in w else "y" if "second" in w else "tie"), str(r.get("reason", ""))[:160]
+
+    w1, why1 = _one(image_a, image_b)          # x=A, y=B
+    if not debias:
+        return {"winner": "A" if w1 == "x" else "B" if w1 == "y" else "tie", "reason": why1}
+    w2, _why2 = _one(image_b, image_a)          # x=B, y=A → x 는 image_b
+    a_wins = (w1 == "x") and (w2 == "y")
+    b_wins = (w1 == "y") and (w2 == "x")
+    winner = "A" if a_wins else "B" if b_wins else "tie"
+    return {"winner": winner, "reason": why1, "debias_consistent": winner != "tie"}
+
+
 # --- 포스터용 영문 라벨 (층2 오버레이 — editorial/retro 헤드라인) ---------------
 def generate_english_labels(product: ProductInfo) -> tuple[str, str]:
     """상품 정보 → 포스터용 영문 라벨 (레퍼런스: 영문 대문자 메뉴명 헤드라인).
