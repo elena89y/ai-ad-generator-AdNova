@@ -1,7 +1,6 @@
 from typing import Optional
 
-from sqlalchemy.orm import Session
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import Session, joinedload
 
 from app.database.models import Advertisement, History
 
@@ -53,3 +52,42 @@ def list_histories_by_user(
         .limit(limit)
         .all()
     )
+
+
+def get_history_with_result_by_id(db: Session, history_id: int) -> History | None:
+    return (
+        db.query(History)
+        .options(
+            joinedload(History.advertisement).joinedload(Advertisement.input_image),
+            joinedload(History.advertisement).joinedload(Advertisement.output_image),
+        )
+        .filter(History.id == history_id)
+        .first()
+    )
+
+
+def delete_generated_result_by_history(db: Session, history: History) -> None:
+    advertisement = history.advertisement
+    if advertisement is None:
+        return
+
+    output_image = advertisement.output_image
+    related_histories = (
+        db.query(History)
+        .filter(History.advertisement_id == advertisement.id)
+        .all()
+    )
+
+    for related_history in related_histories:
+        db.delete(related_history)
+
+    db.delete(advertisement)
+
+    if (
+        output_image is not None
+        and output_image.image_type == "generated"
+        and output_image.user_id == advertisement.user_id
+    ):
+        db.delete(output_image)
+
+    db.commit()
