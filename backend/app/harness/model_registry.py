@@ -82,6 +82,14 @@ def _unload_all(keep: Iterable[str]) -> list[str]:
             freed.append("flux")
         except Exception as e:
             logger.warning(f"flux 언로드 스킵: {e}")
+    if "kontext" not in keep:
+        try:
+            from ..services import kontext_service
+
+            kontext_service.unload()
+            freed.append("kontext")
+        except Exception as e:
+            logger.warning(f"kontext 언로드 스킵: {e}")
     return freed
 
 

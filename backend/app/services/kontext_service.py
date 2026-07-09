@@ -129,6 +129,7 @@ def unload() -> None:
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()   # 프로세스 간 공유 핸들까지 정리(연정 PDF #4)
 
 
 def _fit(img: Image.Image, long_side: int = 1024) -> Image.Image:

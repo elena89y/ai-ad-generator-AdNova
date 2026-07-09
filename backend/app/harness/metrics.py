@@ -17,6 +17,7 @@ aesthetic(심미): NIMA(주, pyiqa) + LAION(폴백) — 결과물 절대 점수.
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -24,6 +25,27 @@ import numpy as np
 from PIL import Image
 
 logger = logging.getLogger(__name__)
+
+
+def _eval_device() -> str:
+    """평가 지표 실행 디바이스(연정 PDF #1). ADNOVA_EVAL_DEVICE=cpu 로 배포 시 강제 CPU 가능.
+    기본 auto(=cuda 있으면 cuda). 하네스는 생성모델 언로드 후 metrics 를 돌리므로 공존은 없으나,
+    배포/저VRAM 환경 방어용으로 CPU 강제 옵션 제공."""
+    d = os.getenv("ADNOVA_EVAL_DEVICE", "auto").lower()
+    if d in ("cpu", "cuda"):
+        return d
+    try:
+        import torch
+
+        return _eval_device()
+    except Exception:
+        return "cpu"
+
+
+def eval_enabled() -> bool:
+    """평가 경로 활성 여부(연정 PDF #3). 서비스 배포는 ADNOVA_EVAL=0 로 metrics 스킵.
+    ⚠️ 하네스/평가 스크립트에서만 True 를 기대 — 서비스(process_ad) 경로는 metrics 를 호출하지 않는다."""
+    return os.getenv("ADNOVA_EVAL", "1") == "1"
 
 _dino = None
 _lpips = None
@@ -62,7 +84,7 @@ def _load_dino():  # noqa: ANN202
 
         model = torch.hub.load("facebookresearch/dinov2", "dinov2_vitb14", verbose=False)
         model.eval()
-        if torch.cuda.is_available():
+        if _eval_device() == "cuda":
             model = model.to("cuda")
         _dino = model
     return _dino
@@ -82,7 +104,7 @@ def _dino_embed(img: Image.Image, size: int = 224):  # noqa: ANN202
     arr = np.asarray(im, dtype=np.float32) / 255.0
     arr = (arr - np.array([0.485, 0.456, 0.406], np.float32)) / np.array([0.229, 0.224, 0.225], np.float32)
     x = torch.from_numpy(arr).permute(2, 0, 1).unsqueeze(0).float()
-    if torch.cuda.is_available():
+    if _eval_device() == "cuda":
         x = x.to("cuda")
     with torch.no_grad():
         feat = _load_dino()(x)
@@ -112,7 +134,7 @@ def _load_lpips():  # noqa: ANN202
         import torch
 
         m = lpips.LPIPS(net="alex", verbose=False)
-        if torch.cuda.is_available():
+        if _eval_device() == "cuda":
             m = m.to("cuda")
         _lpips = m
     return _lpips
@@ -127,7 +149,7 @@ def identity_lpips(before_path: str, after_path: str,
         def prep(p):
             im = _crop_to_mask(Image.open(p), mask_path).convert("RGB").resize((256, 256))
             t = torch.from_numpy(np.asarray(im)).float().permute(2, 0, 1) / 127.5 - 1.0
-            return t.unsqueeze(0).to("cuda" if torch.cuda.is_available() else "cpu")
+            return t.unsqueeze(0).to(_eval_device())
 
         with torch.no_grad():
             d = _load_lpips()(prep(before_path), prep(after_path)).item()
@@ -148,7 +170,7 @@ def _load_nima():  # noqa: ANN202
         import pyiqa
         import torch
 
-        _nima = pyiqa.create_metric("nima", device="cuda" if torch.cuda.is_available() else "cpu")
+        _nima = pyiqa.create_metric("nima", device=_eval_device())
     return _nima
 
 
@@ -176,7 +198,7 @@ def _load_laion():  # noqa: ANN202
     if not _AESTHETIC_WPATH.is_file():
         _AESTHETIC_WPATH.parent.mkdir(parents=True, exist_ok=True)
         urllib.request.urlretrieve(_AESTHETIC_WURL, _AESTHETIC_WPATH)
-    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    dev = _eval_device()
     mlp = MLP().to(dev)
     mlp.load_state_dict(torch.load(_AESTHETIC_WPATH, map_location=dev))
     mlp.eval()
@@ -200,7 +222,7 @@ def aesthetic(image_path: str, prompt: str = "") -> dict:
         import torch
 
         model, prep, mlp = _load_laion()
-        dev = "cuda" if torch.cuda.is_available() else "cpu"
+        dev = _eval_device()
         img = prep(Image.open(image_path).convert("RGB")).unsqueeze(0).to(dev)
         with torch.no_grad():
             f = model.encode_image(img).float()

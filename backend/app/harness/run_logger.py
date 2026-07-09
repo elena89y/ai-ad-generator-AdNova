@@ -59,6 +59,40 @@ def _vram_reset() -> None:
         pass
 
 
+def _vram_free_gb() -> float:
+    """현재 GPU 여유(GB). mem_get_info 는 PyTorch 밖 점유(onnxruntime 등)까지 반영."""
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            free, _ = torch.cuda.mem_get_info()
+            return round(free / 1024**3, 2)
+    except Exception:
+        pass
+    return 0.0
+
+
+def _vram_stats() -> dict:
+    """OOM 진단용 VRAM 스냅샷(연정 PDF #7). allocated 만 보면 PyTorch 밖 점유를 놓친다
+    — 예: rembg onnxruntime 아레나. free(=total-전체점유)와 대조해야 원인이 보인다."""
+    out = {"peak_allocated_gb": 0.0, "peak_reserved_gb": 0.0,
+           "free_after_gb": 0.0, "total_gb": 0.0}
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            free, total = torch.cuda.mem_get_info()
+            out.update(
+                peak_allocated_gb=round(torch.cuda.max_memory_allocated() / 1024**3, 2),
+                peak_reserved_gb=round(torch.cuda.max_memory_reserved() / 1024**3, 2),
+                free_after_gb=round(free / 1024**3, 2),
+                total_gb=round(total / 1024**3, 2),
+            )
+    except Exception:
+        pass
+    return out
+
+
 class RunLogger:
     """1 실행 = 1 원장 행. 컨텍스트 매니저로 시간·VRAM 자동 계측."""
 
@@ -84,7 +118,8 @@ class RunLogger:
             "params": params or {},
             "metrics": {},
             "timing": {"load_s": None, "infer_s": None, "total_s": None},
-            "vram_peak_gb": 0.0,
+            "vram_peak_gb": 0.0,      # = vram.peak_allocated_gb (하위호환)
+            "vram": {},               # allocated/reserved/free/total (OOM 진단, 연정 PDF #7)
             "llm_usage": [],
             "output": None,
             "verdict": "",
@@ -96,10 +131,12 @@ class RunLogger:
         self._usage_start: Optional[int] = None
         self._t0 = 0.0
         self._t_load: Optional[float] = None
+        self._free_before = 0.0
 
     # --- 컨텍스트 ---
     def __enter__(self) -> "RunLogger":
         _vram_reset()
+        self._free_before = _vram_free_gb()
         if self._auto_llm:
             try:
                 from ..services import gpt_service
@@ -139,7 +176,10 @@ class RunLogger:
             # set_output 을 안 불렀으면 infer_s = 로드 이후 전체
             load = self.record["timing"]["load_s"] or 0.0
             self.record["timing"]["infer_s"] = round(total - load, 2)
-        self.record["vram_peak_gb"] = _vram_peak_gb()
+        stats = _vram_stats()
+        stats["free_before_gb"] = self._free_before
+        self.record["vram"] = stats
+        self.record["vram_peak_gb"] = stats["peak_allocated_gb"]
         self._capture_llm()
         if exc is not None:
             self.record["error"] = f"{exc_type.__name__}: {exc}"
