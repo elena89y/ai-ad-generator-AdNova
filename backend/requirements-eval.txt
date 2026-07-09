@@ -1,0 +1,14 @@
+# v2 평가 하네스·Kontext 전용 의존성 (웹 백엔드엔 불필요) — 담당: 한의정
+# 설치: .venv/bin/pip install -r backend/requirements-eval.txt
+lpips            # 정체성 지표 (LPIPS)
+timm             # DINOv2 백본 (torch.hub 경유도 가능)
+pyyaml           # 골든셋 매니페스트 파싱
+gguf             # FLUX Kontext GGUF 트랜스포머 로딩
+pyiqa            # 심미 주지표 NIMA (bake-off 5/5) — NR-IQA/미학 모델 모음
+ftfy             # openai CLIP 토크나이저 의존 (LAION 폴백 심미용)
+regex            # openai CLIP 토크나이저 의존
+# 심미 지표: NIMA(주, pyiqa) + LAION(폴백, CLIP ViT-L/14 + 5MB MLP)
+#   LAION 폴백은 openai CLIP 필요: pip install "git+https://github.com/openai/CLIP.git" (PyPI 미배포)
+#   ⚠️ ImageReward/HPSv2 는 torch2.12/cu130 스택서 구 transformers 심볼 의존으로 로드 실패 → 미채택
+#   ⚠️ NR-IQA(clipiqa/topiq/musiq)는 향상을 penalize(bake-off 2/5) → 미채택
+# 로컬 VLM 저지/묘사(vlm_service): transformers 의 Qwen3-VL 사용 — 웹 스택 공유, 추가설치 불필요

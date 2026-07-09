@@ -1,0 +1,248 @@
+"""품질 지표 래퍼 — 담당: 한의정.
+
+identity(정체성 보존): DINOv2 코사인 · LPIPS  — 제품 마스크 영역만 비교.
+aesthetic(심미): NIMA(주, pyiqa) + LAION(폴백) — 결과물 절대 점수. bake-off서 NIMA 5/5 > LAION 3/5.
+
+⚠️ 캘리브레이션(P2-2): 어떤 단일 자동지표도 사람 아트디렉터 미세판정을 재현 못 함.
+  aesthetic 는 **advisory 회귀 트립와이어**(큰 하락 감지)용이지 미세 A/B 오라클 아님.
+  DINO 는 "덜 바꿈"을 높게 봐 좋은 향상을 penalize. 최종 미세 미학판정은 사람(육안)이 정본.
+  ImageReward/HPS 는 이 torch2.12/cu130 스택에서 구 transformers 의존으로 로드 실패 → LAION 채택.
+
+⚠️ 각 지표 모델은 lazy 로드 + 의존성/다운로드 실패 시 **None 반환**(크래시 금지).
+  → 평가가 일부 지표 미설치로 막히지 않는다. None 은 원장에 그대로 기록.
+
+지표 모델 디스크: DINOv2 ~0.35G · LPIPS ~few MB · NIMA(InceptionV2) ~50MB ·
+  CLIP ViT-L/14 ~0.9G · aesthetic MLP ~5MB.
+"""
+from __future__ import annotations
+
+import logging
+import os
+from pathlib import Path
+from typing import Optional
+
+import numpy as np
+from PIL import Image
+
+logger = logging.getLogger(__name__)
+
+
+def _eval_device() -> str:
+    """평가 지표 실행 디바이스(연정 PDF #1). ADNOVA_EVAL_DEVICE=cpu 로 배포 시 강제 CPU 가능.
+    기본 auto(=cuda 있으면 cuda). 하네스는 생성모델 언로드 후 metrics 를 돌리므로 공존은 없으나,
+    배포/저VRAM 환경 방어용으로 CPU 강제 옵션 제공."""
+    d = os.getenv("ADNOVA_EVAL_DEVICE", "auto").lower()
+    if d in ("cpu", "cuda"):
+        return d
+    try:
+        import torch
+
+        return _eval_device()
+    except Exception:
+        return "cpu"
+
+
+def eval_enabled() -> bool:
+    """평가 경로 활성 여부(연정 PDF #3). 서비스 배포는 ADNOVA_EVAL=0 로 metrics 스킵.
+    ⚠️ 하네스/평가 스크립트에서만 True 를 기대 — 서비스(process_ad) 경로는 metrics 를 호출하지 않는다."""
+    return os.getenv("ADNOVA_EVAL", "1") == "1"
+
+_dino = None
+_lpips = None
+_clip = None
+_clip_prep = None
+_laion_mlp = None
+_nima = None
+
+# LAION improved-aesthetic-predictor 가중치(CLIP ViT-L/14 위 5MB MLP)
+_AESTHETIC_WPATH = Path(__file__).resolve().parents[2] / "experiments" / "aesthetic_l14.pth"
+_AESTHETIC_WURL = ("https://github.com/christophschuhmann/improved-aesthetic-predictor/"
+                   "raw/main/sac+logos+ava1-l14-linearMSE.pth")
+
+
+# --- 공통 ---------------------------------------------------------------------
+def _crop_to_mask(img: Image.Image, mask_path: Optional[str], pad: float = 0.05) -> Image.Image:
+    """마스크 bbox 로 크롭(제품 영역 집중). 마스크 없으면 원본."""
+    if not mask_path or not Path(mask_path).is_file():
+        return img
+    m = np.asarray(Image.open(mask_path).convert("L").resize(img.size)) > 40
+    ys, xs = np.nonzero(m)
+    if len(xs) < 10:
+        return img
+    w, h = img.size
+    px, py = int(w * pad), int(h * pad)
+    x0, y0 = max(0, xs.min() - px), max(0, ys.min() - py)
+    x1, y1 = min(w, xs.max() + px), min(h, ys.max() + py)
+    return img.crop((x0, y0, x1, y1))
+
+
+# --- DINOv2 정체성 ------------------------------------------------------------
+def _load_dino():  # noqa: ANN202
+    global _dino
+    if _dino is None:
+        import torch
+
+        model = torch.hub.load("facebookresearch/dinov2", "dinov2_vitb14", verbose=False)
+        model.eval()
+        if _eval_device() == "cuda":
+            model = model.to("cuda")
+        _dino = model
+    return _dino
+
+
+def _dino_embed(img: Image.Image, size: int = 224):  # noqa: ANN202
+    """torchvision 의존 없이 PIL+numpy 전처리(짧은변 리사이즈→센터크롭→ImageNet 정규화)."""
+    import torch
+
+    im = img.convert("RGB")
+    w, h = im.size
+    s = size / min(w, h)
+    im = im.resize((round(w * s), round(h * s)), Image.BICUBIC)
+    w, h = im.size
+    l, t = (w - size) // 2, (h - size) // 2
+    im = im.crop((l, t, l + size, t + size))
+    arr = np.asarray(im, dtype=np.float32) / 255.0
+    arr = (arr - np.array([0.485, 0.456, 0.406], np.float32)) / np.array([0.229, 0.224, 0.225], np.float32)
+    x = torch.from_numpy(arr).permute(2, 0, 1).unsqueeze(0).float()
+    if _eval_device() == "cuda":
+        x = x.to("cuda")
+    with torch.no_grad():
+        feat = _load_dino()(x)
+    return torch.nn.functional.normalize(feat, dim=-1)
+
+
+def identity_dino(before_path: str, after_path: str,
+                  mask_path: Optional[str] = None) -> Optional[float]:
+    """편집 전후 제품영역 DINOv2 코사인(1=동일). 정체성 보존 핵심 지표."""
+    try:
+        import torch
+
+        a = _crop_to_mask(Image.open(before_path), mask_path)
+        b = _crop_to_mask(Image.open(after_path), mask_path)
+        cos = torch.sum(_dino_embed(a) * _dino_embed(b)).item()
+        return round(float(cos), 4)
+    except Exception as e:
+        logger.warning(f"identity_dino 실패 → None: {e}")
+        return None
+
+
+# --- LPIPS 정체성 -------------------------------------------------------------
+def _load_lpips():  # noqa: ANN202
+    global _lpips
+    if _lpips is None:
+        import lpips
+        import torch
+
+        m = lpips.LPIPS(net="alex", verbose=False)
+        if _eval_device() == "cuda":
+            m = m.to("cuda")
+        _lpips = m
+    return _lpips
+
+
+def identity_lpips(before_path: str, after_path: str,
+                   mask_path: Optional[str] = None) -> Optional[float]:
+    """편집 전후 제품영역 LPIPS(0=동일, 낮을수록 보존). 지각적 거리."""
+    try:
+        import torch
+
+        def prep(p):
+            im = _crop_to_mask(Image.open(p), mask_path).convert("RGB").resize((256, 256))
+            t = torch.from_numpy(np.asarray(im)).float().permute(2, 0, 1) / 127.5 - 1.0
+            return t.unsqueeze(0).to(_eval_device())
+
+        with torch.no_grad():
+            d = _load_lpips()(prep(before_path), prep(after_path)).item()
+        return round(float(d), 4)
+    except Exception as e:
+        logger.warning(f"identity_lpips 실패 → None: {e}")
+        return None
+
+
+# --- 심미 점수 (NIMA 주 + LAION 폴백) -----------------------------------------
+# 지표 bake-off(P2-2, A모드 5쌍, 육안 Kontext 5/5): NIMA **5/5** > LAION 3/5 >
+#   NR-IQA(clipiqa·topiq·musiq) 각 2/5. → NIMA(AVA 학습 미학) 를 주 지표로 채택.
+#   NR-IQA(기술화질)는 Kontext 향상을 "가공됨"으로 penalize 해 역효과 → 미채택.
+def _load_nima():  # noqa: ANN202
+    """pyiqa NIMA(AVA 미학) lazy 로드. 실패 시 None(호출측이 LAION 폴백)."""
+    global _nima
+    if _nima is None:
+        import pyiqa
+        import torch
+
+        _nima = pyiqa.create_metric("nima", device=_eval_device())
+    return _nima
+
+
+def _load_laion():  # noqa: ANN202
+    """CLIP ViT-L/14 + aesthetic MLP lazy 로드. 가중치 없으면 다운로드."""
+    global _clip, _clip_prep, _laion_mlp
+    if _laion_mlp is not None:
+        return _clip, _clip_prep, _laion_mlp
+    import urllib.request
+
+    import clip  # openai CLIP
+    import torch
+    import torch.nn as nn
+
+    class MLP(nn.Module):
+        def __init__(self, d: int = 768):
+            super().__init__()
+            self.layers = nn.Sequential(
+                nn.Linear(d, 1024), nn.Dropout(0.2), nn.Linear(1024, 128), nn.Dropout(0.2),
+                nn.Linear(128, 64), nn.Dropout(0.1), nn.Linear(64, 16), nn.Linear(16, 1))
+
+        def forward(self, x):  # noqa: ANN001
+            return self.layers(x)
+
+    if not _AESTHETIC_WPATH.is_file():
+        _AESTHETIC_WPATH.parent.mkdir(parents=True, exist_ok=True)
+        urllib.request.urlretrieve(_AESTHETIC_WURL, _AESTHETIC_WPATH)
+    dev = _eval_device()
+    mlp = MLP().to(dev)
+    mlp.load_state_dict(torch.load(_AESTHETIC_WPATH, map_location=dev))
+    mlp.eval()
+    model, prep = clip.load("ViT-L/14", device=dev)
+    _clip, _clip_prep, _laion_mlp = model, prep, mlp
+    return _clip, _clip_prep, _laion_mlp
+
+
+def aesthetic(image_path: str, prompt: str = "") -> dict:
+    """결과물 심미 절대 점수 {nima, laion}(각 ≈1~10, 높을수록 좋음). 실패 항목은 None.
+
+    nima = 주 지표(캘리브레이션 5/5), laion = 폴백/보조. prompt 미사용(순수 심미).
+    미세 A/B 최종판정은 여전히 사람 — 자동은 회귀 트립와이어 + 정렬용.
+    """
+    out: dict[str, Optional[float]] = {"nima": None, "laion": None}
+    try:  # NIMA (주)
+        out["nima"] = round(float(_load_nima()(image_path).item()), 4)
+    except Exception as e:
+        logger.warning(f"aesthetic(nima) 실패 → None: {e}")
+    try:  # LAION (폴백/보조)
+        import torch
+
+        model, prep, mlp = _load_laion()
+        dev = _eval_device()
+        img = prep(Image.open(image_path).convert("RGB")).unsqueeze(0).to(dev)
+        with torch.no_grad():
+            f = model.encode_image(img).float()
+            f = f / f.norm(dim=-1, keepdim=True)
+            out["laion"] = round(float(mlp(f).item()), 4)
+    except Exception as e:
+        logger.warning(f"aesthetic(laion) 실패 → None: {e}")
+    return out
+
+
+def aesthetic_primary(image_path: str) -> Optional[float]:
+    """선택·정렬용 단일 심미값 — NIMA 우선, 실패 시 LAION 폴백."""
+    a = aesthetic(image_path)
+    return a["nima"] if a["nima"] is not None else a["laion"]
+
+
+def compute_identity(before_path: str, after_path: str,
+                     mask_path: Optional[str] = None) -> dict:
+    """정체성 지표 묶음(기준선·평가 공통)."""
+    return {
+        "identity_dino": identity_dino(before_path, after_path, mask_path),
+        "identity_lpips": identity_lpips(before_path, after_path, mask_path),
+    }

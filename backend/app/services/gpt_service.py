@@ -129,29 +129,34 @@ def _caption_image(image_path: str) -> str:
     """BLIP 로컬 캡셔닝 — API 비용 없음. GPU 있으면 사용, 없으면 CPU.
 
     생성 이미지의 장면 묘사(영어)를 반환. generate_copy 저비용 경로 입력.
+    ⚠️ v2에서 Qwen3-VL로 대체 예정(deprecated) — 캐시 없거나 로드 실패 시 "" 폴백(비차단).
     """
     global _blip
     import torch
     from PIL import Image
 
-    if _blip is None:
-        from transformers import BlipForConditionalGeneration, BlipProcessor
+    try:
+        if _blip is None:
+            from transformers import BlipForConditionalGeneration, BlipProcessor
 
-        # CPU 고정: L4 에서 SDXL 2종+rembg 와 동시 상주 시 OOM (서비스 실측).
-        # BLIP-base 는 CPU 추론 ~2s 로 지연 예산 내 — VRAM 1GB+ 절약이 이득.
-        device = "cpu"
-        processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
-        model = BlipForConditionalGeneration.from_pretrained(
-            "Salesforce/blip-image-captioning-base"
-        ).to(device)
-        _blip = (processor, model, device)
+            # CPU 고정: L4 에서 SDXL 2종+rembg 와 동시 상주 시 OOM (서비스 실측).
+            # BLIP-base 는 CPU 추론 ~2s 로 지연 예산 내 — VRAM 1GB+ 절약이 이득.
+            device = "cpu"
+            processor = BlipProcessor.from_pretrained(
+                "Salesforce/blip-image-captioning-base", local_files_only=True)
+            model = BlipForConditionalGeneration.from_pretrained(
+                "Salesforce/blip-image-captioning-base", local_files_only=True).to(device)
+            _blip = (processor, model, device)
 
-    processor, model, device = _blip
-    img = Image.open(image_path).convert("RGB")
-    inputs = processor(img, return_tensors="pt").to(device)
-    with torch.no_grad():
-        out = model.generate(**inputs, max_new_tokens=40)
-    return processor.decode(out[0], skip_special_tokens=True)
+        processor, model, device = _blip
+        img = Image.open(image_path).convert("RGB")
+        inputs = processor(img, return_tensors="pt").to(device)
+        with torch.no_grad():
+            out = model.generate(**inputs, max_new_tokens=40)
+        return processor.decode(out[0], skip_special_tokens=True)
+    except Exception as e:  # 캐시 제거(v2 디스크 확보) 등 → 캡션 없이 진행
+        logger.warning(f"BLIP 캡션 불가 → 빈 캡션 폴백: {e}")
+        return ""
 
 
 def _chat_json(messages: list, label: str) -> dict:
@@ -249,6 +254,89 @@ def generate_sns_copy(
         raise RuntimeError("SNS 문구 응답에 caption 필드가 없습니다")
     hashtags = [str(h).strip() for h in result.get("hashtags", []) if str(h).strip()]
     return SnsCopyResult(caption=caption, hashtags=hashtags)
+
+
+# --- D4b 4매체 페르소나 카피 (한 번 호출 JSON + 자기보고 환각 게이트) ------------
+# UI 계약(2026-07-09): 마이페이지 SNS 공유 4버튼(IG/FB/X/Threads), 카피블록 = headline+body+hashtags.
+_PLATFORM_PERSONA: dict[str, str] = {
+    "instagram": "비주얼·감성 중심. 첫 줄 강한 후킹, 이모지 적절히, 해시태그 6~10개. body 2~3문장.",
+    "facebook": "정보·친근형. 혜택과 CTA 명확, body 2~4문장으로 조금 길게, 해시태그 2~4개.",
+    "x": "짧고 위트있게. 트렌디한 한두 문장, body 1~2문장, 해시태그 1~3개.",
+    "threads": "대화체·솔직담백. 친구에게 말하듯 캐주얼, body 1~3문장, 해시태그 0~3개.",
+}
+
+
+def _platform_copy_instruction(product_context: str, style: StylePreset,
+                               allowed: list[str], image_desc: str,
+                               correction: Optional[list[str]]) -> str:
+    persona = "\n".join(f"  - {k}: {v}" for k, v in _PLATFORM_PERSONA.items())
+    honesty = ("정직성(중요): 이미지·상품에 실제로 있는 것만 표현해. 없는 재료·효능·수상·원산지·"
+               "할인·최상급 표현을 지어내지 마.")
+    if allowed:
+        honesty += f" 재료·맛 관련 표현은 다음 실제 구성만 근거로 삼아: {', '.join(allowed)}."
+    ground = f"\n- 이미지 실제 묘사(사실 근거): {image_desc}" if image_desc else ""
+    fix = (f"\n- ⚠️ 직전 시도가 실제에 없는 재료를 지어냈어: {', '.join(correction)}. "
+           "이 표현들을 빼고 다시 써." if correction else "")
+    return (
+        "아래 상품으로 4개 SNS 매체별 광고 카피를 한국어로 작성해줘.\n"
+        f"- 상품: {product_context}\n"
+        f"- 문구 톤: {_STYLE_TONE[style]}\n"
+        f"- {honesty}{ground}{fix}\n"
+        "- 모든 카피는 자연스러운 한국어로 써. 위 영문 재료명·이미지 묘사는 내용 참고용일 뿐이니 "
+        "영어 단어를 그대로 노출하지 말고 한국어로 자연스럽게 옮겨(예: tapioca pearls→타피오카 펄).\n"
+        "매체별 페르소나:\n" + persona + "\n"
+        "각 매체는 headline(임팩트 있는 1줄), body(페르소나에 맞는 문장), "
+        "hashtags(# 포함 문자열 배열)로.\n"
+        "또한 카피에서 네가 언급한 구체적 재료를 claimed_ingredients(영문 소문자 배열)로 함께 "
+        "보고해(환각 검증용, 언급 없으면 []).\n"
+        '반드시 JSON 으로만 응답: {"instagram":{"headline":"","body":"","hashtags":["#..."]},'
+        '"facebook":{"headline":"","body":"","hashtags":[]},"x":{...},"threads":{...},'
+        '"claimed_ingredients":["..."]}'
+    )
+
+
+def generate_platform_copy(
+    product: ProductInfo,
+    style: StylePreset,
+    core_ingredients: Optional[list[str]] = None,
+    image_desc: str = "",
+) -> dict[str, dict]:
+    """4매체(instagram/facebook/x/threads) 카피를 한 번 호출로 생성 (D4b, FR-23 확장).
+
+    반환: {platform: {"headline","body","hashtags":[...]}}  — UI 공유 4버튼에 직결.
+    환각 차단: 모델이 자기보고한 claimed_ingredients 가 core_ingredients 부분집합인지 검증,
+      초과(지어낸 재료)면 그 항목을 빼라고 1회 교정 재생성. image_desc(로컬 vlm_service.describe)
+      를 주면 실제 이미지에 그라운딩해 환각을 더 줄인다.
+    """
+    product_context = " — ".join(
+        p.strip() for p in (product.name, product.description) if p and p.strip()
+    ) or "(상품 정보 없음)"
+    allowed = [str(i).strip().lower() for i in (core_ingredients or []) if str(i).strip()]
+
+    correction: Optional[list[str]] = None
+    result: dict = {}
+    for attempt in range(2):  # 최초 + 환각 시 교정 1회
+        instruction = _platform_copy_instruction(
+            product_context, style, allowed, image_desc, correction)
+        result = _chat_json([{"role": "user", "content": instruction}], label="platform_copy")
+        claimed = [str(c).strip().lower() for c in (result.get("claimed_ingredients") or [])]
+        # allowed 가 있을 때만 게이트 발동(없으면 재료 검증 불가 → 통과)
+        extra = [c for c in claimed
+                 if c and allowed and not any(c in a or a in c for a in allowed)]
+        if not extra:
+            break
+        logger.warning("platform_copy 환각 의심 재료 %s → 교정 재생성(%d)", extra, attempt)
+        correction = extra
+
+    out: dict[str, dict] = {}
+    for plat in _PLATFORM_PERSONA:
+        blk = result.get(plat) or {}
+        out[plat] = {
+            "headline": str(blk.get("headline", "")).strip(),
+            "body": str(blk.get("body", "")).strip(),
+            "hashtags": [str(h).strip() for h in (blk.get("hashtags") or []) if str(h).strip()],
+        }
+    return out
 
 
 # --- 포스터용 영문 라벨 (층2 오버레이 — editorial/retro 헤드라인) ---------------

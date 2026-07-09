@@ -36,3 +36,6 @@ b_bg_compare.py
 flux_only.py
 lraum_v2.py
 route_full.py
+# v2 하네스 실행 산출물 (원장은 VM 생성, 코드·매니페스트는 추적)
+backend/experiments/runs.jsonl
+backend/experiments/report.md
