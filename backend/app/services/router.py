@@ -57,6 +57,9 @@ def process_input(image_path: str, name: str, knob: Optional[float] = None,
     from . import kontext_service
     template = "A-hero" if a.texture_hero else "A-dish"
     instr = kontext_service.build_instruction(template, a.subject_en, a.core_ingredients)
+    # knob → steps(품질/속도): 0=빠름(8) ~ 1=고품질(20), 기본 12. P1-speed 실측 범위.
+    steps = (kontext_service.DEFAULT_STEPS if knob is None
+             else int(round(8 + max(0.0, min(1.0, knob)) * 12)))
     t0 = time.time()
-    out = kontext_service.edit(image_path, instr, output_dir=output_dir)
+    out = kontext_service.edit(image_path, instr, steps=steps, output_dir=output_dir)
     return RouteResult(out, "food", f"kontext:{template}", a.subject_en, round(time.time() - t0, 2))

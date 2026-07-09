@@ -26,7 +26,9 @@ GGUF_REPO = "QuantStack/FLUX.1-Kontext-dev-GGUF"
 GGUF_FILE = "flux1-kontext-dev-Q4_K_M.gguf"
 
 DEFAULT_GUIDANCE = 2.5
-DEFAULT_STEPS = 28
+# 스텝 스윕(P1-speed) 실측: 8~28 전 구간 품질 붕괴 없음, VRAM 13.6G 무관.
+#   knee=12(58s, 프로덕션급) — 28(133s) 대비 2.3× 빠르고 품질 손실 무시. 기본값 채택.
+DEFAULT_STEPS = 12
 
 _kontext_pipeline = None
 
