@@ -1,0 +1,7 @@
+# v2 평가 하네스·Kontext 전용 의존성 (웹 백엔드엔 불필요) — 담당: 한의정
+# 설치: .venv/bin/pip install -r backend/requirements-eval.txt
+lpips            # 정체성 지표 (LPIPS)
+timm             # DINOv2 백본 (torch.hub 경유도 가능)
+pyyaml           # 골든셋 매니페스트 파싱
+gguf             # FLUX Kontext GGUF 트랜스포머 로딩
+# 심미 지표(디스크 여유 시): image-reward, hpsv2
