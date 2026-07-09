@@ -48,6 +48,14 @@ def _font(kind: str, size: int) -> ImageFont.FreeTypeFont:
         "gothic_bold": "NanumGothic-Bold.ttf",
         "didone": "PlayfairDisplay.ttf",
         "display": "Jua-Regular.ttf",
+        # 스타일별 다양성 확장(OFL): 에디토리얼=고운바탕 / 팝=블랙한산스 / 레트로=구기 /
+        #   캐주얼=개구 / 라운드=도현 / 영문 콘덴스드=베바스
+        "serif_elegant": "GowunBatang-Regular.ttf",
+        "display_heavy": "BlackHanSans-Regular.ttf",
+        "display_quirky": "Gugi-Regular.ttf",
+        "hand_casual": "Gaegu-Regular.ttf",
+        "display_round": "DoHyeon-Regular.ttf",
+        "condensed": "BebasNeue-Regular.ttf",
     }
     path = FONT_DIR / names[kind]
     if not path.is_file():
@@ -435,6 +443,7 @@ def apply_food_poster(
     output_path: Optional[str] = None,
     accent: Optional[tuple[int, int, int]] = None,
     layout: str = "overlay",
+    head_kind: Optional[str] = None,
 ) -> str:
     """A모드(리터치형) 프리미엄 음식 포스터 — 누끼 없음, 사진 위/아래 조판.
 
@@ -451,7 +460,7 @@ def apply_food_poster(
     margin = int(w * 0.08)
 
     head_lines = _split_headline(headline) if len(headline) > 9 else [headline]
-    head_kind = "didone" if headline.isascii() else "serif"
+    head_kind = head_kind or ("didone" if headline.isascii() else "serif")
 
     if layout == "panel":
         # 사진 상단 66% + 하단 34% 딥톤 패널
