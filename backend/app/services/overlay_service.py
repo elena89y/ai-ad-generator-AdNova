@@ -585,6 +585,68 @@ def _muted_bg_from_rgba(product_rgba: Image.Image) -> tuple[int, int, int]:
     return (int(r * 255), int(g * 255), int(b * 255))
 
 
+def apply_pop_split(
+    product_rgba: Image.Image,
+    macro_img: Image.Image,
+    menu_en: str,
+    bg_color: Optional[tuple[int, int, int]] = None,
+    output_path: Optional[str] = None,
+    canvas_size: tuple[int, int] = (1080, 1350),
+) -> str:
+    """여름음료 pop 스플릿 (4:5, 상하 50:50) — DESIGN_SYSTEM pop_split.
+
+    상단 = 음료 매크로(생성물, macro_img) / 하단 = 상품컷(product_rgba) + 컵 뒤 블록레터(BebasNeue).
+    ⚠️ 순수 PIL 합성 — 누끼(rembg)·매크로(Kontext) 생성은 상위(generation) 경로에서 미리 수행해 전달.
+    menu_en: 영어 대문자 한 줄(예 GRAPEFRUIT ADE). 색·정체성 보존은 입력 이미지에 의존.
+    """
+    from PIL import ImageFilter
+
+    W, H = canvas_size
+    PH = H // 2
+
+    # 상단: 매크로를 폭 맞춰 확대 후 상단 밴드 크롭(유리 림 회피)
+    mw, mh = macro_img.size
+    macro = macro_img.convert("RGB").resize((W, max(PH, int(mh * W / mw))), Image.LANCZOS)
+    top = macro.crop((0, 0, W, PH))
+
+    # 하단 배경색(제품색 → 크림 블렌드)
+    arr = np.asarray(product_rgba.convert("RGBA"))
+    m = arr[..., 3] > 40
+    avg = arr[..., :3][m].mean(axis=0) if m.any() else np.array([200, 200, 200])
+    bg = bg_color or tuple(int(0.15 * c + 0.85 * v) for c, v in zip(avg, (240, 234, 220)))
+
+    bottom = Image.new("RGBA", (W, PH), tuple(bg) + (255,))
+    d = ImageDraw.Draw(bottom)
+    menu = menu_en.upper()
+    sz = 360
+    while d.textlength(menu, font=_font("condensed", sz)) > W * 0.88 and sz > 60:
+        sz -= 6
+    fnt = _font("condensed", sz)
+    tw = d.textlength(menu, font=fnt)
+    d.text((W / 2 - tw / 2, int(PH * 0.24)), menu, font=fnt, fill=(238, 231, 215, 255))
+
+    # 제품 bbox 크롭 → 하단정렬(컵이 레터 앞)
+    ys, xs = np.nonzero(m)
+    prod = product_rgba.convert("RGBA").crop((xs.min(), ys.min(), xs.max() + 1, ys.max() + 1))
+    pw, ph = prod.size
+    sc = (PH * 0.92) / ph
+    prod = prod.resize((max(1, int(pw * sc)), int(ph * sc)), Image.LANCZOS)
+    px = int(W / 2 - prod.width / 2)
+    py = PH - prod.height
+    sh = Image.new("RGBA", (W, PH), (0, 0, 0, 0))
+    ImageDraw.Draw(sh).ellipse(
+        [px + prod.width * 0.05, PH - 40, px + prod.width * 0.95, PH + 22], fill=(40, 28, 18, 120))
+    bottom.alpha_composite(sh.filter(ImageFilter.GaussianBlur(18)))
+    bottom.alpha_composite(prod, (px, py))
+
+    out = Image.new("RGB", (W, H))
+    out.paste(top, (0, 0))
+    out.paste(bottom.convert("RGB"), (0, PH))
+    outp = Path(output_path) if output_path else Path("pop_split.png")
+    out.save(outp)
+    return str(outp)
+
+
 def apply_editorial_poster(
     product_rgba: Image.Image,
     headline: str,
