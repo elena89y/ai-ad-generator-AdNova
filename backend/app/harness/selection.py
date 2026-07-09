@@ -21,7 +21,7 @@ class Candidate:
     path: str
     clean: bool                 # inspect 결함 없음
     note: str                   # inspect 서술('looks clean' 또는 결함 문장)
-    aesthetic: Optional[float]  # LAION 심미(높을수록 좋음), 실패 시 None
+    aesthetic: Optional[float]  # 심미(NIMA 우선/LAION 폴백, 높을수록 좋음), 실패 시 None
 
 
 @dataclass
@@ -44,7 +44,7 @@ def select_best(image_paths: list[str], unload_vlm_after: bool = True) -> Select
     cands: list[Candidate] = []
     for p in image_paths:
         insp = vlm_service.inspect(p)
-        aes = metrics.aesthetic(p).get("laion")
+        aes = metrics.aesthetic_primary(p)   # NIMA 우선, LAION 폴백
         cands.append(Candidate(str(p), bool(insp["clean"]), insp["note"], aes))
     if unload_vlm_after:
         vlm_service.unload()
