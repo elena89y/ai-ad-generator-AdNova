@@ -129,29 +129,34 @@ def _caption_image(image_path: str) -> str:
     """BLIP 로컬 캡셔닝 — API 비용 없음. GPU 있으면 사용, 없으면 CPU.
 
     생성 이미지의 장면 묘사(영어)를 반환. generate_copy 저비용 경로 입력.
+    ⚠️ v2에서 Qwen3-VL로 대체 예정(deprecated) — 캐시 없거나 로드 실패 시 "" 폴백(비차단).
     """
     global _blip
     import torch
     from PIL import Image
 
-    if _blip is None:
-        from transformers import BlipForConditionalGeneration, BlipProcessor
+    try:
+        if _blip is None:
+            from transformers import BlipForConditionalGeneration, BlipProcessor
 
-        # CPU 고정: L4 에서 SDXL 2종+rembg 와 동시 상주 시 OOM (서비스 실측).
-        # BLIP-base 는 CPU 추론 ~2s 로 지연 예산 내 — VRAM 1GB+ 절약이 이득.
-        device = "cpu"
-        processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
-        model = BlipForConditionalGeneration.from_pretrained(
-            "Salesforce/blip-image-captioning-base"
-        ).to(device)
-        _blip = (processor, model, device)
+            # CPU 고정: L4 에서 SDXL 2종+rembg 와 동시 상주 시 OOM (서비스 실측).
+            # BLIP-base 는 CPU 추론 ~2s 로 지연 예산 내 — VRAM 1GB+ 절약이 이득.
+            device = "cpu"
+            processor = BlipProcessor.from_pretrained(
+                "Salesforce/blip-image-captioning-base", local_files_only=True)
+            model = BlipForConditionalGeneration.from_pretrained(
+                "Salesforce/blip-image-captioning-base", local_files_only=True).to(device)
+            _blip = (processor, model, device)
 
-    processor, model, device = _blip
-    img = Image.open(image_path).convert("RGB")
-    inputs = processor(img, return_tensors="pt").to(device)
-    with torch.no_grad():
-        out = model.generate(**inputs, max_new_tokens=40)
-    return processor.decode(out[0], skip_special_tokens=True)
+        processor, model, device = _blip
+        img = Image.open(image_path).convert("RGB")
+        inputs = processor(img, return_tensors="pt").to(device)
+        with torch.no_grad():
+            out = model.generate(**inputs, max_new_tokens=40)
+        return processor.decode(out[0], skip_special_tokens=True)
+    except Exception as e:  # 캐시 제거(v2 디스크 확보) 등 → 캡션 없이 진행
+        logger.warning(f"BLIP 캡션 불가 → 빈 캡션 폴백: {e}")
+        return ""
 
 
 def _chat_json(messages: list, label: str) -> dict:

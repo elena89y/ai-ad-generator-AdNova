@@ -1,13 +1,17 @@
 """품질 지표 래퍼 — 담당: 한의정.
 
 identity(정체성 보존): DINOv2 코사인 · LPIPS  — 제품 마스크 영역만 비교.
-aesthetic(심미): ImageReward · HPSv2         — 결과물 절대 점수.
+aesthetic(심미): LAION improved-aesthetic-predictor(CLIP ViT-L/14 + MLP) — 결과물 절대 점수.
+
+⚠️ 캘리브레이션(P2-2): 어떤 단일 자동지표도 사람 아트디렉터 미세판정을 재현 못 함.
+  aesthetic 는 **advisory 회귀 트립와이어**(큰 하락 감지)용이지 미세 A/B 오라클 아님.
+  DINO 는 "덜 바꿈"을 높게 봐 좋은 향상을 penalize. 최종 미세 미학판정은 사람(육안)이 정본.
+  ImageReward/HPS 는 이 torch2.12/cu130 스택에서 구 transformers 의존으로 로드 실패 → LAION 채택.
 
 ⚠️ 각 지표 모델은 lazy 로드 + 의존성/다운로드 실패 시 **None 반환**(크래시 금지).
-  → 기준선 캡처가 일부 지표 미설치로 막히지 않는다. None 은 원장에 그대로 기록.
+  → 평가가 일부 지표 미설치로 막히지 않는다. None 은 원장에 그대로 기록.
 
-지표 모델 디스크: DINOv2 ~0.35G · LPIPS ~few MB · ImageReward ~1.8G · HPSv2 ~1G.
-  기준선엔 identity 가 최우선(항상 설치) / aesthetic 은 여유 있을 때.
+지표 모델 디스크: DINOv2 ~0.35G · LPIPS ~few MB · CLIP ViT-L/14 ~0.9G · aesthetic MLP ~5MB.
 """
 from __future__ import annotations
 
@@ -22,8 +26,14 @@ logger = logging.getLogger(__name__)
 
 _dino = None
 _lpips = None
-_imagereward = None
-_hps = None
+_clip = None
+_clip_prep = None
+_laion_mlp = None
+
+# LAION improved-aesthetic-predictor 가중치(CLIP ViT-L/14 위 5MB MLP)
+_AESTHETIC_WPATH = Path(__file__).resolve().parents[2] / "experiments" / "aesthetic_l14.pth"
+_AESTHETIC_WURL = ("https://github.com/christophschuhmann/improved-aesthetic-predictor/"
+                   "raw/main/sac+logos+ava1-l14-linearMSE.pth")
 
 
 # --- 공통 ---------------------------------------------------------------------
@@ -125,26 +135,59 @@ def identity_lpips(before_path: str, after_path: str,
         return None
 
 
-# --- 심미 점수 ----------------------------------------------------------------
+# --- 심미 점수 (LAION aesthetic, advisory) ------------------------------------
+def _load_laion():  # noqa: ANN202
+    """CLIP ViT-L/14 + aesthetic MLP lazy 로드. 가중치 없으면 다운로드."""
+    global _clip, _clip_prep, _laion_mlp
+    if _laion_mlp is not None:
+        return _clip, _clip_prep, _laion_mlp
+    import urllib.request
+
+    import clip  # openai CLIP
+    import torch
+    import torch.nn as nn
+
+    class MLP(nn.Module):
+        def __init__(self, d: int = 768):
+            super().__init__()
+            self.layers = nn.Sequential(
+                nn.Linear(d, 1024), nn.Dropout(0.2), nn.Linear(1024, 128), nn.Dropout(0.2),
+                nn.Linear(128, 64), nn.Dropout(0.1), nn.Linear(64, 16), nn.Linear(16, 1))
+
+        def forward(self, x):  # noqa: ANN001
+            return self.layers(x)
+
+    if not _AESTHETIC_WPATH.is_file():
+        _AESTHETIC_WPATH.parent.mkdir(parents=True, exist_ok=True)
+        urllib.request.urlretrieve(_AESTHETIC_WURL, _AESTHETIC_WPATH)
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    mlp = MLP().to(dev)
+    mlp.load_state_dict(torch.load(_AESTHETIC_WPATH, map_location=dev))
+    mlp.eval()
+    model, prep = clip.load("ViT-L/14", device=dev)
+    _clip, _clip_prep, _laion_mlp = model, prep, mlp
+    return _clip, _clip_prep, _laion_mlp
+
+
 def aesthetic(image_path: str, prompt: str = "") -> dict:
-    """결과물 심미 절대 점수 {imagereward, hps}. 미설치 항목은 None."""
-    out: dict[str, Optional[float]] = {"imagereward": None, "hps": None}
-    try:
-        global _imagereward
-        import ImageReward as RM  # type: ignore
+    """결과물 심미 절대 점수 {laion}(≈1~10). **advisory**(회귀 트립와이어). 실패 시 None.
 
-        if _imagereward is None:
-            _imagereward = RM.load("ImageReward-v1.0")
-        out["imagereward"] = round(float(_imagereward.score(prompt or "a photo", image_path)), 4)
-    except Exception as e:
-        logger.warning(f"imagereward 실패 → None: {e}")
+    캘리브레이션상 미세 A/B 오라클 아님 — 큰 하락 감지·회귀 스크리닝용. prompt 는 미사용
+    (LAION 은 순수 심미). 미세 미학 최종판정은 사람(육안).
+    """
+    out: dict[str, Optional[float]] = {"laion": None}
     try:
-        global _hps
-        import hpsv2  # type: ignore
+        import torch
 
-        out["hps"] = round(float(hpsv2.score(image_path, prompt or "a photo", hps_version="v2.1")[0]), 4)
+        model, prep, mlp = _load_laion()
+        dev = "cuda" if torch.cuda.is_available() else "cpu"
+        img = prep(Image.open(image_path).convert("RGB")).unsqueeze(0).to(dev)
+        with torch.no_grad():
+            f = model.encode_image(img).float()
+            f = f / f.norm(dim=-1, keepdim=True)
+            out["laion"] = round(float(mlp(f).item()), 4)
     except Exception as e:
-        logger.warning(f"hps 실패 → None: {e}")
+        logger.warning(f"aesthetic(laion) 실패 → None: {e}")
     return out
 
 

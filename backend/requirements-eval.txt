@@ -4,4 +4,9 @@ lpips            # 정체성 지표 (LPIPS)
 timm             # DINOv2 백본 (torch.hub 경유도 가능)
 pyyaml           # 골든셋 매니페스트 파싱
 gguf             # FLUX Kontext GGUF 트랜스포머 로딩
-# 심미 지표(디스크 여유 시): image-reward, hpsv2
+ftfy             # openai CLIP 토크나이저 의존
+regex            # openai CLIP 토크나이저 의존
+# 심미 지표(LAION improved-aesthetic): CLIP ViT-L/14 + 5MB MLP
+#   pip install "git+https://github.com/openai/CLIP.git"  (PyPI 미배포)
+#   ⚠️ ImageReward/HPSv2 는 torch2.12/cu130 스택에서 구 transformers 심볼 의존으로 로드 실패 → 미채택
+# 로컬 VLM 저지/묘사(vlm_service): transformers 의 Qwen3-VL 사용 — 웹 스택 공유, 추가설치 불필요
