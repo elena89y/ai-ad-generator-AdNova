@@ -444,6 +444,7 @@ def apply_food_poster(
     accent: Optional[tuple[int, int, int]] = None,
     layout: str = "overlay",
     head_kind: Optional[str] = None,
+    style_key: Optional[str] = None,
 ) -> str:
     """A모드(리터치형) 프리미엄 음식 포스터 — 누끼 없음, 사진 위/아래 조판.
 
@@ -454,6 +455,13 @@ def apply_food_poster(
       - overlay : 풀블리드 사진 + 하단 부드러운 그라데이션 위 좌측 정렬 텍스트
       - panel   : 사진 상단 + 하단 솔리드 딥톤 패널(에디토리얼 카드), 중앙 정렬
     """
+    # 스타일 키 주면 디자인시스템 스펙에서 폰트·액센트 자동 매핑(명시 인자가 우선)
+    if style_key:
+        from .style_specs import get_spec
+        sp = get_spec(style_key)
+        head_kind = head_kind or sp.head_font
+        accent = accent or sp.accent
+
     img = Image.open(image_path).convert("RGB")
     w, h = img.size
     acc = accent or _dominant_warm(img)
