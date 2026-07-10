@@ -75,7 +75,7 @@ def generate(
 
     product = ProductInfo(name=product_name, description=product_description or None)
     try:
-        out = generation_service.run_from_upload(
+        out = generation_service.run_from_upload_v2(
             str(src), product, style, seed, use_vision, poster
         )
     except ValueError as e:
@@ -90,7 +90,7 @@ def regenerate(req: RegenerateAdRequest) -> GenerateAdResponse:
     """asset_id 재사용 + 새 seed 재생성 (FR-12)."""
     product = ProductInfo(name=req.product_name, description=req.product_description)
     try:
-        out = generation_service.rerun(
+        out = generation_service.rerun_v2(
             req.asset_id, product, req.style, req.prev_seed, req.use_vision, req.poster
         )
     except ValueError as e:
