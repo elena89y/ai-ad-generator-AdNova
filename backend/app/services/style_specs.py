@@ -109,6 +109,19 @@ STYLE_SPECS: dict[str, StyleSpec] = {
                       "matching-color ingredient props and splashing water droplets, monochromatic color-echo "
                       "environment tied to the product, a dramatic beam of light, glossy wet highlights, 8k, --ar 4:5"),
         negative=_OBJ_NEG),
+    # --- 디저트 단면 매크로 (09_기타/클로즈업 케익 크로스섹션, 2026-07-10) ---
+    # ⚠️ 생성비중↑ — 업로드된 통 케이크의 '단면'을 새로 만든다(원본에 단면이 없음). 정직성 게이트:
+    #    레이어는 그 케이크의 실제 재료여야(gpt_service 레시피 검증 후 layers 주입) — 허위 레이어 금지.
+    "cross_section": StyleSpec(
+        key="cross_section", mood="프리미엄 파티세리 단면 매크로 — 레이어별 물성, 프레임 꽉 참, 여백 0",
+        palette=("#F4EDE1", "#C25B4E", "#7A5A3A"), head_font="serif_elegant", sub_font="gothic",
+        accent=(122, 90, 58), production="generative",
+        scene_prompt=("extreme macro front-facing cross-section of {subject}, camera at exact eye-level 0-degree, "
+                      "all layers sheared flat on one continuous vertical plane, hyper-real per-layer texture "
+                      "(moisture, gloss, air pockets, crumb), focus stacked no bokeh, premium patisserie campaign, "
+                      "the sliced cross-section fills the entire frame, zero negative space, not a whole cake, "
+                      "not angled, not isometric, --ar 4:5"),
+        negative=_NEG + ", whole cake, three-quarter view, angled view, isometric, cake top visible"),
 }
 
 
