@@ -190,8 +190,12 @@ def run_from_upload_v2(
     saved.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy(image_path, saved)
 
+    # ⚠️ 결과는 서빙 디렉토리(RESULTS_DIR, 절대경로)에 저장 — process_ad 기본 output_dir 은
+    #   상대경로("backend/results/ai/route")라 uvicorn CWD(backend/)에서 backend/backend/... 로 풀려
+    #   /ads/image/{filename} 서빙이 404 남(실측 2026-07-10). 절대경로로 고정.
     r = process_ad(str(image_path), product.name, poster=poster,
-                   style=resolve_style(style.value))
+                   style=resolve_style(style.value),
+                   output_dir=str(image_service.RESULTS_DIR))
     return GenerationOutput(
         final_image_path=r.final_image_path, asset_id=asset_id, seed=seed or 0, style=style,
         copy_text=r.copy_text, platform_copies=_platform_copies_safe(product, style),
@@ -216,7 +220,8 @@ def rerun_v2(
     cands = glob.glob(str(image_service.PROCESSED_DIR / f"{asset_id}_v2input.*"))
     if not cands:
         raise FileNotFoundError(f"v2 입력 원본 없음: asset_id={asset_id}")
-    r = process_ad(cands[0], product.name, poster=poster, style=resolve_style(style.value))
+    r = process_ad(cands[0], product.name, poster=poster, style=resolve_style(style.value),
+                   output_dir=str(image_service.RESULTS_DIR))
     return GenerationOutput(
         final_image_path=r.final_image_path, asset_id=asset_id, seed=0, style=style,
         copy_text=r.copy_text, platform_copies=_platform_copies_safe(product, style),
