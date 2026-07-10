@@ -54,13 +54,17 @@ STYLE_SPECS: dict[str, StyleSpec] = {
                       "shallow depth of field, 8k, vivid textures, --ar 4:5"),
         negative=_NEG + ", low saturation, dull"),
     "realism": StyleSpec(
-        key="realism", mood="미니멀 럭셔리 스튜디오 푸드, 시네마틱 소프트, 선명 질감",
+        key="realism", mood="사진 사실감 우선 스튜디오 푸드 — 실제 질감·자연광, 매크로 디테일",
         palette=("#EFE7D8", "#E7C3C9", "#9FB98A"), head_font="serif_elegant", sub_font="gothic",
         accent=(120, 100, 80), production="hybrid",
-        scene_prompt=("minimal luxury studio food photography of {subject}, cinematic soft lighting, "
-                      "shallow depth, crisp texture, 2-3 color palette, clean gradient background, "
-                      "generous negative space, 8k, --ar 4:5"),
-        negative=_NEG + ", fake food texture, overcrowded ingredients"),
+        # ⚠️ 실측(2026-07-10): 과한 스타일화로 고기가 CGI/장난감처럼 뭉갬 → 사진 사실감을 최우선 앵커.
+        #   고기류는 비계(흰 지방)와 붉은 살결의 대비·마블링이 실제처럼 선명해야 함.
+        scene_prompt=("photorealistic premium studio food photograph of {subject}, true-to-life natural "
+                      "surface texture and moisture, sharp macro detail, for meat keep the white fat marbling "
+                      "and deep red lean clearly distinct, cinematic soft natural light, shallow depth, "
+                      "clean gradient background, generous negative space, --ar 4:5"),
+        negative=_NEG + ", CGI, 3d render, plastic, toy, wax figure, cartoon, smoothed over, "
+                        "overly glossy, fake food texture, uniform color, overcrowded ingredients"),
     "pastel_float": StyleSpec(
         key="pastel_float", mood="몽환·부유·산뜻, 소프트 물결 에테리얼 하이키",
         palette=("#F6D8E4", "#E5DCF2", "#D9F0E6"), head_font="display_round", sub_font="gothic",

@@ -506,10 +506,44 @@ def apply_food_poster(
             sf = _font("gothic", int(h * 0.023))
             sw = d.textlength(subcopy, font=sf)
             d.text((cx - sw / 2, cy0 + int(h * 0.012)), subcopy, font=sf, fill=(214, 208, 200))
+    elif layout == "minimal":
+        # 1:1 등 정사각용 최소 캡션 — 이미지를 최대한 살린다(하단 ~18% 얇은 스크림 + 작은 텍스트).
+        #   실측 2026-07-10: 패널/큰 스크림이 이미지를 가려 별로 → 여백 우선(Canva 10팁·캘리브저지).
+        from PIL import ImageFilter
+
+        scrim_h = int(h * 0.24)
+        grad = np.linspace(0.0, 1.0, scrim_h)[:, None] ** 1.8
+        scrim = np.zeros((scrim_h, w, 4), dtype=np.uint8)
+        scrim[..., 0], scrim[..., 1], scrim[..., 2] = 12, 10, 8
+        scrim[..., 3] = np.repeat((grad * 165).astype(np.uint8), w, axis=1)
+        img = img.convert("RGBA")
+        img.paste(Image.fromarray(scrim), (0, h - scrim_h), Image.fromarray(scrim))
+
+        tl = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        d = ImageDraw.Draw(tl)
+        hf = int(h * 0.044)                       # 헤드라인 작게
+        head_font = _font(head_kind, hf)
+        while max(d.textlength(l, font=head_font) for l in head_lines) > w - 2 * margin and hf > 20:
+            hf = int(hf * 0.93); head_font = _font(head_kind, hf)
+        line_h = int(hf * 1.16)
+        kick_h = int(h * 0.030) if kicker else 0
+        block_h = kick_h + len(head_lines) * line_h
+        y = int(h * 0.93) - block_h               # 아주 하단에 앵커
+        if kicker:
+            kf = _font("gothic_bold", int(h * 0.0165))
+            _spaced_text(d, (margin, y), kicker.upper(), kf, acc, spacing_frac=0.28)
+            y += int(h * 0.030)
+        _draw_headline(d, margin, y, head_lines, head_font, IVORY, line_h)
+        # 소프트 섀도우(밝은 배경 가독성)
+        alpha = tl.split()[3].filter(ImageFilter.GaussianBlur(4))
+        shadow = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        shadow.putalpha(alpha.point(lambda p: int(p * 0.8)))
+        img.alpha_composite(shadow, (1, 2)); img.alpha_composite(tl)
+        img = img.convert("RGB")
     else:  # overlay
         from PIL import ImageFilter
 
-        scrim_h = int(h * 0.52)
+        scrim_h = int(h * 0.38)
         grad = np.linspace(0.0, 1.0, scrim_h)[:, None] ** 1.5
         scrim = np.zeros((scrim_h, w, 4), dtype=np.uint8)
         scrim[..., 0], scrim[..., 1], scrim[..., 2] = 14, 11, 9
