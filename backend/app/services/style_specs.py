@@ -137,3 +137,25 @@ STYLE_SPECS: dict[str, StyleSpec] = {
 def get_spec(key: str) -> StyleSpec:
     """스타일 키 → 스펙(없으면 editorial 폴백)."""
     return STYLE_SPECS.get(key, STYLE_SPECS["editorial"])
+
+
+# 프론트 6버튼(무드) → style_spec 키 매핑 (2026-07-10, 봄·한의정 조율안).
+#   나머지 4종(object_studio/object_splash/pop_split/cross_section)은 '포맷'이라 버튼이 아니라
+#   라우터가 콘텐츠(사물/여름음료/케이크단면)로 자동 선택 — 무드 버튼과 직교.
+#   키는 한글 라벨·영문 별칭·기존 StylePreset 값을 모두 수용(프론트 최종 명칭과 무관하게 동작).
+BUTTON_STYLE_MAP: dict[str, str] = {
+    # 무드 6버튼
+    "비비드": "pop", "vivid": "pop", "pop": "pop",
+    "미니멀": "monotone", "minimal": "monotone", "monotone": "monotone",
+    "럭셔리": "editorial", "luxury": "editorial", "editorial": "editorial",
+    "내추럴": "realism", "natural": "realism", "realism": "realism",
+    "감성": "warm_vintage", "emotional": "warm_vintage", "warm_vintage": "warm_vintage",
+    "파스텔": "pastel_float", "pastel": "pastel_float", "pastel_float": "pastel_float",
+    # 폐기된 구 프리셋 폴백(레트로→파스텔 재카테고리화)
+    "레트로": "pastel_float", "retro": "pastel_float", "retro_paper": "pastel_float",
+}
+
+
+def resolve_style(button: str) -> str:
+    """프론트 버튼/프리셋명 → style_spec 키. 미지값은 editorial 폴백. ads.py 가 process_ad(style=) 로 전달."""
+    return BUTTON_STYLE_MAP.get((button or "").strip().lower(), "editorial")
