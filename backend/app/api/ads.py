@@ -224,7 +224,7 @@ def generate_ad(
                 str(src_path), product, style, seed, use_vision, poster
             )
         else:
-            out = generation_service.run_from_upload(
+            out = generation_service.run_from_upload_v2(
                 str(src_path), product, style, seed, use_vision, poster
             )
             result = _to_response(out)
@@ -308,7 +308,7 @@ def regenerate_ad(
         if generation_client.is_remote():
             result = generation_client.regenerate_remote(req.model_dump())
         else:
-            out = generation_service.rerun(
+            out = generation_service.rerun_v2(
                 req.asset_id, product, req.style, req.prev_seed, req.use_vision, req.poster
             )
             result = _to_response(out)

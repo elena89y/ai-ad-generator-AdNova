@@ -156,6 +156,73 @@ def rerun(
     return run_generation(processed, product, style, new_seed, use_vision, poster)
 
 
+# --- v2 드롭인 어댑터 (구 run_from_upload/rerun 대체) — Kontext(process_ad) 사용 -------------
+#   시그니처·반환형(GenerationOutput) 동일 → ads.py·generation_app 은 함수명만 교체.
+#   StylePreset(무드) → resolve_style → style_spec 키. 4매체 카피 + 정직성 게이트 포함.
+def _platform_copies_safe(product: ProductInfo, style: StylePreset) -> dict[str, dict]:
+    """4매체 카피 + 정직성 게이트(core_ingredients 대조로 재료 환각 차단). 실패해도 {} (무해)."""
+    try:
+        analysis = gpt_service.analyze_menu(product.name)
+        core = getattr(analysis, "core_ingredients", None) or None
+        return gpt_service.generate_platform_copy(product, style, core_ingredients=core)
+    except Exception:
+        return {}
+
+
+def run_from_upload_v2(
+    image_path: str,
+    product: ProductInfo,
+    style: StylePreset,
+    seed: Optional[int] = None,
+    use_vision: bool = False,
+    poster: bool = False,
+) -> GenerationOutput:
+    """v2 진입점 — run_from_upload 드롭인 교체. 내부는 process_ad(Kontext). GenerationOutput 반환."""
+    import shutil
+    import uuid
+    from pathlib import Path as _P
+
+    from .style_specs import resolve_style
+
+    asset_id = uuid.uuid4().hex[:12]
+    # regen 용으로 입력 원본 보존(v2 는 누끼/mask 없음 → 원본 재투입 방식)
+    saved = image_service.PROCESSED_DIR / f"{asset_id}_v2input{_P(image_path).suffix}"
+    saved.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy(image_path, saved)
+
+    r = process_ad(str(image_path), product.name, poster=poster,
+                   style=resolve_style(style.value))
+    return GenerationOutput(
+        final_image_path=r.final_image_path, asset_id=asset_id, seed=seed or 0, style=style,
+        copy_text=r.copy_text, platform_copies=_platform_copies_safe(product, style),
+        poster=poster, generate_seconds=round(r.seconds, 2), harmonize_seconds=0.0)
+
+
+def rerun_v2(
+    asset_id: str,
+    product: ProductInfo,
+    style: StylePreset,
+    prev_seed: Optional[int] = None,
+    use_vision: bool = False,
+    poster: bool = False,
+) -> GenerationOutput:
+    """v2 재생성 — 보존한 입력 원본으로 process_ad 재실행."""
+    import glob
+
+    from .style_specs import resolve_style
+
+    if not is_valid_asset_id(asset_id):
+        raise ValueError(f"잘못된 asset_id 형식: {asset_id!r}")
+    cands = glob.glob(str(image_service.PROCESSED_DIR / f"{asset_id}_v2input.*"))
+    if not cands:
+        raise FileNotFoundError(f"v2 입력 원본 없음: asset_id={asset_id}")
+    r = process_ad(cands[0], product.name, poster=poster, style=resolve_style(style.value))
+    return GenerationOutput(
+        final_image_path=r.final_image_path, asset_id=asset_id, seed=0, style=style,
+        copy_text=r.copy_text, platform_copies=_platform_copies_safe(product, style),
+        poster=poster, generate_seconds=round(r.seconds, 2), harmonize_seconds=0.0)
+
+
 # =============================================================================
 # 통합 엔트리 (신규 흐름) — 이름 기반 자동 모드 라우팅. 기존 run_generation 과 병행.
 #   사진 + 상품명 → router(A/B/C 자동) → 문구 → 포스터. StylePreset 불필요.
@@ -206,8 +273,12 @@ def process_ad(
         analysis = gpt_service.analyze_menu(name)
         subject_en = getattr(analysis, "subject_en", None) or name
         domain = getattr(analysis, "domain", "food")
-        final = style_gen.generate_scene(image_path, style, subject_en, output_dir=output_dir)
-        engine = f"style:{style}"
+        # 포맷 자동감지(STYLE_SYSTEM v2): style 은 '무드', 포맷은 콘텐츠로 결정.
+        #   사물(SKU)이면 무드 무관 object_studio 로 고정(사물이 음식 씬 타면 붕괴) — 무드는 조판에 반영.
+        #   여름음료 pop_split·케이크 cross_section 은 특수 조판/게이트 필요 → 당분간 명시 호출 유지.
+        effective_style = "object_studio" if domain == "object" else style
+        final = style_gen.generate_scene(image_path, effective_style, subject_en, output_dir=output_dir)
+        engine = f"style:{effective_style}"
     else:
         route = router.process_input(image_path, name, knob=knob, output_dir=output_dir)
         final = route.output_path
