@@ -507,37 +507,35 @@ def apply_food_poster(
             sw = d.textlength(subcopy, font=sf)
             d.text((cx - sw / 2, cy0 + int(h * 0.012)), subcopy, font=sf, fill=(214, 208, 200))
     elif layout == "minimal":
-        # 1:1 등 정사각용 최소 캡션 — 이미지를 최대한 살린다(하단 ~18% 얇은 스크림 + 작은 텍스트).
-        #   실측 2026-07-10: 패널/큰 스크림이 이미지를 가려 별로 → 여백 우선(Canva 10팁·캘리브저지).
+        # 이미지를 안 가리는 조판 — 배경색 블록(패널/스크림) 없이 텍스트만 얹고 가독성은 섀도우로.
+        #   실측 2026-07-10(사용자): 카피 뒤 배경색이 원본 이미지를 너무 가림 → 배경 블록 제거.
+        #   키커·헤드라인·서브카피 모두 유지, 하단 좌측 작게. (1:1 등 정사각 권장)
         from PIL import ImageFilter
 
-        scrim_h = int(h * 0.24)
-        grad = np.linspace(0.0, 1.0, scrim_h)[:, None] ** 1.8
-        scrim = np.zeros((scrim_h, w, 4), dtype=np.uint8)
-        scrim[..., 0], scrim[..., 1], scrim[..., 2] = 12, 10, 8
-        scrim[..., 3] = np.repeat((grad * 165).astype(np.uint8), w, axis=1)
         img = img.convert("RGBA")
-        img.paste(Image.fromarray(scrim), (0, h - scrim_h), Image.fromarray(scrim))
-
         tl = Image.new("RGBA", img.size, (0, 0, 0, 0))
         d = ImageDraw.Draw(tl)
-        hf = int(h * 0.044)                       # 헤드라인 작게
+        hf = int(h * 0.044)
         head_font = _font(head_kind, hf)
         while max(d.textlength(l, font=head_font) for l in head_lines) > w - 2 * margin and hf > 20:
             hf = int(hf * 0.93); head_font = _font(head_kind, hf)
         line_h = int(hf * 1.16)
+        sub_h = (int(h * 0.023) + int(h * 0.012)) if subcopy else 0
         kick_h = int(h * 0.030) if kicker else 0
-        block_h = kick_h + len(head_lines) * line_h
-        y = int(h * 0.93) - block_h               # 아주 하단에 앵커
+        block_h = kick_h + len(head_lines) * line_h + sub_h
+        y = int(h * 0.93) - block_h
         if kicker:
             kf = _font("gothic_bold", int(h * 0.0165))
             _spaced_text(d, (margin, y), kicker.upper(), kf, acc, spacing_frac=0.28)
             y += int(h * 0.030)
-        _draw_headline(d, margin, y, head_lines, head_font, IVORY, line_h)
-        # 소프트 섀도우(밝은 배경 가독성)
-        alpha = tl.split()[3].filter(ImageFilter.GaussianBlur(4))
+        y = _draw_headline(d, margin, y, head_lines, head_font, IVORY, line_h)
+        if subcopy:                                # 서브카피 유지(작게)
+            sf = _font("gothic", int(h * 0.023))
+            d.text((margin, y + int(h * 0.012)), subcopy, font=sf, fill=(236, 230, 222))
+        # 배경 블록 없이 소프트 섀도우만으로 가독성 확보(밝은/어두운 배경 모두)
+        alpha = tl.split()[3].filter(ImageFilter.GaussianBlur(6))
         shadow = Image.new("RGBA", img.size, (0, 0, 0, 0))
-        shadow.putalpha(alpha.point(lambda p: int(p * 0.8)))
+        shadow.putalpha(alpha.point(lambda p: min(255, int(p * 1.4))))
         img.alpha_composite(shadow, (1, 2)); img.alpha_composite(tl)
         img = img.convert("RGB")
     else:  # overlay
