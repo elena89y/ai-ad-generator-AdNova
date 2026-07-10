@@ -127,6 +127,7 @@
     font-size:15px;background:var(--card);transition:.15s;
   }
   .field input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 4px rgba(242,169,59,.16)}
+  .field-help{margin-top:6px;font-size:12.5px;line-height:1.45;color:var(--ink-mute)}
   .btn-primary{
     width:100%;padding:14px;border-radius:12px;font-size:15.5px;font-weight:700;color:#fff;
     background:var(--ink);transition:.15s;margin-top:6px;
@@ -523,7 +524,8 @@
     </div>
     <div class="field">
       <label>비밀번호</label>
-      <input id="signupPassword" type="password" placeholder="예: Password1!" autocomplete="new-password">
+      <input id="signupPassword" type="password" placeholder="8~20자, 대소문자·숫자·특수문자 포함" autocomplete="new-password">
+      <div class="field-help">8~20자이며 대문자, 소문자, 숫자, 특수문자를 각각 1개 이상 포함해야 합니다.</div>
     </div>
     <div class="field">
       <label>비밀번호 확인</label>
