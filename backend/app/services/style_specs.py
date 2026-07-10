@@ -76,12 +76,17 @@ STYLE_SPECS: dict[str, StyleSpec] = {
                       "bold minimal, large brand typography, clean even lighting, --ar 4:5"),
         negative=_NEG),
     "warm_vintage": StyleSpec(
-        key="warm_vintage", mood="따뜻한 프리미엄 라이프스타일, 원목·골든아워·감성",
+        key="warm_vintage", mood="따뜻한 프리미엄 라이프스타일, 원목·골든아워·감성 (제품색 보존)",
         palette=("#E8D9C0", "#C9A876", "#A97F4F"), head_font="serif_elegant", sub_font="gothic",
-        accent=(169, 127, 79), production="generative",
-        scene_prompt=("warm premium lifestyle still life of {subject}, wood and marble, dried wheat, "
-                      "Korean bojagi wrapping, warm side lighting, elegant shadows, beige studio, --ar 4:5"),
-        negative=_NEG),
+        accent=(169, 127, 79), production="hybrid",
+        # ⚠️ 실측(2026-07-10): 'bojagi wrapping'이 없던 비닐봉투를 만들어 제품을 가리고,
+        #   'beige studio'+generative가 음식 실제색(말차 초록·라즈베리 빨강)을 오렌지 모노톤으로 뭉갬.
+        #   → 포장어휘 제거, 제품을 명시적 히어로로, 실제색 유지, 소품은 배경으로만.
+        scene_prompt=("warm premium lifestyle photograph of {subject} as the clear hero in sharp focus, "
+                      "a wooden surface with dried wheat and soft cafe props blurred in the background, "
+                      "gentle golden-hour side light, elegant soft shadows, keep the food's real vivid colors "
+                      "and appetizing texture, no packaging, no plastic bag, --ar 4:5"),
+        negative=_NEG + ", plastic bag, wrapping, packaging, washed-out monochrome, orange color cast, dull food"),
     "pop_split": StyleSpec(
         key="pop_split", mood="여름음료 2패널 50:50 — 상단 매크로 / 하단 상품컷+컵뒤 블록레터",
         palette=("#EEE7D4", "#C98418", "#2E2338"), head_font="condensed", sub_font="gothic",
