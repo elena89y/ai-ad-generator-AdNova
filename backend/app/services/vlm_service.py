@@ -208,3 +208,36 @@ def describe(image_path: str, prompt: Optional[str] = None) -> str:
         {"type": "image", "image": str(image_path)},
         {"type": "text", "text": q}]}]
     return _generate(messages, max_new=160)
+
+
+# 광고 디자인 토큰 오토캡션 — 개방형 지각(2B 강점)만 요구, 엄격 분류 회피(2B 약점).
+_CAPTION_Q = (
+    "You are labeling a reference advertising image to build a design dataset. Look ONLY at what "
+    "you can visually see and reply in JSON. Do NOT guess brand or category names.\n"
+    '{"subject":"physical description of the main product/food, e.g. a glossy amber serum bottle",'
+    '"lighting":"e.g. dramatic rim light | soft natural light | bright splash",'
+    '"composition":"subject position + framing, e.g. single hero on pedestal, low angle",'
+    '"text_space":"where the largest empty area for text is: top | bottom | left | right | none",'
+    '"style_tokens":["3-5 visual mood words, e.g. minimalist, monochrome, glossy, premium"],'
+    '"colors":["2-3 dominant colors"]}')
+
+
+def auto_caption(image_path: str) -> dict:
+    """레퍼런스 이미지 → 광고 디자인 토큰 JSON(자동 라벨링, Self-distill/harvest 코퍼스용).
+
+    subject·lighting·composition·text_space(여백 위치)·style_tokens·colors 를 추출.
+    2B 의 강점(개방형 describe)만 쓰고 브랜드/카테고리 분류는 요구하지 않는다(약점 회피).
+    """
+    messages = [{"role": "user", "content": [
+        {"type": "image", "image": str(image_path)},
+        {"type": "text", "text": _CAPTION_Q}]}]
+    raw = _generate(messages, max_new=256)
+    m = re.search(r"\{.*\}", raw, re.DOTALL)
+    if m:
+        try:
+            d = json.loads(m.group(0))
+            d["_ok"] = True
+            return d
+        except json.JSONDecodeError:
+            pass
+    return {"_ok": False, "_raw": raw}

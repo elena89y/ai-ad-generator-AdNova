@@ -68,11 +68,15 @@ _STYLE_KEYWORDS: dict[StylePreset, dict[str, str]] = {
         ),
     },
     StylePreset.POP: {
+        # ⚠️ 임시 개선(2026-07-10): 구 'pop art geometric shapes'가 알록달록 블롭 배경을 유발
+        #   → 제품을 살리는 깔끔한 비비드로 교체(정식 해법은 process_ad 의 pop style_spec=제품×디저트 합성).
         "positive": (
-            "vibrant pop art style background, bold saturated complementary colors, "
-            "playful geometric shapes, high contrast studio lighting, energetic mood"
+            "vibrant premium product photography, single bold clean color backdrop, "
+            "glossy highlights, bright high-key studio lighting, energetic but clean, "
+            "product as the clear hero"
         ),
-        "negative": "dull muted colors, dark moody lighting, monochrome, plain background",
+        "negative": ("dull muted colors, dark moody lighting, cluttered background, "
+                     "scattered shapes, busy pop art pattern, rainbow blobs, confetti"),
     },
     # --- 6종 확장 (2026-07-03, Issue #25) — 레퍼런스: 에디토리얼 포스터·레트로 포스터·파스텔 광고
     StylePreset.EDITORIAL: {
