@@ -200,8 +200,12 @@ def process_ad(
         analysis = gpt_service.analyze_menu(name)
         subject_en = getattr(analysis, "subject_en", None) or name
         domain = getattr(analysis, "domain", "food")
-        final = style_gen.generate_scene(image_path, style, subject_en, output_dir=output_dir)
-        engine = f"style:{style}"
+        # 포맷 자동감지(STYLE_SYSTEM v2): style 은 '무드', 포맷은 콘텐츠로 결정.
+        #   사물(SKU)이면 무드 무관 object_studio 로 고정(사물이 음식 씬 타면 붕괴) — 무드는 조판에 반영.
+        #   여름음료 pop_split·케이크 cross_section 은 특수 조판/게이트 필요 → 당분간 명시 호출 유지.
+        effective_style = "object_studio" if domain == "object" else style
+        final = style_gen.generate_scene(image_path, effective_style, subject_en, output_dir=output_dir)
+        engine = f"style:{effective_style}"
     else:
         route = router.process_input(image_path, name, knob=knob, output_dir=output_dir)
         final = route.output_path
