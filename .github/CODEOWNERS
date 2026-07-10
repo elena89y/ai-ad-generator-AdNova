@@ -1,0 +1,27 @@
+# .github/CODEOWNERS
+
+# ── Auth (유연정) ──
+/backend/app/api/auth.py           @elena89y
+/backend/app/schemas/auth.py       @elena89y
+
+# ── Export (유연정) ──
+/backend/app/api/export.py         @elena89y
+/backend/app/schemas/export.py     @elena89y
+
+# ── Core (보안/설정 - 유연정) ──
+/backend/app/core/security.py      @elena89y
+/backend/app/core/config.py        @elena89y
+
+# ── History (김범수) ──
+# /backend/app/api/history.py      @beomsookim1020
+# /backend/app/schemas/history.py  @beomsookim1020
+
+# ── Frontend (정봄) ──
+/frontend/                         @bom0528
+
+# ── 공동 소유 (백엔드/AI 전체 - main, DB, 나머지) ──
+/backend/app/main.py               @elena89y @beomsookim1020 @EuijeongHan
+/backend/                          @elena89y @beomsookim1020 @EuijeongHan
+
+# ── CI/CD ──
+/.github/                          @elena89y
