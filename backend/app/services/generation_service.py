@@ -159,11 +159,13 @@ def rerun(
 class ProcessedAd:
     final_image_path: str
     domain: str               # food | cafe | object
-    engine: str               # grade | generative | cutout+flux | objectcut:<mat>
+    engine: str               # grade | generative | cutout+flux | objectcut:<mat> | style:<key>
     subject_en: str
     copy_text: str            # '헤드라인\n서브카피' (FR-09)
     poster: bool
     seconds: float
+    style: Optional[str] = None       # 디자인시스템 스타일 키(있으면 style_gen 경로)
+    aesthetic: Optional[float] = None # NIMA 심미 점수(플라이휠 라벨)
 
 
 def process_ad(
@@ -173,11 +175,16 @@ def process_ad(
     poster: bool = True,
     layout: str = "overlay",
     use_vision: bool = False,
+    style: Optional[str] = None,
     output_dir: str = "backend/results/ai/route",
+    log: bool = True,
 ) -> ProcessedAd:
-    """사진 + 상품명 → 자동 라우팅 리터치 + 문구 + 포스터. 사용자는 이름만 입력.
+    """사진 + 상품명 → 자동 라우팅(또는 스타일 씬) 리터치 + 문구 + 포스터. 사용자는 이름만 입력.
 
-    knob(0~1): 공통 강도 슬라이더. layout: overlay|panel(포스터). GPU 필요.
+    knob(0~1): 공통 강도 슬라이더. layout: overlay|panel(포스터).
+    style: 디자인시스템 스타일 키(editorial/realism/pop/…) 지정 시 style_gen 씬 생성 경로,
+           None 이면 기존 이름기반 A/B/C 자동 라우팅(하위호환). GPU 필요.
+    log: True 면 RunLogger 로 원장 적재 + NIMA 심미 기록(Phase 5 플라이휠 축적). 실패해도 결과엔 영향 없음.
     """
     import time
 
@@ -185,8 +192,20 @@ def process_ad(
     from .overlay_service import apply_food_poster
 
     t0 = time.time()
-    route = router.process_input(image_path, name, knob=knob, output_dir=output_dir)
-    final = route.output_path
+
+    # 스타일 지정 시: style_gen 씬 생성(정체성 보존 편집), 아니면 기존 이름기반 라우팅
+    if style:
+        from . import style_gen
+        # subject_en 은 analyze_menu 로 산출(한글→영문, CLIP 함정 회피)
+        analysis = gpt_service.analyze_menu(name)
+        subject_en = getattr(analysis, "subject_en", None) or name
+        domain = getattr(analysis, "domain", "food")
+        final = style_gen.generate_scene(image_path, style, subject_en, output_dir=output_dir)
+        engine = f"style:{style}"
+    else:
+        route = router.process_input(image_path, name, knob=knob, output_dir=output_dir)
+        final = route.output_path
+        subject_en, domain, engine = route.subject_en, route.domain, route.engine
 
     # 문구 (FR-09) — 상품명 + 리터치 이미지 기반. 톤은 EDITORIAL 기본.
     product = ProductInfo(name=name)
@@ -196,13 +215,37 @@ def process_ad(
         headline, _, subcopy = copy.copy_text.partition("\n")
         headline = headline.strip() or name
         subcopy = subcopy.strip()
-        final = apply_food_poster(final, headline, subcopy, layout=layout)
+        # 스타일 지정 시 폰트·액센트 자동 매핑(style_specs)
+        final = apply_food_poster(final, headline, subcopy, layout=layout, style_key=style)
 
-    return ProcessedAd(
-        final_image_path=final, domain=route.domain, engine=route.engine,
-        subject_en=route.subject_en, copy_text=copy.copy_text, poster=poster,
-        seconds=round(time.time() - t0, 2),
+    # 심미 점수(플라이휠 라벨) — 실패 무해
+    aesthetic = None
+    try:
+        from ..harness.metrics import aesthetic_primary
+        aesthetic = aesthetic_primary(final)
+    except Exception:
+        pass
+
+    result = ProcessedAd(
+        final_image_path=final, domain=domain, engine=engine,
+        subject_en=subject_en, copy_text=copy.copy_text, poster=poster,
+        seconds=round(time.time() - t0, 2), style=style, aesthetic=aesthetic,
     )
+
+    # 원장 적재(재생성 불가 결과를 학습자산으로 — DIRECTION D-플라이휠)
+    if log:
+        try:
+            from ..harness.run_logger import RunLogger
+            with RunLogger(phase="P6", mode=domain, engine=engine, input=image_path,
+                           params={"name": name, "style": style, "subject_en": subject_en,
+                                   "layout": layout}) as run:
+                run.set_output(final)
+                if aesthetic is not None:
+                    run.add_metric("aesthetic", aesthetic)
+        except Exception:
+            pass
+
+    return result
 
 
 def generate_editorial(
