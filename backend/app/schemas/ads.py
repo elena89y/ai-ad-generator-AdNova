@@ -109,6 +109,13 @@ class ProductInfo(BaseModel):
     # TODO: 명세서 FR-03(상품 정보 입력) 필드와 정합 맞추기
 
 
+class PlatformCopy(BaseModel):
+    """SNS 매체별 광고 문구."""
+    headline: str = ""
+    body: str = ""
+    hashtags: list[str] = Field(default_factory=list)
+
+
 # --- 통합 광고 생성 (FR-06~09, /ads/generate — 프론트 app.py 연동 스펙) --------
 class GenerateAdResponse(BaseModel):
     """통합 파이프라인 응답. 프론트 결과 페이지가 사용하는 필드 구성."""
@@ -116,6 +123,7 @@ class GenerateAdResponse(BaseModel):
     seed: int                        # 재현/재생성용
     style: StylePreset
     copy_text: str                   # '헤드라인\n서브카피' (FR-09)
+    platform_copies: dict[str, PlatformCopy] = Field(default_factory=dict)
     image_url: str                   # GET /ads/image/{filename} 상대 경로
     poster: bool                     # 타이포 오버레이 적용 여부
     generate_seconds: float

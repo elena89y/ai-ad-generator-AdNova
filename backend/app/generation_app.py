@@ -41,6 +41,7 @@ def _to_response(out: generation_service.GenerationOutput) -> GenerateAdResponse
         seed=out.seed,
         style=out.style,
         copy_text=out.copy_text,
+        platform_copies=out.platform_copies,
         image_url=f"/result/{Path(out.final_image_path).name}",
         poster=out.poster,
         generate_seconds=out.generate_seconds,
