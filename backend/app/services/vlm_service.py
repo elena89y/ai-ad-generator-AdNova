@@ -211,14 +211,18 @@ def describe(image_path: str, prompt: Optional[str] = None) -> str:
 
 
 # 광고 디자인 토큰 오토캡션 — 개방형 지각(2B 강점)만 요구, 엄격 분류 회피(2B 약점).
+#   lighting 은 '실제 그림자/하이라이트로 판단' 강제(AUTOCAP-002: 60%가 soft로 쏠려 오판 → 관찰 유도).
 _CAPTION_Q = (
     "You are labeling a reference advertising image to build a design dataset. Look ONLY at what "
     "you can visually see and reply in JSON. Do NOT guess brand or category names.\n"
     '{"subject":"physical description of the main product/food, e.g. a glossy amber serum bottle",'
-    '"lighting":"e.g. dramatic rim light | soft natural light | bright splash",'
+    '"lighting":"Judge ONLY from the visible shadows and highlights. Hard-edged shadows, a bright rim/'
+    'back glow, a spotlight, or high contrast => dramatic (say the direction: side/back/top). Only call '
+    'it soft/even when shadows are genuinely faint and low-contrast. Do NOT default to soft.",'
     '"composition":"subject position + framing, e.g. single hero on pedestal, low angle",'
     '"text_space":"where the largest empty area for text is: top | bottom | left | right | none",'
-    '"style_tokens":["3-5 visual mood words, e.g. minimalist, monochrome, glossy, premium"],'
+    '"style_tokens":["3-5 mood words SPECIFIC to THIS image (its color feel, energy, era, finish), '
+    'avoid generic filler",'
     '"colors":["2-3 dominant colors"]}')
 
 
