@@ -415,6 +415,36 @@ def compare_ads(image_a: str, image_b: str, ref_path: Optional[str] = None,
     return {"winner": winner, "reason": why1, "debias_consistent": winner != "tie"}
 
 
+def judge_ad_calibrated(image_path: str, style_key: str,
+                        ref_image_paths: list[str], extra: str = "") -> dict:
+    """레퍼런스-캘리브레이션 저지 — 목표 미학 예시(ref) 대비 후보를 채점.
+
+    P2-2 결론: 미세 A/B 는 오라클 없음(GPT-4V 도) → "무엇이 좋은가"를 레퍼런스로 정의해야 판단이 의미.
+    ref_image_paths 앞 2~3장을 목표 미학 예시로, 마지막에 후보를 붙여 GPT Vision 이 목표 대비 채점.
+    반환: {style_match, execution, identity, overall, improve}.
+    """
+    from .style_specs import get_spec
+    sp = get_spec(style_key)
+    refs = ref_image_paths[:3]
+    intro = (
+        f"The first {len(refs)} images are REFERENCE examples of our TARGET '{style_key}' advertising "
+        f"aesthetic ({sp.mood}). The LAST image is a CANDIDATE ad we generated. Rate how well the "
+        "candidate matches this target, 1(off-target) to 10(indistinguishable from the references in "
+        "quality and style), on: style_match(mood·color·layout), execution(typography·lighting·"
+        "composition polish), identity(product looks real and faithful), overall. " + (extra + " " if extra else "") +
+        'Reply ONLY JSON: {"style_match":N,"execution":N,"identity":N,"overall":N,'
+        '"improve":"one concrete suggestion"}')
+    content: list = [{"type": "text", "text": intro}]
+    for p in refs:
+        content.append(_vision_part(p))
+    content.append(_vision_part(image_path))
+    r = _chat_json([{"role": "system", "content": _JUDGE_SYS},
+                    {"role": "user", "content": content}], label="judge_calibrated")
+    out = {k: r.get(k) for k in ["style_match", "execution", "identity", "overall"]}
+    out["improve"] = str(r.get("improve", ""))[:200]
+    return out
+
+
 # --- 포스터용 영문 라벨 (층2 오버레이 — editorial/retro 헤드라인) ---------------
 def generate_english_labels(product: ProductInfo) -> tuple[str, str]:
     """상품 정보 → 포스터용 영문 라벨 (레퍼런스: 영문 대문자 메뉴명 헤드라인).
