@@ -736,7 +736,7 @@
             <button class="oa save" onclick="saveCurrentResult()">💾 저장</button>
             <button class="oa" onclick="openUpgrade()">⬇️ 다운로드 🔒</button>
             <button class="oa" onclick="shareCurrentResult()">↗️ 공유</button>
-            <button class="oa" onclick="regenerate()">🔄 다시 생성</button>
+            <button class="oa" id="regenBtn" onclick="regenerate()">🔄 다시 생성</button>
           </div>
 
           <div class="wm-row">
@@ -1414,6 +1414,9 @@ async function regenerate(){
     return;
   }
 
+  const btn=document.getElementById('regenBtn');
+  if(btn?.disabled) return;
+  if(btn) btn.disabled=true;
   document.getElementById('rOut').classList.remove('on');
   const load=document.getElementById('rLoad');
   load.classList.add('on');
@@ -1454,6 +1457,7 @@ async function regenerate(){
   }finally{
     clearInterval(iv);
     load.classList.remove('on');
+    if(btn) btn.disabled=false;
   }
 }
 
