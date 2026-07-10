@@ -126,6 +126,13 @@ class GenerateResult:
     # TODO: 제품 보존율(SSIM/L1) 필드 — A-3 지표 확정 후 추가
 
 
+def _preprocess_asset_stem(src: Path) -> str:
+    stem = src.stem.lower()
+    if len(stem) == 32 and all(char in "0123456789abcdef" for char in stem):
+        return stem[:12]
+    return src.stem
+
+
 # --- FR-06 내부 단계 ----------------------------------------------------------
 def _load_image(image_bytes: bytes) -> Image.Image:
     """바이트 데이터를 PIL Image로 로드. EXIF 방향 정보 보정 포함."""
@@ -275,8 +282,9 @@ def preprocess(
     img = _preprocess_to_image(src.read_bytes(), target_size)
     mask = _extract_mask(img)
 
-    processed_path = out_dir / f"{src.stem}_processed.png"
-    mask_path = out_dir / f"{src.stem}_mask.png"
+    asset_stem = _preprocess_asset_stem(src)
+    processed_path = out_dir / f"{asset_stem}_processed.png"
+    mask_path = out_dir / f"{asset_stem}_mask.png"
     img.save(processed_path, format="PNG")
     mask.save(mask_path, format="PNG")
 

@@ -27,7 +27,7 @@ from ..crud.advertisement import create_advertisement
 from ..crud.history import create_history
 from ..crud.image import create_image, get_image_by_id
 from ..database.connection import get_db
-from ..database.models import User
+from ..database.models import History, User
 from ..schemas.ads import (
     GenerateAdResponse,
     ProductInfo,
@@ -58,10 +58,79 @@ def _to_response(out: generation_service.GenerationOutput) -> GenerateAdResponse
         seed=out.seed,
         style=out.style,
         copy_text=out.copy_text,
+        platform_copies=out.platform_copies,
         image_url=f"{settings.API_PREFIX}/ads/image/{Path(out.final_image_path).name}",
         poster=out.poster,
         generate_seconds=out.generate_seconds,
         harmonize_seconds=out.harmonize_seconds,
+    )
+
+
+def _record_generated_result(
+    db: Session,
+    *,
+    user_id: int,
+    input_image_id: Optional[int],
+    product_name: Optional[str],
+    style: StylePreset,
+    poster: bool,
+    prompt_for_db: str,
+    result: GenerateAdResponse,
+    action_type: str,
+    request_data: str,
+) -> None:
+    output_filename = Path(result.image_url).name
+    output_path = image_service.RESULTS_DIR / output_filename
+    output_image = create_image(
+        db,
+        user_id=user_id,
+        image_type="generated",
+        original_filename=output_filename,
+        stored_filename=output_filename,
+        file_path=str(output_path),
+        image_url=result.image_url,
+        content_type="image/png",
+        file_size=output_path.stat().st_size if output_path.exists() else None,
+    )
+
+    advertisement = create_advertisement(
+        db,
+        user_id=user_id,
+        input_image_id=input_image_id,
+        output_image_id=output_image.id,
+        title=product_name,
+        ad_type="poster" if poster else "image",
+        prompt=prompt_for_db,
+        generated_text=result.copy_text,
+        style=style.value,
+        status="completed",
+    )
+    create_history(
+        db,
+        user_id=user_id,
+        advertisement_id=advertisement.id,
+        action_type=action_type,
+        status="completed",
+        request_data=request_data,
+        response_data=json.dumps(result.model_dump(mode="json"), ensure_ascii=False),
+    )
+
+
+def _find_source_history_by_asset_id(
+    db: Session,
+    *,
+    user_id: int,
+    asset_id: str,
+) -> History | None:
+    return (
+        db.query(History)
+        .filter(
+            History.user_id == user_id,
+            History.status == "completed",
+            History.response_data.contains(asset_id),
+        )
+        .order_by(History.created_at.desc())
+        .first()
     )
 
 
@@ -160,41 +229,17 @@ def generate_ad(
             )
             result = _to_response(out)
 
-        # 생성 결과 이미지를 Image 테이블에 저장하고 광고에 연결 (PR #40)
-        output_filename = Path(result.image_url).name
-        output_path = image_service.RESULTS_DIR / output_filename
-        output_image = create_image(
-            db,
+        _record_generated_result(
             user_id=current_user_id,
-            image_type="generated",
-            original_filename=output_filename,
-            stored_filename=output_filename,
-            file_path=str(output_path),
-            image_url=result.image_url,
-            content_type="image/png",
-            file_size=output_path.stat().st_size if output_path.exists() else None,
-        )
-
-        advertisement = create_advertisement(
-            db,
-            user_id=current_user_id,
+            db=db,
             input_image_id=input_image_id,
-            output_image_id=output_image.id,
-            title=product_name,
-            ad_type="poster" if poster else "image",
-            prompt=prompt_for_db,
-            generated_text=result.copy_text,
-            style=style.value,
-            status="completed",
-        )
-        create_history(
-            db,
-            user_id=current_user_id,
-            advertisement_id=advertisement.id,
+            product_name=product_name,
+            style=style,
             action_type="ads.generate",
-            status="completed",
+            poster=poster,
+            prompt_for_db=prompt_for_db,
+            result=result,
             request_data=request_data,
-            response_data=json.dumps(result.model_dump(mode="json"), ensure_ascii=False),
         )
         return result
     except ValueError as e:
@@ -221,24 +266,96 @@ def generate_ad(
 
 
 @router.post("/regenerate", response_model=GenerateAdResponse)
-def regenerate_ad(req: RegenerateAdRequest) -> GenerateAdResponse:
+def regenerate_ad(
+    req: RegenerateAdRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> GenerateAdResponse:
     """FR-12: 기존 전처리 산출물 재사용, 새 seed 로 재생성 (전처리 생략 → 더 빠름)."""
     if not generation_service.is_valid_asset_id(req.asset_id):
         raise HTTPException(status_code=400, detail=f"잘못된 asset_id 형식: {req.asset_id}")
 
+    current_user_id = current_user.id
+    request_data = json.dumps(req.model_dump(mode="json"), ensure_ascii=False)
+    source_history = _find_source_history_by_asset_id(
+        db,
+        user_id=current_user_id,
+        asset_id=req.asset_id,
+    )
+    if source_history is None:
+        create_history(
+            db,
+            user_id=current_user_id,
+            action_type="ads.regenerate",
+            status="failed",
+            request_data=request_data,
+            error_message=f"재생성할 생성 이력 없음: asset_id={req.asset_id}",
+        )
+        raise HTTPException(status_code=404, detail="재생성할 생성 이력을 찾을 수 없습니다")
+
+    input_image_id = (
+        source_history.advertisement.input_image_id
+        if source_history.advertisement is not None
+        else None
+    )
     product = ProductInfo(name=req.product_name, description=req.product_description)
+    prompt = build_image_prompt(product, req.style)
+    prompt_for_db = json.dumps(
+        {"positive": prompt.positive, "negative": prompt.negative},
+        ensure_ascii=False,
+    )
     try:
         if generation_client.is_remote():
-            return generation_client.regenerate_remote(req.model_dump())
-        out = generation_service.rerun(
-            req.asset_id, product, req.style, req.prev_seed, req.use_vision, req.poster
+            result = generation_client.regenerate_remote(req.model_dump())
+        else:
+            out = generation_service.rerun(
+                req.asset_id, product, req.style, req.prev_seed, req.use_vision, req.poster
+            )
+            result = _to_response(out)
+
+        _record_generated_result(
+            db=db,
+            user_id=current_user_id,
+            input_image_id=input_image_id,
+            product_name=req.product_name,
+            style=req.style,
+            poster=req.poster,
+            prompt_for_db=prompt_for_db,
+            result=result,
+            action_type="ads.regenerate",
+            request_data=request_data,
         )
-        return _to_response(out)
+        return result
     except ValueError as e:
+        create_history(
+            db,
+            user_id=current_user_id,
+            action_type="ads.regenerate",
+            status="failed",
+            request_data=request_data,
+            error_message=str(e),
+        )
         raise HTTPException(status_code=400, detail=str(e)) from e
     except FileNotFoundError as e:
+        create_history(
+            db,
+            user_id=current_user_id,
+            action_type="ads.regenerate",
+            status="failed",
+            request_data=request_data,
+            error_message=str(e),
+        )
         raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
+        db.rollback()
+        create_history(
+            db,
+            user_id=current_user_id,
+            action_type="ads.regenerate",
+            status="failed",
+            request_data=request_data,
+            error_message=str(e),
+        )
         raise HTTPException(status_code=500, detail=f"재생성 실패: {e}") from e
 
 
