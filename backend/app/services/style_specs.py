@@ -33,8 +33,11 @@ STYLE_SPECS: dict[str, StyleSpec] = {
         key="editorial", mood="하이엔드 매거진·룩북, 프리미엄 미니멀 자연광",
         palette=("#F2ECE0", "#D8CFBB", "#3B2F2A"), head_font="serif_elegant", sub_font="gothic",
         accent=(59, 47, 42), production="hybrid",
-        scene_prompt=("premium editorial brand moodboard of {subject}, high-end magazine layout, "
-                      "natural light, generous negative space, muted cream palette"),
+        # ⚠️ 'magazine layout/moodboard' 어휘는 FLUX가 가짜 잡지 텍스트(gibberish)를 그림(실측 2026-07-10).
+        #    단일 히어로 클린 에디토리얼로 규약 — 콜라주·텍스트 유발어 제거, 여백·자연광만.
+        scene_prompt=("premium editorial hero shot of {subject} on a clean muted cream surface, "
+                      "single centered subject, soft natural window light, generous empty negative space, "
+                      "minimalist high-end lookbook, no props, no collage"),
         negative=_NEG),
     "pop": StyleSpec(
         key="pop", mood="하이퍼리얼 제품×음식/스포츠 크리에이티브 합성, 강한 측광 8k",
