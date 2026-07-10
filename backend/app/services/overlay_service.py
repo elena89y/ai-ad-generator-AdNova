@@ -48,6 +48,14 @@ def _font(kind: str, size: int) -> ImageFont.FreeTypeFont:
         "gothic_bold": "NanumGothic-Bold.ttf",
         "didone": "PlayfairDisplay.ttf",
         "display": "Jua-Regular.ttf",
+        # 스타일별 다양성 확장(OFL): 에디토리얼=고운바탕 / 팝=블랙한산스 / 레트로=구기 /
+        #   캐주얼=개구 / 라운드=도현 / 영문 콘덴스드=베바스
+        "serif_elegant": "GowunBatang-Regular.ttf",
+        "display_heavy": "BlackHanSans-Regular.ttf",
+        "display_quirky": "Gugi-Regular.ttf",
+        "hand_casual": "Gaegu-Regular.ttf",
+        "display_round": "DoHyeon-Regular.ttf",
+        "condensed": "BebasNeue-Regular.ttf",
     }
     path = FONT_DIR / names[kind]
     if not path.is_file():
@@ -435,6 +443,8 @@ def apply_food_poster(
     output_path: Optional[str] = None,
     accent: Optional[tuple[int, int, int]] = None,
     layout: str = "overlay",
+    head_kind: Optional[str] = None,
+    style_key: Optional[str] = None,
 ) -> str:
     """A모드(리터치형) 프리미엄 음식 포스터 — 누끼 없음, 사진 위/아래 조판.
 
@@ -445,13 +455,24 @@ def apply_food_poster(
       - overlay : 풀블리드 사진 + 하단 부드러운 그라데이션 위 좌측 정렬 텍스트
       - panel   : 사진 상단 + 하단 솔리드 딥톤 패널(에디토리얼 카드), 중앙 정렬
     """
+    # 스타일 키 주면 디자인시스템 스펙에서 폰트·액센트 자동 매핑(명시 인자가 우선)
+    if style_key:
+        from .style_specs import get_spec
+        sp = get_spec(style_key)
+        head_kind = head_kind or sp.head_font
+        accent = accent or sp.accent
+
     img = Image.open(image_path).convert("RGB")
     w, h = img.size
     acc = accent or _dominant_warm(img)
     margin = int(w * 0.08)
 
     head_lines = _split_headline(headline) if len(headline) > 9 else [headline]
-    head_kind = "didone" if headline.isascii() else "serif"
+    head_kind = head_kind or ("didone" if headline.isascii() else "serif")
+    # 라틴 전용 폰트(BebasNeue=condensed, Playfair=didone)는 한글 글리프가 없어 두부(□)로 깨진다
+    #   → 한글 헤드라인이면 임팩트 유지되는 한글 대체(콘덴스드→블랙한산스, 디도네→고운바탕). 실측 2026-07-10.
+    if not headline.isascii() and head_kind in ("condensed", "didone"):
+        head_kind = "display_heavy" if head_kind == "condensed" else "serif_elegant"
 
     if layout == "panel":
         # 사진 상단 66% + 하단 34% 딥톤 패널
@@ -485,10 +506,42 @@ def apply_food_poster(
             sf = _font("gothic", int(h * 0.023))
             sw = d.textlength(subcopy, font=sf)
             d.text((cx - sw / 2, cy0 + int(h * 0.012)), subcopy, font=sf, fill=(214, 208, 200))
+    elif layout == "minimal":
+        # 이미지를 안 가리는 조판 — 배경색 블록(패널/스크림) 없이 텍스트만 얹고 가독성은 섀도우로.
+        #   실측 2026-07-10(사용자): 카피 뒤 배경색이 원본 이미지를 너무 가림 → 배경 블록 제거.
+        #   키커·헤드라인·서브카피 모두 유지, 하단 좌측 작게. (1:1 등 정사각 권장)
+        from PIL import ImageFilter
+
+        img = img.convert("RGBA")
+        tl = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        d = ImageDraw.Draw(tl)
+        hf = int(h * 0.044)
+        head_font = _font(head_kind, hf)
+        while max(d.textlength(l, font=head_font) for l in head_lines) > w - 2 * margin and hf > 20:
+            hf = int(hf * 0.93); head_font = _font(head_kind, hf)
+        line_h = int(hf * 1.16)
+        sub_h = (int(h * 0.023) + int(h * 0.012)) if subcopy else 0
+        kick_h = int(h * 0.030) if kicker else 0
+        block_h = kick_h + len(head_lines) * line_h + sub_h
+        y = int(h * 0.93) - block_h
+        if kicker:
+            kf = _font("gothic_bold", int(h * 0.0165))
+            _spaced_text(d, (margin, y), kicker.upper(), kf, acc, spacing_frac=0.28)
+            y += int(h * 0.030)
+        y = _draw_headline(d, margin, y, head_lines, head_font, IVORY, line_h)
+        if subcopy:                                # 서브카피 유지(작게)
+            sf = _font("gothic", int(h * 0.023))
+            d.text((margin, y + int(h * 0.012)), subcopy, font=sf, fill=(236, 230, 222))
+        # 배경 블록 없이 소프트 섀도우만으로 가독성 확보(밝은/어두운 배경 모두)
+        alpha = tl.split()[3].filter(ImageFilter.GaussianBlur(6))
+        shadow = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        shadow.putalpha(alpha.point(lambda p: min(255, int(p * 1.4))))
+        img.alpha_composite(shadow, (1, 2)); img.alpha_composite(tl)
+        img = img.convert("RGB")
     else:  # overlay
         from PIL import ImageFilter
 
-        scrim_h = int(h * 0.52)
+        scrim_h = int(h * 0.38)
         grad = np.linspace(0.0, 1.0, scrim_h)[:, None] ** 1.5
         scrim = np.zeros((scrim_h, w, 4), dtype=np.uint8)
         scrim[..., 0], scrim[..., 1], scrim[..., 2] = 14, 11, 9
@@ -566,6 +619,68 @@ def _muted_bg_from_rgba(product_rgba: Image.Image) -> tuple[int, int, int]:
     vv = min(max(vv, 0.58), 0.70)
     r, g, b = colorsys.hsv_to_rgb(hh, ss, vv)
     return (int(r * 255), int(g * 255), int(b * 255))
+
+
+def apply_pop_split(
+    product_rgba: Image.Image,
+    macro_img: Image.Image,
+    menu_en: str,
+    bg_color: Optional[tuple[int, int, int]] = None,
+    output_path: Optional[str] = None,
+    canvas_size: tuple[int, int] = (1080, 1350),
+) -> str:
+    """여름음료 pop 스플릿 (4:5, 상하 50:50) — DESIGN_SYSTEM pop_split.
+
+    상단 = 음료 매크로(생성물, macro_img) / 하단 = 상품컷(product_rgba) + 컵 뒤 블록레터(BebasNeue).
+    ⚠️ 순수 PIL 합성 — 누끼(rembg)·매크로(Kontext) 생성은 상위(generation) 경로에서 미리 수행해 전달.
+    menu_en: 영어 대문자 한 줄(예 GRAPEFRUIT ADE). 색·정체성 보존은 입력 이미지에 의존.
+    """
+    from PIL import ImageFilter
+
+    W, H = canvas_size
+    PH = H // 2
+
+    # 상단: 매크로를 폭 맞춰 확대 후 상단 밴드 크롭(유리 림 회피)
+    mw, mh = macro_img.size
+    macro = macro_img.convert("RGB").resize((W, max(PH, int(mh * W / mw))), Image.LANCZOS)
+    top = macro.crop((0, 0, W, PH))
+
+    # 하단 배경색(제품색 → 크림 블렌드)
+    arr = np.asarray(product_rgba.convert("RGBA"))
+    m = arr[..., 3] > 40
+    avg = arr[..., :3][m].mean(axis=0) if m.any() else np.array([200, 200, 200])
+    bg = bg_color or tuple(int(0.15 * c + 0.85 * v) for c, v in zip(avg, (240, 234, 220)))
+
+    bottom = Image.new("RGBA", (W, PH), tuple(bg) + (255,))
+    d = ImageDraw.Draw(bottom)
+    menu = menu_en.upper()
+    sz = 360
+    while d.textlength(menu, font=_font("condensed", sz)) > W * 0.88 and sz > 60:
+        sz -= 6
+    fnt = _font("condensed", sz)
+    tw = d.textlength(menu, font=fnt)
+    d.text((W / 2 - tw / 2, int(PH * 0.24)), menu, font=fnt, fill=(238, 231, 215, 255))
+
+    # 제품 bbox 크롭 → 하단정렬(컵이 레터 앞)
+    ys, xs = np.nonzero(m)
+    prod = product_rgba.convert("RGBA").crop((xs.min(), ys.min(), xs.max() + 1, ys.max() + 1))
+    pw, ph = prod.size
+    sc = (PH * 0.92) / ph
+    prod = prod.resize((max(1, int(pw * sc)), int(ph * sc)), Image.LANCZOS)
+    px = int(W / 2 - prod.width / 2)
+    py = PH - prod.height
+    sh = Image.new("RGBA", (W, PH), (0, 0, 0, 0))
+    ImageDraw.Draw(sh).ellipse(
+        [px + prod.width * 0.05, PH - 40, px + prod.width * 0.95, PH + 22], fill=(40, 28, 18, 120))
+    bottom.alpha_composite(sh.filter(ImageFilter.GaussianBlur(18)))
+    bottom.alpha_composite(prod, (px, py))
+
+    out = Image.new("RGB", (W, H))
+    out.paste(top, (0, 0))
+    out.paste(bottom.convert("RGB"), (0, PH))
+    outp = Path(output_path) if output_path else Path("pop_split.png")
+    out.save(outp)
+    return str(outp)
 
 
 def apply_editorial_poster(
@@ -679,3 +794,93 @@ def apply_overlay(
     img.convert("RGB").save(out, format="PNG")
     logger.info(f"오버레이 적용 완료 ({template}): {out}")
     return str(out)
+
+
+# --- 재료 콜아웃 오버레이 (09_기타/클로즈업 부분클로즈업, 2026-07-10) -----------
+# 원본 음식 사진 위에 [흰 점(재료 위)] → [가는 흰 선] → [흰 테두리 박스(그 재료 클로즈업)].
+# 조판 로직(PIL)만 여기서 담당 — 재료 탐지·박스 클로즈업 생성(VLM/Kontext)은 상위에서 주입.
+# 규칙(레퍼런스): 박스는 사방 분산·비겹침·가장자리 30% 인셋, 텍스트/라벨 금지.
+
+# 콜아웃 슬롯(방향 균형) — (박스 중심 x, y 상대좌표). 개수별로 서로 다른 방향 사용.
+_CALLOUT_SLOTS = [
+    (0.82, 0.20), (0.18, 0.78), (0.84, 0.62),
+    (0.20, 0.24), (0.50, 0.14), (0.50, 0.88),
+]
+
+
+def apply_ingredient_callout(base_path: str, callouts: list, output_path: str,
+                             box_frac: float = 0.20) -> str:
+    """음식 사진 + 재료 콜아웃 합성. 조판만(생성물 주입형).
+
+    callouts: [{"start": (x, y), "closeup": <경로 또는 PIL.Image>}]  # start 는 0~1 상대좌표
+      - start: 원본 사진 속 그 재료 표면 위의 점(상위에서 탐지해 전달)
+      - closeup: 그 재료의 새 클로즈업 이미지(상위에서 Kontext 로 생성해 전달)
+    박스는 _CALLOUT_SLOTS 순서로 사방 분산 배치(비겹침), 흰 점·가는 흰 선으로 연결. 경로 반환.
+    """
+    base = Image.open(base_path).convert("RGB")
+    W, H = base.size
+    canvas = base.copy()
+    draw = ImageDraw.Draw(canvas)
+    box = int(min(W, H) * box_frac)
+    lw = max(2, int(min(W, H) * 0.004))          # 선/테두리 두께
+    dot = max(3, int(min(W, H) * 0.008))          # 시작점 반지름
+    inset = 0.30                                   # 가장자리 최소 인셋(사용 슬롯이 이미 만족)
+
+    placed = []  # 겹침 방지용 박스 사각형들
+    for i, c in enumerate(callouts[:len(_CALLOUT_SLOTS)]):
+        sx, sy = c["start"]
+        sx_p, sy_p = int(sx * W), int(sy * H)
+        # 슬롯 중심 → 박스 좌상단(가장자리 30% 인셋 클램프)
+        cxr, cyr = _CALLOUT_SLOTS[i]
+        cx, cy = int(cxr * W), int(cyr * H)
+        bx = min(max(cx - box // 2, int(W * (inset - 0.30) + lw)), W - box - lw)
+        by = min(max(cy - box // 2, lw), H - box - lw)
+        # 비겹침 간단 보정: 이전 박스와 겹치면 세로로 밀기
+        for (px, py) in placed:
+            if abs(bx - px) < box and abs(by - py) < box:
+                by = min(by + box + lw * 3, H - box - lw)
+        placed.append((bx, by))
+
+        # 클로즈업 로드 → 박스 안에 커버 크롭
+        cu = c["closeup"]
+        cu_img = cu if isinstance(cu, Image.Image) else Image.open(cu)
+        cu_img = _cover_crop(cu_img.convert("RGB"), box - lw * 2)
+
+        # 선: 시작점 → 박스 테두리에서 정확히 끝(내부 침범 금지)
+        bcx, bcy = bx + box // 2, by + box // 2
+        ex, ey = _rect_edge_point((bx, by, bx + box, by + box), (sx_p, sy_p))
+        draw.line([(sx_p, sy_p), (ex, ey)], fill=(255, 255, 255), width=lw)
+        # 시작점 흰 점
+        draw.ellipse([sx_p - dot, sy_p - dot, sx_p + dot, sy_p + dot],
+                     fill=(255, 255, 255), outline=(255, 255, 255))
+        # 박스: 클로즈업 붙이고 흰 테두리
+        canvas.paste(cu_img, (bx + lw, by + lw))
+        draw.rectangle([bx, by, bx + box, by + box], outline=(255, 255, 255), width=lw)
+
+    out = Path(output_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    canvas.save(out, format="PNG")
+    logger.info(f"재료 콜아웃 적용 완료: {out} ({len(placed)}개)")
+    return str(out)
+
+
+def _cover_crop(img: "Image.Image", size: int) -> "Image.Image":
+    """정사각 커버 크롭 후 size 로 리사이즈."""
+    w, h = img.size
+    s = min(w, h)
+    img = img.crop(((w - s) // 2, (h - s) // 2, (w + s) // 2, (h + s) // 2))
+    return img.resize((size, size), Image.LANCZOS)
+
+
+def _rect_edge_point(rect: tuple, src: tuple) -> tuple:
+    """rect(테두리)에서 src 를 향한 방향의 교점 — 선이 박스 안으로 안 들어가게 끝점 계산."""
+    x0, y0, x1, y1 = rect
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    sx, sy = src
+    dx, dy = sx - cx, sy - cy
+    if dx == 0 and dy == 0:
+        return int(cx), int(y0)
+    # 박스 반폭/반높이 대비 스케일로 테두리 교점
+    hw, hh = (x1 - x0) / 2, (y1 - y0) / 2
+    scale = min(hw / abs(dx) if dx else 1e9, hh / abs(dy) if dy else 1e9)
+    return int(cx + dx * scale), int(cy + dy * scale)

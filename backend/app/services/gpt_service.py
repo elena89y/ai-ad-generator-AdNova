@@ -339,6 +339,112 @@ def generate_platform_copy(
     return out
 
 
+# --- 품질 저지 (GPT Vision — 골든셋 평가·캘리브레이션용, 실시간 아님) -----------
+# 역할분리: 실시간 결함검사는 로컬 vlm_service.inspect(빠르고 무료), 정밀 미세 순위는
+#   여기 GPT Vision(신뢰·저비용, 평가 호출량 적음). 2B 의 위치편향/점수압축 한계 극복(P2-2 재설계).
+_JUDGE_SYS = ("You are a strict, experienced food/product advertising art director. Score honestly — "
+              "a mediocre ad gets 5-6, not 8. Reserve 9-10 for images that could run in a real premium campaign.")
+
+
+def _vision_part(image_path: str) -> dict:
+    with open(image_path, "rb") as f:
+        b64 = base64.b64encode(f.read()).decode("utf-8")
+    mt, _ = mimetypes.guess_type(image_path)
+    if not mt or not mt.startswith("image/"):
+        mt = "image/png"
+    return {"type": "image_url", "image_url": {"url": f"data:{mt};base64,{b64}"}}
+
+
+def judge_ad(image_path: str, instruction: str = "", ref_path: Optional[str] = None) -> dict:
+    """GPT Vision 광고 품질 저지 — 루브릭 1~10 채점. 골든셋 평가/캘리브레이션 전용.
+
+    ref_path(원본)+instruction 주면 정체성 보존·명령 이행까지 평가.
+    반환: {appetizing, realism, artifact_free, composition, adherence, overall, reason}.
+    """
+    ident = (" Also judge how well it preserved the original product's identity and followed "
+             f'the edit "{instruction}" (first image = original, second = result).'
+             if ref_path and instruction else "")
+    rubric = (
+        "Rate this food/product advertisement image on each axis from 1(poor) to 10(excellent): "
+        "appetizing, realism(photographic, not CGI/plastic), artifact_free(no warping/extra fingers/"
+        "gibberish/melting), composition(lighting·framing·ad polish), adherence." + ident +
+        ' Reply ONLY JSON: {"appetizing":N,"realism":N,"artifact_free":N,"composition":N,'
+        '"adherence":N,"overall":N,"reason":"one short sentence"}')
+    content: list = [{"type": "text", "text": rubric}]
+    if ref_path and instruction:
+        content.append(_vision_part(ref_path))
+    content.append(_vision_part(image_path))
+    r = _chat_json([{"role": "system", "content": _JUDGE_SYS},
+                    {"role": "user", "content": content}], label="judge_ad/vision")
+    keys = ["appetizing", "realism", "artifact_free", "composition", "adherence", "overall"]
+    out = {k: r.get(k) for k in keys}
+    out["reason"] = str(r.get("reason", ""))[:200]
+    return out
+
+
+def compare_ads(image_a: str, image_b: str, ref_path: Optional[str] = None,
+                debias: bool = True) -> dict:
+    """두 광고 중 더 나은 쪽 — GPT Vision. debias=True 면 순서 뒤집어 2회, 일치해야 확정(위치편향 제거).
+
+    반환: {winner: 'A'|'B'|'tie', reason}. A=image_a, B=image_b.
+    """
+    q = ("As a strict food/product ad art director, which is the better advertisement — considering "
+         "appetite appeal, photographic realism, absence of artifacts, and faithfulness to the real "
+         "product? Richer color/gloss/enhancement is GOOD if it still looks like a real photo; penalize "
+         "only genuine flaws (warping, CGI/plastic look, fake blur). "
+         'Reply ONLY JSON: {"winner":"first" or "second","reason":"one short sentence"}')
+    lead = ("The first image is the ORIGINAL for reference. " if ref_path else "")
+
+    def _one(x: str, y: str) -> tuple:
+        content: list = [{"type": "text", "text": lead + q}]
+        if ref_path:
+            content.append(_vision_part(ref_path))
+        content += [_vision_part(x), _vision_part(y)]
+        r = _chat_json([{"role": "system", "content": _JUDGE_SYS},
+                        {"role": "user", "content": content}], label="compare_ads/vision")
+        w = str(r.get("winner", "")).lower()
+        return ("x" if "first" in w else "y" if "second" in w else "tie"), str(r.get("reason", ""))[:160]
+
+    w1, why1 = _one(image_a, image_b)          # x=A, y=B
+    if not debias:
+        return {"winner": "A" if w1 == "x" else "B" if w1 == "y" else "tie", "reason": why1}
+    w2, _why2 = _one(image_b, image_a)          # x=B, y=A → x 는 image_b
+    a_wins = (w1 == "x") and (w2 == "y")
+    b_wins = (w1 == "y") and (w2 == "x")
+    winner = "A" if a_wins else "B" if b_wins else "tie"
+    return {"winner": winner, "reason": why1, "debias_consistent": winner != "tie"}
+
+
+def judge_ad_calibrated(image_path: str, style_key: str,
+                        ref_image_paths: list[str], extra: str = "") -> dict:
+    """레퍼런스-캘리브레이션 저지 — 목표 미학 예시(ref) 대비 후보를 채점.
+
+    P2-2 결론: 미세 A/B 는 오라클 없음(GPT-4V 도) → "무엇이 좋은가"를 레퍼런스로 정의해야 판단이 의미.
+    ref_image_paths 앞 2~3장을 목표 미학 예시로, 마지막에 후보를 붙여 GPT Vision 이 목표 대비 채점.
+    반환: {style_match, execution, identity, overall, improve}.
+    """
+    from .style_specs import get_spec
+    sp = get_spec(style_key)
+    refs = ref_image_paths[:3]
+    intro = (
+        f"The first {len(refs)} images are REFERENCE examples of our TARGET '{style_key}' advertising "
+        f"aesthetic ({sp.mood}). The LAST image is a CANDIDATE ad we generated. Rate how well the "
+        "candidate matches this target, 1(off-target) to 10(indistinguishable from the references in "
+        "quality and style), on: style_match(mood·color·layout), execution(typography·lighting·"
+        "composition polish), identity(product looks real and faithful), overall. " + (extra + " " if extra else "") +
+        'Reply ONLY JSON: {"style_match":N,"execution":N,"identity":N,"overall":N,'
+        '"improve":"one concrete suggestion"}')
+    content: list = [{"type": "text", "text": intro}]
+    for p in refs:
+        content.append(_vision_part(p))
+    content.append(_vision_part(image_path))
+    r = _chat_json([{"role": "system", "content": _JUDGE_SYS},
+                    {"role": "user", "content": content}], label="judge_calibrated")
+    out = {k: r.get(k) for k in ["style_match", "execution", "identity", "overall"]}
+    out["improve"] = str(r.get("improve", ""))[:200]
+    return out
+
+
 # --- 포스터용 영문 라벨 (층2 오버레이 — editorial/retro 헤드라인) ---------------
 def generate_english_labels(product: ProductInfo) -> tuple[str, str]:
     """상품 정보 → 포스터용 영문 라벨 (레퍼런스: 영문 대문자 메뉴명 헤드라인).
@@ -400,6 +506,35 @@ class MenuAnalysis:
 
 _MENU_CATEGORIES = "fried, soup, bakery, grill, beef, pork, default"
 _MATERIALS = ("matte", "reflective", "transparent", "default")
+
+
+def build_cake_layers(name: str, subject_en: str = "", image_desc: str = "") -> dict:
+    """케이크 이름(+선택 이미지 묘사) → '호텔 파티쉐' 레시피 검증 후 영문 단면 레이어.
+
+    cross_section 스타일의 정직성 게이트: 통 케이크 단면을 생성할 때 '그 케이크에 실재하는'
+    레이어만 쓰도록 GPT가 실제 조리 가능한 레시피로 검증(레퍼런스 워크플로 09_기타/케익클로즈업).
+    반환: {"layers":[Bottom→Top 물성 묘사...], "top":"상단 데코 묘사", "plausible":bool}.
+    실패/비케이크면 layers 빈 리스트 → 호출부가 일반 매크로로 폴백.
+    """
+    display = (name or "").strip()
+    hint = f" 이미지 관찰: {image_desc}." if image_desc else ""
+    instruction = (
+        "너는 10년 경력의 호텔 파티쉐이자 미슐랭 디저트 셰프이고 상업 음식사진 비주얼 디렉터야.\n"
+        f"케이크 이름: {display or '(빈 입력)'} (영문: {subject_en or 'cake'}).{hint}\n"
+        "이 케이크의 **실제로 판매 가능한** 단면 레이어 구성을 식감 대비·레이어 구조를 고려해 Bottom→Top 으로 재구성해.\n"
+        "각 레이어는 광고 사진 수준의 영문 물성 묘사(수분감·점성·광택·공기감·질감)로 1문장씩. 그 케이크에 "
+        "실재하지 않을 재료는 지어내지 마(정직성).\n"
+        "**중요:** 상품명이 케이크·디저트(생크림/무스/레이어 케이크류)가 아니면 — 전자제품·사물·음료·일반 음식 등 — "
+        "반드시 plausible=false, layers=[] 로 응답해. 마우스·가방 같은 사물을 억지로 케이크로 해석하지 마.\n"
+        'JSON 으로만: {"plausible":true/false,"layers":["Layer 1: ...(english)","Layer 2: ...", ...4~6개],'
+        '"top":"top decoration in english"}'
+    )
+    try:
+        r = _chat_json([{"role": "user", "content": instruction}], label="cake_recipe")
+        layers = [str(x) for x in (r.get("layers") or [])] if r.get("plausible") else []
+        return {"layers": layers, "top": str(r.get("top") or ""), "plausible": bool(r.get("plausible"))}
+    except Exception:
+        return {"layers": [], "top": "", "plausible": False}
 
 
 def analyze_menu(name: str) -> MenuAnalysis:
@@ -487,6 +622,36 @@ def detect_material(image_path: str) -> str:
         return "default"
     m = str(result.get("material", "default")).strip().lower()
     return m if m in _MATERIALS else "default"
+
+
+def detect_ingredients(image_path: str, n: int = 3) -> list[dict]:
+    """음식 사진 → 명확히 구분되는 재료 n개 + 표면 위 상대좌표 (Vision).
+
+    재료 콜아웃(부분클로즈업) 파이프라인용. 접시·도구·배경은 제외, 음식 재료만.
+    반환: [{"name":"연어","name_en":"salmon","x":0.35,"y":0.45}, ...] (x,y=0~1 재료 표면 위 점).
+    (Vision 비용 1회)
+    """
+    content = [{"type": "text", "text": (
+        f"이 음식 사진에서 명확히 구분되는 **음식 재료 {n}개**만 골라 JSON 으로만 응답해.\n"
+        "접시·컵·포크·나이프·냅킨·테이블·그릇·소품은 절대 고르지 마(음식만).\n"
+        "각 재료마다 그 재료의 실제 표면 안쪽 한 점의 상대좌표(x,y: 0~1, 좌상단 원점)를 줘. "
+        "점은 경계선·그림자·다른 음식 위가 아니라 그 재료 표면 중앙에.\n"
+        f'JSON: {{"items":[{{"name":"연어","name_en":"salmon slice","x":0.35,"y":0.45}}, ... {n}개]}}'
+    )}, _vision_part(image_path)]
+    try:
+        r = _chat_json([{"role": "user", "content": content}], label="detect_ingredients")
+        out = []
+        for it in (r.get("items") or [])[:n]:
+            try:
+                out.append({"name": str(it.get("name", "")).strip(),
+                            "name_en": str(it.get("name_en", "")).strip(),
+                            "x": min(max(float(it.get("x", 0.5)), 0.05), 0.95),
+                            "y": min(max(float(it.get("y", 0.5)), 0.05), 0.95)})
+            except (TypeError, ValueError):
+                continue
+        return out
+    except Exception:
+        return []
 
 
 # --- 스타일 경로1: Vision 분석 -----------------------------------------------
