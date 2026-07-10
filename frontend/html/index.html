@@ -332,11 +332,6 @@
   .ptab .si.x{background:#000}
   .ptab .si.th{background:#000}
   .copy-body-wrap{min-height:104px}
-  .copy-copybtn{
-    margin-top:13px;display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border-radius:10px;
-    font-size:13px;font-weight:700;border:1.5px solid var(--line);background:var(--card);transition:.15s;cursor:pointer;
-  }
-  .copy-copybtn:hover{border-color:var(--gold);background:#fbf6ec}
   .oa{display:flex;align-items:center;gap:7px;padding:11px 15px;border-radius:11px;font-size:14px;font-weight:700;border:1.5px solid var(--line);background:var(--card);transition:.15s}
   .oa:hover{border-color:var(--ink-mute)}
   .oa.save{background:var(--ink);color:#fff;border-color:var(--ink)}
@@ -729,7 +724,6 @@
               <p id="copyBody">갈색 설탕의 달콤한 결, 우유의 부드러움, 차의 산뜻함이 얼음과 만나 시원하게 퍼져요. 컵 맺힌 물방울까지 몽글몽글한 여름 무드 완성. 타피오카 펄까지 톡톡 더해져 한 잔이 더 설레요.</p>
               <div class="tags" id="copyTags">#흑당밀크티 #여름신메뉴 #시원한한잔 #밀크티 #흑당 #타피오카펄 #카페신메뉴 #여름음료</div>
             </div>
-            <button class="copy-copybtn" onclick="copyActivePlat()">📋 이 매체 카피 복사</button>
           </div>
 
           <div class="out-actions">
@@ -792,9 +786,11 @@
     <div class="filters">
       <button class="fchip on" onclick="filterCards(this,'all')">전체</button>
       <button class="fchip" onclick="filterCards(this,'비비드')">비비드</button>
-      <button class="fchip" onclick="filterCards(this,'감성')">감성</button>
       <button class="fchip" onclick="filterCards(this,'미니멀')">미니멀</button>
+      <button class="fchip" onclick="filterCards(this,'감성')">감성</button>
       <button class="fchip" onclick="filterCards(this,'럭셔리')">럭셔리</button>
+      <button class="fchip" onclick="filterCards(this,'내추럴')">내추럴</button>
+      <button class="fchip" onclick="filterCards(this,'레트로')">레트로</button>
     </div>
 
     <div class="grid" id="grid"></div>
@@ -1325,13 +1321,6 @@ function pickPlat(el){
   document.getElementById('copyBody').textContent=c.body;
   document.getElementById('copyTags').textContent=c.tags;
 }
-function copyActivePlat(){
-  const on=document.querySelector('.ptab.on'); if(!on)return;
-  const c=platCopy[on.dataset.p], txt=c.head+'\n\n'+c.body+'\n\n'+c.tags;
-  if(navigator.clipboard) navigator.clipboard.writeText(txt);
-  toast('카피를 복사했어요');
-}
-
 /* ---------- generate flow ---------- */
 const steps=['사진을 분석하는 중…','스타일을 입히는 중…','광고 문구를 쓰는 중…','마무리하는 중…'];
 async function generate(){
