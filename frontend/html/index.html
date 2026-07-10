@@ -736,7 +736,7 @@
             <button class="oa save" onclick="saveCurrentResult()">💾 저장</button>
             <button class="oa" onclick="openUpgrade()">⬇️ 다운로드 🔒</button>
             <button class="oa" onclick="shareCurrentResult()">↗️ 공유</button>
-            <button class="oa" onclick="generate()">🔄 다시 생성</button>
+            <button class="oa" onclick="regenerate()">🔄 다시 생성</button>
           </div>
 
           <div class="wm-row">
@@ -1048,15 +1048,25 @@ function formatDateLabel(value){
   if(Number.isNaN(date.getTime())) return '';
   return `${date.getMonth()+1}월 ${date.getDate()}일`;
 }
-function applyGeneratedCopy(copyText,style){
+function normalizePlatformCopy(value,fallback){
+  if(!value) return fallback;
+  const rawTags=value.hashtags||value.tags||fallback.tags||'';
+  return {
+    head:(value.headline||value.head||fallback.head||'').trim()||fallback.head,
+    body:(value.body||fallback.body||'').trim()||fallback.body,
+    tags:Array.isArray(rawTags)?rawTags.join(' '):String(rawTags||fallback.tags)
+  };
+}
+function applyGeneratedCopy(copyText,style,platformCopies={}){
   const copy=splitCopyText(copyText);
-  const tags=`#AI광고 #AdNova #${toStyleLabel(style)}`;
+  const fallback={head:copy.head,body:copy.body,tags:`#AI광고 #AdNova #${toStyleLabel(style)}`};
   Object.keys(platCopy).forEach(key=>{
-    platCopy[key]={head:copy.head,body:copy.body,tags};
+    platCopy[key]=normalizePlatformCopy(platformCopies[key],fallback);
   });
-  document.getElementById('copyHead').textContent=copy.head;
-  document.getElementById('copyBody').textContent=copy.body;
-  document.getElementById('copyTags').textContent=tags;
+  const current=platCopy[getActivePlatform()]||fallback;
+  document.getElementById('copyHead').textContent=current.head;
+  document.getElementById('copyBody').textContent=current.body;
+  document.getElementById('copyTags').textContent=current.tags;
 }
 function applyGeneratedResult(data){
   currentResult=data;
@@ -1064,7 +1074,7 @@ function applyGeneratedResult(data){
   const afterImg=document.querySelector('#afterLayer img');
   if(beforeImg&&selectedImageUrl) beforeImg.src=toAbsoluteUrl(selectedImageUrl);
   if(afterImg&&data.image_url) afterImg.src=toAbsoluteUrl(data.image_url);
-  applyGeneratedCopy(data.copy_text,data.style);
+  applyGeneratedCopy(data.copy_text,data.style,data.platform_copies);
   document.getElementById('rEmpty').style.display='none';
   document.getElementById('rLoad').classList.remove('on');
   document.getElementById('rOut').classList.add('on');
@@ -1081,6 +1091,7 @@ function buildCurrentOutputItem(){
     hl:copy.head||productName,
     copyHead:copy.head||productName,
     copyBody:copy.body||currentResult.copy_text||'',
+    copyTags:copy.tags||'',
     style:toStyleLabel(currentResult.style),
     img:toAbsoluteUrl(currentResult.image_url),
     productName
@@ -1309,7 +1320,7 @@ const platCopy={
 function pickPlat(el){
   document.querySelectorAll('.ptab').forEach(t=>t.classList.remove('on'));
   el.classList.add('on');
-  const c=platCopy[el.dataset.p];
+  const c=platCopy[el.dataset.p]||platCopy.instagram;
   document.getElementById('copyHead').textContent=c.head;
   document.getElementById('copyBody').textContent=c.body;
   document.getElementById('copyTags').textContent=c.tags;
@@ -1385,6 +1396,67 @@ async function generate(){
   }
 }
 
+async function regenerate(){
+  if(freeLeft<=0){openUpgrade();return;}
+  if(!getToken()){
+    toast('로그인 후 광고를 다시 생성해 주세요');
+    go('login');
+    return;
+  }
+  if(!currentResult?.asset_id){
+    toast('먼저 광고를 생성해 주세요');
+    return;
+  }
+  const productName=document.getElementById('prodName').value.trim();
+  const productDescription=document.getElementById('prompt').value.trim();
+  if(!productName){
+    toast('상품명을 입력해 주세요');
+    return;
+  }
+
+  document.getElementById('rOut').classList.remove('on');
+  const load=document.getElementById('rLoad');
+  load.classList.add('on');
+  let i=0;
+  document.getElementById('loadStep').textContent=steps[0];
+  const iv=setInterval(()=>{
+    i++;
+    if(i<steps.length){document.getElementById('loadStep').textContent=steps[i];}
+  },900);
+
+  const payload={
+    asset_id:currentResult.asset_id,
+    style:getSelectedStyleValue(),
+    product_name:productName,
+    product_description:productDescription,
+    prev_seed:currentResult.seed,
+    use_vision:false,
+    poster:false
+  };
+
+  try{
+    const res=await apiFetch('/api/ads/regenerate',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    let data=null;
+    try{data=await res.json();}catch(_){}
+    if(!res.ok) throw new Error(readApiError(data,'다시 생성에 실패했습니다'));
+    applyGeneratedResult(data);
+    useFreeCredit();
+    loadDashboardSummary(false);
+    loadHistory(false);
+    toast('광고를 다시 생성했습니다');
+  }catch(err){
+    document.getElementById('rOut').classList.add('on');
+    toast(err.message||'다시 생성에 실패했습니다');
+  }finally{
+    clearInterval(iv);
+    load.classList.remove('on');
+  }
+}
+
 /* ---------- before/after slider ---------- */
 function slide(v){
   document.getElementById('afterLayer').style.clipPath='inset(0 0 0 '+v+'%)';
@@ -1432,6 +1504,7 @@ function historyToCard(history){
     hl:ad.title||copy.head,
     copyHead:copy.head,
     copyBody:copy.body,
+    platformCopies:responseData.platform_copies||{},
     productName:ad.title||copy.head,
     style,
     date:formatDateLabel(history.created_at),
@@ -1509,7 +1582,16 @@ function share(name,i){
     toast(name+' 공유는 아직 준비 중입니다');
     return;
   }
-  exportSnsPost(platform,ads[i]);
+  const item={...ads[i]};
+  const platformCopy=normalizePlatformCopy(item.platformCopies?.[platform],{
+    head:item.copyHead||item.hl||'',
+    body:item.copyBody||'',
+    tags:item.copyTags||''
+  });
+  item.copyHead=platformCopy.head;
+  item.copyBody=platformCopy.body;
+  item.copyTags=platformCopy.tags;
+  exportSnsPost(platform,item);
 }
 async function delCard(i){
   const item=ads[i];

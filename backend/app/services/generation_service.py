@@ -56,6 +56,7 @@ class GenerationOutput:
     seed: int
     style: StylePreset
     copy_text: str            # '헤드라인\n서브카피' (FR-09)
+    platform_copies: dict[str, dict]
     poster: bool
     generate_seconds: float
     harmonize_seconds: float
@@ -81,6 +82,10 @@ def run_generation(
     )
 
     copy = _generate_copy(gen.final_image_path, product, style, use_vision)
+    try:
+        platform_copies = gpt_service.generate_platform_copy(product, style)
+    except Exception:
+        platform_copies = {}
 
     final_path = gen.final_image_path
     if poster:
@@ -106,6 +111,7 @@ def run_generation(
         seed=gen.seed,
         style=style,
         copy_text=copy.copy_text,
+        platform_copies=platform_copies,
         poster=poster,
         generate_seconds=round(gen.infer_seconds, 2),
         harmonize_seconds=round(gen.harmonize_seconds, 2),
