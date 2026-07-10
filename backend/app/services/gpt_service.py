@@ -624,6 +624,36 @@ def detect_material(image_path: str) -> str:
     return m if m in _MATERIALS else "default"
 
 
+def detect_ingredients(image_path: str, n: int = 3) -> list[dict]:
+    """음식 사진 → 명확히 구분되는 재료 n개 + 표면 위 상대좌표 (Vision).
+
+    재료 콜아웃(부분클로즈업) 파이프라인용. 접시·도구·배경은 제외, 음식 재료만.
+    반환: [{"name":"연어","name_en":"salmon","x":0.35,"y":0.45}, ...] (x,y=0~1 재료 표면 위 점).
+    (Vision 비용 1회)
+    """
+    content = [{"type": "text", "text": (
+        f"이 음식 사진에서 명확히 구분되는 **음식 재료 {n}개**만 골라 JSON 으로만 응답해.\n"
+        "접시·컵·포크·나이프·냅킨·테이블·그릇·소품은 절대 고르지 마(음식만).\n"
+        "각 재료마다 그 재료의 실제 표면 안쪽 한 점의 상대좌표(x,y: 0~1, 좌상단 원점)를 줘. "
+        "점은 경계선·그림자·다른 음식 위가 아니라 그 재료 표면 중앙에.\n"
+        f'JSON: {{"items":[{{"name":"연어","name_en":"salmon slice","x":0.35,"y":0.45}}, ... {n}개]}}'
+    )}, _vision_part(image_path)]
+    try:
+        r = _chat_json([{"role": "user", "content": content}], label="detect_ingredients")
+        out = []
+        for it in (r.get("items") or [])[:n]:
+            try:
+                out.append({"name": str(it.get("name", "")).strip(),
+                            "name_en": str(it.get("name_en", "")).strip(),
+                            "x": min(max(float(it.get("x", 0.5)), 0.05), 0.95),
+                            "y": min(max(float(it.get("y", 0.5)), 0.05), 0.95)})
+            except (TypeError, ValueError):
+                continue
+        return out
+    except Exception:
+        return []
+
+
 # --- 스타일 경로1: Vision 분석 -----------------------------------------------
 def analyze_image_for_style(image_path: str) -> list[StyleCandidate]:
     """이미지 Vision 분석 → 스타일 후보 3개 반환 (style_service 경로1).

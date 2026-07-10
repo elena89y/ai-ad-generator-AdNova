@@ -248,6 +248,52 @@ def process_ad(
     return result
 
 
+def generate_ingredient_callout_ad(
+    image_path: str,
+    n: int = 3,
+    output_dir: str = "backend/results/ai/callout",
+) -> str:
+    """재료 콜아웃 광고 — 음식 사진 위에 재료별 [흰 점→선→클로즈업 박스] (09_기타/부분클로즈업).
+
+    ①gpt_service.detect_ingredients 로 재료 n개+좌표 탐지(Vision) ②각 재료 영역을 크롭해
+    Kontext 로 신선 클로즈업 생성(같은 재료, 새 각도) ③overlay_service 로 점·선·박스 조판.
+    정직성: 박스 재료 = 원본 재료(같은 종류라 생성이어도 정직). GPU 필요.
+    """
+    from pathlib import Path as _P
+
+    from PIL import Image as _Img
+
+    from . import gpt_service, kontext_service
+    from .overlay_service import apply_ingredient_callout
+
+    out = _P(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    base = _Img.open(image_path).convert("RGB")
+    W, H = base.size
+
+    items = gpt_service.detect_ingredients(image_path, n=n)
+    callouts = []
+    for i, it in enumerate(items):
+        # 재료 영역 크롭(점 주변 정사각) → Kontext 신선 클로즈업(같은 재료)
+        cx, cy = int(it["x"] * W), int(it["y"] * H)
+        r = int(min(W, H) * 0.16)
+        region = base.crop((max(0, cx - r), max(0, cy - r),
+                            min(W, cx + r), min(H, cy + r)))
+        crop_path = out / f"crop_{i}.png"
+        region.save(crop_path)
+        subj = it.get("name_en") or it.get("name") or "food ingredient"
+        instr = (f"extreme macro fresh close-up of the {subj}, new angle, sharp appetizing detail, "
+                 "clean soft background. Keep it the same ingredient; do not change the food type. No text.")
+        closeup = kontext_service.edit(str(crop_path), instr, output_dir=str(out))
+        callouts.append({"start": (it["x"], it["y"]), "closeup": closeup})
+
+    kontext_service.unload()
+    if not callouts:
+        return image_path  # 탐지 실패 시 원본 반환(무해)
+    final = out / f"{_P(image_path).stem}_callout.png"
+    return apply_ingredient_callout(image_path, callouts, str(final))
+
+
 def generate_editorial(
     image_path: str,
     name: str,

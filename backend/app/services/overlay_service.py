@@ -762,3 +762,93 @@ def apply_overlay(
     img.convert("RGB").save(out, format="PNG")
     logger.info(f"오버레이 적용 완료 ({template}): {out}")
     return str(out)
+
+
+# --- 재료 콜아웃 오버레이 (09_기타/클로즈업 부분클로즈업, 2026-07-10) -----------
+# 원본 음식 사진 위에 [흰 점(재료 위)] → [가는 흰 선] → [흰 테두리 박스(그 재료 클로즈업)].
+# 조판 로직(PIL)만 여기서 담당 — 재료 탐지·박스 클로즈업 생성(VLM/Kontext)은 상위에서 주입.
+# 규칙(레퍼런스): 박스는 사방 분산·비겹침·가장자리 30% 인셋, 텍스트/라벨 금지.
+
+# 콜아웃 슬롯(방향 균형) — (박스 중심 x, y 상대좌표). 개수별로 서로 다른 방향 사용.
+_CALLOUT_SLOTS = [
+    (0.82, 0.20), (0.18, 0.78), (0.84, 0.62),
+    (0.20, 0.24), (0.50, 0.14), (0.50, 0.88),
+]
+
+
+def apply_ingredient_callout(base_path: str, callouts: list, output_path: str,
+                             box_frac: float = 0.20) -> str:
+    """음식 사진 + 재료 콜아웃 합성. 조판만(생성물 주입형).
+
+    callouts: [{"start": (x, y), "closeup": <경로 또는 PIL.Image>}]  # start 는 0~1 상대좌표
+      - start: 원본 사진 속 그 재료 표면 위의 점(상위에서 탐지해 전달)
+      - closeup: 그 재료의 새 클로즈업 이미지(상위에서 Kontext 로 생성해 전달)
+    박스는 _CALLOUT_SLOTS 순서로 사방 분산 배치(비겹침), 흰 점·가는 흰 선으로 연결. 경로 반환.
+    """
+    base = Image.open(base_path).convert("RGB")
+    W, H = base.size
+    canvas = base.copy()
+    draw = ImageDraw.Draw(canvas)
+    box = int(min(W, H) * box_frac)
+    lw = max(2, int(min(W, H) * 0.004))          # 선/테두리 두께
+    dot = max(3, int(min(W, H) * 0.008))          # 시작점 반지름
+    inset = 0.30                                   # 가장자리 최소 인셋(사용 슬롯이 이미 만족)
+
+    placed = []  # 겹침 방지용 박스 사각형들
+    for i, c in enumerate(callouts[:len(_CALLOUT_SLOTS)]):
+        sx, sy = c["start"]
+        sx_p, sy_p = int(sx * W), int(sy * H)
+        # 슬롯 중심 → 박스 좌상단(가장자리 30% 인셋 클램프)
+        cxr, cyr = _CALLOUT_SLOTS[i]
+        cx, cy = int(cxr * W), int(cyr * H)
+        bx = min(max(cx - box // 2, int(W * (inset - 0.30) + lw)), W - box - lw)
+        by = min(max(cy - box // 2, lw), H - box - lw)
+        # 비겹침 간단 보정: 이전 박스와 겹치면 세로로 밀기
+        for (px, py) in placed:
+            if abs(bx - px) < box and abs(by - py) < box:
+                by = min(by + box + lw * 3, H - box - lw)
+        placed.append((bx, by))
+
+        # 클로즈업 로드 → 박스 안에 커버 크롭
+        cu = c["closeup"]
+        cu_img = cu if isinstance(cu, Image.Image) else Image.open(cu)
+        cu_img = _cover_crop(cu_img.convert("RGB"), box - lw * 2)
+
+        # 선: 시작점 → 박스 테두리에서 정확히 끝(내부 침범 금지)
+        bcx, bcy = bx + box // 2, by + box // 2
+        ex, ey = _rect_edge_point((bx, by, bx + box, by + box), (sx_p, sy_p))
+        draw.line([(sx_p, sy_p), (ex, ey)], fill=(255, 255, 255), width=lw)
+        # 시작점 흰 점
+        draw.ellipse([sx_p - dot, sy_p - dot, sx_p + dot, sy_p + dot],
+                     fill=(255, 255, 255), outline=(255, 255, 255))
+        # 박스: 클로즈업 붙이고 흰 테두리
+        canvas.paste(cu_img, (bx + lw, by + lw))
+        draw.rectangle([bx, by, bx + box, by + box], outline=(255, 255, 255), width=lw)
+
+    out = Path(output_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    canvas.save(out, format="PNG")
+    logger.info(f"재료 콜아웃 적용 완료: {out} ({len(placed)}개)")
+    return str(out)
+
+
+def _cover_crop(img: "Image.Image", size: int) -> "Image.Image":
+    """정사각 커버 크롭 후 size 로 리사이즈."""
+    w, h = img.size
+    s = min(w, h)
+    img = img.crop(((w - s) // 2, (h - s) // 2, (w + s) // 2, (h + s) // 2))
+    return img.resize((size, size), Image.LANCZOS)
+
+
+def _rect_edge_point(rect: tuple, src: tuple) -> tuple:
+    """rect(테두리)에서 src 를 향한 방향의 교점 — 선이 박스 안으로 안 들어가게 끝점 계산."""
+    x0, y0, x1, y1 = rect
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    sx, sy = src
+    dx, dy = sx - cx, sy - cy
+    if dx == 0 and dy == 0:
+        return int(cx), int(y0)
+    # 박스 반폭/반높이 대비 스케일로 테두리 교점
+    hw, hh = (x1 - x0) / 2, (y1 - y0) / 2
+    scale = min(hw / abs(dx) if dx else 1e9, hh / abs(dy) if dy else 1e9)
+    return int(cx + dx * scale), int(cy + dy * scale)
