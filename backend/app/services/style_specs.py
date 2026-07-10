@@ -28,6 +28,12 @@ class StyleSpec:
 _NEG = ("cluttered background, scattered crumbs, excessive props, long sentences, busy infographic, "
         "harsh shadows, watermark, logo, cropped, placeholder text, lorem ipsum")
 
+# 사물(SKU) 전용 네거티브 — 형태·색·로고 보존 최우선(정직성 경계). 여기선 logo 를 빼지 않는다:
+#   제품 로고는 원본을 보존해야 하므로 '가짜 로고 생성/왜곡'만 차단(distorted/warped/extra logo).
+_OBJ_NEG = ("distorted logo, warped brand text, mirrored text, misspelled label, altered product shape, "
+            "changed product color, extra duplicate products, cluttered background, long sentences, "
+            "placeholder text, lorem ipsum, watermark")
+
 STYLE_SPECS: dict[str, StyleSpec] = {
     "editorial": StyleSpec(
         key="editorial", mood="하이엔드 매거진·룩북, 프리미엄 미니멀 자연광",
@@ -84,6 +90,25 @@ STYLE_SPECS: dict[str, StyleSpec] = {
                       "filling the frame, glossy wet reflections, cold, high detail, no glass rim, "
                       "no background"),
         negative=_NEG),
+    # --- C 사물(SKU) 전용 (10_사물_최신 92장 레퍼런스, 2026-07-10) ---
+    # ⚠️ 사물은 SKU → 형태·색·로고 보존 최우선. 신품화(마모·먼지 제거)는 허용(형태 불변),
+    #    로고 텍스트/브랜드색 왜곡은 _OBJ_NEG 로 강력 차단(정직성 경계). Kontext 로고 글자 약함 유의.
+    "object_studio": StyleSpec(
+        key="object_studio", mood="단일 히어로 제품 · 반사 페데스탈 · 드라마틱 림라이트 · 딥톤/제품색 배경",
+        palette=("#14121A", "#C9A15A", "#F2ECE0"), head_font="display_heavy", sub_font="gothic_bold",
+        accent=(201, 161, 90), production="hybrid",
+        scene_prompt=("hyper-realistic premium studio product photograph of {subject}, single hero on a "
+                      "reflective pedestal, dramatic rim lighting and sharp directional shadow, deep gradient "
+                      "background in a color that echoes the product, glossy reflections, crisp detail, 8k, --ar 4:5"),
+        negative=_OBJ_NEG),
+    "object_splash": StyleSpec(
+        key="object_splash", mood="부유 제품 · 성분/물 스플래시 · 제품색 모노팔레트 · 다이내믹 앵글",
+        palette=("#0E2A44", "#3E7CB1", "#EAF2F8"), head_font="condensed", sub_font="gothic",
+        accent=(62, 124, 177), production="hybrid",
+        scene_prompt=("hyper-realistic {subject} floating mid-air in a dynamic diagonal composition, "
+                      "matching-color ingredient props and splashing water droplets, monochromatic color-echo "
+                      "environment tied to the product, a dramatic beam of light, glossy wet highlights, 8k, --ar 4:5"),
+        negative=_OBJ_NEG),
 }
 
 
