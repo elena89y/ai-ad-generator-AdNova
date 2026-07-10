@@ -469,6 +469,10 @@ def apply_food_poster(
 
     head_lines = _split_headline(headline) if len(headline) > 9 else [headline]
     head_kind = head_kind or ("didone" if headline.isascii() else "serif")
+    # 라틴 전용 폰트(BebasNeue=condensed, Playfair=didone)는 한글 글리프가 없어 두부(□)로 깨진다
+    #   → 한글 헤드라인이면 임팩트 유지되는 한글 대체(콘덴스드→블랙한산스, 디도네→고운바탕). 실측 2026-07-10.
+    if not headline.isascii() and head_kind in ("condensed", "didone"):
+        head_kind = "display_heavy" if head_kind == "condensed" else "serif_elegant"
 
     if layout == "panel":
         # 사진 상단 66% + 하단 34% 딥톤 패널
