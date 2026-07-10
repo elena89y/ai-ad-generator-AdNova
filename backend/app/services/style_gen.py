@@ -24,5 +24,17 @@ def generate_scene(image_path: str, style_key: str, subject_en: str,
     instr = (sp.scene_prompt.format(subject=subject_en or "product")
              + " Keep the product's shape, proportions and true colors faithful; do not distort "
                "or recolor the product. No text.")
+
+    # cross_section 정직성 게이트: 그 케이크의 '실재하는' 레이어만 GPT 레시피 검증으로 주입
+    #   (통 케이크 단면 생성 시 허위 레이어 방지 — 09_기타/케익클로즈업 워크플로).
+    if style_key == "cross_section":
+        from . import gpt_service
+        rec = gpt_service.build_cake_layers("", subject_en=subject_en)
+        if rec.get("layers"):
+            layers = " ".join(rec["layers"])
+            top = f" Top decoration: {rec['top']}." if rec.get("top") else ""
+            instr += (f" Cross section layers arranged from bottom to top: {layers}.{top} "
+                      "Render exactly these layers, do not invent other ingredients.")
+
     kw = {} if steps is None else {"steps": steps}
     return kontext_service.edit(image_path, instr, seed=seed, output_dir=output_dir, **kw)

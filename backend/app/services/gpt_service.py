@@ -508,6 +508,35 @@ _MENU_CATEGORIES = "fried, soup, bakery, grill, beef, pork, default"
 _MATERIALS = ("matte", "reflective", "transparent", "default")
 
 
+def build_cake_layers(name: str, subject_en: str = "", image_desc: str = "") -> dict:
+    """케이크 이름(+선택 이미지 묘사) → '호텔 파티쉐' 레시피 검증 후 영문 단면 레이어.
+
+    cross_section 스타일의 정직성 게이트: 통 케이크 단면을 생성할 때 '그 케이크에 실재하는'
+    레이어만 쓰도록 GPT가 실제 조리 가능한 레시피로 검증(레퍼런스 워크플로 09_기타/케익클로즈업).
+    반환: {"layers":[Bottom→Top 물성 묘사...], "top":"상단 데코 묘사", "plausible":bool}.
+    실패/비케이크면 layers 빈 리스트 → 호출부가 일반 매크로로 폴백.
+    """
+    display = (name or "").strip()
+    hint = f" 이미지 관찰: {image_desc}." if image_desc else ""
+    instruction = (
+        "너는 10년 경력의 호텔 파티쉐이자 미슐랭 디저트 셰프이고 상업 음식사진 비주얼 디렉터야.\n"
+        f"케이크 이름: {display or '(빈 입력)'} (영문: {subject_en or 'cake'}).{hint}\n"
+        "이 케이크의 **실제로 판매 가능한** 단면 레이어 구성을 식감 대비·레이어 구조를 고려해 Bottom→Top 으로 재구성해.\n"
+        "각 레이어는 광고 사진 수준의 영문 물성 묘사(수분감·점성·광택·공기감·질감)로 1문장씩. 그 케이크에 "
+        "실재하지 않을 재료는 지어내지 마(정직성).\n"
+        "**중요:** 상품명이 케이크·디저트(생크림/무스/레이어 케이크류)가 아니면 — 전자제품·사물·음료·일반 음식 등 — "
+        "반드시 plausible=false, layers=[] 로 응답해. 마우스·가방 같은 사물을 억지로 케이크로 해석하지 마.\n"
+        'JSON 으로만: {"plausible":true/false,"layers":["Layer 1: ...(english)","Layer 2: ...", ...4~6개],'
+        '"top":"top decoration in english"}'
+    )
+    try:
+        r = _chat_json([{"role": "user", "content": instruction}], label="cake_recipe")
+        layers = [str(x) for x in (r.get("layers") or [])] if r.get("plausible") else []
+        return {"layers": layers, "top": str(r.get("top") or ""), "plausible": bool(r.get("plausible"))}
+    except Exception:
+        return {"layers": [], "top": "", "plausible": False}
+
+
 def analyze_menu(name: str) -> MenuAnalysis:
     """상품명(한/영) → 라우팅 정보. 사용자는 이름만 입력, 나머지는 GPT 매핑.
 
