@@ -106,9 +106,12 @@ STYLE_SPECS: dict[str, StyleSpec] = {
         key="object_studio", mood="단일 히어로 제품 · 반사 페데스탈 · 드라마틱 림라이트 · 딥톤/제품색 배경",
         palette=("#14121A", "#C9A15A", "#F2ECE0"), head_font="display_heavy", sub_font="gothic_bold",
         accent=(201, 161, 90), production="hybrid",
-        scene_prompt=("hyper-realistic premium studio product photograph of {subject}, single hero on a "
-                      "reflective pedestal, dramatic rim lighting and sharp directional shadow, deep gradient "
-                      "background in a color that echoes the product, glossy reflections, crisp detail, 8k, --ar 4:5"),
+        # ⚠️ 배경교체 프레이밍(2026-07-10): 'photograph of {subject}'는 제품 전체 재생성을 유도해
+        #   애매한 형태(예: 문어 괄사)가 매끈한 구로 붕괴. Kontext=편집모델 → '제품은 그대로, 배경만' 지시.
+        scene_prompt=("Keep the {subject} exactly as it is: identical shape, outline, proportions, color, "
+                      "material and every surface detail — do NOT redraw, reshape, smooth, round or restyle "
+                      "the object itself. Change ONLY the surroundings: replace the background with a deep dark "
+                      "studio gradient, add dramatic rim lighting and a subtle glossy floor reflection beneath it."),
         negative=_OBJ_NEG),
     "object_splash": StyleSpec(
         key="object_splash", mood="부유 제품 · 성분/물 스플래시 · 제품색 모노팔레트 · 다이내믹 앵글",
