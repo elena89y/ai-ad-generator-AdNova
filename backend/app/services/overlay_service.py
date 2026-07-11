@@ -123,6 +123,16 @@ def _bg_is_bright(img: Image.Image, y_frac: float = 0.12) -> bool:
     return float(band.mean()) > 150
 
 
+def _fit_font(draw, text: str, kind: str, size: int, max_w: float,
+              min_size: int = 12) -> ImageFont.FreeTypeFont:
+    """폭이 max_w 를 넘으면 폰트를 줄여 맞춤 — 서브카피 잘림 방지(콜드런 폰케이스 실측)."""
+    font = _font(kind, size)
+    while draw.textlength(text, font=font) > max_w and size > min_size:
+        size = int(size * 0.93)
+        font = _font(kind, size)
+    return font
+
+
 def _spaced_text(draw, xy, text, font, fill, spacing_frac=0.10, anchor_center_x=None):
     """자간(letter-spacing) 텍스트. anchor_center_x 지정 시 중앙 정렬."""
     sizes = [draw.textlength(ch, font=font) for ch in text]
@@ -503,7 +513,7 @@ def apply_food_poster(
         cy0 = _draw_headline(d, 0, cy0, head_lines, head_font, IVORY, line_h, center_x=cx)
         # 서브카피
         if subcopy:
-            sf = _font("gothic", int(h * 0.023))
+            sf = _fit_font(d, subcopy, "gothic", int(h * 0.023), w - 2 * margin)
             sw = d.textlength(subcopy, font=sf)
             d.text((cx - sw / 2, cy0 + int(h * 0.012)), subcopy, font=sf, fill=(214, 208, 200))
     elif layout == "minimal":
@@ -530,7 +540,7 @@ def apply_food_poster(
             y += int(h * 0.030)
         y = _draw_headline(d, margin, y, head_lines, head_font, IVORY, line_h)
         if subcopy:                                # 서브카피 유지(작게)
-            sf = _font("gothic", int(h * 0.023))
+            sf = _fit_font(d, subcopy, "gothic", int(h * 0.023), w - 2 * margin)
             d.text((margin, y + int(h * 0.012)), subcopy, font=sf, fill=(236, 230, 222))
         # 배경 블록 없이 소프트 섀도우만으로 가독성 확보(밝은/어두운 배경 모두)
         alpha = tl.split()[3].filter(ImageFilter.GaussianBlur(6))
@@ -579,7 +589,7 @@ def apply_food_poster(
             y += int(h * 0.030)
         y = _draw_headline(d, margin, y, head_lines, head_font, IVORY, line_h)
         if subcopy:
-            sf = _font("gothic", int(h * 0.026))
+            sf = _fit_font(d, subcopy, "gothic", int(h * 0.026), w - 2 * margin)
             d.text((margin, y + int(h * 0.014)), subcopy, font=sf, fill=(220, 214, 206))
 
         # 섀도우: 텍스트 알파를 블러해 검정으로 깔고, 그 위에 텍스트
