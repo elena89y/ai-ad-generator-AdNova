@@ -590,6 +590,29 @@ def analyze_menu(name: str) -> MenuAnalysis:
     )
 
 
+def verify_photo_subject(image_path: str, name: str) -> dict:
+    """입력 게이트: 사진의 주 피사체가 상품명과 같은 종류인지 Vision 으로 의미 판단 (OCR 아님).
+
+    콜드런 배치(n=50) 실측: 무관 사진(다람쥐+팬케이크, 경주트랙+와플)이 들어오면 이름 기반으로
+    없는 제품을 날조 → 허위광고 최고 위험. 생성 전에 차단한다.
+    **관대한 게이트**: 유저 사진은 지저분하므로(흐림·복수 피사체·애매한 각도) 명백한 불일치만
+    거부, 애매하면 통과. 반환: {"match": bool, "seen": "사진 내용 한 줄"}. 실패 시 통과(무해).
+    (Vision 비용 1회. 추후 OpenAI 생성모델 전환 시 사진→상품명 자동추출로 대체 예정)
+    """
+    content = [{"type": "text", "text": (
+        f'사용자가 상품명 "{(name or "").strip()}" 광고를 만들려고 이 사진을 올렸어. '
+        "사진의 주 피사체가 그 상품명과 **같은 종류**(같은 대분류의 음식/음료/제품이고 대충 그럴듯)면 "
+        "match=true. 색·브랜드·세부 차이는 무시하고 관대하게 판단해. "
+        "단, 사진에 그 상품이 **전혀 없으면**(무관한 사람·동물·풍경·빈 배경 등) match=false.\n"
+        'JSON 으로만: {"match": true/false, "seen": "사진에 실제로 보이는 것 한 줄(한국어)"}'
+    )}, _vision_part(image_path)]
+    try:
+        r = _chat_json([{"role": "user", "content": content}], label="verify_photo_subject")
+        return {"match": bool(r.get("match", True)), "seen": str(r.get("seen", ""))[:80]}
+    except Exception:
+        return {"match": True, "seen": ""}  # 판정 실패 시 통과(가용성 우선)
+
+
 def detect_material(image_path: str) -> str:
     """사물 사진 → 표면 재질 판정 (Vision). ⚠️ 이름만으론 유광/무광/투명 구분 불가 →
     실제 사진을 보고 판정. 반환: matte|reflective|transparent|default. (Vision 비용 1회)"""

@@ -184,6 +184,15 @@ def run_from_upload_v2(
 
     from .style_specs import resolve_style
 
+    # 입력 게이트(P0, 콜드런 배치 실측): 사진 피사체 ≠ 상품명이면 이름 기반 날조(없는 제품 생성)
+    #   위험 → 생성 전 차단. 관대한 판정(명백한 무관 사진만 거부), 판정 실패 시 통과.
+    gate = gpt_service.verify_photo_subject(image_path, product.name)
+    if not gate["match"]:
+        seen = f" (사진에는 '{gate['seen']}'이(가) 보여요)" if gate.get("seen") else ""
+        raise ValueError(
+            f"사진과 상품명('{product.name}')이 서로 달라 보여요.{seen} "
+            "상품이 잘 보이는 사진인지 확인해 주세요.")
+
     asset_id = uuid.uuid4().hex[:12]
     # regen 용으로 입력 원본 보존(v2 는 누끼/mask 없음 → 원본 재투입 방식)
     saved = image_service.PROCESSED_DIR / f"{asset_id}_v2input{_P(image_path).suffix}"
@@ -193,9 +202,17 @@ def run_from_upload_v2(
     # ⚠️ 결과는 서빙 디렉토리(RESULTS_DIR, 절대경로)에 저장 — process_ad 기본 output_dir 은
     #   상대경로("backend/results/ai/route")라 uvicorn CWD(backend/)에서 backend/backend/... 로 풀려
     #   /ads/image/{filename} 서빙이 404 남(실측 2026-07-10). 절대경로로 고정.
-    r = process_ad(str(image_path), product.name, poster=poster,
+    # ⚠️ 입력을 원본이 아니라 asset_id 로 이름 지은 saved(고유) 로 넣는다(실측 2026-07-12):
+    #   출력 파일명은 입력 stem 기반 → 같은 업로드를 다시 생성/스타일변경하면 URL 동일 → 브라우저가
+    #   캐시된 옛 이미지를 보여줘 "스타일 바꿔도 똑같이 나옴". saved(매 생성 고유) 로 넣으면 URL도 고유.
+    # Best-of-N: env BEST_OF_N 로 배포에서 제어(기본 1=기존 1샷). steps 도 env BEST_OF_STEPS.
+    import os as _os
+    _bon = max(1, int(_os.environ.get("BEST_OF_N", "1") or "1"))
+    _steps = int(_os.environ["BEST_OF_STEPS"]) if _os.environ.get("BEST_OF_STEPS") else None
+    r = process_ad(str(saved), product.name, poster=poster,
                    style=resolve_style(style.value),
-                   output_dir=str(image_service.RESULTS_DIR))
+                   output_dir=str(image_service.RESULTS_DIR),
+                   best_of=_bon, steps=_steps)
     return GenerationOutput(
         final_image_path=r.final_image_path, asset_id=asset_id, seed=seed or 0, style=style,
         copy_text=r.copy_text, platform_copies=_platform_copies_safe(product, style),
@@ -256,6 +273,8 @@ def process_ad(
     style: Optional[str] = None,
     output_dir: str = "backend/results/ai/route",
     log: bool = True,
+    best_of: int = 1,
+    steps: Optional[int] = None,
 ) -> ProcessedAd:
     """사진 + 상품명 → 자동 라우팅(또는 스타일 씬) 리터치 + 문구 + 포스터. 사용자는 이름만 입력.
 
@@ -282,8 +301,23 @@ def process_ad(
         #   사물(SKU)이면 무드 무관 object_studio 로 고정(사물이 음식 씬 타면 붕괴) — 무드는 조판에 반영.
         #   여름음료 pop_split·케이크 cross_section 은 특수 조판/게이트 필요 → 당분간 명시 호출 유지.
         effective_style = "object_studio" if domain == "object" else style
-        final = style_gen.generate_scene(image_path, effective_style, subject_en, output_dir=output_dir)
-        engine = f"style:{effective_style}"
+        # Best-of-N: N시드 생성 → NIMA 심미 top 선별(실측 2026-07-13: 1샷은 운빨, 시드편차 5.55~5.81,
+        #   NIMA 순위=육안 순위 일치). best_of=1 이면 기존 1샷. NIMA 실패 시 첫 결과 폴백(무해).
+        n = max(1, best_of)
+        seeds = [7, 42, 123, 2024, 88, 512][:n]
+        cands = [style_gen.generate_scene(image_path, effective_style, subject_en,
+                                          output_dir=output_dir, seed=s, steps=steps) for s in seeds]
+        if len(cands) > 1:
+            try:
+                from . import kontext_service
+                from ..harness import metrics
+                kontext_service.unload()  # NIMA 전 VRAM 정리(Kontext↔지표 순차)
+                final = max(cands, key=lambda p: (metrics.aesthetic(p).get("nima") or 0.0))
+            except Exception:
+                final = cands[0]
+        else:
+            final = cands[0]
+        engine = f"style:{effective_style}" + (f"·bestof{n}" if n > 1 else "")
     else:
         route = router.process_input(image_path, name, knob=knob, output_dir=output_dir)
         final = route.output_path
@@ -297,6 +331,10 @@ def process_ad(
         headline, _, subcopy = copy.copy_text.partition("\n")
         headline = headline.strip() or name
         subcopy = subcopy.strip()
+        # 카피 폴백 누출 가드(콜드런 배치 실측): 캡션 실패 시 GPT 가 "이미지 정보가 제공되지
+        #   않았습니다" 류 에러 문구를 헤드라인으로 내는 경우 → 상품명으로 폴백.
+        if any(k in headline for k in ("제공되지 않", "이미지 정보", "이미지 설명", "알 수 없")):
+            headline, subcopy = name, ""
         # 스타일 지정 시 폰트·액센트 자동 매핑(style_specs)
         final = apply_food_poster(final, headline, subcopy, layout=layout, style_key=style)
 
@@ -363,9 +401,12 @@ def generate_ingredient_callout_ad(
                             min(W, cx + r), min(H, cy + r)))
         crop_path = out / f"crop_{i}.png"
         region.save(crop_path)
-        subj = it.get("name_en") or it.get("name") or "food ingredient"
-        instr = (f"extreme macro fresh close-up of the {subj}, new angle, sharp appetizing detail, "
-                 "clean soft background. Keep it the same ingredient; do not change the food type. No text.")
+        # ⚠️ 정직성(2026-07-11 콜아웃 엔드투엔드 실측): 이름 기반 'close-up of the {subj}, new angle'는
+        #   Vision 오탐(감자→'사과') + 재생성이 겹쳐 접시에 없는 재료를 만들어냄. 박스 재료=원본 재료가
+        #   깨짐. → 이름 의존·재생성 제거, 크롭된 실제 픽셀을 '그대로 두고 배경만 정리'하는 최소 편집으로.
+        instr = ("Keep this exact food unchanged — same food type, shape, color and texture, do not turn "
+                 "it into any other food. Only clean up and softly blur the background behind it and sharpen "
+                 "its appetizing detail. No text.")
         closeup = kontext_service.edit(str(crop_path), instr, output_dir=str(out))
         callouts.append({"start": (it["x"], it["y"]), "closeup": closeup})
 

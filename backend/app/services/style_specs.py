@@ -158,8 +158,11 @@ BUTTON_STYLE_MAP: dict[str, str] = {
     "내추럴": "realism", "natural": "realism", "realism": "realism",
     "감성": "warm_vintage", "emotional": "warm_vintage", "warm_vintage": "warm_vintage",
     "파스텔": "pastel_float", "pastel": "pastel_float", "pastel_float": "pastel_float",
-    # 폐기된 구 프리셋 폴백(레트로→파스텔 재카테고리화)
-    "레트로": "pastel_float", "retro": "pastel_float", "retro_paper": "pastel_float",
+    # ⚠️ retro_paper 슬롯 재활용(2026-07-13): StylePreset enum 에 realism 이 없어서(전송값은
+    #   enum 6종 중 하나여야 함) '내추럴' 버튼이 realism 씬으로 못 감. 은퇴한 retro_paper 슬롯을
+    #   realism 으로 매핑 → 프론트 '내추럴' 버튼이 style='retro_paper' 를 보내면 realism 씬 생성.
+    "retro_paper": "realism",
+    "레트로": "pastel_float", "retro": "pastel_float",
 }
 
 
