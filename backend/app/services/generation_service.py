@@ -363,9 +363,12 @@ def generate_ingredient_callout_ad(
                             min(W, cx + r), min(H, cy + r)))
         crop_path = out / f"crop_{i}.png"
         region.save(crop_path)
-        subj = it.get("name_en") or it.get("name") or "food ingredient"
-        instr = (f"extreme macro fresh close-up of the {subj}, new angle, sharp appetizing detail, "
-                 "clean soft background. Keep it the same ingredient; do not change the food type. No text.")
+        # ⚠️ 정직성(2026-07-11 콜아웃 엔드투엔드 실측): 이름 기반 'close-up of the {subj}, new angle'는
+        #   Vision 오탐(감자→'사과') + 재생성이 겹쳐 접시에 없는 재료를 만들어냄. 박스 재료=원본 재료가
+        #   깨짐. → 이름 의존·재생성 제거, 크롭된 실제 픽셀을 '그대로 두고 배경만 정리'하는 최소 편집으로.
+        instr = ("Keep this exact food unchanged — same food type, shape, color and texture, do not turn "
+                 "it into any other food. Only clean up and softly blur the background behind it and sharpen "
+                 "its appetizing detail. No text.")
         closeup = kontext_service.edit(str(crop_path), instr, output_dir=str(out))
         callouts.append({"start": (it["x"], it["y"]), "closeup": closeup})
 
