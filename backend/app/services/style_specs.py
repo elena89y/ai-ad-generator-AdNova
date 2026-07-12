@@ -117,9 +117,13 @@ STYLE_SPECS: dict[str, StyleSpec] = {
         key="object_splash", mood="부유 제품 · 성분/물 스플래시 · 제품색 모노팔레트 · 다이내믹 앵글",
         palette=("#0E2A44", "#3E7CB1", "#EAF2F8"), head_font="condensed", sub_font="gothic",
         accent=(62, 124, 177), production="hybrid",
-        scene_prompt=("hyper-realistic {subject} floating mid-air in a dynamic diagonal composition, "
-                      "matching-color ingredient props and splashing water droplets, monochromatic color-echo "
-                      "environment tied to the product, a dramatic beam of light, glossy wet highlights, 8k, --ar 4:5"),
+        # ⚠️ 배경교체 프레이밍(2026-07-10, object_studio 실측 확장): 'hyper-realistic {subject}'가
+        #   제품 전체 재생성을 유도해 형태 붕괴 위험 → '제품은 그대로, 주변만' 지시로 형태 잠금.
+        scene_prompt=("Keep the {subject} exactly as it is: identical shape, outline, proportions, color, "
+                      "material and every surface detail — do NOT redraw, reshape, smooth or restyle the "
+                      "object itself. Change ONLY the surroundings: make it appear floating mid-air in a "
+                      "dynamic diagonal composition, add splashing water droplets around it, a monochromatic "
+                      "color-echo background tied to the product's color, and a dramatic beam of light."),
         negative=_OBJ_NEG),
     # --- 디저트 단면 매크로 (09_기타/클로즈업 케익 크로스섹션, 2026-07-10) ---
     # ⚠️ 생성비중↑ — 업로드된 통 케이크의 '단면'을 새로 만든다(원본에 단면이 없음). 정직성 게이트:
