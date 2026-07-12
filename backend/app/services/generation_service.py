@@ -202,7 +202,10 @@ def run_from_upload_v2(
     # ⚠️ 결과는 서빙 디렉토리(RESULTS_DIR, 절대경로)에 저장 — process_ad 기본 output_dir 은
     #   상대경로("backend/results/ai/route")라 uvicorn CWD(backend/)에서 backend/backend/... 로 풀려
     #   /ads/image/{filename} 서빙이 404 남(실측 2026-07-10). 절대경로로 고정.
-    r = process_ad(str(image_path), product.name, poster=poster,
+    # ⚠️ 입력을 원본이 아니라 asset_id 로 이름 지은 saved(고유) 로 넣는다(실측 2026-07-12):
+    #   출력 파일명은 입력 stem 기반 → 같은 업로드를 다시 생성/스타일변경하면 URL 동일 → 브라우저가
+    #   캐시된 옛 이미지를 보여줘 "스타일 바꿔도 똑같이 나옴". saved(매 생성 고유) 로 넣으면 URL도 고유.
+    r = process_ad(str(saved), product.name, poster=poster,
                    style=resolve_style(style.value),
                    output_dir=str(image_service.RESULTS_DIR))
     return GenerationOutput(
