@@ -676,7 +676,7 @@
             <button class="style" data-s="감성" onclick="pickStyle(this)"><span class="em">🌾</span><span class="nm">감성</span></button>
             <button class="style" data-s="럭셔리" onclick="pickStyle(this)"><span class="em">💎</span><span class="nm">럭셔리</span></button>
             <button class="style" data-s="내추럴" onclick="pickStyle(this)"><span class="em">🌿</span><span class="nm">내추럴</span></button>
-            <button class="style" data-s="레트로" onclick="pickStyle(this)"><span class="em">📻</span><span class="nm">레트로</span></button>
+            <button class="style" data-s="파스텔" onclick="pickStyle(this)"><span class="em">🎨</span><span class="nm">파스텔</span></button>
           </div>
 
           <button class="btn-gen" id="genBtn" onclick="generate()">✦ 광고 생성</button>
@@ -792,7 +792,7 @@
       <button class="fchip" onclick="filterCards(this,'감성')">감성</button>
       <button class="fchip" onclick="filterCards(this,'럭셔리')">럭셔리</button>
       <button class="fchip" onclick="filterCards(this,'내추럴')">내추럴</button>
-      <button class="fchip" onclick="filterCards(this,'레트로')">레트로</button>
+      <button class="fchip" onclick="filterCards(this,'파스텔')">파스텔</button>
     </div>
 
     <div class="grid" id="grid"></div>
@@ -851,21 +851,23 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const USERNAME_PATTERN = /^[A-Za-z0-9]{7,12}$/;
 const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&^#()_\-+=])[A-Za-z\d@$!%*?&^#()_\-+=]{8,20}$/;
 const ALLOWED_IMAGE_TYPES = ['image/jpeg','image/png','image/webp'];
+// STYLE_SYSTEM v2 매핑(2026-07-13). ⚠️ 값은 백엔드 StylePreset enum 6종이어야 함.
+//   realism 이 enum에 없어 '내추럴'은 은퇴 슬롯 retro_paper 를 전송 → 백엔드 resolve_style이 realism 으로.
 const STYLE_PRESET_MAP = {
   '비비드':'pop',
   '미니멀':'monotone',
   '감성':'warm_vintage',
   '럭셔리':'editorial',
-  '내추럴':'pastel_float',
-  '레트로':'retro_paper'
+  '내추럴':'retro_paper',
+  '파스텔':'pastel_float'
 };
 const STYLE_LABEL_MAP = {
   pop:'비비드',
   monotone:'미니멀',
   warm_vintage:'감성',
   editorial:'럭셔리',
-  pastel_float:'내추럴',
-  retro_paper:'레트로'
+  retro_paper:'내추럴',
+  pastel_float:'파스텔'
 };
 const FIELD_LABELS = {
   email:'이메일',
