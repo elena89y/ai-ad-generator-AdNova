@@ -21,9 +21,22 @@ def generate_scene(image_path: str, style_key: str, subject_en: str,
     from .style_specs import get_spec
 
     sp = get_spec(style_key)
-    instr = (sp.scene_prompt.format(subject=subject_en or "product")
-             + " Keep the product's shape, proportions and true colors faithful; do not distort "
-               "or recolor the product. No text.")
+    scene = sp.scene_prompt.format(subject=subject_en or "product")
+
+    # 구성(composition) 유지 절 — 무드 씬 전용 (2026-07-11 콜드런 실측: editorial 이 브런치
+    #   4조각+치즈소스+음료를 1개 단품으로 재구성 → 메뉴 시그니처 소실 = 정직성 경계 위반).
+    #   재구성이 목적인 포맷(cross_section 단면·object_* 사물·pop_split 매크로)은 제외.
+    #   ⚠️ 절 순서가 결정적: 구성 유지를 '맨 앞'에 둬야 씬의 스타일 언어(싱글히어로·여백)에 안 밀림.
+    _RECOMPOSE_OK = {"cross_section", "object_studio", "object_splash", "pop_split"}
+    if style_key not in _RECOMPOSE_OK:
+        instr = ("Edit this exact photo. Keep every food item exactly as photographed: the same "
+                 "number of pieces, the same sauces and garnishes, the same plating and arrangement "
+                 "— do not remove, add, merge or simplify anything on the plate. "
+                 f"Restyle ONLY the background, surface, lighting and mood as follows: {scene} "
+                 "Keep the food's true colors. No text.")
+    else:
+        instr = (scene + " Keep the product's shape, proportions and true colors faithful; "
+                 "do not distort or recolor the product. No text.")
 
     # cross_section 정직성 게이트: 그 케이크의 '실재하는' 레이어만 GPT 레시피 검증으로 주입
     #   (통 케이크 단면 생성 시 허위 레이어 방지 — 09_기타/케익클로즈업 워크플로).
