@@ -184,6 +184,15 @@ def run_from_upload_v2(
 
     from .style_specs import resolve_style
 
+    # 입력 게이트(P0, 콜드런 배치 실측): 사진 피사체 ≠ 상품명이면 이름 기반 날조(없는 제품 생성)
+    #   위험 → 생성 전 차단. 관대한 판정(명백한 무관 사진만 거부), 판정 실패 시 통과.
+    gate = gpt_service.verify_photo_subject(image_path, product.name)
+    if not gate["match"]:
+        seen = f" (사진에는 '{gate['seen']}'이(가) 보여요)" if gate.get("seen") else ""
+        raise ValueError(
+            f"사진과 상품명('{product.name}')이 서로 달라 보여요.{seen} "
+            "상품이 잘 보이는 사진인지 확인해 주세요.")
+
     asset_id = uuid.uuid4().hex[:12]
     # regen 용으로 입력 원본 보존(v2 는 누끼/mask 없음 → 원본 재투입 방식)
     saved = image_service.PROCESSED_DIR / f"{asset_id}_v2input{_P(image_path).suffix}"
@@ -297,6 +306,10 @@ def process_ad(
         headline, _, subcopy = copy.copy_text.partition("\n")
         headline = headline.strip() or name
         subcopy = subcopy.strip()
+        # 카피 폴백 누출 가드(콜드런 배치 실측): 캡션 실패 시 GPT 가 "이미지 정보가 제공되지
+        #   않았습니다" 류 에러 문구를 헤드라인으로 내는 경우 → 상품명으로 폴백.
+        if any(k in headline for k in ("제공되지 않", "이미지 정보", "이미지 설명", "알 수 없")):
+            headline, subcopy = name, ""
         # 스타일 지정 시 폰트·액센트 자동 매핑(style_specs)
         final = apply_food_poster(final, headline, subcopy, layout=layout, style_key=style)
 
