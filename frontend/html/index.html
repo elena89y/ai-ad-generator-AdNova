@@ -402,6 +402,8 @@ http://scripts.sil.org/OFL
 
   /* ---------- DASHBOARD ---------- */
   .studio{display:grid;grid-template-columns:minmax(0,420px) 1fr;gap:24px;align-items:start}
+  .dashboard-layout{display:grid;grid-template-columns:300px minmax(0,1fr);min-height:calc(100vh - 61px)}
+  .control-rail{border-right:1px solid var(--line)}
   .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
   .panel-h{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
   .panel-h .n{width:24px;height:24px;border-radius:7px;background:var(--paper-2);display:grid;place-items:center;font-size:12px;font-weight:800;font-family:var(--disp);color:var(--gold-deep)}
@@ -594,6 +596,9 @@ http://scripts.sil.org/OFL
     .login-left{min-width:0}
     .login-right{display:none}
     .studio{grid-template-columns:1fr}
+    .dashboard-layout{grid-template-columns:minmax(0,1fr)}
+    .control-rail{border-right:0;border-bottom:1px solid var(--line)}
+    [data-role="compare"]{grid-template-columns:1fr!important}
     .nav button span.txt{display:none}
   }
   @media(max-width:560px){
@@ -732,11 +737,11 @@ http://scripts.sil.org/OFL
 
     <div class="field">
       <label>이메일</label>
-      <input id="loginEmail" type="email" placeholder="you@store.com" value="sajang@adnova.kr" autocomplete="email">
+      <input id="loginEmail" type="email" placeholder="you@store.com" autocomplete="email">
     </div>
     <div class="field">
       <label>비밀번호</label>
-      <input id="loginPassword" type="password" placeholder="••••••••" value="password" autocomplete="current-password">
+      <input id="loginPassword" type="password" placeholder="비밀번호를 입력하세요" autocomplete="current-password">
     </div>
     <div class="row-min">
       <label style="display:flex;align-items:center;gap:6px;font-weight:600;color:var(--ink-soft)"><input type="checkbox" checked=""> 로그인 상태 유지</label>
@@ -904,9 +909,9 @@ http://scripts.sil.org/OFL
     </div>
   </div>
 
-  <div style="display:grid;grid-template-columns:300px 1fr;min-height:calc(100vh - 61px)">
+  <div class="dashboard-layout">
     <!-- CONTROL RAIL -->
-    <div style="border-right:1px solid var(--line);padding:22px 20px;display:flex;flex-direction:column;gap:20px">
+    <div class="control-rail" style="padding:22px 20px;display:flex;flex-direction:column;gap:20px">
       <div>
         <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;color:var(--ink-mute);text-transform:uppercase;margin-bottom:11px">01 · 재료</div>
         <div style="position:relative;border-radius:12px;overflow:hidden;border:1px solid var(--line);cursor:pointer" onclick="selectProductImage()">
@@ -915,10 +920,10 @@ http://scripts.sil.org/OFL
         </div>
         <div id="uploadInfo" style="font-size:11px;color:var(--ink-mute);margin-top:8px;line-height:1.5">사진만 넣으면 배경·구도는 AI가 알아서 잡아줘요.</div>
         <label style="display:block;font-size:12px;font-weight:700;color:var(--ink-soft);margin:14px 0 6px">상품명 <span style="font-weight:500;color:var(--ink-mute)">· 입력하면 분위기를 자동으로</span></label>
-        <input id="prodName" value="흑당 밀크티" oninput="detectMode(this.value)" placeholder="예: 카페 라떼, 흑당 밀크티" style="width:100%;padding:10px 12px;background:#26242D;border:1px solid rgba(255,255,255,.1);border-radius:10px;font-size:13.5px;font-weight:600;color:var(--ink)">
-        <div class="auto-mode" id="autoMode" style="margin:9px 0 0"><span class="lamp"></span><span id="autoModeTxt">카페 음료로 인식 · 배경 연출 모드</span></div>
+        <input id="prodName" oninput="detectMode(this.value)" placeholder="예: 카페 라떼, 흑당 밀크티" style="width:100%;padding:10px 12px;background:#26242D;border:1px solid rgba(255,255,255,.1);border-radius:10px;font-size:13.5px;font-weight:600;color:var(--ink)">
+        <div class="auto-mode" id="autoMode" style="margin:9px 0 0"><span class="lamp"></span><span id="autoModeTxt">상품명을 입력하면 광고 유형을 자동 판단해요</span></div>
         <label style="display:block;font-size:12px;font-weight:700;color:var(--ink-soft);margin:14px 0 6px">추가 요청 <span style="font-weight:500;color:var(--ink-mute)">· 선택</span></label>
-        <textarea id="prompt" style="width:100%;min-height:58px;resize:vertical;padding:10px 12px;background:#26242D;border:1px solid rgba(255,255,255,.1);border-radius:10px;font-size:13px;color:var(--ink);line-height:1.5">시원한 여름 느낌 강조, 20대 타깃</textarea>
+        <textarea id="prompt" placeholder="예: 시원한 여름 느낌 강조, 20대 타깃" style="width:100%;min-height:58px;resize:vertical;padding:10px 12px;background:#26242D;border:1px solid rgba(255,255,255,.1);border-radius:10px;font-size:13px;color:var(--ink);line-height:1.5"></textarea>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
           <span class="chip-tip" onclick="addTip('할인 이벤트 강조')">+ 할인 이벤트</span>
           <span class="chip-tip" onclick="addTip('신메뉴 출시')">+ 신메뉴 출시</span>
@@ -937,6 +942,9 @@ http://scripts.sil.org/OFL
           <button class="style on" data-s="웜 빈티지" onclick="pickStyle(this)" style="display:flex;align-items:center;gap:9px;width:100%;text-align:left"><span style="width:34px;height:34px;border-radius:7px;background:linear-gradient(135deg,#F2A93B,#C42E5C);flex:none"></span><span class="nm" style="font-size:12.5px;font-weight:700">웜 빈티지</span></button>
           <button class="style" data-s="모노톤" onclick="pickStyle(this)" style="display:flex;align-items:center;gap:9px;width:100%;text-align:left"><span style="width:34px;height:34px;border-radius:7px;background:linear-gradient(135deg,#e8e6ea,#9a95a5);flex:none"></span><span class="nm" style="font-size:12.5px;font-weight:700">모노톤</span></button>
           <button class="style" data-s="팝 비비드" onclick="pickStyle(this)" style="display:flex;align-items:center;gap:9px;width:100%;text-align:left"><span style="width:34px;height:34px;border-radius:7px;background:linear-gradient(135deg,#5BC0EB,#C42E5C);flex:none"></span><span class="nm" style="font-size:12.5px;font-weight:700">팝 비비드</span></button>
+          <button class="style" data-s="에디토리얼" onclick="pickStyle(this)" style="display:flex;align-items:center;gap:9px;width:100%;text-align:left"><span style="width:34px;height:34px;border-radius:7px;background:linear-gradient(135deg,#17151C,#8A7C9A);flex:none"></span><span class="nm" style="font-size:12.5px;font-weight:700">에디토리얼</span></button>
+          <button class="style" data-s="리얼리즘" onclick="pickStyle(this)" style="display:flex;align-items:center;gap:9px;width:100%;text-align:left"><span style="width:34px;height:34px;border-radius:7px;background:linear-gradient(135deg,#6B8F71,#D8C8A8);flex:none"></span><span class="nm" style="font-size:12.5px;font-weight:700">리얼리즘</span></button>
+          <button class="style" data-s="파스텔" onclick="pickStyle(this)" style="display:flex;align-items:center;gap:9px;width:100%;text-align:left"><span style="width:34px;height:34px;border-radius:7px;background:linear-gradient(135deg,#F6D8E4,#D9F0E6);flex:none"></span><span class="nm" style="font-size:12.5px;font-weight:700">파스텔</span></button>
         </div>
       </div>
       <div>
@@ -1045,12 +1053,12 @@ http://scripts.sil.org/OFL
 
     <div class="filters">
       <button class="fchip on" onclick="filterCards(this,'all')">전체</button>
-      <button class="fchip" onclick="filterCards(this,'비비드')">비비드</button>
-      <button class="fchip" onclick="filterCards(this,'미니멀')">미니멀</button>
-      <button class="fchip" onclick="filterCards(this,'감성')">감성</button>
-      <button class="fchip" onclick="filterCards(this,'럭셔리')">럭셔리</button>
-      <button class="fchip" onclick="filterCards(this,'내추럴')">내추럴</button>
-      <button class="fchip" onclick="filterCards(this,'레트로')">레트로</button>
+      <button class="fchip" onclick="filterCards(this,'모노톤')">모노톤</button>
+      <button class="fchip" onclick="filterCards(this,'웜 빈티지')">웜 빈티지</button>
+      <button class="fchip" onclick="filterCards(this,'팝 비비드')">팝 비비드</button>
+      <button class="fchip" onclick="filterCards(this,'에디토리얼')">에디토리얼</button>
+      <button class="fchip" onclick="filterCards(this,'리얼리즘')">리얼리즘</button>
+      <button class="fchip" onclick="filterCards(this,'파스텔')">파스텔</button>
     </div>
 
     <div class="grid" id="grid"></div>
@@ -1075,7 +1083,29 @@ http://scripts.sil.org/OFL
 
 <!-- ============ 계정 설정 ============ -->
 <section id="settings" class="screen">
-  <div class="subbar"><div class="brand"><img class="brand-mark" src="assets/brand-logo.png" alt="AdNova"><span class="studio-tag">studio</span></div><button class="back-link" style="margin:0 0 0 6px" onclick="go('dashboard')">← 대시보드</button><div style="margin-left:auto"><button class="avatar" onclick="go('settings')">애</button></div></div>
+  <div class="subbar">
+    <div class="brand"><img class="brand-mark" src="assets/brand-logo.png" alt="AdNova"><span class="studio-tag">studio</span></div>
+    <button class="back-link" style="margin:0 0 0 6px" onclick="go('dashboard')">← 대시보드</button>
+    <div class="pf-wrap" style="margin-left:auto">
+      <button class="avatar" onclick="toggleProfile(this,event)">아</button>
+      <div class="profile-menu">
+        <div class="pf-head">
+          <div class="av-lg">아</div>
+          <div class="info">
+            <div class="nm">아드노바 카페</div>
+            <div class="em">sajang@adnova.kr</div>
+            <span class="pf-plan">무료 체험 · 3회 남음</span>
+          </div>
+        </div>
+        <button class="pf-item" onclick="closeProfile();go('mypage')"><span class="pf-ic">🗂</span> 내 광고</button>
+        <button class="pf-item" onclick="closeProfile();go('settings')"><span class="pf-ic">👤</span> 계정 설정</button>
+        <button class="pf-item" onclick="closeProfile();goBilling('settings')"><span class="pf-ic">✦</span> 프리미엄 업그레이드</button>
+        <button class="pf-item" onclick="closeProfile();go('support')"><span class="pf-ic">💬</span> 고객센터</button>
+        <div class="pf-div"></div>
+        <button class="pf-item danger" onclick="handleLogout()"><span class="pf-ic">🚪</span> 로그아웃</button>
+      </div>
+    </div>
+  </div>
   <div class="page">
     <div class="page-head"><div><h2>계정 설정</h2><p class="lead">프로필과 보안, 알림 설정을 관리하세요.</p></div></div>
     <div class="set-grid">
@@ -1107,7 +1137,29 @@ http://scripts.sil.org/OFL
 
 <!-- ============ 고객센터 ============ -->
 <section id="support" class="screen">
-  <div class="subbar"><div class="brand"><img class="brand-mark" src="assets/brand-logo.png" alt="AdNova"><span class="studio-tag">studio</span></div><button class="back-link" style="margin:0 0 0 6px" onclick="go('dashboard')">← 대시보드</button><div style="margin-left:auto"><button class="avatar" onclick="go('settings')">애</button></div></div>
+  <div class="subbar">
+    <div class="brand"><img class="brand-mark" src="assets/brand-logo.png" alt="AdNova"><span class="studio-tag">studio</span></div>
+    <button class="back-link" style="margin:0 0 0 6px" onclick="go('dashboard')">← 대시보드</button>
+    <div class="pf-wrap" style="margin-left:auto">
+      <button class="avatar" onclick="toggleProfile(this,event)">아</button>
+      <div class="profile-menu">
+        <div class="pf-head">
+          <div class="av-lg">아</div>
+          <div class="info">
+            <div class="nm">아드노바 카페</div>
+            <div class="em">sajang@adnova.kr</div>
+            <span class="pf-plan">무료 체험 · 3회 남음</span>
+          </div>
+        </div>
+        <button class="pf-item" onclick="closeProfile();go('mypage')"><span class="pf-ic">🗂</span> 내 광고</button>
+        <button class="pf-item" onclick="closeProfile();go('settings')"><span class="pf-ic">👤</span> 계정 설정</button>
+        <button class="pf-item" onclick="closeProfile();goBilling('support')"><span class="pf-ic">✦</span> 프리미엄 업그레이드</button>
+        <button class="pf-item" onclick="closeProfile();go('support')"><span class="pf-ic">💬</span> 고객센터</button>
+        <div class="pf-div"></div>
+        <button class="pf-item danger" onclick="handleLogout()"><span class="pf-ic">🚪</span> 로그아웃</button>
+      </div>
+    </div>
+  </div>
   <div class="page" style="max-width:760px">
     <div style="text-align:center;margin:10px 0 24px"><h2 style="font-size:24px;font-weight:800;letter-spacing:-.5px;margin-bottom:6px">무엇을 도와드릴까요?</h2><p style="font-size:13px;color:var(--ink-mute);margin-bottom:16px">자주 묻는 질문에서 먼저 찾아보세요.</p><div style="display:flex;align-items:center;gap:9px;max-width:440px;margin:0 auto;padding:12px 15px;background:#26242D;border:1px solid rgba(255,255,255,.1);border-radius:12px"><span>🔍</span><span style="font-size:13.5px;color:#6b6775">궁금한 점을 검색하세요</span></div></div>
     <div style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-mute);margin:0 0 10px">자주 묻는 질문</div>
@@ -1121,7 +1173,32 @@ http://scripts.sil.org/OFL
 
 <!-- ============ 결제 / 플랜 ============ -->
 <section id="billing" class="screen">
-  <div class="subbar"><div class="brand"><img class="brand-mark" src="assets/brand-logo.png" alt="AdNova"><span class="studio-tag">studio</span></div><button class="back-link" style="margin:0 0 0 6px" onclick="go(billingFrom||'dashboard')">← 뒤로</button><div style="margin-left:auto"><span class="credits">크레딧 <b>3</b></span></div></div>
+  <div class="subbar">
+    <div class="brand"><img class="brand-mark" src="assets/brand-logo.png" alt="AdNova"><span class="studio-tag">studio</span></div>
+    <button class="back-link" style="margin:0 0 0 6px" onclick="go(billingFrom||'dashboard')">← 뒤로</button>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:12px">
+      <span class="credits">크레딧 <b>3</b></span>
+      <div class="pf-wrap">
+        <button class="avatar" onclick="toggleProfile(this,event)">아</button>
+        <div class="profile-menu">
+          <div class="pf-head">
+            <div class="av-lg">아</div>
+            <div class="info">
+              <div class="nm">아드노바 카페</div>
+              <div class="em">sajang@adnova.kr</div>
+              <span class="pf-plan">무료 체험 · 3회 남음</span>
+            </div>
+          </div>
+          <button class="pf-item" onclick="closeProfile();go('mypage')"><span class="pf-ic">🗂</span> 내 광고</button>
+          <button class="pf-item" onclick="closeProfile();go('settings')"><span class="pf-ic">👤</span> 계정 설정</button>
+          <button class="pf-item" onclick="closeProfile()"><span class="pf-ic">✦</span> 프리미엄 업그레이드</button>
+          <button class="pf-item" onclick="closeProfile();go('support')"><span class="pf-ic">💬</span> 고객센터</button>
+          <div class="pf-div"></div>
+          <button class="pf-item danger" onclick="handleLogout()"><span class="pf-ic">🚪</span> 로그아웃</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <div class="page" style="max-width:720px">
     <div id="billingUpgrade">
       <div style="text-align:center;margin:6px 0 22px"><span style="display:inline-block;font-size:11px;font-weight:800;color:var(--gold);background:rgba(242,169,59,.14);padding:5px 12px;border-radius:999px;margin-bottom:10px">✦ 업그레이드</span><h2 style="font-size:22px;font-weight:800;letter-spacing:-.5px;margin-bottom:6px">워터마크 없이, 고해상도 원본으로</h2><p style="font-size:13px;color:var(--ink-mute)">무료 체험 3회 이후에는 크레딧으로 광고를 만들 수 있어요.</p></div>
@@ -1240,20 +1317,20 @@ const USERNAME_PATTERN = /^[A-Za-z0-9]{7,12}$/;
 const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&^#()_\-+=])[A-Za-z\d@$!%*?&^#()_\-+=]{8,20}$/;
 const ALLOWED_IMAGE_TYPES = ['image/jpeg','image/png','image/webp'];
 const STYLE_PRESET_MAP = {
-  '비비드':'pop',
-  '미니멀':'monotone',
-  '감성':'warm_vintage',
-  '럭셔리':'editorial',
-  '내추럴':'pastel_float',
-  '레트로':'retro_paper'
+  '모노톤':'monotone',
+  '웜 빈티지':'warm_vintage',
+  '팝 비비드':'pop',
+  '에디토리얼':'editorial',
+  '리얼리즘':'retro_paper',
+  '파스텔':'pastel_float'
 };
 const STYLE_LABEL_MAP = {
-  pop:'비비드',
-  monotone:'미니멀',
-  warm_vintage:'감성',
-  editorial:'럭셔리',
-  pastel_float:'내추럴',
-  retro_paper:'레트로'
+  monotone:'모노톤',
+  warm_vintage:'웜 빈티지',
+  pop:'팝 비비드',
+  editorial:'에디토리얼',
+  retro_paper:'리얼리즘',
+  pastel_float:'파스텔'
 };
 const FIELD_LABELS = {
   email:'이메일',
@@ -1409,13 +1486,13 @@ function toAbsoluteUrl(url){
   return `${API_BASE_URL}${url.startsWith('/')?'':'/'}${url}`;
 }
 function getSelectedStyleLabel(){
-  return document.querySelector('#styles .style.on')?.dataset.s||'비비드';
+  return document.querySelector('#styles .style.on')?.dataset.s||'팝 비비드';
 }
 function getSelectedStyleValue(){
   return STYLE_PRESET_MAP[getSelectedStyleLabel()]||'pop';
 }
 function toStyleLabel(style){
-  return STYLE_LABEL_MAP[style]||style||'비비드';
+  return STYLE_LABEL_MAP[style]||style||'팝 비비드';
 }
 function splitCopyText(text){
   const lines=(text||'').split('\n').map(v=>v.trim()).filter(Boolean);
@@ -1857,12 +1934,12 @@ function closeUpgrade(){document.getElementById('upgradeModal').classList.remove
 
 /* ---------- my page cards ---------- */
 const ads=[
-  {emoji:'🧋',hl:'여름을 한 잔에',style:'비비드',date:'7월 8일',img:'assets/demo-ad.jpg',g:'linear-gradient(145deg,#2C2140,#8A3A5A 55%,#E0912F)',prod:'linear-gradient(160deg,#fff6e6,#f4c988)'},
-  {emoji:'🍞',hl:'갓 구운 아침',style:'감성',date:'7월 6일',g:'linear-gradient(150deg,#6B4A2E,#C99B5E)',prod:'linear-gradient(160deg,#fff2dc,#e5b877)'},
-  {emoji:'💐',hl:'오늘의 꽃다발',style:'미니멀',date:'7월 5일',g:'linear-gradient(150deg,#E9E4DA,#C7BDAB)',prod:'linear-gradient(160deg,#fff,#f0d4dd)'},
-  {emoji:'☕',hl:'하루의 첫 여유',style:'럭셔리',date:'7월 3일',g:'linear-gradient(150deg,#1B1622,#4A3A2A)',prod:'linear-gradient(160deg,#e9d9c0,#a97f4f)'},
-  {emoji:'🍰',hl:'달콤한 오후',style:'비비드',date:'7월 1일',g:'linear-gradient(150deg,#C42E5C,#F2A93B)',prod:'linear-gradient(160deg,#fff,#ffd9c2)'},
-  {emoji:'🥗',hl:'가볍게, 건강하게',style:'내추럴',date:'6월 29일',g:'linear-gradient(150deg,#3B5A2E,#8FB668)',prod:'linear-gradient(160deg,#f4ffe9,#c7e0a0)'},
+  {emoji:'🧋',hl:'여름을 한 잔에',style:'팝 비비드',date:'7월 8일',img:'assets/demo-ad.jpg',g:'linear-gradient(145deg,#2C2140,#8A3A5A 55%,#E0912F)',prod:'linear-gradient(160deg,#fff6e6,#f4c988)'},
+  {emoji:'🍞',hl:'갓 구운 아침',style:'웜 빈티지',date:'7월 6일',g:'linear-gradient(150deg,#6B4A2E,#C99B5E)',prod:'linear-gradient(160deg,#fff2dc,#e5b877)'},
+  {emoji:'💐',hl:'오늘의 꽃다발',style:'모노톤',date:'7월 5일',g:'linear-gradient(150deg,#E9E4DA,#C7BDAB)',prod:'linear-gradient(160deg,#fff,#f0d4dd)'},
+  {emoji:'☕',hl:'하루의 첫 여유',style:'에디토리얼',date:'7월 3일',g:'linear-gradient(150deg,#1B1622,#4A3A2A)',prod:'linear-gradient(160deg,#e9d9c0,#a97f4f)'},
+  {emoji:'🍰',hl:'달콤한 오후',style:'파스텔',date:'7월 1일',g:'linear-gradient(150deg,#C42E5C,#F2A93B)',prod:'linear-gradient(160deg,#fff,#ffd9c2)'},
+  {emoji:'🥗',hl:'가볍게, 건강하게',style:'리얼리즘',date:'6월 29일',g:'linear-gradient(150deg,#3B5A2E,#8FB668)',prod:'linear-gradient(160deg,#f4ffe9,#c7e0a0)'},
 ];
 const snsList=[
   {k:'ig',n:'Instagram'},{k:'fb',n:'Facebook'},{k:'x',n:'X (Twitter)'},{k:'th',n:'Threads'}
