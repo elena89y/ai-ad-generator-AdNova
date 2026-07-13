@@ -598,6 +598,8 @@ http://scripts.sil.org/OFL
   .terms a{color:var(--berry);font-weight:700;text-decoration:none}
   .detail-layout{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:22px}
   .share-actions button{min-width:0}
+  .image-fallback{position:absolute;inset:0;display:grid;place-items:center;padding:20px;background:#25232b;color:var(--ink-mute);font-size:12px;font-weight:600;text-align:center}
+  .card .cpic .st-tag{z-index:2}
 
   /* responsive */
   @media(max-width:900px){
@@ -1181,7 +1183,7 @@ http://scripts.sil.org/OFL
     <div class="faq" onclick="this.classList.toggle('open')"><div class="q">생성한 광고는 어디에 저장되나요?<span class="pm"></span></div><p class="a">모든 생성 결과는 '내 광고' 이력에 자동 저장돼요. 언제든 다시 보고 공유할 수 있어요.</p></div>
     <div class="faq" onclick="this.classList.toggle('open')"><div class="q">상품 사진은 어떻게 찍으면 좋나요?<span class="pm"></span></div><p class="a">제품이 화면 중앙에 크게, 밝은 곳에서 단색 배경으로 찍으면 배경 제거와 합성 품질이 좋아져요.</p></div>
     <div id="faqEmpty" style="display:none;text-align:center;padding:24px;color:var(--ink-mute);font-size:13px">검색 결과가 없습니다.</div>
-    <div style="margin-top:20px;background:linear-gradient(135deg,rgba(242,169,59,.1),rgba(196,46,92,.1));border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;align-items:center;gap:16px"><div style="flex:1"><div style="font-size:14px;font-weight:700;margin-bottom:3px">원하는 답을 못 찾으셨나요?</div><div style="font-size:12.5px;color:var(--ink-soft)">1:1 문의를 남기면 보통 하루 안에 답변드려요.</div></div><button style="padding:11px 18px;border:none;border-radius:11px;background:var(--gold);color:#16151A;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap" onclick="toast('문의를 접수했어요 (목업)')">문의하기</button></div>
+    <div style="margin-top:20px;background:linear-gradient(135deg,rgba(242,169,59,.1),rgba(196,46,92,.1));border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;align-items:center;gap:16px"><div style="flex:1"><div style="font-size:14px;font-weight:700;margin-bottom:3px">원하는 답을 못 찾으셨나요?</div><div style="font-size:12.5px;color:var(--ink-soft)">1:1 문의 기능은 준비 중이에요.</div></div><button style="padding:11px 18px;border:none;border-radius:11px;background:var(--gold);color:#16151A;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap" onclick="toast('1:1 문의 기능은 준비 중입니다')">문의하기</button></div>
   </div>
 </section>
 
@@ -1220,7 +1222,7 @@ http://scripts.sil.org/OFL
         <div style="background:var(--card);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:20px"><div style="font-size:13px;font-weight:700;color:var(--ink-soft)">무료 체험</div><div style="font-size:26px;font-weight:800;letter-spacing:-1px;margin:6px 0 14px">₩0</div><div style="display:flex;flex-direction:column;gap:9px;font-size:12.5px;color:var(--ink-soft)"><div>✓ 가입 시 <b style="color:var(--ink)">크레딧 3개</b></div><div style="color:var(--ink-mute)">· 광고 생성마다 1개 차감</div><div style="color:var(--ink-mute)">· 미리보기 · 로고 워터마크</div><div style="color:var(--ink-mute)">· 이력 저장 (다운로드 X)</div></div><button style="width:100%;margin-top:16px;padding:11px;border:1px solid rgba(255,255,255,.12);border-radius:11px;background:rgba(255,255,255,.04);color:var(--ink-mute);font-size:13px;font-weight:700;cursor:default">현재 플랜</button></div>
         <div style="background:linear-gradient(160deg,#26222b,#1F1E25);border:1.5px solid var(--gold);border-radius:16px;padding:20px;position:relative;box-shadow:0 0 0 3px rgba(242,169,59,.12)"><span style="position:absolute;top:-11px;right:16px;background:var(--gold);color:#16151A;font-size:11px;font-weight:800;padding:4px 10px;border-radius:7px">추천</span><div style="font-size:13px;font-weight:700;color:var(--gold-deep)">프리미엄</div><div style="font-size:26px;font-weight:800;letter-spacing:-1px;margin:6px 0 14px">₩9,900<span style="font-size:13px;font-weight:600;color:var(--ink-mute)">/월</span></div><div style="display:flex;flex-direction:column;gap:9px;font-size:12.5px;color:var(--ink-soft)"><div>✓ 매월 <b style="color:var(--ink)">크레딧 30개</b></div><div>✓ <b style="color:var(--ink)">워터마크 없음</b></div><div>✓ 고해상도 원본 다운로드</div><div>✓ 크레딧 추가 구매 가능</div></div><button style="width:100%;margin-top:16px;padding:11px;border:none;border-radius:11px;background:var(--gold);color:#16151A;font-size:13px;font-weight:700;cursor:pointer" onclick="startPremium()">프리미엄 시작하기</button></div>
       </div>
-      <p style="margin:12px 2px 0;font-size:11.5px;color:#6b6775;text-align:center">※ 실제 결제 연동은 준비 중이에요. '프리미엄 시작하기'는 데모로 상태만 전환됩니다.</p>
+      <p style="margin:12px 2px 0;font-size:11.5px;color:#6b6775;text-align:center">※ 프리미엄 결제와 크레딧 기능은 준비 중이며, 현재는 화면만 확인할 수 있습니다.</p>
     </div>
     <div id="billingManage" style="display:none">
       <div style="display:flex;align-items:center;gap:10px;margin:6px 0 20px"><span style="font-size:11px;font-weight:800;color:#16151A;background:var(--gold);padding:5px 12px;border-radius:999px">✦ 프리미엄 이용 중</span><h2 style="font-size:20px;font-weight:800;letter-spacing:-.5px">구독 관리</h2></div>
@@ -1273,7 +1275,7 @@ http://scripts.sil.org/OFL
     <div style="display:flex;align-items:center;gap:9px;margin-bottom:16px"><h2 style="font-size:20px;font-weight:800;letter-spacing:-.5px">공유 &amp; 내보내기</h2><span style="margin-left:auto;font-size:11px;color:var(--ink-mute)">이력에 저장됨 ✓</span></div>
     <div style="display:flex;gap:6px;margin-bottom:16px"><span class="shtab on" data-p="instagram" onclick="shareTab(this,'instagram')"><span style="width:15px;height:15px;border-radius:4px;background:linear-gradient(135deg,#f9ce34,#ee2a7b,#6228d7);display:grid;place-items:center;font-size:8px;color:#fff;font-weight:800">IG</span>Instagram</span><span class="shtab" data-p="facebook" onclick="shareTab(this,'facebook')">Facebook</span><span class="shtab" data-p="x" onclick="shareTab(this,'x')">X</span><span class="shtab" data-p="threads" onclick="shareTab(this,'threads')">Threads</span></div>
     <div style="background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:16px"><div style="aspect-ratio:1;background:#0d0d10;position:relative"><img id="shareImage" alt="공유할 광고" style="width:100%;height:100%;object-fit:contain;display:block"><span style="position:absolute;left:11px;top:11px;background:rgba(0,0,0,.5);color:var(--ink-soft);font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px">AI 광고</span></div><div style="padding:14px 16px"><div id="shHead" style="font-size:14px;font-weight:700;font-family:var(--serif);font-style:italic;margin-bottom:5px"></div><div id="shBody" style="font-size:12.5px;line-height:1.6;color:var(--ink-soft);margin-bottom:7px"></div><div id="shTags" style="font-size:12px;color:var(--gold);font-weight:600"></div></div></div>
-    <div class="share-actions" style="display:flex;gap:8px;margin-bottom:12px"><button style="flex:1;padding:12px;border:1px solid rgba(255,255,255,.14);border-radius:11px;background:transparent;color:var(--ink-soft);font-size:13px;font-weight:700;cursor:pointer" onclick="copyShareText()">📋 카피 복사</button><button id="shBtn" style="flex:1;padding:12px;border:none;border-radius:11px;background:var(--gold);color:#16151A;font-size:13px;font-weight:700;cursor:pointer" onclick="shareSelectedAd()">↗ Instagram 공유</button></div>
+    <div class="share-actions" style="display:flex;gap:8px;margin-bottom:12px"><button id="shBtn" style="width:100%;padding:12px;border:none;border-radius:11px;background:var(--gold);color:#16151A;font-size:13px;font-weight:700;cursor:pointer" onclick="shareSelectedAd()">↗ Instagram 공유</button></div>
     <div class="share-premium" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(242,169,59,.08);border:1px solid rgba(242,169,59,.24);border-radius:11px"><span>🔒</span><span style="flex:1;font-size:12px;color:var(--gold-deep);font-weight:600">고해상도 원본 다운로드는 프리미엄</span><button style="padding:8px 13px;border:none;border-radius:9px;background:transparent;color:var(--gold);font-size:12px;font-weight:800;cursor:pointer" onclick="go('billing')">업그레이드 →</button></div>
   </div>
 </section>
@@ -1315,9 +1317,10 @@ http://scripts.sil.org/OFL
 
 <div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
 
+<script src="runtime-config.js"></script>
 <script>
 /* ---------- backend api ---------- */
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = (window.ADNOVA_CONFIG?.API_BASE_URL||'http://localhost:8000').replace(/\/$/,'');
 const ACCESS_TOKEN_KEY = 'adnova_access_token';
 const USER_KEY = 'adnova_user';
 const SNS_PLATFORM_MAP = {
@@ -1529,6 +1532,30 @@ function toAbsoluteUrl(url){
   if(url.startsWith('http://')||url.startsWith('https://')||url.startsWith('data:')) return url;
   return `${API_BASE_URL}${url.startsWith('/')?'':'/'}${url}`;
 }
+function showImageFallback(image,message='이미지를 불러올 수 없습니다'){
+  const parent=image?.parentElement;
+  if(!parent) return;
+  image.style.display='none';
+  let fallback=parent.querySelector(':scope > .image-fallback');
+  if(!fallback){
+    fallback=document.createElement('div');
+    fallback.className='image-fallback';
+    parent.appendChild(fallback);
+  }
+  fallback.textContent=message;
+}
+function setImageSource(image,url,message){
+  if(!image) return;
+  image.parentElement?.querySelector(':scope > .image-fallback')?.remove();
+  image.style.display='block';
+  image.onerror=()=>showImageFallback(image,message);
+  if(!url){
+    image.removeAttribute('src');
+    showImageFallback(image,message);
+    return;
+  }
+  image.src=url;
+}
 function getSelectedStyleLabel(){
   return document.querySelector('#styles .style.on')?.dataset.s||'팝 비비드';
 }
@@ -1575,8 +1602,8 @@ function applyGeneratedResult(data){
   currentResult=data;
   const beforeImg=document.getElementById('beforeImg');
   const afterImg=document.getElementById('afterImg');
-  if(beforeImg&&selectedImageUrl) beforeImg.src=toAbsoluteUrl(selectedImageUrl);
-  if(afterImg&&data.image_url) afterImg.src=toAbsoluteUrl(data.image_url);
+  if(beforeImg&&selectedImageUrl) setImageSource(beforeImg,toAbsoluteUrl(selectedImageUrl),'입력 이미지를 불러올 수 없습니다');
+  if(afterImg) setImageSource(afterImg,toAbsoluteUrl(data.image_url),'생성 이미지를 불러올 수 없습니다');
   applyGeneratedCopy(data.copy_text,data.style,data.platform_copies);
   document.getElementById('rEmpty').style.display='none';
   document.getElementById('rLoad').classList.remove('on');
@@ -2062,11 +2089,14 @@ function openAdDetail(i){
   document.getElementById('detailProductName').textContent=item.productName||item.hl||'광고 상품';
   document.getElementById('detailStyle').textContent=item.style||'정보 없음';
   document.getElementById('detailAdType').textContent=formatAdType(item.adType);
-  document.getElementById('detailAfterImg').src=item.img||'';
+  setImageSource(document.getElementById('detailAfterImg'),item.img,'생성 이미지를 불러올 수 없습니다');
   const inputWrap=document.getElementById('detailInputWrap');
   const inputImg=document.getElementById('detailBeforeImg');
   inputWrap.style.display=item.inputImg?'block':'none';
-  if(item.inputImg) inputImg.src=item.inputImg;
+  if(item.inputImg){
+    inputImg.onerror=()=>{inputWrap.style.display='none';};
+    inputImg.src=item.inputImg;
+  }
   document.querySelectorAll('#detailPlatformTabs .shtab').forEach((tab,index)=>tab.classList.toggle('on',index===0));
   renderDetailCopy('instagram');
   go('detail');
@@ -2136,25 +2166,12 @@ function renderSharePlatform(platform){
   if(!activeShareItem) return;
   activeSharePlatform=platform;
   const copy=getItemPlatformCopy(activeShareItem,platform);
-  document.getElementById('shareImage').src=activeShareItem.img;
+  setImageSource(document.getElementById('shareImage'),activeShareItem.img,'공유 이미지를 불러올 수 없습니다');
   document.getElementById('shHead').textContent=copy.head;
   document.getElementById('shBody').textContent=copy.body;
   document.getElementById('shTags').textContent=copy.tags;
   const names={instagram:'Instagram',facebook:'Facebook',x:'X',threads:'Threads'};
   document.getElementById('shBtn').textContent=`↗ ${names[platform]||platform} 공유`;
-}
-async function copyShareText(){
-  if(!activeShareItem){
-    toast('복사할 광고 문구가 없습니다');
-    return;
-  }
-  const copy=getItemPlatformCopy(activeShareItem,activeSharePlatform);
-  try{
-    await copyTextSafely([copy.head,copy.body,copy.tags].filter(Boolean).join('\n'));
-    toast('카피를 복사했어요');
-  }catch(_){
-    toast('카피를 복사하지 못했습니다');
-  }
 }
 function shareSelectedAd(){
   if(!activeShareItem) return;
@@ -2207,7 +2224,7 @@ function renderCards(filter='all'){
       <div class="cpic" style="background:${a.g}">
         <span class="st-tag">${a.style}</span>
         ${a.img
-          ? `<img class="cimg" src="${a.img}" alt="${a.hl}">`
+          ? `<img class="cimg" src="${a.img}" alt="${a.hl}" onerror="showImageFallback(this,'광고 이미지를 불러올 수 없습니다')">`
           : `<div class="prod" style="background:${a.prod}">${a.emoji}</div><div class="hl">${a.hl}</div>`}
       </div>
       <div class="cbody">
@@ -2280,8 +2297,8 @@ var isPremium=false, billingFrom='dashboard';
 function pickUse(el){document.querySelectorAll('#uses .use').forEach(function(s){s.classList.remove('on');});el.classList.add('on');}
 function goBilling(from){billingFrom=from||'dashboard';go('billing');renderBilling();}
 function renderBilling(){var u=document.getElementById('billingUpgrade'),m=document.getElementById('billingManage');if(u)u.style.display=isPremium?'none':'block';if(m)m.style.display=isPremium?'block':'none';applyPremiumUI();}
-function startPremium(){isPremium=true;renderBilling();toast('프리미엄으로 전환됐어요 (데모)');}
-function cancelPremium(){isPremium=false;renderBilling();toast('프리미엄을 해지했어요 (데모)');}
+function startPremium(){toast('프리미엄 기능은 준비 중입니다');}
+function cancelPremium(){toast('구독 관리 기능은 준비 중입니다');}
 function downloadResult(){if(isPremium){toast('고해상도 원본을 다운로드했어요');}else{goBilling('dashboard');}}
 function applyPremiumUI(){document.querySelectorAll('.wm-row').forEach(function(e){e.style.display=isPremium?'none':'flex';});var dl=document.getElementById('dlBtn');if(dl)dl.innerHTML=isPremium?'⬇️ 다운로드':'⬇️ 다운로드 🔒';}
 function setSet(el,id){document.querySelectorAll('#settings .set-nav-item').forEach(function(x){x.classList.remove('on');});el.classList.add('on');var t=document.getElementById(id);if(t)window.scrollTo({top:t.getBoundingClientRect().top+window.scrollY-90,behavior:'smooth'});}
