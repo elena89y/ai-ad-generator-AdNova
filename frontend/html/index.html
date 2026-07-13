@@ -279,6 +279,8 @@ http://scripts.sil.org/OFL
     background:linear-gradient(135deg,var(--plum),var(--berry));
     color:#fff;display:grid;place-items:center;font-weight:700;font-size:14px;
   }
+  .av-lg{border-radius:50%;background:linear-gradient(135deg,var(--plum),var(--berry));color:#fff;display:grid;place-items:center;font-weight:700;overflow:hidden}
+  .avatar,.av-lg{background-size:cover;background-position:center;background-repeat:no-repeat}
   .pf-wrap{position:relative}
   .profile-menu{
     position:absolute;top:calc(100% + 10px);right:0;width:250px;
@@ -316,6 +318,11 @@ http://scripts.sil.org/OFL
   .field input{
     width:100%;padding:13px 15px;border:1.5px solid var(--line);border-radius:12px;
     font-size:15px;background:var(--card);transition:.15s;
+    color:var(--ink);-webkit-text-fill-color:var(--ink);
+  }
+  .field input::placeholder{color:var(--ink-mute)}
+  .field input:-webkit-autofill,.field input:-webkit-autofill:focus{
+    -webkit-text-fill-color:var(--ink);-webkit-box-shadow:0 0 0 1000px var(--card) inset;caret-color:var(--ink);
   }
   .field input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 4px rgba(242,169,59,.16)}
   .field-help{margin-top:6px;font-size:12.5px;line-height:1.45;color:var(--ink-mute)}
@@ -1120,7 +1127,7 @@ http://scripts.sil.org/OFL
       </div>
       <div>
         <div class="set-card" id="setProfile"><h4>프로필</h4>
-          <div style="display:flex;gap:14px;align-items:center;margin-bottom:16px"><div class="av-lg" style="width:56px;height:56px;font-size:20px">애</div><button style="padding:8px 14px;border:1px solid rgba(255,255,255,.14);border-radius:9px;background:transparent;color:var(--ink-soft);font-size:12.5px;font-weight:600;cursor:pointer" onclick="toast('사진 변경 (목업)')">사진 변경</button></div>
+          <div style="display:flex;gap:14px;align-items:center;margin-bottom:16px"><div class="av-lg" style="width:56px;height:56px;font-size:20px">애</div><button style="padding:8px 14px;border:1px solid rgba(255,255,255,.14);border-radius:9px;background:transparent;color:var(--ink-soft);font-size:12.5px;font-weight:600;cursor:pointer" onclick="document.getElementById('avatarFile').click()">사진 변경</button><input type="file" id="avatarFile" accept="image/*" style="display:none" onchange="handleAvatarUpload(event)"></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div><div class="fl">가게 / 상호명</div><div class="mini-in">애드노바 카페</div></div><div><div class="fl">아이디</div><div class="mini-in">adnova_cafe</div></div><div style="grid-column:1/3"><div class="fl">이메일</div><div class="mini-in">sajang@adnova.kr</div></div></div>
         </div>
         <div class="set-card" id="setPw"><h4>비밀번호 변경</h4><div style="display:flex;flex-direction:column;gap:10px"><div class="mini-in ph">현재 비밀번호</div><div class="mini-in ph">새 비밀번호</div><div class="mini-in ph">새 비밀번호 확인</div></div></div>
@@ -1402,6 +1409,24 @@ function getDisplayName(user){
 function getDisplayEmail(user){
   return user?.email||'';
 }
+function avatarHue(str){let h=0;const s=(str||'A');for(let i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i))>>>0;}return h%360;}
+function getStoredAvatarPhoto(){try{return localStorage.getItem('adnova_avatar_photo')||'';}catch(e){return '';}}
+function applyAvatars(name){
+  const photo=getStoredAvatarPhoto();
+  const hue=avatarHue(name);
+  const bg=`linear-gradient(135deg,hsl(${hue} 48% 42%),hsl(${(hue+42)%360} 58% 56%))`;
+  document.querySelectorAll('.avatar,.av-lg').forEach(el=>{
+    if(photo){el.style.backgroundImage=`url("${photo}")`;el.style.backgroundSize='cover';el.style.backgroundPosition='center';el.style.color='transparent';el.textContent='';}
+    else{el.style.backgroundImage='none';el.style.background=bg;el.style.color='#fff';}
+  });
+}
+function handleAvatarUpload(e){
+  const file=e.target&&e.target.files&&e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(){try{localStorage.setItem('adnova_avatar_photo',reader.result);}catch(err){}
+    const user=getStoredUser();applyAvatars(getDisplayName(user));if(typeof toast==='function')toast('프로필 사진이 변경되었습니다');};
+  reader.readAsDataURL(file);
+}
 function syncUserUI(){
   const user=getStoredUser();
   const name=getDisplayName(user);
@@ -1410,6 +1435,7 @@ function syncUserUI(){
   document.querySelectorAll('.profile-menu .nm').forEach(el=>{el.textContent=name;});
   document.querySelectorAll('.profile-menu .em').forEach(el=>{el.textContent=email;});
   document.querySelectorAll('.avatar,.av-lg').forEach(el=>{el.textContent=initial;});
+  applyAvatars(name);
 }
 function syncDashboardSummaryUI(){
   const summary=dashboardSummary;
