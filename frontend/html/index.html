@@ -597,6 +597,10 @@ http://scripts.sil.org/OFL
   .notice .nt b{color:#15452e}
   .terms{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:var(--ink-soft);line-height:1.5;margin:4px 2px 18px}
   .terms a{color:var(--berry);font-weight:700;text-decoration:none}
+  .detail-layout{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:22px}
+  .share-actions button{min-width:0}
+  .image-fallback{position:absolute;inset:0;display:grid;place-items:center;padding:20px;background:#25232b;color:var(--ink-mute);font-size:12px;font-weight:600;text-align:center}
+  .card .cpic .st-tag{z-index:2}
 
   /* responsive */
   @media(max-width:900px){
@@ -605,6 +609,7 @@ http://scripts.sil.org/OFL
     .login-right{display:none}
     .studio{grid-template-columns:1fr}
     .dashboard-layout{grid-template-columns:minmax(0,1fr)}
+    .detail-layout{grid-template-columns:minmax(0,1fr)}
     .control-rail{border-right:0;border-bottom:1px solid var(--line)}
     [data-role="compare"]{grid-template-columns:1fr!important}
     .nav button span.txt{display:none}
@@ -620,6 +625,9 @@ http://scripts.sil.org/OFL
     .styles{grid-template-columns:repeat(3,1fr)}
     .brand span.wm{display:none}
     .plans{grid-template-columns:1fr}
+    .share-actions{flex-direction:column}
+    .share-premium{align-items:flex-start!important;flex-wrap:wrap}
+    .share-premium button{width:100%;text-align:left}
   }
 
   /* usage pill + freemium */
@@ -1129,7 +1137,7 @@ http://scripts.sil.org/OFL
       <div>
         <div class="set-card" id="setProfile"><h4>프로필</h4>
           <div style="display:flex;gap:14px;align-items:center;margin-bottom:16px"><div class="av-lg" style="width:56px;height:56px;font-size:20px">애</div><button style="padding:8px 14px;border:1px solid rgba(255,255,255,.14);border-radius:9px;background:transparent;color:var(--ink-soft);font-size:12.5px;font-weight:600;cursor:pointer" onclick="document.getElementById('avatarFile').click()">사진 변경</button><input type="file" id="avatarFile" accept="image/*" style="display:none" onchange="handleAvatarUpload(event)"></div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div><div class="fl">가게 / 상호명</div><div class="mini-in">애드노바 카페</div></div><div><div class="fl">아이디</div><div class="mini-in">adnova_cafe</div></div><div style="grid-column:1/3"><div class="fl">이메일</div><div class="mini-in">sajang@adnova.kr</div></div></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div><div class="fl">가게 / 상호명</div><div class="mini-in" id="settingsBusinessName">정보 없음</div></div><div><div class="fl">아이디</div><div class="mini-in" id="settingsUsername">정보 없음</div></div><div style="grid-column:1/3"><div class="fl">이메일</div><div class="mini-in" id="settingsEmail">정보 없음</div></div></div>
         </div>
         <div class="set-card" id="setPw"><h4>비밀번호 변경</h4><div style="display:flex;flex-direction:column;gap:10px"><div class="mini-in ph">현재 비밀번호</div><div class="mini-in ph">새 비밀번호</div><div class="mini-in ph">새 비밀번호 확인</div></div></div>
         <div class="set-card" id="setNoti"><h4>알림</h4><div style="display:flex;flex-direction:column;gap:13px">
@@ -1169,13 +1177,14 @@ http://scripts.sil.org/OFL
     </div>
   </div>
   <div class="page" style="max-width:760px">
-    <div style="text-align:center;margin:10px 0 24px"><h2 style="font-size:24px;font-weight:800;letter-spacing:-.5px;margin-bottom:6px">무엇을 도와드릴까요?</h2><p style="font-size:13px;color:var(--ink-mute);margin-bottom:16px">자주 묻는 질문에서 먼저 찾아보세요.</p><div style="display:flex;align-items:center;gap:9px;max-width:440px;margin:0 auto;padding:12px 15px;background:#26242D;border:1px solid rgba(255,255,255,.1);border-radius:12px"><span>🔍</span><span style="font-size:13.5px;color:#6b6775">궁금한 점을 검색하세요</span></div></div>
+    <div style="text-align:center;margin:10px 0 24px"><h2 style="font-size:24px;font-weight:800;letter-spacing:-.5px;margin-bottom:6px">무엇을 도와드릴까요?</h2><p style="font-size:13px;color:var(--ink-mute);margin-bottom:16px">자주 묻는 질문에서 먼저 찾아보세요.</p><div style="display:flex;align-items:center;gap:9px;max-width:440px;margin:0 auto;padding:12px 15px;background:#26242D;border:1px solid rgba(255,255,255,.1);border-radius:12px"><span>🔍</span><input id="faqSearch" type="search" placeholder="궁금한 점을 검색하세요" oninput="filterFaqs(this.value)" style="flex:1;border:0;outline:0;background:transparent;color:var(--ink);font-size:13.5px"></div></div>
     <div style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-mute);margin:0 0 10px">자주 묻는 질문</div>
     <div class="faq" onclick="this.classList.toggle('open')"><div class="q">크레딧은 어떻게 충전하나요?<span class="pm"></span></div><p class="a">프리미엄 플랜에 가입하면 매월 30크레딧이 지급돼요. 부족하면 10크레딧당 4,900원에 추가 구매할 수 있어요.</p></div>
     <div class="faq open" onclick="this.classList.toggle('open')"><div class="q">다운로드가 안 돼요.<span class="pm"></span></div><p class="a">원본 다운로드는 <b style="color:var(--gold)">프리미엄 플랜</b>에서만 제공돼요. 무료 체험에서는 워터마크 미리보기와 사이트 이력 저장까지 가능합니다.</p></div>
     <div class="faq" onclick="this.classList.toggle('open')"><div class="q">생성한 광고는 어디에 저장되나요?<span class="pm"></span></div><p class="a">모든 생성 결과는 '내 광고' 이력에 자동 저장돼요. 언제든 다시 보고 공유할 수 있어요.</p></div>
     <div class="faq" onclick="this.classList.toggle('open')"><div class="q">상품 사진은 어떻게 찍으면 좋나요?<span class="pm"></span></div><p class="a">제품이 화면 중앙에 크게, 밝은 곳에서 단색 배경으로 찍으면 배경 제거와 합성 품질이 좋아져요.</p></div>
-    <div style="margin-top:20px;background:linear-gradient(135deg,rgba(242,169,59,.1),rgba(196,46,92,.1));border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;align-items:center;gap:16px"><div style="flex:1"><div style="font-size:14px;font-weight:700;margin-bottom:3px">원하는 답을 못 찾으셨나요?</div><div style="font-size:12.5px;color:var(--ink-soft)">1:1 문의를 남기면 보통 하루 안에 답변드려요.</div></div><button style="padding:11px 18px;border:none;border-radius:11px;background:var(--gold);color:#16151A;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap" onclick="toast('문의를 접수했어요 (목업)')">문의하기</button></div>
+    <div id="faqEmpty" style="display:none;text-align:center;padding:24px;color:var(--ink-mute);font-size:13px">검색 결과가 없습니다.</div>
+    <div style="margin-top:20px;background:linear-gradient(135deg,rgba(242,169,59,.1),rgba(196,46,92,.1));border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;align-items:center;gap:16px"><div style="flex:1"><div style="font-size:14px;font-weight:700;margin-bottom:3px">원하는 답을 못 찾으셨나요?</div><div style="font-size:12.5px;color:var(--ink-soft)">1:1 문의 기능은 준비 중이에요.</div></div><button style="padding:11px 18px;border:none;border-radius:11px;background:var(--gold);color:#16151A;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap" onclick="toast('1:1 문의 기능은 준비 중입니다')">문의하기</button></div>
   </div>
 </section>
 
@@ -1214,7 +1223,7 @@ http://scripts.sil.org/OFL
         <div style="background:var(--card);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:20px"><div style="font-size:13px;font-weight:700;color:var(--ink-soft)">무료 체험</div><div style="font-size:26px;font-weight:800;letter-spacing:-1px;margin:6px 0 14px">₩0</div><div style="display:flex;flex-direction:column;gap:9px;font-size:12.5px;color:var(--ink-soft)"><div>✓ 가입 시 <b style="color:var(--ink)">크레딧 3개</b></div><div style="color:var(--ink-mute)">· 광고 생성마다 1개 차감</div><div style="color:var(--ink-mute)">· 미리보기 · 로고 워터마크</div><div style="color:var(--ink-mute)">· 이력 저장 (다운로드 X)</div></div><button style="width:100%;margin-top:16px;padding:11px;border:1px solid rgba(255,255,255,.12);border-radius:11px;background:rgba(255,255,255,.04);color:var(--ink-mute);font-size:13px;font-weight:700;cursor:default">현재 플랜</button></div>
         <div style="background:linear-gradient(160deg,#26222b,#1F1E25);border:1.5px solid var(--gold);border-radius:16px;padding:20px;position:relative;box-shadow:0 0 0 3px rgba(242,169,59,.12)"><span style="position:absolute;top:-11px;right:16px;background:var(--gold);color:#16151A;font-size:11px;font-weight:800;padding:4px 10px;border-radius:7px">추천</span><div style="font-size:13px;font-weight:700;color:var(--gold-deep)">프리미엄</div><div style="font-size:26px;font-weight:800;letter-spacing:-1px;margin:6px 0 14px">₩9,900<span style="font-size:13px;font-weight:600;color:var(--ink-mute)">/월</span></div><div style="display:flex;flex-direction:column;gap:9px;font-size:12.5px;color:var(--ink-soft)"><div>✓ 매월 <b style="color:var(--ink)">크레딧 30개</b></div><div>✓ <b style="color:var(--ink)">워터마크 없음</b></div><div>✓ 고해상도 원본 다운로드</div><div>✓ 크레딧 추가 구매 가능</div></div><button style="width:100%;margin-top:16px;padding:11px;border:none;border-radius:11px;background:var(--gold);color:#16151A;font-size:13px;font-weight:700;cursor:pointer" onclick="startPremium()">프리미엄 시작하기</button></div>
       </div>
-      <p style="margin:12px 2px 0;font-size:11.5px;color:#6b6775;text-align:center">※ 실제 결제 연동은 준비 중이에요. '프리미엄 시작하기'는 데모로 상태만 전환됩니다.</p>
+      <p style="margin:12px 2px 0;font-size:11.5px;color:#6b6775;text-align:center">※ 프리미엄 결제와 크레딧 기능은 준비 중이며, 현재는 화면만 확인할 수 있습니다.</p>
     </div>
     <div id="billingManage" style="display:none">
       <div style="display:flex;align-items:center;gap:10px;margin:6px 0 20px"><span style="font-size:11px;font-weight:800;color:#16151A;background:var(--gold);padding:5px 12px;border-radius:999px">✦ 프리미엄 이용 중</span><h2 style="font-size:20px;font-weight:800;letter-spacing:-.5px">구독 관리</h2></div>
@@ -1243,17 +1252,17 @@ http://scripts.sil.org/OFL
 
 <!-- ============ 광고 상세 ============ -->
 <section id="detail" class="screen">
-  <div class="subbar"><button class="back-link" style="margin:0" onclick="go('mypage')">← 내 광고</button><span style="margin-left:auto;font-size:12px;color:var(--ink-mute)">2026. 7. 9 생성</span></div>
+  <div class="subbar"><button class="back-link" style="margin:0" onclick="go('mypage')">← 내 광고</button><span id="detailDate" style="margin-left:auto;font-size:12px;color:var(--ink-mute)"></span></div>
   <div class="page" style="max-width:820px">
-    <div style="display:grid;grid-template-columns:1.15fr 1fr;gap:22px">
+    <div class="detail-layout">
       <div>
-        <div style="position:relative;aspect-ratio:4/5;border-radius:14px;overflow:hidden;background:linear-gradient(135deg,#F2A93B33,#C42E5C33),repeating-linear-gradient(45deg,#2a2830 0 12px,#232128 12px 24px);display:flex;align-items:center;justify-content:center;color:var(--ink-soft);font:600 10px ui-monospace,monospace"><span style="position:absolute;left:12px;top:12px;background:rgba(0,0,0,.5);color:var(--ink-soft);font-size:10px;font-weight:700;padding:4px 9px;border-radius:6px">원본 ⟷ 생성</span>AI 광고 결과</div>
-        <div style="display:flex;gap:7px;margin-top:12px"><button style="flex:1;padding:10px;border:1px solid rgba(255,255,255,.14);border-radius:10px;background:transparent;color:var(--ink-soft);font-size:12.5px;font-weight:700;cursor:pointer" onclick="toast('재생성했어요 · 크레딧 1개 사용')">🔄 재생성</button><button style="flex:1;padding:10px;border:1px solid rgba(255,255,255,.14);border-radius:10px;background:transparent;color:var(--ink-soft);font-size:12.5px;font-weight:700;cursor:pointer" onclick="go('share')">↗ 공유</button><button style="padding:10px 12px;border:1px solid rgba(224,86,127,.4);border-radius:10px;background:transparent;color:var(--berry);font-size:12.5px;font-weight:700;cursor:pointer" onclick="toast('삭제했어요');go('mypage')">삭제</button></div>
+        <div style="position:relative;aspect-ratio:4/5;border-radius:14px;overflow:hidden;background:#0d0d10"><img id="detailAfterImg" alt="생성된 광고" style="width:100%;height:100%;object-fit:contain;display:block"><span style="position:absolute;left:12px;top:12px;background:var(--gold);color:#16151A;font-size:10px;font-weight:800;padding:4px 9px;border-radius:6px">AI 생성</span><div id="detailInputWrap" style="position:absolute;left:12px;bottom:12px;width:82px;aspect-ratio:1;border:2px solid rgba(255,255,255,.7);border-radius:9px;overflow:hidden;background:#16151A"><img id="detailBeforeImg" alt="입력 이미지" style="width:100%;height:100%;object-fit:cover;display:block"></div></div>
+        <div style="display:flex;gap:7px;margin-top:12px"><button style="flex:1;padding:10px;border:1px solid rgba(255,255,255,.14);border-radius:10px;background:transparent;color:var(--ink-soft);font-size:12.5px;font-weight:700;cursor:pointer" onclick="reuseDetailAd()">🔄 이 광고로 다시 만들기</button><button style="flex:1;padding:10px;border:1px solid rgba(255,255,255,.14);border-radius:10px;background:transparent;color:var(--ink-soft);font-size:12.5px;font-weight:700;cursor:pointer" onclick="openDetailShare()">↗ 공유</button><button style="padding:10px 12px;border:1px solid rgba(224,86,127,.4);border-radius:10px;background:transparent;color:var(--berry);font-size:12.5px;font-weight:700;cursor:pointer" onclick="deleteDetailAd()">삭제</button></div>
       </div>
       <div style="display:flex;flex-direction:column;gap:16px">
-        <div><div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:10px">정보</div><div style="display:flex;flex-direction:column;gap:9px;font-size:12.5px"><div style="display:flex;justify-content:space-between"><span style="color:var(--ink-mute)">상품명</span><b>흑당 밀크티</b></div><div style="display:flex;justify-content:space-between"><span style="color:var(--ink-mute)">스타일</span><span style="color:var(--gold);font-weight:700">웜 빈티지</span></div><div style="display:flex;justify-content:space-between"><span style="color:var(--ink-mute)">용도</span><span>SNS 피드</span></div><div style="display:flex;justify-content:space-between"><span style="color:var(--ink-mute)">사용 크레딧</span><span>1개</span></div></div></div>
+        <div><div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:10px">정보</div><div style="display:flex;flex-direction:column;gap:9px;font-size:12.5px"><div style="display:flex;justify-content:space-between;gap:16px"><span style="color:var(--ink-mute)">상품명</span><b id="detailProductName" style="text-align:right"></b></div><div style="display:flex;justify-content:space-between"><span style="color:var(--ink-mute)">스타일</span><span id="detailStyle" style="color:var(--gold);font-weight:700"></span></div><div style="display:flex;justify-content:space-between"><span style="color:var(--ink-mute)">형식</span><span id="detailAdType"></span></div></div></div>
         <div style="height:1px;background:var(--line)"></div>
-        <div style="flex:1"><div style="display:flex;gap:4px;margin-bottom:11px"><span style="font-size:11px;font-weight:700;background:var(--gold);color:#16151A;padding:4px 10px;border-radius:7px">IG</span><span style="font-size:11px;font-weight:600;color:var(--ink-mute);background:rgba(255,255,255,.06);padding:4px 10px;border-radius:7px">FB</span><span style="font-size:11px;font-weight:600;color:var(--ink-mute);background:rgba(255,255,255,.06);padding:4px 10px;border-radius:7px">X</span><span style="font-size:11px;font-weight:600;color:var(--ink-mute);background:rgba(255,255,255,.06);padding:4px 10px;border-radius:7px">Threads</span></div><div style="font-size:15px;font-weight:700;font-family:var(--serif);font-style:italic;margin-bottom:7px">한 모금이면 여름이 더 시원해져요 ☁️🧋</div><div style="font-size:12.5px;line-height:1.6;color:var(--ink-soft)">갈색 설탕의 달콤한 결, 우유의 부드러움, 차의 산뜻함이 얼음과 만나 시원하게 퍼져요.</div><div style="font-size:11.5px;color:var(--gold);margin-top:8px;font-weight:600">#흑당밀크티 #여름신메뉴 #시원한한잔</div></div>
+        <div style="flex:1"><div id="detailPlatformTabs" style="display:flex;gap:4px;margin-bottom:11px"><button class="shtab on" onclick="selectDetailPlatform(this,'instagram')">IG</button><button class="shtab" onclick="selectDetailPlatform(this,'facebook')">FB</button><button class="shtab" onclick="selectDetailPlatform(this,'x')">X</button><button class="shtab" onclick="selectDetailPlatform(this,'threads')">Threads</button></div><div id="detailCopyHead" style="font-size:15px;font-weight:700;font-family:var(--serif);font-style:italic;margin-bottom:7px"></div><div id="detailCopyBody" style="font-size:12.5px;line-height:1.6;color:var(--ink-soft)"></div><div id="detailCopyTags" style="font-size:11.5px;color:var(--gold);margin-top:8px;font-weight:600"></div></div>
         <div style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:rgba(242,169,59,.08);border:1px solid rgba(242,169,59,.24);border-radius:11px"><span>🔒</span><span style="flex:1;font-size:11.5px;color:var(--gold-deep);font-weight:600">원본 다운로드는 프리미엄</span><button style="padding:7px 12px;border:none;border-radius:9px;background:var(--gold);color:#16151A;font-size:11.5px;font-weight:800;cursor:pointer" onclick="go('billing')">업그레이드</button></div>
       </div>
     </div>
@@ -1262,13 +1271,13 @@ http://scripts.sil.org/OFL
 
 <!-- ============ SNS 공유 / Export ============ -->
 <section id="share" class="screen">
-  <div class="subbar"><div class="brand"><img class="brand-mark" src="assets/brand-logo.png" alt="AdNova"><span class="studio-tag">studio</span></div><button class="back-link" style="margin:0 0 0 6px" onclick="go('dashboard')">← 대시보드</button></div>
+  <div class="subbar"><div class="brand"><img class="brand-mark" src="assets/brand-logo.png" alt="AdNova"><span class="studio-tag">studio</span></div><button class="back-link" style="margin:0 0 0 6px" onclick="go(shareFrom||'dashboard')">← 뒤로</button></div>
   <div class="page" style="max-width:560px">
     <div style="display:flex;align-items:center;gap:9px;margin-bottom:16px"><h2 style="font-size:20px;font-weight:800;letter-spacing:-.5px">공유 &amp; 내보내기</h2><span style="margin-left:auto;font-size:11px;color:var(--ink-mute)">이력에 저장됨 ✓</span></div>
-    <div style="display:flex;gap:6px;margin-bottom:16px"><span class="shtab on" onclick="shareTab(this,'instagram')"><span style="width:15px;height:15px;border-radius:4px;background:linear-gradient(135deg,#f9ce34,#ee2a7b,#6228d7);display:grid;place-items:center;font-size:8px;color:#fff;font-weight:800">IG</span>Instagram</span><span class="shtab" onclick="shareTab(this,'facebook')">Facebook</span><span class="shtab" onclick="shareTab(this,'x')">X</span><span class="shtab" onclick="shareTab(this,'threads')">Threads</span></div>
-    <div style="background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:16px"><div style="aspect-ratio:1;background:linear-gradient(135deg,#F2A93B33,#C42E5C33),repeating-linear-gradient(45deg,#2a2830 0 12px,#232128 12px 24px);display:flex;align-items:center;justify-content:center;color:var(--ink-soft);font:600 10px ui-monospace,monospace;position:relative"><span style="position:absolute;left:11px;top:11px;background:rgba(0,0,0,.5);color:var(--ink-soft);font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px">1:1 정사각</span><span style="position:absolute;right:11px;bottom:11px;background:rgba(0,0,0,.55);color:var(--ink-soft);font-size:9px;font-weight:700;padding:4px 8px;border-radius:6px">🔖 워터마크</span>AI 광고 결과</div><div style="padding:14px 16px"><div id="shHead" style="font-size:14px;font-weight:700;font-family:var(--serif);font-style:italic;margin-bottom:5px">한 모금이면 여름이 더 시원해져요 ☁️🧋</div><div id="shTags" style="font-size:12px;color:var(--gold);font-weight:600">#흑당밀크티 #여름신메뉴 #시원한한잔 #카페신메뉴</div></div></div>
-    <div style="display:flex;gap:8px;margin-bottom:12px"><button style="flex:1;padding:12px;border:1px solid rgba(255,255,255,.14);border-radius:11px;background:transparent;color:var(--ink-soft);font-size:13px;font-weight:700;cursor:pointer" onclick="toast('카피를 복사했어요')">📋 카피 복사</button><button id="shBtn" style="flex:1;padding:12px;border:none;border-radius:11px;background:var(--gold);color:#16151A;font-size:13px;font-weight:700;cursor:pointer" onclick="toast(document.getElementById('shBtn').textContent.trim()+' (목업)')">↗ Instagram 공유</button></div>
-    <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(242,169,59,.08);border:1px solid rgba(242,169,59,.24);border-radius:11px"><span>🔒</span><span style="flex:1;font-size:12px;color:var(--gold-deep);font-weight:600">고해상도 원본 다운로드는 프리미엄</span><button style="padding:8px 13px;border:none;border-radius:9px;background:transparent;color:var(--gold);font-size:12px;font-weight:800;cursor:pointer" onclick="go('billing')">업그레이드 →</button></div>
+    <div style="display:flex;gap:6px;margin-bottom:16px"><span class="shtab on" data-p="instagram" onclick="shareTab(this,'instagram')"><span style="width:15px;height:15px;border-radius:4px;background:linear-gradient(135deg,#f9ce34,#ee2a7b,#6228d7);display:grid;place-items:center;font-size:8px;color:#fff;font-weight:800">IG</span>Instagram</span><span class="shtab" data-p="facebook" onclick="shareTab(this,'facebook')">Facebook</span><span class="shtab" data-p="x" onclick="shareTab(this,'x')">X</span><span class="shtab" data-p="threads" onclick="shareTab(this,'threads')">Threads</span></div>
+    <div style="background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:16px"><div style="aspect-ratio:1;background:#0d0d10;position:relative"><img id="shareImage" alt="공유할 광고" style="width:100%;height:100%;object-fit:contain;display:block"><span style="position:absolute;left:11px;top:11px;background:rgba(0,0,0,.5);color:var(--ink-soft);font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px">AI 광고</span></div><div style="padding:14px 16px"><div id="shHead" style="font-size:14px;font-weight:700;font-family:var(--serif);font-style:italic;margin-bottom:5px"></div><div id="shBody" style="font-size:12.5px;line-height:1.6;color:var(--ink-soft);margin-bottom:7px"></div><div id="shTags" style="font-size:12px;color:var(--gold);font-weight:600"></div></div></div>
+    <div class="share-actions" style="display:flex;gap:8px;margin-bottom:12px"><button id="shBtn" style="width:100%;padding:12px;border:none;border-radius:11px;background:var(--gold);color:#16151A;font-size:13px;font-weight:700;cursor:pointer" onclick="shareSelectedAd()">↗ Instagram 공유</button></div>
+    <div class="share-premium" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(242,169,59,.08);border:1px solid rgba(242,169,59,.24);border-radius:11px"><span>🔒</span><span style="flex:1;font-size:12px;color:var(--gold-deep);font-weight:600">고해상도 원본 다운로드는 프리미엄</span><button style="padding:8px 13px;border:none;border-radius:9px;background:transparent;color:var(--gold);font-size:12px;font-weight:800;cursor:pointer" onclick="go('billing')">업그레이드 →</button></div>
   </div>
 </section>
 
@@ -1309,9 +1318,10 @@ http://scripts.sil.org/OFL
 
 <div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
 
+<script src="runtime-config.js"></script>
 <script>
 /* ---------- backend api ---------- */
-const API_BASE_URL = 'http://34.70.32.192:8000';
+const API_BASE_URL = (window.ADNOVA_CONFIG?.API_BASE_URL||'http://localhost:8000').replace(/\/$/,'');
 const ACCESS_TOKEN_KEY = 'adnova_access_token';
 const USER_KEY = 'adnova_user';
 const SNS_PLATFORM_MAP = {
@@ -1350,6 +1360,11 @@ let selectedImageId = null;
 let selectedImageUrl = null;
 let currentResult = null;
 let dashboardSummary = null;
+let activeDetailItem = null;
+let activeDetailPlatform = 'instagram';
+let activeShareItem = null;
+let activeSharePlatform = 'instagram';
+let shareFrom = 'dashboard';
 
 function getToken(){
   return localStorage.getItem(ACCESS_TOKEN_KEY);
@@ -1437,6 +1452,12 @@ function syncUserUI(){
   document.querySelectorAll('.profile-menu .em').forEach(el=>{el.textContent=email;});
   document.querySelectorAll('.avatar,.av-lg').forEach(el=>{el.textContent=initial;});
   applyAvatars(name);
+  const business=document.getElementById('settingsBusinessName');
+  const username=document.getElementById('settingsUsername');
+  const settingsEmail=document.getElementById('settingsEmail');
+  if(business) business.textContent=user?.business_name||user?.name||'정보 없음';
+  if(username) username.textContent=user?.username||'정보 없음';
+  if(settingsEmail) settingsEmail.textContent=email||'정보 없음';
 }
 function syncDashboardSummaryUI(){
   const summary=dashboardSummary;
@@ -1512,6 +1533,30 @@ function toAbsoluteUrl(url){
   if(url.startsWith('http://')||url.startsWith('https://')||url.startsWith('data:')) return url;
   return `${API_BASE_URL}${url.startsWith('/')?'':'/'}${url}`;
 }
+function showImageFallback(image,message='이미지를 불러올 수 없습니다'){
+  const parent=image?.parentElement;
+  if(!parent) return;
+  image.style.display='none';
+  let fallback=parent.querySelector(':scope > .image-fallback');
+  if(!fallback){
+    fallback=document.createElement('div');
+    fallback.className='image-fallback';
+    parent.appendChild(fallback);
+  }
+  fallback.textContent=message;
+}
+function setImageSource(image,url,message){
+  if(!image) return;
+  image.parentElement?.querySelector(':scope > .image-fallback')?.remove();
+  image.style.display='block';
+  image.onerror=()=>showImageFallback(image,message);
+  if(!url){
+    image.removeAttribute('src');
+    showImageFallback(image,message);
+    return;
+  }
+  image.src=url;
+}
 function getSelectedStyleLabel(){
   return document.querySelector('#styles .style.on')?.dataset.s||'팝 비비드';
 }
@@ -1558,8 +1603,8 @@ function applyGeneratedResult(data){
   currentResult=data;
   const beforeImg=document.getElementById('beforeImg');
   const afterImg=document.getElementById('afterImg');
-  if(beforeImg&&selectedImageUrl) beforeImg.src=toAbsoluteUrl(selectedImageUrl);
-  if(afterImg&&data.image_url) afterImg.src=toAbsoluteUrl(data.image_url);
+  if(beforeImg&&selectedImageUrl) setImageSource(beforeImg,toAbsoluteUrl(selectedImageUrl),'입력 이미지를 불러올 수 없습니다');
+  if(afterImg) setImageSource(afterImg,toAbsoluteUrl(data.image_url),'생성 이미지를 불러올 수 없습니다');
   applyGeneratedCopy(data.copy_text,data.style,data.platform_copies);
   document.getElementById('rEmpty').style.display='none';
   document.getElementById('rLoad').classList.remove('on');
@@ -1578,8 +1623,15 @@ function buildCurrentOutputItem(){
     copyHead:copy.head||productName,
     copyBody:copy.body||currentResult.copy_text||'',
     copyTags:copy.tags||'',
+    platformCopies:currentResult.platform_copies||{},
     style:toStyleLabel(currentResult.style),
+    rawStyle:currentResult.style,
     img:toAbsoluteUrl(currentResult.image_url),
+    inputImg:toAbsoluteUrl(selectedImageUrl),
+    assetId:currentResult.asset_id,
+    seed:currentResult.seed,
+    adType:currentResult.poster?'poster':'image',
+    date:formatDateLabel(new Date().toISOString()),
     productName
   };
 }
@@ -1638,7 +1690,12 @@ function saveCurrentResult(){
   toast('생성 결과는 내 광고에 자동 저장돼요');
 }
 function shareCurrentResult(){
-  exportSnsPost(getActivePlatform(),buildCurrentOutputItem());
+  const item=buildCurrentOutputItem();
+  if(!item){
+    toast('먼저 광고를 생성해 주세요');
+    return;
+  }
+  openShare(item,'dashboard',getActivePlatform());
 }
 async function loginWithCredentials(email,password){
   const res=await apiFetch('/api/auth/login',{
@@ -1967,26 +2024,23 @@ function openUpgrade(){closeProfile();document.getElementById('upgradeModal').cl
 function closeUpgrade(){document.getElementById('upgradeModal').classList.remove('on');}
 
 /* ---------- my page cards ---------- */
-const ads=[
-  {emoji:'🧋',hl:'여름을 한 잔에',style:'팝 비비드',date:'7월 8일',img:'assets/demo-ad.jpg',g:'linear-gradient(145deg,#2C2140,#8A3A5A 55%,#E0912F)',prod:'linear-gradient(160deg,#fff6e6,#f4c988)'},
-  {emoji:'🍞',hl:'갓 구운 아침',style:'웜 빈티지',date:'7월 6일',g:'linear-gradient(150deg,#6B4A2E,#C99B5E)',prod:'linear-gradient(160deg,#fff2dc,#e5b877)'},
-  {emoji:'💐',hl:'오늘의 꽃다발',style:'모노톤',date:'7월 5일',g:'linear-gradient(150deg,#E9E4DA,#C7BDAB)',prod:'linear-gradient(160deg,#fff,#f0d4dd)'},
-  {emoji:'☕',hl:'하루의 첫 여유',style:'에디토리얼',date:'7월 3일',g:'linear-gradient(150deg,#1B1622,#4A3A2A)',prod:'linear-gradient(160deg,#e9d9c0,#a97f4f)'},
-  {emoji:'🍰',hl:'달콤한 오후',style:'파스텔',date:'7월 1일',g:'linear-gradient(150deg,#C42E5C,#F2A93B)',prod:'linear-gradient(160deg,#fff,#ffd9c2)'},
-  {emoji:'🥗',hl:'가볍게, 건강하게',style:'리얼리즘',date:'6월 29일',g:'linear-gradient(150deg,#3B5A2E,#8FB668)',prod:'linear-gradient(160deg,#f4ffe9,#c7e0a0)'},
-];
+const ads=[];
 const snsList=[
   {k:'ig',n:'Instagram'},{k:'fb',n:'Facebook'},{k:'x',n:'X (Twitter)'},{k:'th',n:'Threads'}
 ];
 function historyToCard(history){
   const ad=history.advertisement||{};
+  const inputImage=ad.input_image||{};
   const outputImage=ad.output_image||{};
   let responseData={};
+  let requestData={};
   try{responseData=history.response_data?JSON.parse(history.response_data):{};}catch(_){}
+  try{requestData=history.request_data?JSON.parse(history.request_data):{};}catch(_){}
   const copy=splitCopyText(ad.generated_text||responseData.copy_text||'');
   const style=toStyleLabel(ad.style);
   return {
     historyId:history.id,
+    advertisementId:ad.id,
     emoji:'✦',
     hl:ad.title||copy.head,
     copyHead:copy.head,
@@ -1994,11 +2048,148 @@ function historyToCard(history){
     platformCopies:responseData.platform_copies||{},
     productName:ad.title||copy.head,
     style,
+    rawStyle:ad.style,
     date:formatDateLabel(history.created_at),
+    createdAt:history.created_at,
+    inputImageId:ad.input_image_id,
+    inputImg:toAbsoluteUrl(inputImage.image_url),
     img:toAbsoluteUrl(outputImage.image_url||responseData.image_url),
+    assetId:responseData.asset_id,
+    seed:responseData.seed,
+    adType:ad.ad_type,
+    productDescription:requestData.product_description||'',
     g:'linear-gradient(150deg,#2C2140,#8A3A5A 55%,#E0912F)',
     prod:'linear-gradient(160deg,#fff6e6,#f4c988)'
   };
+}
+function getItemPlatformCopy(item,platform){
+  const fallback={
+    head:item?.copyHead||item?.hl||item?.productName||'광고 문구',
+    body:item?.copyBody||'',
+    tags:item?.copyTags||`#AI광고 #AdNova #${item?.style||'광고'}`
+  };
+  return normalizePlatformCopy(item?.platformCopies?.[platform],fallback);
+}
+function formatAdType(type){
+  if(type==='poster') return '포스터';
+  if(type==='image') return '이미지';
+  return type||'이미지';
+}
+function renderDetailCopy(platform){
+  if(!activeDetailItem) return;
+  activeDetailPlatform=platform;
+  const copy=getItemPlatformCopy(activeDetailItem,platform);
+  document.getElementById('detailCopyHead').textContent=copy.head;
+  document.getElementById('detailCopyBody').textContent=copy.body;
+  document.getElementById('detailCopyTags').textContent=copy.tags;
+}
+function selectDetailPlatform(el,platform){
+  document.querySelectorAll('#detailPlatformTabs .shtab').forEach(tab=>tab.classList.remove('on'));
+  el.classList.add('on');
+  renderDetailCopy(platform);
+}
+function openAdDetail(i){
+  const item=ads[i];
+  if(!item) return;
+  activeDetailItem=item;
+  activeDetailPlatform='instagram';
+  document.getElementById('detailDate').textContent=item.date?`${item.date} 생성`:'';
+  document.getElementById('detailProductName').textContent=item.productName||item.hl||'광고 상품';
+  document.getElementById('detailStyle').textContent=item.style||'정보 없음';
+  document.getElementById('detailAdType').textContent=formatAdType(item.adType);
+  setImageSource(document.getElementById('detailAfterImg'),item.img,'생성 이미지를 불러올 수 없습니다');
+  const inputWrap=document.getElementById('detailInputWrap');
+  const inputImg=document.getElementById('detailBeforeImg');
+  inputWrap.style.display=item.inputImg?'block':'none';
+  if(item.inputImg){
+    inputImg.onerror=()=>{inputWrap.style.display='none';};
+    inputImg.src=item.inputImg;
+  }
+  document.querySelectorAll('#detailPlatformTabs .shtab').forEach((tab,index)=>tab.classList.toggle('on',index===0));
+  renderDetailCopy('instagram');
+  go('detail');
+}
+function reuseDetailAd(){
+  const item=activeDetailItem;
+  if(!item?.inputImageId||!item.inputImg){
+    toast('이 광고의 입력 이미지를 다시 사용할 수 없습니다');
+    return;
+  }
+  selectedImageId=item.inputImageId;
+  selectedImageUrl=item.inputImg;
+  document.getElementById('railThumb').src=item.inputImg;
+  document.getElementById('uploadInfo').textContent='이전 입력 이미지를 불러왔습니다.';
+  document.getElementById('prodName').value=item.productName||'';
+  document.getElementById('prompt').value=item.productDescription||'';
+  const styleButton=[...document.querySelectorAll('#styles .style')]
+    .find(button=>STYLE_PRESET_MAP[button.dataset.s]===item.rawStyle);
+  if(styleButton) pickStyle(styleButton);
+  go('dashboard');
+  detectMode(item.productName||'');
+  toast('이전 광고 설정을 불러왔습니다');
+}
+function openDetailShare(){
+  if(!activeDetailItem) return;
+  openShare(activeDetailItem,'detail',activeDetailPlatform);
+}
+async function deleteStoredAd(item){
+  if(!item?.historyId) throw new Error('삭제할 광고 이력을 찾을 수 없습니다');
+  const res=await apiFetch(`/api/history/${item.historyId}/result`,{method:'DELETE'});
+  if(!res.ok){
+    let data=null;
+    try{data=await res.json();}catch(_){}
+    throw new Error(readApiError(data,'광고 삭제에 실패했습니다'));
+  }
+}
+async function deleteDetailAd(){
+  const item=activeDetailItem;
+  if(!item||!confirm('이 광고를 삭제할까요?')) return;
+  try{
+    await deleteStoredAd(item);
+    const index=ads.indexOf(item);
+    if(index>=0) ads.splice(index,1);
+    activeDetailItem=null;
+    renderCards(currentFilter);
+    loadDashboardSummary(false);
+    go('mypage');
+    toast('광고를 삭제했어요');
+  }catch(err){
+    toast(err.message||'광고 삭제에 실패했습니다');
+  }
+}
+function openShare(item,from='dashboard',platform='instagram'){
+  if(!item?.img){
+    toast('공유할 광고 이미지가 없습니다');
+    return;
+  }
+  activeShareItem=item;
+  shareFrom=from;
+  go('share');
+  const tabs=[...document.querySelectorAll('#share .shtab')];
+  const selected=tabs.find(tab=>tab.dataset.p===platform)||tabs[0];
+  tabs.forEach(tab=>tab.classList.toggle('on',tab===selected));
+  renderSharePlatform(selected?.dataset.p||'instagram');
+}
+function renderSharePlatform(platform){
+  if(!activeShareItem) return;
+  activeSharePlatform=platform;
+  const copy=getItemPlatformCopy(activeShareItem,platform);
+  setImageSource(document.getElementById('shareImage'),activeShareItem.img,'공유 이미지를 불러올 수 없습니다');
+  document.getElementById('shHead').textContent=copy.head;
+  document.getElementById('shBody').textContent=copy.body;
+  document.getElementById('shTags').textContent=copy.tags;
+  const names={instagram:'Instagram',facebook:'Facebook',x:'X',threads:'Threads'};
+  document.getElementById('shBtn').textContent=`↗ ${names[platform]||platform} 공유`;
+}
+function shareSelectedAd(){
+  if(!activeShareItem) return;
+  const copy=getItemPlatformCopy(activeShareItem,activeSharePlatform);
+  exportSnsPost(activeSharePlatform,{
+    ...activeShareItem,
+    copyHead:copy.head,
+    copyBody:copy.body,
+    copyTags:copy.tags
+  });
 }
 async function loadHistory(showMessage=true){
   const grid=document.getElementById('grid');
@@ -2035,13 +2226,13 @@ function renderCards(filter='all'){
   }
   grid.innerHTML=list.map((a,idx)=>{
     const gi=ads.indexOf(a);
-    const sns=snsList.map(s=>`<button onclick="share('${s.n}',${gi})"><span class="si ${s.k}">${s.n[0]}</span>${s.n}에 공유</button>`).join('');
+    const sns=snsList.map(s=>`<button onclick="event.stopPropagation();share('${s.n}',${gi})"><span class="si ${s.k}">${s.n[0]}</span>${s.n}에 공유</button>`).join('');
     return `
-    <div class="card" id="card-${gi}">
+    <div class="card" id="card-${gi}" role="button" tabindex="0" onclick="openAdDetail(${gi})" onkeydown="if(event.key==='Enter'){openAdDetail(${gi})}">
       <div class="cpic" style="background:${a.g}">
         <span class="st-tag">${a.style}</span>
         ${a.img
-          ? `<img class="cimg" src="${a.img}" alt="${a.hl}">`
+          ? `<img class="cimg" src="${a.img}" alt="${a.hl}" onerror="showImageFallback(this,'광고 이미지를 불러올 수 없습니다')">`
           : `<div class="prod" style="background:${a.prod}">${a.emoji}</div><div class="hl">${a.hl}</div>`}
       </div>
       <div class="cbody">
@@ -2051,7 +2242,7 @@ function renderCards(filter='all'){
             <button class="a-btn" onclick="toggleSns(${gi},event)">↗️ SNS 공유</button>
             <div class="sns-menu" id="sns-${gi}">${sns}</div>
           </div>
-          <button class="a-btn del" onclick="delCard(${gi})" title="삭제">🗑</button>
+          <button class="a-btn del" onclick="event.stopPropagation();delCard(${gi})" title="삭제">🗑</button>
         </div>
       </div>
     </div>`;
@@ -2083,18 +2274,11 @@ function share(name,i){
 async function delCard(i){
   const item=ads[i];
   if(!item) return;
-  if(item.historyId){
-    try{
-      const res=await apiFetch(`/api/history/${item.historyId}/result`,{method:'DELETE'});
-      if(!res.ok){
-        let data=null;
-        try{data=await res.json();}catch(_){}
-        throw new Error(readApiError(data,'광고 삭제에 실패했습니다'));
-      }
-    }catch(err){
-      toast(err.message||'광고 삭제에 실패했습니다');
-      return;
-    }
+  try{
+    await deleteStoredAd(item);
+  }catch(err){
+    toast(err.message||'광고 삭제에 실패했습니다');
+    return;
   }
   const c=document.getElementById('card-'+i);
   c.style.transition='.2s';c.style.opacity='0';c.style.transform='scale(.92)';
@@ -2121,12 +2305,23 @@ var isPremium=false, billingFrom='dashboard';
 function pickUse(el){document.querySelectorAll('#uses .use').forEach(function(s){s.classList.remove('on');});el.classList.add('on');}
 function goBilling(from){billingFrom=from||'dashboard';go('billing');renderBilling();}
 function renderBilling(){var u=document.getElementById('billingUpgrade'),m=document.getElementById('billingManage');if(u)u.style.display=isPremium?'none':'block';if(m)m.style.display=isPremium?'block':'none';applyPremiumUI();}
-function startPremium(){isPremium=true;renderBilling();toast('프리미엄으로 전환됐어요 (데모)');}
-function cancelPremium(){isPremium=false;renderBilling();toast('프리미엄을 해지했어요 (데모)');}
+function startPremium(){toast('프리미엄 기능은 준비 중입니다');}
+function cancelPremium(){toast('구독 관리 기능은 준비 중입니다');}
 function downloadResult(){if(isPremium){toast('고해상도 원본을 다운로드했어요');}else{goBilling('dashboard');}}
 function applyPremiumUI(){document.querySelectorAll('.wm-row').forEach(function(e){e.style.display=isPremium?'none':'flex';});var dl=document.getElementById('dlBtn');if(dl)dl.innerHTML=isPremium?'⬇️ 다운로드':'⬇️ 다운로드 🔒';}
 function setSet(el,id){document.querySelectorAll('#settings .set-nav-item').forEach(function(x){x.classList.remove('on');});el.classList.add('on');var t=document.getElementById(id);if(t)window.scrollTo({top:t.getBoundingClientRect().top+window.scrollY-90,behavior:'smooth'});}
-function shareTab(el,plat){var names={instagram:'Instagram',facebook:'Facebook',x:'X',threads:'Threads'};document.querySelectorAll('#share .shtab').forEach(function(t){t.classList.remove('on');});el.classList.add('on');var p=platCopy[plat];if(p){var hd=document.getElementById('shHead');var tg=document.getElementById('shTags');if(hd)hd.textContent=p.head;if(tg)tg.textContent=p.tags;}var b=document.getElementById('shBtn');if(b)b.textContent='↗ '+names[plat]+' 공유';}
+function shareTab(el,platform){document.querySelectorAll('#share .shtab').forEach(tab=>tab.classList.remove('on'));el.classList.add('on');renderSharePlatform(platform);}
+function filterFaqs(value){
+  const query=(value||'').trim().toLowerCase();
+  let visible=0;
+  document.querySelectorAll('#support .faq').forEach(faq=>{
+    const match=!query||faq.textContent.toLowerCase().includes(query);
+    faq.style.display=match?'block':'none';
+    if(match) visible++;
+  });
+  const empty=document.getElementById('faqEmpty');
+  if(empty) empty.style.display=visible?'none':'block';
+}
 /* init */
 syncUserUI();
 if(getToken()){
