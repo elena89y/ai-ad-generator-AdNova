@@ -24,4 +24,5 @@ torch
 diffusers
 transformers
 accelerate
+bitsandbytes
 safetensors
