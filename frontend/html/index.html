@@ -600,6 +600,10 @@ http://scripts.sil.org/OFL
   .terms{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:var(--ink-soft);line-height:1.5;margin:4px 2px 18px}
   .terms a{color:var(--berry);font-weight:700;text-decoration:none}
   .detail-layout{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:22px}
+  .detail-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .detail-actions .oa{flex:1;justify-content:center;min-width:0;color:var(--ink-soft);cursor:pointer}
+  .detail-actions .oa.download{flex:0 0 auto;color:var(--gold);border-color:rgba(242,169,59,.45)}
+  .detail-actions .oa.delete{flex:0 0 auto;color:var(--berry);border-color:rgba(224,86,127,.4)}
   .share-actions button{min-width:0}
   .image-fallback{position:absolute;inset:0;display:grid;place-items:center;padding:20px;background:#25232b;color:var(--ink-mute);font-size:12px;font-weight:600;text-align:center}
   .card .cpic .st-tag{z-index:2}
@@ -1141,7 +1145,7 @@ http://scripts.sil.org/OFL
           <div style="display:flex;gap:14px;align-items:center;margin-bottom:16px"><div class="av-lg" style="width:56px;height:56px;font-size:20px">애</div><button style="padding:8px 14px;border:1px solid rgba(255,255,255,.14);border-radius:9px;background:transparent;color:var(--ink-soft);font-size:12.5px;font-weight:600;cursor:pointer" onclick="document.getElementById('avatarFile').click()">사진 변경</button><input type="file" id="avatarFile" accept="image/*" style="display:none" onchange="handleAvatarUpload(event)"></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div><div class="fl">가게 / 상호명</div><div class="mini-in" id="settingsBusinessName">정보 없음</div></div><div><div class="fl">아이디</div><div class="mini-in" id="settingsUsername">정보 없음</div></div><div style="grid-column:1/3"><div class="fl">이메일</div><div class="mini-in" id="settingsEmail">정보 없음</div></div></div>
         </div>
-        <div class="set-card" id="setPw"><h4>비밀번호 변경</h4><div style="display:flex;flex-direction:column;gap:10px"><input class="mini-in" id="currentPassword" type="password" autocomplete="current-password" placeholder="현재 비밀번호"><input class="mini-in" id="newPassword" type="password" autocomplete="new-password" placeholder="8~20자, 대소문자·숫자·특수문자 포함"><input class="mini-in" id="newPasswordConfirm" type="password" autocomplete="new-password" placeholder="새 비밀번호 확인"><button id="changePasswordBtn" style="align-self:flex-end;padding:10px 16px;border:none;border-radius:10px;background:var(--gold);color:#16151A;font-size:12.5px;font-weight:700;cursor:pointer" onclick="handlePasswordChange()">비밀번호 변경</button></div></div>
+        <div class="set-card" id="setPw"><h4>비밀번호 변경</h4><div style="display:flex;flex-direction:column;gap:10px"><input class="mini-in" id="currentPassword" type="password" autocomplete="current-password" placeholder="현재 비밀번호"><input class="mini-in" id="newPassword" type="password" autocomplete="new-password" placeholder="새 비밀번호 입력 · 8~20자, 대소문자·숫자·특수문자 포함"><input class="mini-in" id="newPasswordConfirm" type="password" autocomplete="new-password" placeholder="새 비밀번호 확인"><button id="changePasswordBtn" style="align-self:flex-end;padding:10px 16px;border:none;border-radius:10px;background:var(--gold);color:#16151A;font-size:12.5px;font-weight:700;cursor:pointer" onclick="handlePasswordChange()">비밀번호 변경</button></div></div>
         <div class="set-card" id="setNoti"><h4>알림</h4><div style="display:flex;flex-direction:column;gap:13px">
           <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px;color:var(--ink-soft)">광고 생성 완료 이메일</span><span class="toggle on" onclick="this.classList.toggle('on');this.classList.toggle('off')"><span class="k"></span></span></div>
           <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px;color:var(--ink-soft)">크레딧 소진 알림</span><span class="toggle on" onclick="this.classList.toggle('on');this.classList.toggle('off')"><span class="k"></span></span></div>
@@ -1289,7 +1293,7 @@ http://scripts.sil.org/OFL
     <div class="detail-layout">
       <div>
         <div style="position:relative;aspect-ratio:4/5;border-radius:14px;overflow:hidden;background:#0d0d10"><img id="detailAfterImg" alt="생성된 광고" style="width:100%;height:100%;object-fit:contain;display:block"><span style="position:absolute;left:12px;top:12px;background:var(--gold);color:#16151A;font-size:10px;font-weight:800;padding:4px 9px;border-radius:6px">AI 생성</span><div id="detailInputWrap" style="position:absolute;left:12px;bottom:12px;width:82px;aspect-ratio:1;border:2px solid rgba(255,255,255,.7);border-radius:9px;overflow:hidden;background:#16151A"><img id="detailBeforeImg" alt="입력 이미지" style="width:100%;height:100%;object-fit:cover;display:block"></div></div>
-        <div style="display:flex;gap:7px;margin-top:12px"><button style="flex:1;padding:10px;border:1px solid rgba(255,255,255,.14);border-radius:10px;background:transparent;color:var(--ink-soft);font-size:12.5px;font-weight:700;cursor:pointer" onclick="reuseDetailAd()">🔄 이 광고로 다시 만들기</button><button style="flex:1;padding:10px;border:1px solid rgba(255,255,255,.14);border-radius:10px;background:transparent;color:var(--ink-soft);font-size:12.5px;font-weight:700;cursor:pointer" onclick="openDetailShare()">↗ 공유</button><button id="detailDownloadBtn" style="display:none;padding:10px 12px;border:1px solid rgba(242,169,59,.45);border-radius:10px;background:transparent;color:var(--gold);font-size:12.5px;font-weight:700;cursor:pointer" onclick="downloadDetailResult()">⬇ 다운로드</button><button style="padding:10px 12px;border:1px solid rgba(224,86,127,.4);border-radius:10px;background:transparent;color:var(--berry);font-size:12.5px;font-weight:700;cursor:pointer" onclick="deleteDetailAd()">삭제</button></div>
+        <div class="detail-actions"><button class="oa" onclick="reuseDetailAd()">🔄 이 광고로 다시 만들기</button><button class="oa" onclick="openDetailShare()">↗ 공유</button><button class="oa download" id="detailDownloadBtn" style="display:none" onclick="downloadDetailResult()">⬇ 다운로드</button><button class="oa delete" onclick="deleteDetailAd()">삭제</button></div>
       </div>
       <div style="display:flex;flex-direction:column;gap:16px">
         <div><div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:10px">정보</div><div style="display:flex;flex-direction:column;gap:9px;font-size:12.5px"><div style="display:flex;justify-content:space-between;gap:16px"><span style="color:var(--ink-mute)">상품명</span><b id="detailProductName" style="text-align:right"></b></div><div style="display:flex;justify-content:space-between"><span style="color:var(--ink-mute)">스타일</span><span id="detailStyle" style="color:var(--gold);font-weight:700"></span></div><div style="display:flex;justify-content:space-between"><span style="color:var(--ink-mute)">형식</span><span id="detailAdType"></span></div></div></div>
@@ -1714,8 +1718,24 @@ async function exportSnsPost(platform,item){
     try{data=await res.json();}catch(_){}
     if(!res.ok) throw new Error(readApiError(data,'SNS 공유 문구를 만들지 못했습니다'));
     await copyTextSafely(data.post_text);
-    toast('SNS용 문구를 복사했어요');
+    const shareUrls={
+      x:`https://twitter.com/intent/tweet?text=${encodeURIComponent(data.post_text)}`,
+      facebook:`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(item.img)}`,
+      instagram:'https://www.instagram.com/',
+      threads:'https://www.threads.net/'
+    };
+    const shareUrl=shareUrls[platform];
+    if(!shareUrl) throw new Error('지원하지 않는 SNS입니다');
+    if(shareWindow){
+      shareWindow.opener=null;
+      shareWindow.location.href=shareUrl;
+    }else{
+      window.open(shareUrl,'_blank','noopener,noreferrer');
+    }
+    const siteName={x:'X',facebook:'Facebook',instagram:'Instagram',threads:'Threads'}[platform]||platform;
+    toast(`${siteName}용 문구를 복사하고 공유 페이지를 열었어요`);
   }catch(err){
+    if(shareWindow) shareWindow.close();
     toast(err.message||'SNS 공유 문구를 만들지 못했습니다');
   }
 }
@@ -1824,6 +1844,7 @@ async function handlePasswordChange(){
 
   const button=document.getElementById('changePasswordBtn');
   if(button)button.disabled=true;
+  const shareWindow=window.open('about:blank','_blank');
   try{
     const res=await apiFetch('/api/account/password',{
       method:'POST',
@@ -2594,13 +2615,34 @@ async function downloadImageFile(url,filename){
     toast('고해상도 원본을 다운로드했어요');
   }catch(err){toast(err.message||'광고 이미지를 다운로드하지 못했습니다');}
 }
+async function downloadHistoryResult(historyId){
+  if(!historyId){toast('다운로드할 광고 이력을 찾을 수 없습니다');return;}
+  try{
+    const res=await apiFetch(`/api/history/${historyId}/result/download`);
+    if(!res.ok){
+      let data=null;
+      try{data=await res.json();}catch(_){}
+      throw new Error(readApiError(data,'광고 이미지를 다운로드하지 못했습니다'));
+    }
+    const blob=await res.blob();
+    const objectUrl=URL.createObjectURL(blob);
+    const link=document.createElement('a');
+    link.href=objectUrl;
+    link.download='adnova-ad.png';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+    toast('고해상도 원본을 다운로드했어요');
+  }catch(err){toast(err.message||'광고 이미지를 다운로드하지 못했습니다');}
+}
 function downloadResult(){
   if(!isPremium){goBilling('dashboard');return;}
   downloadImageFile(toAbsoluteUrl(currentResult?.image_url),'adnova-ad.png');
 }
 function downloadDetailResult(){
   if(!isPremium){goBilling('detail');return;}
-  downloadImageFile(activeDetailItem?.img,'adnova-ad.png');
+  downloadHistoryResult(activeDetailItem?.historyId);
 }
 function applyPremiumUI(){
   document.querySelectorAll('.wm-row').forEach(function(e){e.style.display=isPremium?'none':'flex';});

@@ -1,9 +1,11 @@
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.security import get_current_user
+from app.crud.billing import get_subscription_by_user
 from app.crud.history import (
     delete_generated_result_by_history,
     get_history_with_result_by_id,
@@ -34,6 +36,15 @@ def _delete_generated_image_file(file_path: str | None) -> None:
         return
 
 
+def _has_active_premium_subscription(db: Session, user_id: int) -> bool:
+    subscription = get_subscription_by_user(db, user_id)
+    return bool(
+        subscription
+        and subscription.plan == "premium"
+        and subscription.status == "active"
+    )
+
+
 @router.get("", response_model=list[HistoryResponse])
 def read_histories(
     skip: int = Query(0, ge=0),
@@ -46,6 +57,52 @@ def read_histories(
         current_user.id,
         skip=skip,
         limit=limit,
+    )
+
+
+@router.get("/{history_id}/result/download")
+def download_generated_result(
+    history_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> FileResponse:
+    history = get_history_with_result_by_id(db, history_id)
+    if history is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="history를 찾을 수 없습니다.",
+        )
+
+    if history.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="본인 생성 결과만 다운로드할 수 있습니다.",
+        )
+
+    if not _has_active_premium_subscription(db, current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="원본 다운로드는 프리미엄 구독에서 사용할 수 있습니다.",
+        )
+
+    output_image = history.advertisement.output_image if history.advertisement else None
+    if output_image is None or output_image.image_type != "generated":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="다운로드할 생성 이미지를 찾을 수 없습니다.",
+        )
+
+    file_path = Path(output_image.file_path or "")
+    if not file_path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="생성 이미지 파일을 찾을 수 없습니다.",
+        )
+
+    return FileResponse(
+        file_path,
+        media_type=output_image.content_type or "image/png",
+        filename=output_image.original_filename or output_image.stored_filename or "adnova-ad.png",
     )
 
 
