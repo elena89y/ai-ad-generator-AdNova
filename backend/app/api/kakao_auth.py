@@ -81,7 +81,7 @@ def _get_or_create_kakao_user(
     email: str,
     name: str | None,
     kakao_id: str,
-) -> User:
+) -> tuple[User, bool]:
     """
     이메일이 이미 존재하면 해당 계정을 사용하고,
     없으면 Kakao 계정 기반으로 신규 사용자를 생성한다.
@@ -94,7 +94,7 @@ def _get_or_create_kakao_user(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="비활성화된 계정입니다.",
             )
-        return existing_user
+        return existing_user, False
 
     new_user = User(
         email=email,
@@ -110,13 +110,13 @@ def _get_or_create_kakao_user(
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
-        return new_user
+        return new_user, True
     except IntegrityError as exc:
         db.rollback()
 
         existing_user = db.query(User).filter(User.email == email).first()
         if existing_user:
-            return existing_user
+            return existing_user, False
 
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -280,7 +280,7 @@ def kakao_callback(
     if not email:
         email = f"kakao_{kakao_id}@oauth.local"
 
-    user = _get_or_create_kakao_user(
+    user, is_new_user = _get_or_create_kakao_user(
         db,
         email=email,
         name=name,
@@ -307,6 +307,7 @@ def kakao_callback(
         f"&token_type=bearer"
         f"&user_id={user.id}"
         f"&provider=kakao"
+        f"&is_new_user={'true' if is_new_user else 'false'}"
     )
 
     return RedirectResponse(
