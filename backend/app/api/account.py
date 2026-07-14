@@ -5,7 +5,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.security import get_current_user, hash_password, verify_password
+from app.core.security import (
+    get_current_auth_provider,
+    get_current_user,
+    hash_password,
+    verify_password,
+)
 from app.crud.account import delete_user_account, update_user_password
 from app.database.connection import get_db
 from app.database.models import User
@@ -19,6 +24,7 @@ from app.services import image_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/account", tags=["Account"])
+SOCIAL_AUTH_PROVIDERS = {"google", "kakao", "naver"}
 
 
 def _delete_account_image_files(file_paths: list[str]) -> None:
@@ -44,7 +50,14 @@ def change_password(
     request: PasswordChangeRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    auth_provider: str = Depends(get_current_auth_provider),
 ) -> AccountMessageResponse:
+    if auth_provider in SOCIAL_AUTH_PROVIDERS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="소셜 로그인 계정의 비밀번호는 해당 서비스에서 관리됩니다.",
+        )
+
     if not verify_password(request.current_password, current_user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -66,8 +79,13 @@ def delete_account(
     request: AccountDeleteRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    auth_provider: str = Depends(get_current_auth_provider),
 ) -> None:
-    if not verify_password(request.current_password, current_user.password_hash):
+    is_social_login = auth_provider in SOCIAL_AUTH_PROVIDERS
+    if not is_social_login and (
+        not request.current_password
+        or not verify_password(request.current_password, current_user.password_hash)
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="현재 비밀번호가 올바르지 않습니다.",

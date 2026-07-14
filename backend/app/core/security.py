@@ -69,6 +69,25 @@ def decode_access_token(token: str) -> dict | None:
         return None
 
 
+def get_current_auth_provider(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> str:
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="로그인이 필요합니다.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    payload = decode_access_token(credentials.credentials)
+    provider = (
+        payload.get("auth_provider") or payload.get("provider")
+        if payload
+        else None
+    )
+    return provider if isinstance(provider, str) and provider else "local"
+
+
 def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),

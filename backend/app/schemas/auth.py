@@ -69,8 +69,22 @@ class UserCreate(BaseModel):
 
 
 class UserLogin(BaseModel):
-    email: EmailStr
+    username: str = Field(
+        ...,
+        min_length=7,
+        max_length=12,
+        description="7~12자의 영문/숫자 아이디",
+    )
     password: str
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value: str) -> str:
+        if not re.match(USERNAME_PATTERN, value):
+            raise ValueError(
+                "아이디는 영문과 숫자만 사용할 수 있으며 7~12자여야 합니다."
+            )
+        return value.lower()
 
 
 class UserResponse(BaseModel):
@@ -80,6 +94,7 @@ class UserResponse(BaseModel):
     name: str | None = None
     business_name: str | None = None
     business_type: str | None = None
+    auth_provider: str = "local"
     is_active: bool
 
     model_config = {

@@ -62,18 +62,18 @@ def signup(user_data: UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login")
 def login(user_data: UserLogin, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == user_data.email).first()
+    user = db.query(User).filter(User.username == user_data.username).first()
 
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="이메일 또는 비밀번호가 올바르지 않습니다.",
+            detail="아이디 또는 비밀번호가 올바르지 않습니다.",
         )
 
     if not verify_password(user_data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="이메일 또는 비밀번호가 올바르지 않습니다.",
+            detail="아이디 또는 비밀번호가 올바르지 않습니다.",
         )
 
     if not user.is_active:
@@ -85,7 +85,7 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
     access_token = create_access_token(
-        data={"sub": str(user.id), "email": user.email},
+        data={"sub": str(user.id), "email": user.email, "auth_provider": "local"},
         expires_delta=access_token_expires,
     )
 
@@ -95,12 +95,14 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
         "user": {
             "id": user.id,
             "email": user.email,
+            "username": user.username,
             "name": user.name,
             "business_name": user.business_name,
             "business_type": user.business_type,
             "is_active": user.is_active,
             "created_at": user.created_at,
             "updated_at": user.updated_at,
+            "auth_provider": "local",
         },
     }
 
