@@ -327,10 +327,11 @@ http://scripts.sil.org/OFL
   }
   .field input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 4px rgba(242,169,59,.16)}
   .password-input{position:relative;width:100%}
-  .password-input input{box-sizing:border-box;padding-right:48px}
+  .password-input input{box-sizing:border-box;width:100%;padding-right:48px}
   .password-toggle{position:absolute;top:50%;right:8px;transform:translateY(-50%);width:32px;height:32px;border:0;border-radius:8px;background:transparent;color:var(--ink-mute);font-size:16px;cursor:pointer;display:grid;place-items:center}
   .password-toggle:hover{background:rgba(255,255,255,.08);color:var(--ink)}
   .password-toggle.is-visible{color:var(--gold)}
+  #passwordFields .password-input{width:min(100%,520px)}
   .field-help{margin-top:6px;font-size:12.5px;line-height:1.45;color:var(--ink-mute)}
   .btn-primary{
     width:100%;padding:14px;border-radius:12px;font-size:15.5px;font-weight:700;color:#fff;
@@ -1523,6 +1524,16 @@ function initializePasswordToggles(){
       button.setAttribute('aria-label',button.title);
     });
     wrapper.appendChild(button);
+  });
+}
+function initializeLoginEnterKey(){
+  ['loginUsername','loginPassword'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('keydown',event=>{
+      if(event.key==='Enter'&&!event.isComposing){
+        event.preventDefault();
+        handleLogin(event);
+      }
+    });
   });
 }
 function getDisplayName(user){
@@ -2774,6 +2785,7 @@ function filterFaqs(value){
 }
 /* init */
 initializePasswordToggles();
+initializeLoginEnterKey();
 syncUserUI();
 if(getToken()){
   loadDashboardSummary(false);
