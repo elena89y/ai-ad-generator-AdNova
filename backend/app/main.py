@@ -36,10 +36,7 @@ app.add_middleware(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-    "http://localhost:5500",
-    "http://127.0.0.1:5500",
-],  # TODO: 배포 시 실제 프론트엔드 주소로 제한
+    allow_origins=list(settings.CORS_ORIGINS),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

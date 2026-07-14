@@ -1716,8 +1716,24 @@ async function exportSnsPost(platform,item){
     try{data=await res.json();}catch(_){}
     if(!res.ok) throw new Error(readApiError(data,'SNS 공유 문구를 만들지 못했습니다'));
     await copyTextSafely(data.post_text);
-    toast('SNS용 문구를 복사했어요');
+    const shareUrls={
+      x:`https://twitter.com/intent/tweet?text=${encodeURIComponent(data.post_text)}`,
+      facebook:`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(item.img)}`,
+      instagram:'https://www.instagram.com/',
+      threads:'https://www.threads.net/'
+    };
+    const shareUrl=shareUrls[platform];
+    if(!shareUrl) throw new Error('지원하지 않는 SNS입니다');
+    if(shareWindow){
+      shareWindow.opener=null;
+      shareWindow.location.href=shareUrl;
+    }else{
+      window.open(shareUrl,'_blank','noopener,noreferrer');
+    }
+    const siteName={x:'X',facebook:'Facebook',instagram:'Instagram',threads:'Threads'}[platform]||platform;
+    toast(`${siteName}용 문구를 복사하고 공유 페이지를 열었어요`);
   }catch(err){
+    if(shareWindow) shareWindow.close();
     toast(err.message||'SNS 공유 문구를 만들지 못했습니다');
   }
 }
@@ -1826,6 +1842,7 @@ async function handlePasswordChange(){
 
   const button=document.getElementById('changePasswordBtn');
   if(button)button.disabled=true;
+  const shareWindow=window.open('about:blank','_blank');
   try{
     const res=await apiFetch('/api/account/password',{
       method:'POST',
@@ -2596,13 +2613,34 @@ async function downloadImageFile(url,filename){
     toast('고해상도 원본을 다운로드했어요');
   }catch(err){toast(err.message||'광고 이미지를 다운로드하지 못했습니다');}
 }
+async function downloadHistoryResult(historyId){
+  if(!historyId){toast('다운로드할 광고 이력을 찾을 수 없습니다');return;}
+  try{
+    const res=await apiFetch(`/api/history/${historyId}/result/download`);
+    if(!res.ok){
+      let data=null;
+      try{data=await res.json();}catch(_){}
+      throw new Error(readApiError(data,'광고 이미지를 다운로드하지 못했습니다'));
+    }
+    const blob=await res.blob();
+    const objectUrl=URL.createObjectURL(blob);
+    const link=document.createElement('a');
+    link.href=objectUrl;
+    link.download='adnova-ad.png';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+    toast('고해상도 원본을 다운로드했어요');
+  }catch(err){toast(err.message||'광고 이미지를 다운로드하지 못했습니다');}
+}
 function downloadResult(){
   if(!isPremium){goBilling('dashboard');return;}
   downloadImageFile(toAbsoluteUrl(currentResult?.image_url),'adnova-ad.png');
 }
 function downloadDetailResult(){
   if(!isPremium){goBilling('detail');return;}
-  downloadImageFile(toAbsoluteUrl(activeDetailItem?.img),'adnova-ad.png');
+  downloadHistoryResult(activeDetailItem?.historyId);
 }
 function applyPremiumUI(){
   document.querySelectorAll('.wm-row').forEach(function(e){e.style.display=isPremium?'none':'flex';});

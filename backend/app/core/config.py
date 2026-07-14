@@ -19,6 +19,14 @@ class Settings:
     )
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", str(DEFAULT_UPLOAD_DIR))
     MAX_IMAGE_SIZE_MB: int = int(os.getenv("MAX_IMAGE_SIZE_MB", "10"))
+    CORS_ORIGINS: tuple[str, ...] = tuple(
+        origin.strip()
+        for origin in os.getenv(
+            "CORS_ORIGINS",
+            "http://localhost:5500,http://127.0.0.1:5500",
+        ).split(",")
+        if origin.strip()
+    )
 
     # 생성 서비스 위치 (배포 구조 B). 비면 로컬(모놀리식) 실행, URL 이면 HTTP 호출.
     #   예) 웹 백엔드(Docker): GENERATION_SERVICE_URL=http://<gpu-vm>:8100
