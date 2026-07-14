@@ -33,7 +33,7 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=os.getenv("SESSION_SECRET_KEY"),
     same_site="lax",
-    https_only=False,
+    https_only=False, # HTTPS 도메인 적용 후 True로 변경
 )
 
 app.add_middleware(
