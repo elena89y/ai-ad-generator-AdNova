@@ -300,6 +300,7 @@ def naver_callback(
             "email": user.email,
             "name": user.name,
             "provider": "naver",
+            "auth_provider": "naver",
         },
         expires_delta=access_token_expires,
     )

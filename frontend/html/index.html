@@ -758,8 +758,8 @@ http://scripts.sil.org/OFL
     <p class="sub">사진 올리고, 원하는 걸 한 줄 적고, 스타일만 고르세요.<br>광고 문구와 이미지를 AI가 만들어 드려요.</p>
 
     <div class="field">
-      <label>이메일</label>
-      <input id="loginEmail" type="email" placeholder="you@store.com" autocomplete="email">
+      <label>아이디</label>
+      <input id="loginUsername" type="text" placeholder="아이디를 입력하세요" autocomplete="username">
     </div>
     <div class="field">
       <label>비밀번호</label>
@@ -1754,11 +1754,11 @@ function shareCurrentResult(){
   }
   openShare(item,'dashboard',getActivePlatform());
 }
-async function loginWithCredentials(email,password){
+async function loginWithCredentials(username,password){
   const res=await apiFetch('/api/auth/login',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({email,password})
+    body:JSON.stringify({username,password})
   });
   let data=null;
   try{data=await res.json();}catch(_){}
@@ -1768,14 +1768,14 @@ async function loginWithCredentials(email,password){
 }
 async function handleLogin(e){
   if(e) e.preventDefault();
-  const email=document.getElementById('loginEmail').value.trim();
+  const username=document.getElementById('loginUsername').value.trim();
   const password=document.getElementById('loginPassword').value;
-  if(!email){toast('이메일을 입력해 주세요');return;}
-  if(!isValidEmail(email)){toast('이메일 형식이 올바르지 않습니다');return;}
+  if(!username){toast('아이디를 입력해 주세요');return;}
+  if(!USERNAME_PATTERN.test(username)){toast('아이디는 영문과 숫자만 사용해서 7~12자로 입력해 주세요');return;}
   if(!password){toast('비밀번호를 입력해 주세요');return;}
 
   try{
-    await loginWithCredentials(email,password);
+    await loginWithCredentials(username,password);
     toast('로그인되었습니다');
     go('dashboard');
   }catch(err){
@@ -1815,7 +1815,7 @@ async function handleSignup(e){
     try{data=await res.json();}catch(_){}
     if(!res.ok) throw new Error(readApiError(data,'회원가입에 실패했습니다'));
 
-    await loginWithCredentials(email,password);
+    await loginWithCredentials(username,password);
     toast('회원가입이 완료되었습니다');
     go('dashboard');
   }catch(err){
@@ -2709,7 +2709,7 @@ document
 
   const accessToken = hashParams.get("access_token");
   const userId = hashParams.get("user_id");
-  const provider = hashParams.get("provider") || "social";
+  let provider = hashParams.get("provider") || "social";
 
   if (!accessToken) {
     return;
@@ -2752,6 +2752,9 @@ document
       decodedPayload.name ||
       decodedPayload.email?.split("@")[0] ||
       "소셜 로그인 사용자";
+    socialUser.auth_provider =
+      decodedPayload.auth_provider || decodedPayload.provider || provider;
+    provider = socialUser.auth_provider;
   } catch (error) {
     console.warn("소셜 로그인 JWT 사용자 정보 해석 실패:", error);
   }

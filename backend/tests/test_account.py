@@ -4,12 +4,18 @@ from pathlib import Path
 from unittest.mock import patch
 
 from fastapi import HTTPException
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.api.account import change_password, delete_account
 from app.core.config import settings
-from app.core.security import hash_password, verify_password
+from app.core.security import (
+    create_access_token,
+    get_current_auth_provider,
+    hash_password,
+    verify_password,
+)
 from app.database.billing_models import PaymentMethod, PurchaseHistory, Subscription
 from app.database.connection import Base
 from app.database.models import Advertisement, History, Image, User
@@ -49,6 +55,7 @@ class AccountApiTestCase(unittest.TestCase):
             ),
             db=self.session,
             current_user=self.user,
+            auth_provider="local",
         )
 
         self.assertEqual(result.message, "비밀번호가 변경되었습니다.")
@@ -64,6 +71,7 @@ class AccountApiTestCase(unittest.TestCase):
                 ),
                 db=self.session,
                 current_user=self.user,
+                auth_provider="local",
             )
 
         self.assertEqual(context.exception.status_code, 400)
@@ -78,6 +86,7 @@ class AccountApiTestCase(unittest.TestCase):
                 ),
                 db=self.session,
                 current_user=self.user,
+                auth_provider="local",
             )
 
         self.assertEqual(context.exception.status_code, 400)
@@ -145,6 +154,7 @@ class AccountApiTestCase(unittest.TestCase):
                     request=AccountDeleteRequest(current_password=self.password),
                     db=self.session,
                     current_user=self.user,
+                    auth_provider="local",
                 )
 
             self.assertEqual(self.session.query(User).count(), 0)
@@ -163,10 +173,50 @@ class AccountApiTestCase(unittest.TestCase):
                 request=AccountDeleteRequest(current_password="WrongPassword1!"),
                 db=self.session,
                 current_user=self.user,
+                auth_provider="local",
             )
 
         self.assertEqual(context.exception.status_code, 400)
         self.assertEqual(self.session.query(User).count(), 1)
+
+    def test_social_login_user_can_delete_account_without_password(self) -> None:
+        delete_account(
+            request=AccountDeleteRequest(),
+            db=self.session,
+            current_user=self.user,
+            auth_provider="google",
+        )
+
+        self.assertEqual(self.session.query(User).count(), 0)
+
+    def test_social_login_user_cannot_change_password(self) -> None:
+        with self.assertRaises(HTTPException) as context:
+            change_password(
+                request=PasswordChangeRequest(
+                    current_password=self.password,
+                    new_password="NewPassword2@",
+                ),
+                db=self.session,
+                current_user=self.user,
+                auth_provider="kakao",
+            )
+
+        self.assertEqual(context.exception.status_code, 400)
+
+    def test_social_provider_is_read_from_both_token_fields(self) -> None:
+        for payload in (
+            {"sub": str(self.user.id), "auth_provider": "google"},
+            {"sub": str(self.user.id), "provider": "kakao"},
+            {"sub": str(self.user.id), "auth_provider": "naver"},
+        ):
+            token = create_access_token(payload)
+            provider = get_current_auth_provider(
+                credentials=HTTPAuthorizationCredentials(
+                    scheme="Bearer",
+                    credentials=token,
+                )
+            )
+            self.assertIn(provider, {"google", "kakao", "naver"})
 
 
 if __name__ == "__main__":

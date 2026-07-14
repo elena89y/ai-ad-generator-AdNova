@@ -210,6 +210,7 @@ async def google_callback(
         data={
             "sub": str(user.id),
             "email": user.email,
+            "auth_provider": "google",
         },
         expires_delta=access_token_expires,
     )

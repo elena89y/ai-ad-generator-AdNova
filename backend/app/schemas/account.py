@@ -21,7 +21,7 @@ class PasswordChangeRequest(BaseModel):
 
 
 class AccountDeleteRequest(BaseModel):
-    current_password: str = Field(min_length=1)
+    current_password: str | None = Field(default=None, min_length=1)
 
 
 class AccountMessageResponse(BaseModel):

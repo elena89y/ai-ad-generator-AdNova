@@ -296,6 +296,7 @@ def kakao_callback(
             "email": user.email,
             "name": user.name,
             "provider": "kakao",
+            "auth_provider": "kakao",
         },
         expires_delta=access_token_expires,
     )
