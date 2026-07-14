@@ -767,7 +767,7 @@ http://scripts.sil.org/OFL
     </div>
     <div class="row-min">
       <label style="display:flex;align-items:center;gap:6px;font-weight:600;color:var(--ink-soft)"><input type="checkbox" checked=""> 로그인 상태 유지</label>
-      <a href="#" onclick="go('forgot');return false">비밀번호 찾기</a>
+      <span><a href="#" onclick="setRecoveryMode('username');go('forgot');return false">아이디 찾기</a><span style="color:var(--ink-mute)"> | </span><a href="#" onclick="setRecoveryMode('password');go('forgot');return false">비밀번호 찾기</a></span>
     </div>
     <button class="btn-primary" onclick="handleLogin(event)">로그인</button>
 
@@ -864,20 +864,24 @@ http://scripts.sil.org/OFL
   <div class="login-left">
     <button class="back-link" onclick="go('login')">← 로그인으로</button>
     <div class="login-brand"><img class="brand-mark-lg" src="assets/brand-logo.png" alt="AdNova — AI Ad Creator"><span class="studio-tag lg">studio</span></div>
-    <h1>비밀번호를<br>잊으셨나요?</h1>
-    <p class="sub">가입하신 이메일을 입력하시면<br>비밀번호 재설정 링크를 보내드려요.</p>
+    <div style="display:flex;gap:8px;margin-bottom:18px">
+      <button id="findUsernameMode" type="button" onclick="setRecoveryMode('username')" style="padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--ink-soft);font-size:12px;font-weight:700;cursor:pointer">아이디 찾기</button>
+      <button id="resetPasswordMode" type="button" onclick="setRecoveryMode('password')" style="padding:8px 12px;border:1px solid var(--gold);border-radius:8px;background:var(--gold);color:#16151A;font-size:12px;font-weight:700;cursor:pointer">비밀번호 찾기</button>
+    </div>
+    <h1 id="recoveryTitle">비밀번호를<br>잊으셨나요?</h1>
+    <p class="sub" id="recoveryDescription">가입하신 이메일을 입력하시면<br>비밀번호 재설정 링크를 보내드려요.</p>
 
     <div class="notice" id="resetNotice">
       <span class="ck">✓</span>
-      <span class="nt"><b>메일을 보냈어요.</b><br>받은 편지함에서 재설정 링크를 확인해 주세요. 몇 분 내로 도착합니다.</span>
+      <span class="nt"><b id="recoveryNoticeTitle">가입된 아이디</b><br><span id="recoveryNoticeMessage"></span></span>
     </div>
 
     <div class="field">
       <label>이메일</label>
       <input type="email" placeholder="you@store.com" id="resetEmail">
     </div>
-    <button class="btn-primary" onclick="sendReset()">재설정 링크 받기</button>
-    <p class="login-foot" style="margin-top:22px">비밀번호가 기억나셨나요? <a href="#" onclick="go('login');return false">로그인</a></p>
+    <button class="btn-primary" id="recoverySubmit" onclick="sendReset()">재설정 링크 받기</button>
+    <p class="login-foot" id="recoveryFooter" style="margin-top:22px">비밀번호가 기억나셨나요? <a href="#" onclick="go('login');return false">로그인</a></p>
   </div>
 
   <div class="login-right">
@@ -1145,13 +1149,13 @@ http://scripts.sil.org/OFL
           <div style="display:flex;gap:14px;align-items:center;margin-bottom:16px"><div class="av-lg" style="width:56px;height:56px;font-size:20px">애</div><button style="padding:8px 14px;border:1px solid rgba(255,255,255,.14);border-radius:9px;background:transparent;color:var(--ink-soft);font-size:12.5px;font-weight:600;cursor:pointer" onclick="document.getElementById('avatarFile').click()">사진 변경</button><input type="file" id="avatarFile" accept="image/*" style="display:none" onchange="handleAvatarUpload(event)"></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div><div class="fl">가게 / 상호명</div><div class="mini-in" id="settingsBusinessName">정보 없음</div></div><div><div class="fl">아이디</div><div class="mini-in" id="settingsUsername">정보 없음</div></div><div style="grid-column:1/3"><div class="fl">이메일</div><div class="mini-in" id="settingsEmail">정보 없음</div></div></div>
         </div>
-        <div class="set-card" id="setPw"><h4>비밀번호 변경</h4><div style="display:flex;flex-direction:column;gap:10px"><input class="mini-in" id="currentPassword" type="password" autocomplete="current-password" placeholder="현재 비밀번호"><input class="mini-in" id="newPassword" type="password" autocomplete="new-password" placeholder="새 비밀번호 입력 · 8~20자, 대소문자·숫자·특수문자 포함"><input class="mini-in" id="newPasswordConfirm" type="password" autocomplete="new-password" placeholder="새 비밀번호 확인"><button id="changePasswordBtn" style="align-self:flex-end;padding:10px 16px;border:none;border-radius:10px;background:var(--gold);color:#16151A;font-size:12.5px;font-weight:700;cursor:pointer" onclick="handlePasswordChange()">비밀번호 변경</button></div></div>
+        <div class="set-card" id="setPw"><h4>비밀번호 변경</h4><p id="socialPasswordNotice" style="display:none;font-size:12.5px;line-height:1.65;color:var(--ink-mute)">소셜 로그인 계정의 비밀번호는 Google, Kakao 또는 Naver에서 관리합니다.</p><div id="passwordFields" style="display:flex;flex-direction:column;gap:10px"><input class="mini-in" id="currentPassword" type="password" autocomplete="current-password" placeholder="현재 비밀번호"><input class="mini-in" id="newPassword" type="password" autocomplete="new-password" placeholder="새 비밀번호 입력 · 8~20자, 대소문자·숫자·특수문자 포함"><input class="mini-in" id="newPasswordConfirm" type="password" autocomplete="new-password" placeholder="새 비밀번호 확인"><button id="changePasswordBtn" style="align-self:flex-end;padding:10px 16px;border:none;border-radius:10px;background:var(--gold);color:#16151A;font-size:12.5px;font-weight:700;cursor:pointer" onclick="handlePasswordChange()">비밀번호 변경</button></div></div>
         <div class="set-card" id="setNoti"><h4>알림</h4><div style="display:flex;flex-direction:column;gap:13px">
           <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px;color:var(--ink-soft)">광고 생성 완료 이메일</span><span class="toggle on" onclick="this.classList.toggle('on');this.classList.toggle('off')"><span class="k"></span></span></div>
           <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px;color:var(--ink-soft)">크레딧 소진 알림</span><span class="toggle on" onclick="this.classList.toggle('on');this.classList.toggle('off')"><span class="k"></span></span></div>
           <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px;color:var(--ink-soft)">마케팅 소식 받기</span><span class="toggle off" onclick="this.classList.toggle('on');this.classList.toggle('off')"><span class="k"></span></span></div>
         </div></div>
-        <div class="set-card" id="setDelete" style="border-color:rgba(224,86,127,.35)"><h4 style="color:var(--berry)">회원 탈퇴</h4><p style="font-size:12.5px;line-height:1.65;color:var(--ink-mute);margin-bottom:12px">탈퇴하면 계정과 광고 이력, 업로드 이미지, 생성 이미지, 결제 내역이 모두 삭제되며 복구할 수 없습니다.</p><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input class="mini-in" id="deleteAccountPassword" type="password" autocomplete="current-password" placeholder="현재 비밀번호" style="flex:1;min-width:220px"><button id="deleteAccountBtn" style="padding:10px 16px;border:1px solid rgba(224,86,127,.45);border-radius:10px;background:transparent;color:var(--berry);font-size:12.5px;font-weight:700;cursor:pointer" onclick="handleDeleteAccount()">회원 탈퇴</button></div></div>
+        <div class="set-card" id="setDelete" style="border-color:rgba(224,86,127,.35)"><h4 style="color:var(--berry)">회원 탈퇴</h4><p style="font-size:12.5px;line-height:1.65;color:var(--ink-mute);margin-bottom:12px">탈퇴하면 계정과 광고 이력, 업로드 이미지, 생성 이미지, 결제 내역이 모두 삭제되며 복구할 수 없습니다.</p><p id="socialDeleteNotice" style="display:none;font-size:12.5px;line-height:1.65;color:var(--ink-mute);margin-bottom:12px">소셜 로그인 계정은 비밀번호 확인 없이 탈퇴할 수 있습니다.</p><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input class="mini-in" id="deleteAccountPassword" type="password" autocomplete="current-password" placeholder="현재 비밀번호" style="flex:1;min-width:220px"><button id="deleteAccountBtn" style="padding:10px 16px;border:1px solid rgba(224,86,127,.45);border-radius:10px;background:transparent;color:var(--berry);font-size:12.5px;font-weight:700;cursor:pointer" onclick="handleDeleteAccount()">회원 탈퇴</button></div></div>
         <div style="display:flex;gap:10px;justify-content:flex-end"><button style="padding:12px 18px;border:1px solid rgba(255,255,255,.14);border-radius:11px;background:transparent;color:var(--ink-soft);font-size:13.5px;font-weight:600;cursor:pointer" onclick="go('dashboard')">취소</button><button style="padding:12px 20px;border:none;border-radius:11px;background:var(--gold);color:#16151A;font-size:13.5px;font-weight:700;cursor:pointer" onclick="toast('변경 사항을 저장했어요');go('dashboard')">변경 사항 저장</button></div>
       </div>
     </div>
@@ -1260,7 +1264,7 @@ http://scripts.sil.org/OFL
         <b style="font-size:18px;color:var(--gold)">₩9,900</b>
       </div>
       <div class="field"><label for="demoCardholder">카드 소유자 이름</label><input id="demoCardholder" type="text" maxlength="40" autocomplete="off" placeholder="홍길동"></div>
-      <div class="field"><label for="demoCardNumber">카드 번호</label><input id="demoCardNumber" type="text" inputmode="numeric" maxlength="19" autocomplete="off" placeholder="4242 4242 4242 4242" oninput="formatDemoCardNumber(this)"></div>
+      <div class="field"><label for="demoCardNumber">카드 번호</label><input id="demoCardNumber" type="text" inputmode="numeric" maxlength="19" autocomplete="off" placeholder="0000 0000 0000 0000" oninput="formatDemoCardNumber(this)"></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
         <div class="field"><label for="demoCardExpiry">유효기간</label><input id="demoCardExpiry" type="text" inputmode="numeric" maxlength="5" autocomplete="off" placeholder="MM/YY" oninput="formatDemoCardExpiry(this)"></div>
         <div class="field"><label for="demoCardCvc">CVC</label><input id="demoCardCvc" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="3~4자리" oninput="this.value=this.value.replace(/\D/g,'').slice(0,4)"></div>
@@ -1401,6 +1405,7 @@ let activeDetailPlatform = 'instagram';
 let activeShareItem = null;
 let activeSharePlatform = 'instagram';
 let shareFrom = 'dashboard';
+let recoveryMode = 'password';
 
 function getToken(){
   return localStorage.getItem(ACCESS_TOKEN_KEY);
@@ -1408,6 +1413,33 @@ function getToken(){
 function getStoredUser(){
   try{return JSON.parse(localStorage.getItem(USER_KEY)||'null');}
   catch(_){return null;}
+}
+function getAuthProvider(){
+  const storedProvider=getStoredUser()?.auth_provider;
+  if(storedProvider)return storedProvider;
+  try{
+    const payload=getToken()?.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    const padded=payload+'='.repeat((4-payload.length%4)%4);
+    const decoded=JSON.parse(atob(padded));
+    return decoded.auth_provider||decoded.provider||'local';
+  }catch(_){return 'local';}
+}
+function isSocialAuthUser(){
+  return ['google','kakao','naver'].includes(getAuthProvider());
+}
+function syncAccountSecurityUI(){
+  const isSocial=isSocialAuthUser();
+  const passwordFields=document.getElementById('passwordFields');
+  const passwordNotice=document.getElementById('socialPasswordNotice');
+  const deletePassword=document.getElementById('deleteAccountPassword');
+  const deleteNotice=document.getElementById('socialDeleteNotice');
+  if(passwordFields)passwordFields.style.display=isSocial?'none':'flex';
+  if(passwordNotice)passwordNotice.style.display=isSocial?'block':'none';
+  if(deletePassword){
+    deletePassword.style.display=isSocial?'none':'block';
+    if(isSocial)deletePassword.value='';
+  }
+  if(deleteNotice)deleteNotice.style.display=isSocial?'block':'none';
 }
 function setAuth(token,user){
   localStorage.setItem(ACCESS_TOKEN_KEY,token);
@@ -1499,6 +1531,7 @@ function syncUserUI(){
   if(business) business.textContent=user?.business_name||user?.name||'정보 없음';
   if(username) username.textContent=user?.username||'정보 없음';
   if(settingsEmail) settingsEmail.textContent=email||'정보 없음';
+  syncAccountSecurityUI();
 }
 function syncDashboardSummaryUI(){
   const summary=dashboardSummary;
@@ -1835,6 +1868,7 @@ function clearAccountPasswordFields(){
   });
 }
 async function handlePasswordChange(){
+  if(isSocialAuthUser()){toast('소셜 로그인 계정의 비밀번호는 해당 서비스에서 관리됩니다');return;}
   const currentPassword=document.getElementById('currentPassword').value;
   const newPassword=document.getElementById('newPassword').value;
   const newPasswordConfirm=document.getElementById('newPasswordConfirm').value;
@@ -1844,7 +1878,6 @@ async function handlePasswordChange(){
 
   const button=document.getElementById('changePasswordBtn');
   if(button)button.disabled=true;
-  const shareWindow=window.open('about:blank','_blank');
   try{
     const res=await apiFetch('/api/account/password',{
       method:'POST',
@@ -1862,7 +1895,8 @@ async function handlePasswordChange(){
 }
 async function handleDeleteAccount(){
   const password=document.getElementById('deleteAccountPassword').value;
-  if(!password){toast('현재 비밀번호를 입력해주세요');return;}
+  const isSocial=isSocialAuthUser();
+  if(!isSocial&&!password){toast('현재 비밀번호를 입력해주세요');return;}
   if(!confirm('정말 회원 탈퇴할까요? 계정과 모든 광고 데이터가 삭제되며 복구할 수 없습니다.'))return;
 
   const button=document.getElementById('deleteAccountBtn');
@@ -1871,7 +1905,7 @@ async function handleDeleteAccount(){
     const res=await apiFetch('/api/account',{
       method:'DELETE',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({current_password:password})
+      body:JSON.stringify(isSocial?{}:{current_password:password})
     });
     if(!res.ok){
       let data=null;try{data=await res.json();}catch(_){}
@@ -1915,11 +1949,46 @@ function toggleProfile(el,e){
 }
 function closeProfile(){document.querySelectorAll('.profile-menu').forEach(m=>m.classList.remove('on'));}
 
-function sendReset(){
+function setRecoveryMode(mode){
+  recoveryMode=mode;
+  const findingUsername=mode==='username';
+  document.getElementById('recoveryTitle').innerHTML=findingUsername?'아이디를<br>잊으셨나요?':'비밀번호를<br>잊으셨나요?';
+  document.getElementById('recoveryDescription').innerHTML=findingUsername?'가입하신 이메일을 입력하시면<br>등록된 아이디를 확인할 수 있어요.':'가입하신 이메일을 입력하시면<br>비밀번호 재설정 링크를 보내드려요.';
+  document.getElementById('recoverySubmit').textContent=findingUsername?'아이디 찾기':'재설정 링크 받기';
+  document.getElementById('recoveryFooter').innerHTML=findingUsername?'아이디가 기억나셨나요? <a href="#" onclick="go(\'login\');return false">로그인</a>':'비밀번호가 기억나셨나요? <a href="#" onclick="go(\'login\');return false">로그인</a>';
+  const usernameButton=document.getElementById('findUsernameMode');
+  const passwordButton=document.getElementById('resetPasswordMode');
+  usernameButton.style.background=findingUsername?'var(--gold)':'transparent';
+  usernameButton.style.color=findingUsername?'#16151A':'var(--ink-soft)';
+  usernameButton.style.borderColor=findingUsername?'var(--gold)':'var(--line)';
+  passwordButton.style.background=findingUsername?'transparent':'var(--gold)';
+  passwordButton.style.color=findingUsername?'var(--ink-soft)':'#16151A';
+  passwordButton.style.borderColor=findingUsername?'var(--line)':'var(--gold)';
+  document.getElementById('resetNotice').classList.remove('on');
+}
+async function sendReset(){
   const email=document.getElementById('resetEmail').value.trim();
   if(!email){toast('이메일을 입력해 주세요');return;}
-  document.getElementById('resetNotice').classList.add('on');
-  toast('재설정 메일을 보냈어요');
+  if(!isValidEmail(email)){toast('이메일 형식이 올바르지 않습니다');return;}
+  if(recoveryMode==='password'){
+    document.getElementById('recoveryNoticeTitle').textContent='메일을 보냈어요.';
+    document.getElementById('recoveryNoticeMessage').textContent='받은 편지함에서 재설정 링크를 확인해 주세요. 몇 분 내로 도착합니다.';
+    document.getElementById('resetNotice').classList.add('on');
+    toast('재설정 메일을 보냈어요');
+    return;
+  }
+  try{
+    const res=await apiFetch('/api/auth/find-username',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email})
+    });
+    let data=null;try{data=await res.json();}catch(_){}
+    if(!res.ok)throw new Error(readApiError(data,'아이디를 찾지 못했습니다'));
+    document.getElementById('recoveryNoticeTitle').textContent='가입된 아이디';
+    document.getElementById('recoveryNoticeMessage').textContent=data.username;
+    document.getElementById('resetNotice').classList.add('on');
+  }catch(err){toast(err.message||'아이디를 찾지 못했습니다');}
 }
 function openModal(type){
   document.getElementById(type==='terms'?'termsModal':'privacyModal').classList.add('on');
