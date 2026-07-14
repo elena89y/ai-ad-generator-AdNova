@@ -9,7 +9,7 @@ import os
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api import ads, billing, dashboard, history, images
+from app.api import account, ads, billing, dashboard, history, images
 from app.api.auth import router as auth_router
 from app.api.google_auth import router as google_auth_router
 from app.api.kakao_auth import router as kakao_auth_router
@@ -47,6 +47,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router, prefix=settings.API_PREFIX)
+app.include_router(account.router, prefix=settings.API_PREFIX)
 app.include_router(google_auth_router, prefix=settings.API_PREFIX)
 app.include_router(kakao_auth_router, prefix=settings.API_PREFIX)
 app.include_router(export_router, prefix=settings.API_PREFIX)
