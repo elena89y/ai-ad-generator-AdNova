@@ -326,6 +326,11 @@ http://scripts.sil.org/OFL
     -webkit-text-fill-color:var(--ink);-webkit-box-shadow:0 0 0 1000px var(--card) inset;caret-color:var(--ink);
   }
   .field input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 4px rgba(242,169,59,.16)}
+  .password-input{position:relative;width:100%}
+  .password-input input{box-sizing:border-box;padding-right:48px}
+  .password-toggle{position:absolute;top:50%;right:8px;transform:translateY(-50%);width:32px;height:32px;border:0;border-radius:8px;background:transparent;color:var(--ink-mute);font-size:16px;cursor:pointer;display:grid;place-items:center}
+  .password-toggle:hover{background:rgba(255,255,255,.08);color:var(--ink)}
+  .password-toggle.is-visible{color:var(--gold)}
   .field-help{margin-top:6px;font-size:12.5px;line-height:1.45;color:var(--ink-mute)}
   .btn-primary{
     width:100%;padding:14px;border-radius:12px;font-size:15.5px;font-weight:700;color:#fff;
@@ -1491,6 +1496,34 @@ function formatValidationError(item){
 }
 function isValidEmail(email){
   return EMAIL_PATTERN.test(email);
+}
+function initializePasswordToggles(){
+  ['loginPassword','signupPassword','signupPasswordConfirm','currentPassword','newPassword','newPasswordConfirm','deleteAccountPassword'].forEach(id=>{
+    const input=document.getElementById(id);
+    if(!input||input.parentElement.classList.contains('password-input'))return;
+    const wrapper=document.createElement('div');
+    wrapper.className='password-input';
+    if(id==='deleteAccountPassword'){
+      wrapper.style.flex='1';
+      wrapper.style.minWidth='220px';
+    }
+    input.parentNode.insertBefore(wrapper,input);
+    wrapper.appendChild(input);
+    const button=document.createElement('button');
+    button.type='button';
+    button.className='password-toggle';
+    button.textContent='👁';
+    button.title='비밀번호 보기';
+    button.setAttribute('aria-label','비밀번호 보기');
+    button.addEventListener('click',()=>{
+      const visible=input.type==='text';
+      input.type=visible?'password':'text';
+      button.classList.toggle('is-visible',!visible);
+      button.title=visible?'비밀번호 보기':'비밀번호 숨기기';
+      button.setAttribute('aria-label',button.title);
+    });
+    wrapper.appendChild(button);
+  });
 }
 function getDisplayName(user){
   return user?.business_name||user?.name||user?.username||'AdNova';
@@ -2740,6 +2773,7 @@ function filterFaqs(value){
   if(empty) empty.style.display=visible?'none':'block';
 }
 /* init */
+initializePasswordToggles();
 syncUserUI();
 if(getToken()){
   loadDashboardSummary(false);
