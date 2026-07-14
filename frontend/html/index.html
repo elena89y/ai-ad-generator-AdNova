@@ -1223,14 +1223,14 @@ http://scripts.sil.org/OFL
         <div style="background:var(--card);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:20px"><div style="font-size:13px;font-weight:700;color:var(--ink-soft)">무료 체험</div><div style="font-size:26px;font-weight:800;letter-spacing:-1px;margin:6px 0 14px">₩0</div><div style="display:flex;flex-direction:column;gap:9px;font-size:12.5px;color:var(--ink-soft)"><div>✓ 가입 시 <b style="color:var(--ink)">크레딧 3개</b></div><div style="color:var(--ink-mute)">· 광고 생성마다 1개 차감</div><div style="color:var(--ink-mute)">· 미리보기 · 로고 워터마크</div><div style="color:var(--ink-mute)">· 이력 저장 (다운로드 X)</div></div><button style="width:100%;margin-top:16px;padding:11px;border:1px solid rgba(255,255,255,.12);border-radius:11px;background:rgba(255,255,255,.04);color:var(--ink-mute);font-size:13px;font-weight:700;cursor:default">현재 플랜</button></div>
         <div style="background:linear-gradient(160deg,#26222b,#1F1E25);border:1.5px solid var(--gold);border-radius:16px;padding:20px;position:relative;box-shadow:0 0 0 3px rgba(242,169,59,.12)"><span style="position:absolute;top:-11px;right:16px;background:var(--gold);color:#16151A;font-size:11px;font-weight:800;padding:4px 10px;border-radius:7px">추천</span><div style="font-size:13px;font-weight:700;color:var(--gold-deep)">프리미엄</div><div style="font-size:26px;font-weight:800;letter-spacing:-1px;margin:6px 0 14px">₩9,900<span style="font-size:13px;font-weight:600;color:var(--ink-mute)">/월</span></div><div style="display:flex;flex-direction:column;gap:9px;font-size:12.5px;color:var(--ink-soft)"><div>✓ 매월 <b style="color:var(--ink)">크레딧 30개</b></div><div>✓ <b style="color:var(--ink)">워터마크 없음</b></div><div>✓ 고해상도 원본 다운로드</div><div>✓ 크레딧 추가 구매 가능</div></div><button style="width:100%;margin-top:16px;padding:11px;border:none;border-radius:11px;background:var(--gold);color:#16151A;font-size:13px;font-weight:700;cursor:pointer" onclick="startPremium()">프리미엄 시작하기</button></div>
       </div>
-      <p style="margin:12px 2px 0;font-size:11.5px;color:#6b6775;text-align:center">※ 프리미엄 결제와 크레딧 기능은 준비 중이며, 현재는 화면만 확인할 수 있습니다.</p>
+      <p style="margin:12px 2px 0;font-size:11.5px;color:#6b6775;text-align:center">※ 프리미엄 신규 결제와 크레딧 충전은 준비 중입니다.</p>
     </div>
     <div id="billingManage" style="display:none">
-      <div style="display:flex;align-items:center;gap:10px;margin:6px 0 20px"><span style="font-size:11px;font-weight:800;color:#16151A;background:var(--gold);padding:5px 12px;border-radius:999px">✦ 프리미엄 이용 중</span><h2 style="font-size:20px;font-weight:800;letter-spacing:-.5px">구독 관리</h2></div>
-      <div class="set-card"><h4>구독 정보</h4><div style="display:flex;flex-direction:column;gap:10px;font-size:13px"><div style="display:flex;justify-content:space-between"><span style="color:var(--ink-mute)">플랜</span><b>프리미엄 · 월 ₩9,900</b></div><div style="display:flex;justify-content:space-between"><span style="color:var(--ink-mute)">이번 달 크레딧</span><span>18 / 30 남음</span></div><div style="display:flex;justify-content:space-between"><span style="color:var(--ink-mute)">다음 결제일</span><span>2026. 8. 9</span></div></div></div>
-      <div class="set-card"><h4>결제 내역</h4><div style="font-size:13px"><div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)"><span>2026. 7. 9 · 프리미엄 월 구독</span><b>₩9,900</b></div><div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)"><span>2026. 6. 9 · 프리미엄 월 구독</span><b>₩9,900</b></div><div style="display:flex;justify-content:space-between;padding:10px 0"><span>2026. 6. 2 · 크레딧 10개 추가</span><b>₩4,900</b></div></div></div>
-      <div class="set-card"><h4>결제 방법</h4><div style="display:flex;align-items:center;gap:12px"><span style="font-size:13px;font-weight:600">💳 신한카드 •••• 1234</span><button style="margin-left:auto;padding:9px 14px;border:1px solid rgba(255,255,255,.14);border-radius:10px;background:transparent;color:var(--ink-soft);font-size:12.5px;font-weight:700;cursor:pointer" onclick="toast('결제 방법 변경 (데모)')">변경</button></div></div>
-      <div style="display:flex;justify-content:flex-end"><button style="padding:12px 18px;border:1px solid rgba(224,86,127,.4);border-radius:11px;background:transparent;color:var(--berry);font-size:13px;font-weight:700;cursor:pointer" onclick="if(confirm('프리미엄을 해지할까요?')){cancelPremium();}">구독 해지</button></div>
+      <div style="display:flex;align-items:center;gap:10px;margin:6px 0 20px"><span id="billingStatusBadge" style="font-size:11px;font-weight:800;color:#16151A;background:var(--gold);padding:5px 12px;border-radius:999px">✦ 프리미엄 이용 중</span><h2 style="font-size:20px;font-weight:800;letter-spacing:-.5px">구독 관리</h2></div>
+      <div class="set-card"><h4>구독 정보</h4><div style="display:flex;flex-direction:column;gap:10px;font-size:13px"><div style="display:flex;justify-content:space-between"><span style="color:var(--ink-mute)">플랜</span><b id="billingPlanName">프리미엄</b></div><div style="display:flex;justify-content:space-between"><span id="billingPeriodLabel" style="color:var(--ink-mute)">다음 결제일</span><span id="billingPeriodEnd">확인 중</span></div><p id="billingCancelNotice" style="display:none;color:var(--berry);font-size:12px;line-height:1.6"></p></div></div>
+      <div class="set-card"><h4>결제 내역</h4><div id="billingPurchaseList" style="font-size:13px;color:var(--ink-mute)">결제 내역을 불러오는 중입니다.</div></div>
+      <div class="set-card"><h4>결제 방법</h4><div style="display:flex;align-items:center;gap:12px"><span id="billingPaymentMethod" style="font-size:13px;font-weight:600">결제 방법을 불러오는 중입니다.</span><button style="margin-left:auto;padding:9px 14px;border:1px solid rgba(255,255,255,.14);border-radius:10px;background:transparent;color:var(--ink-soft);font-size:12.5px;font-weight:700;cursor:pointer" onclick="changePaymentMethod()">변경</button></div></div>
+      <div style="display:flex;justify-content:flex-end"><button id="subscriptionActionBtn" style="padding:12px 18px;border:1px solid rgba(224,86,127,.4);border-radius:11px;background:transparent;color:var(--berry);font-size:13px;font-weight:700;cursor:pointer" onclick="toggleSubscriptionCancellation()">구독 해지</button></div>
     </div>
   </div>
 </section>
@@ -1378,12 +1378,17 @@ function setAuth(token,user){
   if(user) localStorage.setItem(USER_KEY,JSON.stringify(user));
   syncUserUI();
   loadDashboardSummary(false);
+  loadBilling(false);
 }
 function clearAuth(){
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
   dashboardSummary=null;
+  billingSummary=null;
+  billingPurchases=[];
+  isPremium=false;
   syncUserUI();
+  renderBilling();
 }
 async function apiFetch(path,options={}){
   const token=getToken();
@@ -1782,6 +1787,7 @@ function go(id){
   document.querySelectorAll('.sns-menu').forEach(m=>m.classList.remove('on'));
   if(id==='dashboard'||id==='mypage') loadDashboardSummary(false);
   if(id==='mypage') loadHistory(false);
+  if(id==='billing') loadBilling(false);
   window.scrollTo(0,0);
 }
 
@@ -2301,12 +2307,125 @@ document.addEventListener('click',()=>{
 });
 
 /* ---------- new pages / UI ---------- */
-var isPremium=false, billingFrom='dashboard';
+var isPremium=false, billingFrom='dashboard', billingSummary=null, billingPurchases=[];
 function pickUse(el){document.querySelectorAll('#uses .use').forEach(function(s){s.classList.remove('on');});el.classList.add('on');}
-function goBilling(from){billingFrom=from||'dashboard';go('billing');renderBilling();}
-function renderBilling(){var u=document.getElementById('billingUpgrade'),m=document.getElementById('billingManage');if(u)u.style.display=isPremium?'none':'block';if(m)m.style.display=isPremium?'block':'none';applyPremiumUI();}
+function goBilling(from){billingFrom=from||'dashboard';go('billing');}
+function formatBillingDate(value){
+  if(!value)return '일정 미정';
+  const date=new Date(value);
+  if(Number.isNaN(date.getTime()))return '일정 미정';
+  return new Intl.DateTimeFormat('ko-KR',{year:'numeric',month:'numeric',day:'numeric'}).format(date);
+}
+function formatBillingAmount(amount,currency){
+  try{return new Intl.NumberFormat('ko-KR',{style:'currency',currency:currency||'KRW',maximumFractionDigits:0}).format(amount||0);}
+  catch(_){return `${Number(amount||0).toLocaleString('ko-KR')}원`;}
+}
+function renderPurchaseHistory(){
+  const list=document.getElementById('billingPurchaseList');
+  if(!list)return;
+  list.replaceChildren();
+  if(!billingPurchases.length){
+    list.textContent='아직 결제 내역이 없습니다.';
+    return;
+  }
+  billingPurchases.forEach((purchase,index)=>{
+    const row=document.createElement('div');
+    row.style.cssText=`display:flex;justify-content:space-between;gap:14px;padding:10px 0;${index<billingPurchases.length-1?'border-bottom:1px solid var(--line)':''}`;
+    const description=document.createElement('span');
+    const statusText=purchase.status==='paid'?'':` · ${purchase.status}`;
+    description.textContent=`${formatBillingDate(purchase.purchased_at)} · ${purchase.description}${statusText}`;
+    const amount=document.createElement('b');
+    amount.textContent=formatBillingAmount(purchase.amount,purchase.currency);
+    row.append(description,amount);
+    list.appendChild(row);
+  });
+}
+function renderBilling(){
+  const upgrade=document.getElementById('billingUpgrade');
+  const manage=document.getElementById('billingManage');
+  const subscription=billingSummary&&billingSummary.subscription;
+  const paymentMethod=billingSummary&&billingSummary.payment_method;
+  isPremium=Boolean(billingSummary&&billingSummary.is_premium);
+  const hasBillingData=Boolean(subscription||paymentMethod||billingPurchases.length);
+  if(upgrade)upgrade.style.display=isPremium?'none':'block';
+  if(manage)manage.style.display=(isPremium||hasBillingData)?'block':'none';
+  if(!manage||(!isPremium&&!hasBillingData)){applyPremiumUI();return;}
+
+  const cancelPending=Boolean(subscription&&subscription.cancel_at_period_end);
+  const badge=document.getElementById('billingStatusBadge');
+  const plan=document.getElementById('billingPlanName');
+  const periodLabel=document.getElementById('billingPeriodLabel');
+  const periodEnd=document.getElementById('billingPeriodEnd');
+  const notice=document.getElementById('billingCancelNotice');
+  const action=document.getElementById('subscriptionActionBtn');
+  const method=document.getElementById('billingPaymentMethod');
+
+  if(badge)badge.textContent=isPremium?(cancelPending?'해지 예정':'✦ 프리미엄 이용 중'):'구독 종료';
+  if(plan)plan.textContent=subscription?.plan==='premium'?'프리미엄':subscription?.plan||'무료';
+  if(periodLabel)periodLabel.textContent=(cancelPending||subscription?.status!=='active')?'이용 종료일':'다음 결제일';
+  if(periodEnd)periodEnd.textContent=formatBillingDate(subscription?.current_period_end);
+  if(notice){
+    notice.style.display=cancelPending?'block':'none';
+    notice.textContent=cancelPending?`${formatBillingDate(subscription?.current_period_end)}까지 프리미엄 기능을 이용할 수 있습니다.`:'';
+  }
+  if(action){
+    action.style.display=isPremium?'block':'none';
+    action.textContent=cancelPending?'해지 예약 취소':'구독 해지';
+  }
+  if(method){
+    method.textContent=paymentMethod
+      ? `💳 ${paymentMethod.card_brand||'카드'} •••• ${paymentMethod.card_last4||'----'}`
+      : '등록된 결제 방법이 없습니다.';
+  }
+  renderPurchaseHistory();
+  applyPremiumUI();
+}
+async function loadBilling(showMessage=true){
+  if(!getToken())return;
+  try{
+    const [summaryRes,purchasesRes]=await Promise.all([
+      apiFetch('/api/billing/summary'),
+      apiFetch('/api/billing/purchases?limit=50')
+    ]);
+    let summary=null,purchases=[];
+    try{summary=await summaryRes.json();}catch(_){}
+    try{purchases=await purchasesRes.json();}catch(_){}
+    if(!summaryRes.ok)throw new Error(readApiError(summary,'구독 정보를 불러오지 못했습니다'));
+    if(!purchasesRes.ok)throw new Error(readApiError(purchases,'결제 내역을 불러오지 못했습니다'));
+    billingSummary=summary;
+    billingPurchases=Array.isArray(purchases)?purchases:[];
+    renderBilling();
+  }catch(err){
+    if(showMessage)toast(err.message||'결제 정보를 불러오지 못했습니다');
+  }
+}
 function startPremium(){toast('프리미엄 기능은 준비 중입니다');}
-function cancelPremium(){toast('구독 관리 기능은 준비 중입니다');}
+async function changePaymentMethod(){
+  try{
+    const res=await apiFetch('/api/billing/payment-method/change-session',{method:'POST'});
+    let data=null;try{data=await res.json();}catch(_){}
+    if(!res.ok)throw new Error(readApiError(data,'결제 방법을 변경하지 못했습니다'));
+    if(data&&data.redirect_url)window.location.assign(data.redirect_url);
+  }catch(err){toast(err.message||'결제 방법을 변경하지 못했습니다');}
+}
+async function toggleSubscriptionCancellation(){
+  const subscription=billingSummary&&billingSummary.subscription;
+  if(!subscription)return;
+  const cancelPending=Boolean(subscription.cancel_at_period_end);
+  if(!cancelPending&&!confirm(`${formatBillingDate(subscription.current_period_end)}에 구독을 해지할까요?`))return;
+  const button=document.getElementById('subscriptionActionBtn');
+  if(button)button.disabled=true;
+  try{
+    const endpoint=cancelPending?'/api/billing/subscription/resume':'/api/billing/subscription/cancel';
+    const res=await apiFetch(endpoint,{method:'POST'});
+    let data=null;try{data=await res.json();}catch(_){}
+    if(!res.ok)throw new Error(readApiError(data,'구독 상태를 변경하지 못했습니다'));
+    billingSummary=data;
+    renderBilling();
+    toast(cancelPending?'해지 예약을 취소했습니다':'구독 해지를 예약했습니다');
+  }catch(err){toast(err.message||'구독 상태를 변경하지 못했습니다');}
+  finally{if(button)button.disabled=false;}
+}
 function downloadResult(){if(isPremium){toast('고해상도 원본을 다운로드했어요');}else{goBilling('dashboard');}}
 function applyPremiumUI(){document.querySelectorAll('.wm-row').forEach(function(e){e.style.display=isPremium?'none':'flex';});var dl=document.getElementById('dlBtn');if(dl)dl.innerHTML=isPremium?'⬇️ 다운로드':'⬇️ 다운로드 🔒';}
 function setSet(el,id){document.querySelectorAll('#settings .set-nav-item').forEach(function(x){x.classList.remove('on');});el.classList.add('on');var t=document.getElementById(id);if(t)window.scrollTo({top:t.getBoundingClientRect().top+window.scrollY-90,behavior:'smooth'});}
@@ -2327,6 +2446,7 @@ syncUserUI();
 if(getToken()){
   loadDashboardSummary(false);
   loadHistory(false);
+  loadBilling(false);
 }
 else{ads.splice(0,ads.length);renderCards();}
 slide(50);
