@@ -1,3 +1,6 @@
+from datetime import timedelta
+from uuid import uuid4
+
 from sqlalchemy.orm import Session
 
 from app.database.billing_models import (
@@ -29,6 +32,76 @@ def list_purchase_histories_by_user(
         .limit(limit)
         .all()
     )
+
+
+def activate_demo_subscription(
+    db: Session,
+    user_id: int,
+    *,
+    card_brand: str,
+    card_last4: str,
+) -> Subscription:
+    now = utc_now()
+    subscription = get_subscription_by_user(db, user_id)
+    if subscription is None:
+        subscription = Subscription(
+            user_id=user_id,
+            provider_subscription_id=f"demo-sub-{uuid4().hex}",
+        )
+        db.add(subscription)
+
+    subscription.plan = "premium"
+    subscription.status = "active"
+    subscription.provider = "demo"
+    subscription.current_period_start = now
+    subscription.current_period_end = now + timedelta(days=30)
+    subscription.cancel_at_period_end = False
+    subscription.cancel_requested_at = None
+
+    payment_method = get_payment_method_by_user(db, user_id)
+    if payment_method is None:
+        payment_method = PaymentMethod(user_id=user_id, provider="demo")
+        db.add(payment_method)
+    payment_method.provider = "demo"
+    payment_method.card_brand = card_brand
+    payment_method.card_last4 = card_last4
+
+    db.add(
+        PurchaseHistory(
+            user_id=user_id,
+            provider="demo",
+            provider_payment_id=f"demo-pay-{uuid4().hex}",
+            item_type="subscription",
+            description="프리미엄 월 구독 (테스트)",
+            amount=9900,
+            currency="KRW",
+            status="paid",
+            purchased_at=now,
+        )
+    )
+    db.commit()
+    db.refresh(subscription)
+    return subscription
+
+
+def update_demo_payment_method(
+    db: Session,
+    user_id: int,
+    *,
+    card_brand: str,
+    card_last4: str,
+) -> PaymentMethod:
+    payment_method = get_payment_method_by_user(db, user_id)
+    if payment_method is None:
+        payment_method = PaymentMethod(user_id=user_id, provider="demo")
+        db.add(payment_method)
+
+    payment_method.provider = "demo"
+    payment_method.card_brand = card_brand
+    payment_method.card_last4 = card_last4
+    db.commit()
+    db.refresh(payment_method)
+    return payment_method
 
 
 def schedule_subscription_cancellation(
