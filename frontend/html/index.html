@@ -1894,7 +1894,7 @@ async function handleSignup(e){
 
     await loginWithCredentials(username,password);
     toast('회원가입이 완료되었습니다');
-    go('dashboard');
+    go('onboarding');
   }catch(err){
     toast(err.message||'회원가입에 실패했습니다');
   }
@@ -2825,6 +2825,9 @@ document
   const accessToken = hashParams.get("access_token");
   const userId = hashParams.get("user_id");
   let provider = hashParams.get("provider") || "social";
+  
+  const isNewUser =
+  hashParams.get("is_new_user") === "true";
 
   if (!accessToken) {
     return;
@@ -2888,8 +2891,14 @@ document
     naver: "네이버"
   }[provider] || "소셜";
 
-  toast(`${providerLabel} 로그인이 완료되었습니다`);
-  go("dashboard");
+  toast(
+  isNewUser
+    ? `${providerLabel} 회원가입이 완료되었습니다`
+    : `${providerLabel} 로그인이 완료되었습니다`
+  );
+
+  go(isNewUser ? "onboarding" : "dashboard");
+  
 })();
 </script>
 

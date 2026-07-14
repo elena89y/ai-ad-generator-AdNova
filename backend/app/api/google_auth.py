@@ -86,7 +86,7 @@ def _get_or_create_google_user(
     email: str,
     name: str | None,
     google_sub: str,
-) -> User:
+) -> tuple[User, bool]:
     """
     이메일이 이미 존재하면 해당 계정을 사용하고,
     없으면 Google 계정 기반으로 신규 사용자를 생성한다.
@@ -99,7 +99,9 @@ def _get_or_create_google_user(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="비활성화된 계정입니다.",
             )
-        return existing_user
+        return existing_user, False
+    
+    
 
     new_user = User(
         email=email,
@@ -115,14 +117,14 @@ def _get_or_create_google_user(
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
-        return new_user
+        return new_user, True
     except IntegrityError as exc:
         db.rollback()
 
         # 동시에 같은 이메일로 가입 요청이 들어온 경우 재조회한다.
         existing_user = db.query(User).filter(User.email == email).first()
         if existing_user:
-            return existing_user
+            return existing_user, False
 
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -196,7 +198,7 @@ async def google_callback(
             detail="Google 이메일 인증이 완료되지 않은 계정입니다.",
         )
 
-    user = _get_or_create_google_user(
+    user, is_new_user = _get_or_create_google_user(
         db,
         email=email,
         name=name,
@@ -221,6 +223,8 @@ async def google_callback(
         f"#access_token={access_token}"
         f"&token_type=bearer"
         f"&user_id={user.id}"
+        f"&provider=google"
+        f"&is_new_user={'true' if is_new_user else 'false'}"
     )
 
     return RedirectResponse(

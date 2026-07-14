@@ -84,7 +84,7 @@ def _get_or_create_naver_user(
     email: str,
     name: str | None,
     naver_id: str,
-) -> User:
+) -> tuple[User, bool]:
     """
     이메일이 이미 존재하면 해당 계정을 사용하고,
     없으면 Naver 계정 기반으로 신규 사용자를 생성한다.
@@ -97,7 +97,7 @@ def _get_or_create_naver_user(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="비활성화된 계정입니다.",
             )
-        return existing_user
+        return existing_user, False
 
     new_user = User(
         email=email,
@@ -119,7 +119,7 @@ def _get_or_create_naver_user(
 
         existing_user = db.query(User).filter(User.email == email).first()
         if existing_user:
-            return existing_user
+            return existing_user, False
 
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -284,7 +284,7 @@ def naver_callback(
     if not email:
         email = f"naver_{naver_id}@oauth.local"
 
-    user = _get_or_create_naver_user(
+    user, is_new_user = _get_or_create_naver_user(
         db,
         email=email,
         name=name,
@@ -311,6 +311,7 @@ def naver_callback(
         f"&token_type=bearer"
         f"&user_id={user.id}"
         f"&provider=naver"
+        f"&is_new_user={'true' if is_new_user else 'false'}"
     )
 
     return RedirectResponse(
