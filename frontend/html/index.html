@@ -767,7 +767,7 @@ http://scripts.sil.org/OFL
 
     <div class="divider">또는</div>
     <div class="socials">
-      <button class="soc" onclick="toast('Google 로그인은 준비 중입니다')"><span class="ic" style="background:#fff;color:#4285F4;border:1px solid var(--line)">G</span> Google로 계속하기</button>
+      <button id="google-login-btn" class="soc"><span class="ic" style="background:#fff;color:#4285F4;border:1px solid var(--line)">G</span> Google로 계속하기</button>
       <button class="soc kakao" onclick="toast('카카오 로그인은 준비 중입니다')"><span class="ic">K</span> 카카오로 계속하기</button>
       <button class="soc naver" onclick="toast('네이버 로그인은 준비 중입니다')"><span class="ic">N</span> 네이버로 계속하기</button>
     </div>
@@ -2532,6 +2532,72 @@ slide(50);
 updateUsage();
 renderBilling();applyPremiumUI();
 document.getElementById('upgradeModal').addEventListener('click',e=>{if(e.target.id==='upgradeModal')closeUpgrade();});
+document.getElementById("google-login-btn")?.addEventListener("click", () => {
+    window.location.href =
+        "http://localhost:8000/api/auth/google/login";
+});
+(function handleGoogleOAuthCallback() {
+  const hashParams = new URLSearchParams(
+    window.location.hash.slice(1)
+  );
+
+  const accessToken = hashParams.get("access_token");
+  const userId = hashParams.get("user_id");
+
+  if (!accessToken) {
+    return;
+  }
+
+  let googleUser = {
+    id: userId ? Number(userId) : null,
+    email: "",
+    name: "Google 사용자",
+    business_name: null,
+    business_type: null,
+    is_active: true
+  };
+
+  try {
+    const encodedPayload = accessToken.split(".")[1];
+
+    const normalizedPayload = encodedPayload
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
+
+    const paddedPayload =
+      normalizedPayload +
+      "=".repeat((4 - normalizedPayload.length % 4) % 4);
+
+    const decodedPayload = JSON.parse(
+      decodeURIComponent(
+        atob(paddedPayload)
+          .split("")
+          .map(char =>
+            "%" +
+            ("00" + char.charCodeAt(0).toString(16)).slice(-2)
+          )
+          .join("")
+      )
+    );
+
+    googleUser.email = decodedPayload.email || "";
+    googleUser.name =
+      decodedPayload.email?.split("@")[0] || "Google 사용자";
+  } catch (error) {
+    console.warn("Google JWT 사용자 정보 해석 실패:", error);
+  }
+
+  setAuth(accessToken, googleUser);
+
+  window.history.replaceState(
+    {},
+    document.title,
+    window.location.pathname + window.location.search
+  );
+
+  toast("Google 로그인이 완료되었습니다");
+  go("dashboard");
+})();
 </script>
 
 <div class="modal-overlay" id="termsModal" onclick="if(event.target.id==='termsModal')closeModal('terms')">
