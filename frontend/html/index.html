@@ -768,7 +768,7 @@ http://scripts.sil.org/OFL
     <div class="divider">또는</div>
     <div class="socials">
       <button id="google-login-btn" class="soc"><span class="ic" style="background:#fff;color:#4285F4;border:1px solid var(--line)">G</span> Google로 계속하기</button>
-      <button class="soc kakao" onclick="toast('카카오 로그인은 준비 중입니다')"><span class="ic">K</span> 카카오로 계속하기</button>
+      <button id="kakao-login-btn" class="soc kakao"><span class="ic">K</span> 카카오로 계속하기</button>
       <button class="soc naver" onclick="toast('네이버 로그인은 준비 중입니다')"><span class="ic">N</span> 네이버로 계속하기</button>
     </div>
     <p class="login-foot">아직 계정이 없으세요? <a href="#" onclick="go('signup');return false">무료로 시작하기</a></p>
@@ -2550,22 +2550,29 @@ document.getElementById("google-login-btn")?.addEventListener("click", () => {
     window.location.href =
         "http://localhost:8000/api/auth/google/login";
 });
-(function handleGoogleOAuthCallback() {
+document
+  .getElementById("kakao-login-btn")
+  ?.addEventListener("click", () => {
+    window.location.href =
+      "http://localhost:8000/api/auth/kakao/login";
+  });
+(function handleSocialOAuthCallback() {
   const hashParams = new URLSearchParams(
     window.location.hash.slice(1)
   );
 
   const accessToken = hashParams.get("access_token");
   const userId = hashParams.get("user_id");
+  const provider = hashParams.get("provider") || "social";
 
   if (!accessToken) {
     return;
   }
 
-  let googleUser = {
+  let socialUser = {
     id: userId ? Number(userId) : null,
     email: "",
-    name: "Google 사용자",
+    name: "소셜 로그인 사용자",
     business_name: null,
     business_type: null,
     is_active: true
@@ -2594,14 +2601,16 @@ document.getElementById("google-login-btn")?.addEventListener("click", () => {
       )
     );
 
-    googleUser.email = decodedPayload.email || "";
-    googleUser.name =
-      decodedPayload.email?.split("@")[0] || "Google 사용자";
+    socialUser.email = decodedPayload.email || "";
+    socialUser.name =
+      decodedPayload.name ||
+      decodedPayload.email?.split("@")[0] ||
+      "소셜 로그인 사용자";
   } catch (error) {
-    console.warn("Google JWT 사용자 정보 해석 실패:", error);
+    console.warn("소셜 로그인 JWT 사용자 정보 해석 실패:", error);
   }
 
-  setAuth(accessToken, googleUser);
+  setAuth(accessToken, socialUser);
 
   window.history.replaceState(
     {},
@@ -2609,7 +2618,13 @@ document.getElementById("google-login-btn")?.addEventListener("click", () => {
     window.location.pathname + window.location.search
   );
 
-  toast("Google 로그인이 완료되었습니다");
+  const providerLabel = {
+    google: "Google",
+    kakao: "카카오",
+    naver: "네이버"
+  }[provider] || "소셜";
+
+  toast(`${providerLabel} 로그인이 완료되었습니다`);
   go("dashboard");
 })();
 </script>
