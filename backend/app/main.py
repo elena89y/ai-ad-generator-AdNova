@@ -33,7 +33,7 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=os.getenv("SESSION_SECRET_KEY"),
     same_site="lax",
-    https_only=False,
+    https_only=False, # HTTPS 도메인 적용 후 True로 변경
 )
 
 app.add_middleware(
@@ -41,6 +41,7 @@ app.add_middleware(
     allow_origins=[
     "http://localhost:5500",
     "http://127.0.0.1:5500",
+    "http://34.70.32.192:5500",
 ],  # TODO: 배포 시 실제 프론트엔드 주소로 제한
     allow_credentials=True,
     allow_methods=["*"],

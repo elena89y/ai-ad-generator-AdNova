@@ -2640,21 +2640,27 @@ slide(50);
 updateUsage();
 renderBilling();applyPremiumUI();
 document.getElementById('upgradeModal').addEventListener('click',e=>{if(e.target.id==='upgradeModal')closeUpgrade();});
+const API_BASE =
+    window.location.hostname === "localhost"
+        ? "http://localhost:8000"
+        : "http://34.70.32.192:8000";
+// 나중에 도메인 생기면
+// const API_BASE = "https://adnova.ai";
 document.getElementById("google-login-btn")?.addEventListener("click", () => {
     window.location.href =
-        "http://localhost:8000/api/auth/google/login";
+        `${API_BASE}/api/auth/google/login`;
 });
 document
   .getElementById("kakao-login-btn")
   ?.addEventListener("click", () => {
     window.location.href =
-      "http://localhost:8000/api/auth/kakao/login";
+      `${API_BASE}/api/auth/kakao/login`;
   });
-  document
+document
   .getElementById("naver-login-btn")
   ?.addEventListener("click", () => {
     window.location.href =
-      "http://localhost:8000/api/auth/naver/login";
+      `${API_BASE}/api/auth/naver/login`;
   });
 (function handleSocialOAuthCallback() {
   const hashParams = new URLSearchParams(
