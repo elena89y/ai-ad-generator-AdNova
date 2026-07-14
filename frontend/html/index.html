@@ -346,10 +346,12 @@ http://scripts.sil.org/OFL
   }
   .soc:hover{border-color:var(--ink-mute)}
   .soc .ic{width:18px;height:18px;border-radius:5px;display:grid;place-items:center;font-size:11px;font-weight:800;color:#fff}
-  .soc.kakao{background:#FEE500;border-color:#FEE500;color:#3A1D1D}
-  .soc.kakao .ic{background:#3A1D1D;color:#FEE500}
-  .soc.naver{background:#03C75A;border-color:#03C75A;color:#fff}
-  .soc.naver .ic{background:#fff;color:#03C75A}
+  .soc.google .ic {background: transparent;border: none; padding: 0;}
+  .soc.google .ic img {width: 18px;height: 18px;display: block;}
+  .soc.kakao .ic{background: transparent;}
+  .soc.kakao .ic img{width:18px;height:18px;display:block;}
+  .soc.naver .ic{background: transparent;}
+  .soc.naver .ic img{width:18px;height:18px;display:block;}
   .login-foot{margin-top:18px;font-size:13.5px;color:var(--ink-mute)}
   .login-foot a{color:var(--berry);font-weight:700;text-decoration:none}
 
@@ -767,9 +769,9 @@ http://scripts.sil.org/OFL
 
     <div class="divider">또는</div>
     <div class="socials">
-      <button id="google-login-btn" class="soc"><span class="ic" style="background:#fff;color:#4285F4;border:1px solid var(--line)">G</span> Google로 계속하기</button>
-      <button id="kakao-login-btn" class="soc kakao"><span class="ic">K</span> 카카오로 계속하기</button>
-      <button class="soc naver" onclick="toast('네이버 로그인은 준비 중입니다')"><span class="ic">N</span> 네이버로 계속하기</button>
+      <button id="google-login-btn" class="soc google"><span class="ic"><img src="assets/icons/google.svg" alt="Google"></span>Google로 계속하기</button>
+      <button id="kakao-login-btn" class="soc kakao"><span class="ic"><img src="assets/icons/kakao.png" alt="Kakao"></span> 카카오로 계속하기</button>
+      <button id="naver-login-btn" class="soc naver"><span class="ic"><img src="assets/icons/naver.png" alt="Naver"></span> 네이버로 계속하기</button>
     </div>
     <p class="login-foot">아직 계정이 없으세요? <a href="#" onclick="go('signup');return false">무료로 시작하기</a></p>
   </div>
@@ -2647,6 +2649,12 @@ document
   ?.addEventListener("click", () => {
     window.location.href =
       "http://localhost:8000/api/auth/kakao/login";
+  });
+  document
+  .getElementById("naver-login-btn")
+  ?.addEventListener("click", () => {
+    window.location.href =
+      "http://localhost:8000/api/auth/naver/login";
   });
 (function handleSocialOAuthCallback() {
   const hashParams = new URLSearchParams(
