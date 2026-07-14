@@ -1,6 +1,11 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class DemoCardRequest(BaseModel):
+    card_brand: str = Field(min_length=1, max_length=50)
+    card_last4: str = Field(pattern=r"^\d{4}$")
 
 
 class SubscriptionResponse(BaseModel):

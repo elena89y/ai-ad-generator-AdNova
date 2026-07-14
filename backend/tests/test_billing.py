@@ -1,12 +1,13 @@
 import unittest
 from datetime import datetime, timedelta, timezone
-
 from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.api.billing import (
     cancel_subscription,
+    change_demo_payment_method,
+    create_demo_subscription,
     create_payment_method_change_session,
     read_billing_summary,
     read_purchase_histories,
@@ -15,6 +16,7 @@ from app.api.billing import (
 from app.database.billing_models import PaymentMethod, PurchaseHistory, Subscription
 from app.database.connection import Base
 from app.database.models import User
+from app.schemas.billing import DemoCardRequest
 
 
 class BillingApiTestCase(unittest.TestCase):
@@ -129,6 +131,52 @@ class BillingApiTestCase(unittest.TestCase):
 
         self.assertEqual(context.exception.status_code, 503)
 
+    def test_demo_subscription_creates_billing_records(self) -> None:
+        request = DemoCardRequest(card_brand="Visa", card_last4="4242")
+
+        summary = create_demo_subscription(
+            request=request,
+            db=self.session,
+            current_user=self.other_user,
+        )
+
+        self.assertTrue(summary.is_premium)
+        self.assertEqual(summary.subscription.provider, "demo")
+        self.assertEqual(summary.payment_method.card_brand, "Visa")
+        self.assertEqual(summary.payment_method.card_last4, "4242")
+
+        purchases = read_purchase_histories(
+            limit=50,
+            db=self.session,
+            current_user=self.other_user,
+        )
+        self.assertEqual(len(purchases), 2)
+        self.assertEqual(purchases[0].amount, 9900)
+        self.assertEqual(purchases[0].status, "paid")
+
+    def test_active_demo_subscription_cannot_be_created_twice(self) -> None:
+        request = DemoCardRequest(card_brand="Visa", card_last4="4242")
+
+        with self.assertRaises(HTTPException) as context:
+            create_demo_subscription(
+                request=request,
+                db=self.session,
+                current_user=self.user,
+            )
+
+        self.assertEqual(context.exception.status_code, 409)
+
+    def test_demo_payment_method_can_be_changed(self) -> None:
+        request = DemoCardRequest(card_brand="Mastercard", card_last4="5678")
+
+        summary = change_demo_payment_method(
+            request=request,
+            db=self.session,
+            current_user=self.user,
+        )
+
+        self.assertEqual(summary.payment_method.card_brand, "Mastercard")
+        self.assertEqual(summary.payment_method.card_last4, "5678")
 
 if __name__ == "__main__":
     unittest.main()

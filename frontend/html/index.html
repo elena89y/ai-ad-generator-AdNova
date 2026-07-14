@@ -1223,7 +1223,7 @@ http://scripts.sil.org/OFL
         <div style="background:var(--card);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:20px"><div style="font-size:13px;font-weight:700;color:var(--ink-soft)">무료 체험</div><div style="font-size:26px;font-weight:800;letter-spacing:-1px;margin:6px 0 14px">₩0</div><div style="display:flex;flex-direction:column;gap:9px;font-size:12.5px;color:var(--ink-soft)"><div>✓ 가입 시 <b style="color:var(--ink)">크레딧 3개</b></div><div style="color:var(--ink-mute)">· 광고 생성마다 1개 차감</div><div style="color:var(--ink-mute)">· 미리보기 · 로고 워터마크</div><div style="color:var(--ink-mute)">· 이력 저장 (다운로드 X)</div></div><button style="width:100%;margin-top:16px;padding:11px;border:1px solid rgba(255,255,255,.12);border-radius:11px;background:rgba(255,255,255,.04);color:var(--ink-mute);font-size:13px;font-weight:700;cursor:default">현재 플랜</button></div>
         <div style="background:linear-gradient(160deg,#26222b,#1F1E25);border:1.5px solid var(--gold);border-radius:16px;padding:20px;position:relative;box-shadow:0 0 0 3px rgba(242,169,59,.12)"><span style="position:absolute;top:-11px;right:16px;background:var(--gold);color:#16151A;font-size:11px;font-weight:800;padding:4px 10px;border-radius:7px">추천</span><div style="font-size:13px;font-weight:700;color:var(--gold-deep)">프리미엄</div><div style="font-size:26px;font-weight:800;letter-spacing:-1px;margin:6px 0 14px">₩9,900<span style="font-size:13px;font-weight:600;color:var(--ink-mute)">/월</span></div><div style="display:flex;flex-direction:column;gap:9px;font-size:12.5px;color:var(--ink-soft)"><div>✓ 매월 <b style="color:var(--ink)">크레딧 30개</b></div><div>✓ <b style="color:var(--ink)">워터마크 없음</b></div><div>✓ 고해상도 원본 다운로드</div><div>✓ 크레딧 추가 구매 가능</div></div><button style="width:100%;margin-top:16px;padding:11px;border:none;border-radius:11px;background:var(--gold);color:#16151A;font-size:13px;font-weight:700;cursor:pointer" onclick="startPremium()">프리미엄 시작하기</button></div>
       </div>
-      <p style="margin:12px 2px 0;font-size:11.5px;color:#6b6775;text-align:center">※ 프리미엄 신규 결제와 크레딧 충전은 준비 중입니다.</p>
+      <p style="margin:12px 2px 0;font-size:11.5px;color:#6b6775;text-align:center">※ 현재는 실제 청구 없이 결제 버튼을 누르면 프리미엄이 적용되는 테스트 방식입니다.</p>
     </div>
     <div id="billingManage" style="display:none">
       <div style="display:flex;align-items:center;gap:10px;margin:6px 0 20px"><span id="billingStatusBadge" style="font-size:11px;font-weight:800;color:#16151A;background:var(--gold);padding:5px 12px;border-radius:999px">✦ 프리미엄 이용 중</span><h2 style="font-size:20px;font-weight:800;letter-spacing:-.5px">구독 관리</h2></div>
@@ -1231,6 +1231,35 @@ http://scripts.sil.org/OFL
       <div class="set-card"><h4>결제 내역</h4><div id="billingPurchaseList" style="font-size:13px;color:var(--ink-mute)">결제 내역을 불러오는 중입니다.</div></div>
       <div class="set-card"><h4>결제 방법</h4><div style="display:flex;align-items:center;gap:12px"><span id="billingPaymentMethod" style="font-size:13px;font-weight:600">결제 방법을 불러오는 중입니다.</span><button style="margin-left:auto;padding:9px 14px;border:1px solid rgba(255,255,255,.14);border-radius:10px;background:transparent;color:var(--ink-soft);font-size:12.5px;font-weight:700;cursor:pointer" onclick="changePaymentMethod()">변경</button></div></div>
       <div style="display:flex;justify-content:flex-end"><button id="subscriptionActionBtn" style="padding:12px 18px;border:1px solid rgba(224,86,127,.4);border-radius:11px;background:transparent;color:var(--berry);font-size:13px;font-weight:700;cursor:pointer" onclick="toggleSubscriptionCancellation()">구독 해지</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 테스트 결제 ============ -->
+<section id="demoCheckout" class="screen">
+  <div class="subbar">
+    <div class="brand"><img class="brand-mark" src="assets/brand-logo.png" alt="AdNova"><span class="studio-tag">studio</span></div>
+    <button class="back-link" style="margin:0 0 0 6px" onclick="go('billing')">← 구독 관리</button>
+  </div>
+  <div class="page" style="max-width:620px">
+    <div style="margin:6px 0 22px">
+      <span style="display:inline-block;font-size:11px;font-weight:800;color:var(--gold);background:rgba(242,169,59,.14);padding:5px 12px;border-radius:999px;margin-bottom:10px">테스트 결제</span>
+      <h2 id="demoCheckoutTitle" style="font-size:24px;font-weight:800;margin-bottom:7px">프리미엄 시작하기</h2>
+      <p id="demoCheckoutDescription" style="font-size:13px;color:var(--ink-mute);line-height:1.6">카드 정보를 확인하면 프리미엄 테스트 권한이 바로 적용됩니다.</p>
+    </div>
+    <div class="set-card">
+      <div id="demoCheckoutPlan" style="display:flex;justify-content:space-between;align-items:center;gap:14px;padding-bottom:16px;margin-bottom:18px;border-bottom:1px solid var(--line)">
+        <div><div style="font-size:14px;font-weight:800">프리미엄 월 구독</div><div style="font-size:12px;color:var(--ink-mute);margin-top:4px">테스트 이용 기간 30일</div></div>
+        <b style="font-size:18px;color:var(--gold)">₩9,900</b>
+      </div>
+      <div class="field"><label for="demoCardholder">카드 소유자 이름</label><input id="demoCardholder" type="text" maxlength="40" autocomplete="off" placeholder="홍길동"></div>
+      <div class="field"><label for="demoCardNumber">카드 번호</label><input id="demoCardNumber" type="text" inputmode="numeric" maxlength="19" autocomplete="off" placeholder="4242 4242 4242 4242" oninput="formatDemoCardNumber(this)"></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+        <div class="field"><label for="demoCardExpiry">유효기간</label><input id="demoCardExpiry" type="text" inputmode="numeric" maxlength="5" autocomplete="off" placeholder="MM/YY" oninput="formatDemoCardExpiry(this)"></div>
+        <div class="field"><label for="demoCardCvc">CVC</label><input id="demoCardCvc" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="3~4자리" oninput="this.value=this.value.replace(/\D/g,'').slice(0,4)"></div>
+      </div>
+      <p style="font-size:11.5px;color:var(--ink-mute);line-height:1.65;margin:2px 0 16px">실제 결제는 발생하지 않습니다. 입력한 카드 번호, 유효기간, CVC는 서버로 전송하거나 저장하지 않습니다.</p>
+      <button id="demoCheckoutSubmit" class="btn-primary" style="width:100%" onclick="submitDemoCheckout()">테스트 결제 완료</button>
     </div>
   </div>
 </section>
@@ -1310,7 +1339,7 @@ http://scripts.sil.org/OFL
           <li>고해상도 원본 다운로드</li>
           <li>크레딧 추가 구매 가능</li>
         </ul>
-        <button class="plan-btn" onclick="closeUpgrade();toast('결제 화면으로 이동 (준비 중)')">프리미엄 시작하기</button>
+        <button class="plan-btn" onclick="closeUpgrade();startPremium()">프리미엄 시작하기</button>
       </div>
     </div>
   </div>
@@ -2307,7 +2336,7 @@ document.addEventListener('click',()=>{
 });
 
 /* ---------- new pages / UI ---------- */
-var isPremium=false, billingFrom='dashboard', billingSummary=null, billingPurchases=[];
+var isPremium=false, billingFrom='dashboard', billingSummary=null, billingPurchases=[], demoCheckoutMode='subscribe';
 function pickUse(el){document.querySelectorAll('#uses .use').forEach(function(s){s.classList.remove('on');});el.classList.add('on');}
 function goBilling(from){billingFrom=from||'dashboard';go('billing');}
 function formatBillingDate(value){
@@ -2399,14 +2428,64 @@ async function loadBilling(showMessage=true){
     if(showMessage)toast(err.message||'결제 정보를 불러오지 못했습니다');
   }
 }
-function startPremium(){toast('프리미엄 기능은 준비 중입니다');}
-async function changePaymentMethod(){
+function clearDemoCardFields(){
+  ['demoCardholder','demoCardNumber','demoCardExpiry','demoCardCvc'].forEach(id=>{
+    const input=document.getElementById(id);
+    if(input)input.value='';
+  });
+}
+function formatDemoCardNumber(input){
+  const digits=input.value.replace(/\D/g,'').slice(0,16);
+  input.value=digits.replace(/(.{4})/g,'$1 ').trim();
+}
+function formatDemoCardExpiry(input){
+  const digits=input.value.replace(/\D/g,'').slice(0,4);
+  input.value=digits.length>2?`${digits.slice(0,2)}/${digits.slice(2)}`:digits;
+}
+function openDemoCheckout(mode){
+  if(!getToken()){go('login');toast('로그인이 필요합니다');return;}
+  demoCheckoutMode=mode==='payment-method'?'payment-method':'subscribe';
+  const changing=demoCheckoutMode==='payment-method';
+  document.getElementById('demoCheckoutTitle').textContent=changing?'결제 방법 변경':'프리미엄 시작하기';
+  document.getElementById('demoCheckoutDescription').textContent=changing?'새 카드 정보를 확인하면 등록된 결제 방법이 변경됩니다.':'카드 정보를 확인하면 프리미엄 테스트 권한이 바로 적용됩니다.';
+  document.getElementById('demoCheckoutPlan').style.display=changing?'none':'flex';
+  document.getElementById('demoCheckoutSubmit').textContent=changing?'결제 방법 변경':'테스트 결제 완료';
+  clearDemoCardFields();
+  go('demoCheckout');
+}
+function startPremium(){openDemoCheckout('subscribe');}
+function changePaymentMethod(){openDemoCheckout('payment-method');}
+async function submitDemoCheckout(){
+  const cardholder=document.getElementById('demoCardholder').value.trim();
+  const cardNumber=document.getElementById('demoCardNumber').value.replace(/\D/g,'');
+  const expiry=document.getElementById('demoCardExpiry').value;
+  const cvc=document.getElementById('demoCardCvc').value;
+  if(!cardholder){toast('카드 소유자 이름을 입력해주세요');return;}
+  if(!/^\d{16}$/.test(cardNumber)){toast('카드 번호 16자리를 확인해주세요');return;}
+  const expiryMatch=expiry.match(/^(0[1-9]|1[0-2])\/(\d{2})$/);
+  if(!expiryMatch){toast('유효기간을 MM/YY 형식으로 입력해주세요');return;}
+  if(!/^\d{3,4}$/.test(cvc)){toast('CVC 3~4자리를 확인해주세요');return;}
+
+  const button=document.getElementById('demoCheckoutSubmit');
+  const endpoint=demoCheckoutMode==='payment-method'?'/api/billing/demo/payment-method':'/api/billing/demo/subscribe';
+  const cardBrand=cardNumber.startsWith('4')?'Visa':cardNumber.startsWith('5')?'Mastercard':'테스트카드';
+  if(button)button.disabled=true;
   try{
-    const res=await apiFetch('/api/billing/payment-method/change-session',{method:'POST'});
+    const res=await apiFetch(endpoint,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({card_brand:cardBrand,card_last4:cardNumber.slice(-4)})
+    });
     let data=null;try{data=await res.json();}catch(_){}
-    if(!res.ok)throw new Error(readApiError(data,'결제 방법을 변경하지 못했습니다'));
-    if(data&&data.redirect_url)window.location.assign(data.redirect_url);
-  }catch(err){toast(err.message||'결제 방법을 변경하지 못했습니다');}
+    if(!res.ok)throw new Error(readApiError(data,'테스트 결제를 완료하지 못했습니다'));
+    billingSummary=data;
+    go('billing');
+    toast(demoCheckoutMode==='payment-method'?'결제 방법을 변경했습니다':'테스트 결제가 완료되어 프리미엄이 적용됐습니다');
+  }catch(err){toast(err.message||'테스트 결제를 완료하지 못했습니다');}
+  finally{
+    clearDemoCardFields();
+    if(button)button.disabled=false;
+  }
 }
 async function toggleSubscriptionCancellation(){
   const subscription=billingSummary&&billingSummary.subscription;

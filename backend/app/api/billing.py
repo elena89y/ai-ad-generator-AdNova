@@ -3,16 +3,22 @@ from sqlalchemy.orm import Session
 
 from app.core.security import get_current_user
 from app.crud.billing import (
+    activate_demo_subscription,
     get_payment_method_by_user,
     get_subscription_by_user,
     list_purchase_histories_by_user,
     resume_subscription,
     schedule_subscription_cancellation,
+    update_demo_payment_method,
 )
 from app.database.billing_models import Subscription
 from app.database.connection import get_db
 from app.database.models import User
-from app.schemas.billing import BillingSummaryResponse, PurchaseHistoryResponse
+from app.schemas.billing import (
+    BillingSummaryResponse,
+    DemoCardRequest,
+    PurchaseHistoryResponse,
+)
 
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -51,6 +57,50 @@ def read_purchase_histories(
     current_user: User = Depends(get_current_user),
 ) -> list[PurchaseHistoryResponse]:
     return list_purchase_histories_by_user(db, current_user.id, limit=limit)
+
+
+@router.post("/demo/subscribe", response_model=BillingSummaryResponse)
+def create_demo_subscription(
+    request: DemoCardRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> BillingSummaryResponse:
+    subscription = get_subscription_by_user(db, current_user.id)
+    if _is_premium(subscription) and not subscription.cancel_at_period_end:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="이미 프리미엄 구독을 이용 중입니다.",
+        )
+
+    activate_demo_subscription(
+        db,
+        current_user.id,
+        card_brand=request.card_brand,
+        card_last4=request.card_last4,
+    )
+    return _build_summary(db, current_user.id)
+
+
+@router.post("/demo/payment-method", response_model=BillingSummaryResponse)
+def change_demo_payment_method(
+    request: DemoCardRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> BillingSummaryResponse:
+    subscription = get_subscription_by_user(db, current_user.id)
+    if not _is_premium(subscription):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="결제 방법을 변경할 활성 구독이 없습니다.",
+        )
+
+    update_demo_payment_method(
+        db,
+        current_user.id,
+        card_brand=request.card_brand,
+        card_last4=request.card_last4,
+    )
+    return _build_summary(db, current_user.id)
 
 
 @router.post("/subscription/cancel", response_model=BillingSummaryResponse)
