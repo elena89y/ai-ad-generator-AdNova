@@ -1292,7 +1292,7 @@ http://scripts.sil.org/OFL
         <div><div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:10px">정보</div><div style="display:flex;flex-direction:column;gap:9px;font-size:12.5px"><div style="display:flex;justify-content:space-between;gap:16px"><span style="color:var(--ink-mute)">상품명</span><b id="detailProductName" style="text-align:right"></b></div><div style="display:flex;justify-content:space-between"><span style="color:var(--ink-mute)">스타일</span><span id="detailStyle" style="color:var(--gold);font-weight:700"></span></div><div style="display:flex;justify-content:space-between"><span style="color:var(--ink-mute)">형식</span><span id="detailAdType"></span></div></div></div>
         <div style="height:1px;background:var(--line)"></div>
         <div style="flex:1"><div id="detailPlatformTabs" style="display:flex;gap:4px;margin-bottom:11px"><button class="shtab on" onclick="selectDetailPlatform(this,'instagram')">IG</button><button class="shtab" onclick="selectDetailPlatform(this,'facebook')">FB</button><button class="shtab" onclick="selectDetailPlatform(this,'x')">X</button><button class="shtab" onclick="selectDetailPlatform(this,'threads')">Threads</button></div><div id="detailCopyHead" style="font-size:15px;font-weight:700;font-family:var(--serif);font-style:italic;margin-bottom:7px"></div><div id="detailCopyBody" style="font-size:12.5px;line-height:1.6;color:var(--ink-soft)"></div><div id="detailCopyTags" style="font-size:11.5px;color:var(--gold);margin-top:8px;font-weight:600"></div></div>
-        <div style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:rgba(242,169,59,.08);border:1px solid rgba(242,169,59,.24);border-radius:11px"><span>🔒</span><span style="flex:1;font-size:11.5px;color:var(--gold-deep);font-weight:600">원본 다운로드는 프리미엄</span><button style="padding:7px 12px;border:none;border-radius:9px;background:var(--gold);color:#16151A;font-size:11.5px;font-weight:800;cursor:pointer" onclick="go('billing')">업그레이드</button></div>
+        <div id="detailPremiumNotice" style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:rgba(242,169,59,.08);border:1px solid rgba(242,169,59,.24);border-radius:11px"><span>🔒</span><span style="flex:1;font-size:11.5px;color:var(--gold-deep);font-weight:600">원본 다운로드는 프리미엄</span><button style="padding:7px 12px;border:none;border-radius:9px;background:var(--gold);color:#16151A;font-size:11.5px;font-weight:800;cursor:pointer" onclick="go('billing')">업그레이드</button></div>
       </div>
     </div>
   </div>
@@ -1306,7 +1306,7 @@ http://scripts.sil.org/OFL
     <div style="display:flex;gap:6px;margin-bottom:16px"><span class="shtab on" data-p="instagram" onclick="shareTab(this,'instagram')"><span style="width:15px;height:15px;border-radius:4px;background:linear-gradient(135deg,#f9ce34,#ee2a7b,#6228d7);display:grid;place-items:center;font-size:8px;color:#fff;font-weight:800">IG</span>Instagram</span><span class="shtab" data-p="facebook" onclick="shareTab(this,'facebook')">Facebook</span><span class="shtab" data-p="x" onclick="shareTab(this,'x')">X</span><span class="shtab" data-p="threads" onclick="shareTab(this,'threads')">Threads</span></div>
     <div style="background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:16px"><div style="aspect-ratio:1;background:#0d0d10;position:relative"><img id="shareImage" alt="공유할 광고" style="width:100%;height:100%;object-fit:contain;display:block"><span style="position:absolute;left:11px;top:11px;background:rgba(0,0,0,.5);color:var(--ink-soft);font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px">AI 광고</span></div><div style="padding:14px 16px"><div id="shHead" style="font-size:14px;font-weight:700;font-family:var(--serif);font-style:italic;margin-bottom:5px"></div><div id="shBody" style="font-size:12.5px;line-height:1.6;color:var(--ink-soft);margin-bottom:7px"></div><div id="shTags" style="font-size:12px;color:var(--gold);font-weight:600"></div></div></div>
     <div class="share-actions" style="display:flex;gap:8px;margin-bottom:12px"><button id="shBtn" style="width:100%;padding:12px;border:none;border-radius:11px;background:var(--gold);color:#16151A;font-size:13px;font-weight:700;cursor:pointer" onclick="shareSelectedAd()">↗ Instagram 공유</button></div>
-    <div class="share-premium" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(242,169,59,.08);border:1px solid rgba(242,169,59,.24);border-radius:11px"><span>🔒</span><span style="flex:1;font-size:12px;color:var(--gold-deep);font-weight:600">고해상도 원본 다운로드는 프리미엄</span><button style="padding:8px 13px;border:none;border-radius:9px;background:transparent;color:var(--gold);font-size:12px;font-weight:800;cursor:pointer" onclick="go('billing')">업그레이드 →</button></div>
+    <div id="sharePremiumNotice" class="share-premium" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(242,169,59,.08);border:1px solid rgba(242,169,59,.24);border-radius:11px"><span>🔒</span><span style="flex:1;font-size:12px;color:var(--gold-deep);font-weight:600">고해상도 원본 다운로드는 프리미엄</span><button style="padding:8px 13px;border:none;border-radius:9px;background:transparent;color:var(--gold);font-size:12px;font-weight:800;cursor:pointer" onclick="go('billing')">업그레이드 →</button></div>
   </div>
 </section>
 
@@ -1499,7 +1499,7 @@ function syncDashboardSummaryUI(){
   const count=summary.monthly_ad_count||0;
   const last=summary.last_worked_at?formatDateLabel(summary.last_worked_at):null;
   const text=last?`이번 달 ${count}개 · 최근 ${last}`:`이번 달 ${count}개 생성`;
-  document.querySelectorAll('.pf-plan').forEach(el=>{el.textContent=text;});
+  document.querySelectorAll('.usage-summary').forEach(el=>{el.textContent=text;});
 }
 async function loadDashboardSummary(showMessage=false){
   if(!getToken()) return;
@@ -2047,9 +2047,16 @@ function resetSlider(){var r=document.getElementById('range');if(r){r.value=50;s
 let freeTotal=3, freeLeft=3;
 function updateUsage(){
   document.querySelectorAll('.usage').forEach(u=>{
+    if(isPremium){
+      u.innerHTML='<span class="udots premium-dot">✦</span> 프리미엄 <b>광고 생성 가능</b>';
+      return;
+    }
     let dots='';
     for(let k=0;k<freeTotal;k++) dots+='<i class="'+(k<freeLeft?'on':'')+'"></i>';
     u.innerHTML='<span class="udots">'+dots+'</span> 체험 <b>'+freeLeft+'</b>회 남음';
+  });
+  document.querySelectorAll('.credits').forEach(el=>{
+    el.innerHTML=isPremium?'플랜 <b>프리미엄</b>':'크레딧 <b>3</b>';
   });
 }
 function useFreeCredit(){
@@ -2375,6 +2382,7 @@ function renderBilling(){
   const subscription=billingSummary&&billingSummary.subscription;
   const paymentMethod=billingSummary&&billingSummary.payment_method;
   isPremium=Boolean(billingSummary&&billingSummary.is_premium);
+  renderMembershipUI();
   const hasBillingData=Boolean(subscription||paymentMethod||billingPurchases.length);
   if(upgrade)upgrade.style.display=isPremium?'none':'block';
   if(manage)manage.style.display=(isPremium||hasBillingData)?'block':'none';
@@ -2507,6 +2515,12 @@ async function toggleSubscriptionCancellation(){
 }
 function downloadResult(){if(isPremium){toast('고해상도 원본을 다운로드했어요');}else{goBilling('dashboard');}}
 function applyPremiumUI(){document.querySelectorAll('.wm-row').forEach(function(e){e.style.display=isPremium?'none':'flex';});var dl=document.getElementById('dlBtn');if(dl)dl.innerHTML=isPremium?'⬇️ 다운로드':'⬇️ 다운로드 🔒';}
+function renderMembershipUI(){
+  const planText=isPremium?'프리미엄 이용 중 · 원본 다운로드 가능':'무료 체험 · 3회 남음';
+  document.querySelectorAll('.pf-plan').forEach(el=>{el.textContent=planText;});
+  document.querySelectorAll('#detailPremiumNotice,#sharePremiumNotice').forEach(el=>{el.style.display=isPremium?'none':'flex';});
+  updateUsage();
+}
 function setSet(el,id){document.querySelectorAll('#settings .set-nav-item').forEach(function(x){x.classList.remove('on');});el.classList.add('on');var t=document.getElementById(id);if(t)window.scrollTo({top:t.getBoundingClientRect().top+window.scrollY-90,behavior:'smooth'});}
 function shareTab(el,platform){document.querySelectorAll('#share .shtab').forEach(tab=>tab.classList.remove('on'));el.classList.add('on');renderSharePlatform(platform);}
 function filterFaqs(value){
