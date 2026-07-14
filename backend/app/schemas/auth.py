@@ -87,6 +87,14 @@ class UserLogin(BaseModel):
         return value.lower()
 
 
+class UsernameFindRequest(BaseModel):
+    email: EmailStr
+
+
+class UsernameFindResponse(BaseModel):
+    username: str
+
+
 class UserResponse(BaseModel):
     id: int
     email: EmailStr

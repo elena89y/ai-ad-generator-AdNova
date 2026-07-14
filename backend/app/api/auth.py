@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -8,7 +9,13 @@ from app.core.config import settings
 from app.core.security import create_access_token, hash_password, verify_password
 from app.database.connection import get_db
 from app.database.models import User
-from app.schemas.auth import UserCreate, UserLogin, UserResponse
+from app.schemas.auth import (
+    UserCreate,
+    UserLogin,
+    UserResponse,
+    UsernameFindRequest,
+    UsernameFindResponse,
+)
 
 
 router = APIRouter(
@@ -105,6 +112,22 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
             "auth_provider": "local",
         },
     }
+
+
+@router.post("/find-username", response_model=UsernameFindResponse)
+def find_username(request: UsernameFindRequest, db: Session = Depends(get_db)):
+    user = (
+        db.query(User)
+        .filter(func.lower(User.email) == str(request.email).lower())
+        .first()
+    )
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="가입된 이메일을 찾을 수 없습니다.",
+        )
+
+    return UsernameFindResponse(username=user.username)
 
 
 @router.post("/logout")
