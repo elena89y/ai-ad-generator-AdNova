@@ -1,7 +1,7 @@
-"""스타일 씬 생성 경로 (DESIGN_SYSTEM 생성비중 스타일) — 담당: 한의정.
+"""스타일 씬 생성 경로 (레퍼런스 StylePlan + 특수 포맷) — 담당: 한의정.
 
-style_specs.scene_prompt 를 Kontext 명령으로 적용해 스타일 씬을 생성한다.
-  - 생성비중 스타일(pop 제품합성 · editorial 무드보드 · warm_vintage 소품씬)의 배경/연출 생성.
+6개 무드는 reference_style_plans의 도메인별 규칙을, 특수 포맷은 style_specs.scene_prompt를 사용한다.
+  - food/drink/object별로 pop·editorial·realism·pastel·monotone·warm organic 연출을 분리.
   - 하이브리드 스타일은 kontext_service 의 A/B 템플릿(정체성 보존 편집)이 이미 담당.
   - 타이포는 이 단계 이후 overlay_service(PIL)로 별도 조판(역할분리).
 
@@ -15,20 +15,29 @@ from typing import Optional
 
 def generate_scene(image_path: str, style_key: str, subject_en: str,
                    output_dir: str = "backend/results/ai/style",
-                   seed: int = 42, steps: Optional[int] = None) -> str:
-    """스타일 씬 생성. style_specs.scene_prompt({subject}) + 보존절 → Kontext 편집. 경로 반환."""
+                   seed: int = 42, steps: Optional[int] = None,
+                   domain: Optional[str] = None) -> str:
+    """도메인별 StylePlan 또는 특수 포맷 지시로 Kontext 편집 후 경로를 반환한다."""
     from . import kontext_service
     from .style_specs import get_spec
 
     sp = get_spec(style_key)
     scene = sp.scene_prompt.format(subject=subject_en or "product")
 
+    # STY-003~005: 범용 프롬프트 한 개로는 6무드가 비슷해지고 도메인에 맞지 않는 소품이 생겼다.
+    # 레퍼런스에서 추출한 무드 규칙을 food/drink/object별로 분리하고, 원본 정체성 잠금을 앞에 둔다.
+    from .reference_style_plans import build_clip_anchor, build_reference_instruction
+    reference_instr = build_reference_instruction(style_key, domain, subject_en)
+    clip_prompt = build_clip_anchor(style_key, domain, subject_en)
+
     # 구성(composition) 유지 절 — 무드 씬 전용 (2026-07-11 콜드런 실측: editorial 이 브런치
     #   4조각+치즈소스+음료를 1개 단품으로 재구성 → 메뉴 시그니처 소실 = 정직성 경계 위반).
     #   재구성이 목적인 포맷(cross_section 단면·object_* 사물·pop_split 매크로)은 제외.
     #   ⚠️ 절 순서가 결정적: 구성 유지를 '맨 앞'에 둬야 씬의 스타일 언어(싱글히어로·여백)에 안 밀림.
     _RECOMPOSE_OK = {"cross_section", "object_studio", "object_splash", "pop_split"}
-    if style_key not in _RECOMPOSE_OK:
+    if reference_instr:
+        instr = reference_instr
+    elif style_key not in _RECOMPOSE_OK:
         instr = ("Edit this exact photo. Keep every food item exactly as photographed: the same "
                  "number of pieces, the same sauces and garnishes, the same plating and arrangement "
                  "— do not remove, add, merge or simplify anything on the plate. "
@@ -50,4 +59,7 @@ def generate_scene(image_path: str, style_key: str, subject_en: str,
                       "Render exactly these layers, do not invent other ingredients.")
 
     kw = {} if steps is None else {"steps": steps}
-    return kontext_service.edit(image_path, instr, seed=seed, output_dir=output_dir, **kw)
+    return kontext_service.edit(
+        image_path, instr, seed=seed, output_dir=output_dir,
+        clip_prompt=clip_prompt, **kw,
+    )

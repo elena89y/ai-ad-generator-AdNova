@@ -361,17 +361,20 @@ def process_ad(
         analysis = gpt_service.analyze_menu(name)
         subject_en = getattr(analysis, "subject_en", None) or name
         domain = getattr(analysis, "domain", "food")
+        food_mode = getattr(analysis, "food_mode", None)
+        style_domain = "drink" if food_mode == "cafe" else domain
         # 포맷 자동감지(STYLE_SYSTEM v2): style 은 '무드', 포맷은 콘텐츠로 결정.
-        #   사물(SKU)이면 무드 무관 object_studio 로 고정(사물이 음식 씬 타면 붕괴) — 무드는 조판에 반영.
+        #   STY-003~005 이후 사물도 선택 무드를 적용하되, StylePlan이 상품은 고정하고 배경·조명만 바꾼다.
         #   여름음료 pop_split·케이크 cross_section 은 특수 조판/게이트 필요 → 당분간 명시 호출 유지.
-        effective_style = "object_studio" if domain == "object" else style
+        effective_style = style
         # Best-of-N: N시드 생성 → 선별기로 top 선택. best_of=1 이면 기존 1샷.
         #   ⚠️ BON-002 기각(2026-07-13): NIMA 는 이미-좋은 이미지(5~6점대)를 변별 못 해 Best-of-N 무효.
         #   선별기는 SELECTOR env 로 교체(nima 기본|gpt=구조화 저지|both=둘 다 로깅해 클린 비교).
         n = max(1, best_of)
         seeds = [7, 42, 123, 2024, 88, 512][:n]
         cands = [style_gen.generate_scene(image_path, effective_style, subject_en,
-                                          output_dir=output_dir, seed=s, steps=steps) for s in seeds]
+                                          output_dir=output_dir, seed=s, steps=steps,
+                                          domain=style_domain) for s in seeds]
         final = _select_best(cands, original_path=image_path)
         sel = os.environ.get("SELECTOR", "nima")
         engine = f"style:{effective_style}" + (f"·bestof{n}:{sel}" if n > 1 else "")
