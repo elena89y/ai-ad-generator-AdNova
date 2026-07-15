@@ -2782,6 +2782,13 @@ document
   
   const isNewUser =
   hashParams.get("is_new_user") === "true";
+  
+  console.log("[OAuth 신규 사용자 확인]", {
+  rawValue: hashParams.get("is_new_user"),
+  isNewUser: isNewUser,
+  provider: provider,
+  userId: userId
+});
 
   if (!accessToken) {
     return;
