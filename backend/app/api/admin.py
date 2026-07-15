@@ -6,8 +6,10 @@ from app.core.security import get_current_user
 from app.crud.admin import (
     count_advertisements_by_user,
     get_user_for_admin,
+    list_purchase_histories_for_admin,
     list_users_for_admin,
     update_user_active_status,
+    update_user_premium_access,
 )
 from app.database.admin_models import AdminAccount
 from app.database.billing_models import Subscription
@@ -15,10 +17,13 @@ from app.database.connection import get_db
 from app.database.models import User
 from app.schemas.admin import (
     AdminMeResponse,
+    AdminPurchaseHistoryListResponse,
+    AdminPurchaseHistoryResponse,
     AdminUserDetailResponse,
     AdminUserListResponse,
     AdminUserResponse,
     AdminUserStatusUpdateRequest,
+    AdminUserSubscriptionUpdateRequest,
 )
 
 
@@ -55,6 +60,25 @@ def _build_admin_user_response(
     )
 
 
+def _build_admin_purchase_response(
+    purchase,
+    user: User,
+) -> AdminPurchaseHistoryResponse:
+    return AdminPurchaseHistoryResponse(
+        id=purchase.id,
+        user_id=user.id,
+        username=user.username,
+        email=user.email,
+        provider=purchase.provider,
+        item_type=purchase.item_type,
+        description=purchase.description,
+        amount=purchase.amount,
+        currency=purchase.currency,
+        status=purchase.status,
+        purchased_at=purchase.purchased_at,
+    )
+
+
 @router.get("/users", response_model=AdminUserListResponse)
 def read_admin_users(
     skip: int = Query(0, ge=0),
@@ -73,6 +97,34 @@ def read_admin_users(
     return AdminUserListResponse(
         total=total,
         items=[_build_admin_user_response(user, subscription) for user, subscription in rows],
+    )
+
+
+@router.get("/purchases", response_model=AdminPurchaseHistoryListResponse)
+def read_admin_purchase_histories(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    user_id: int | None = Query(None, gt=0),
+    search: str | None = Query(None, min_length=1, max_length=100),
+    payment_status: str | None = Query(None, min_length=1, max_length=30),
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminPurchaseHistoryListResponse:
+    del current_admin
+    total, rows = list_purchase_histories_for_admin(
+        db,
+        skip=skip,
+        limit=limit,
+        user_id=user_id,
+        search=search,
+        payment_status=payment_status,
+    )
+    return AdminPurchaseHistoryListResponse(
+        total=total,
+        items=[
+            _build_admin_purchase_response(purchase, user)
+            for purchase, user in rows
+        ],
     )
 
 
@@ -131,4 +183,40 @@ def update_admin_user_status(
 
     user, subscription = row
     update_user_active_status(db, user, is_active=request.is_active)
+    return _build_admin_user_response(user, subscription)
+
+
+@router.patch("/users/{user_id}/subscription", response_model=AdminUserResponse)
+def update_admin_user_subscription(
+    user_id: int,
+    request: AdminUserSubscriptionUpdateRequest,
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminUserResponse:
+    if user_id == current_admin.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="현재 로그인한 관리자 계정의 플랜은 변경할 수 없습니다.",
+        )
+
+    target_admin = (
+        db.query(AdminAccount).filter(AdminAccount.user_id == user_id).first()
+    )
+    if target_admin is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="관리자 계정 플랜은 이 기능으로 변경할 수 없습니다.",
+        )
+
+    if get_user_for_admin(db, user_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="사용자를 찾을 수 없습니다.",
+        )
+
+    user, subscription = update_user_premium_access(
+        db,
+        user_id,
+        is_premium=request.is_premium,
+    )
     return _build_admin_user_response(user, subscription)
