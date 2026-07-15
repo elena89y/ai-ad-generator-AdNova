@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AdminMeResponse(BaseModel):
@@ -84,6 +84,15 @@ class AdminPurchaseHistoryResponse(BaseModel):
 class AdminPurchaseHistoryListResponse(BaseModel):
     total: int
     items: list[AdminPurchaseHistoryResponse]
+
+
+class AdminDemoRefundRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=255)
+
+
+class AdminDemoRefundResponse(BaseModel):
+    purchase: AdminPurchaseHistoryResponse
+    subscription_revoked: bool
 
 
 class AdminSubscriptionResponse(BaseModel):
