@@ -284,6 +284,25 @@ class AdminApiTestCase(unittest.TestCase):
         self.assertEqual(listed_user.plan, "premium")
         self.assertEqual(listed_user.subscription_status, "active")
 
+    def test_inactive_premium_subscription_is_shown_as_free(self) -> None:
+        subscription = self.session.query(Subscription).one()
+        subscription.status = "inactive"
+        self.session.commit()
+
+        response = read_admin_users(
+            skip=0,
+            limit=50,
+            search=None,
+            is_active=None,
+            plan=None,
+            db=self.session,
+            current_admin=self.admin_account,
+        )
+
+        listed_user = next(item for item in response.items if item.id == self.user.id)
+        self.assertEqual(listed_user.plan, "free")
+        self.assertEqual(listed_user.subscription_status, "inactive")
+
     def test_admin_can_filter_users_by_status_and_plan(self) -> None:
         inactive_user = User(
             email="inactive@example.com",
@@ -455,6 +474,29 @@ class AdminApiTestCase(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.status_code, 409)
+
+    def test_admin_cannot_refund_non_demo_purchase(self) -> None:
+        purchase = self.session.query(PurchaseHistory).one()
+        purchase.provider = "external"
+        self.session.commit()
+
+        with self.assertRaises(HTTPException) as context:
+            refund_admin_demo_purchase(
+                purchase_id=purchase.id,
+                request=AdminDemoRefundRequest(reason="고객 요청"),
+                db=self.session,
+                current_admin=self.admin_account,
+            )
+
+        self.assertEqual(context.exception.status_code, 400)
+        self.session.refresh(purchase)
+        self.assertEqual(purchase.status, "paid")
+        self.assertEqual(
+            self.session.query(AdminAuditLog)
+            .filter(AdminAuditLog.action == "purchase.refunded")
+            .count(),
+            0,
+        )
 
     def test_refund_keeps_premium_with_another_paid_subscription(self) -> None:
         purchase = self.session.query(PurchaseHistory).one()
