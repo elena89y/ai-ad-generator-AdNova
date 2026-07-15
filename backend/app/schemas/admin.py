@@ -10,6 +10,32 @@ class AdminMeResponse(BaseModel):
     role: str
 
 
+class AdminSummaryResponse(BaseModel):
+    total_users: int
+    active_users: int
+    premium_users: int
+    total_advertisements: int
+    unresolved_inquiries: int
+    paid_purchase_count: int
+    paid_purchase_amount: int
+
+
+class AdminAuditLogResponse(BaseModel):
+    id: int
+    admin_user_id: int
+    admin_username: str
+    action: str
+    target_type: str
+    target_id: int
+    detail: str | None = None
+    created_at: datetime
+
+
+class AdminAuditLogListResponse(BaseModel):
+    total: int
+    items: list[AdminAuditLogResponse]
+
+
 class AdminUserResponse(BaseModel):
     id: int
     username: str
