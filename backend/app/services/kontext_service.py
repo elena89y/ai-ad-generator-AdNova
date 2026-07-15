@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -81,6 +82,18 @@ def build_instruction(template: str, subject_en: str,
 FILL_REPO = "black-forest-labs/FLUX.1-Fill-dev"   # T5/CLIP/VAE/토크나이저 재사용 소스
 
 
+def _read_hf_token() -> Optional[str]:
+    """공용 토큰 파일을 읽는다. 토큰 값을 프로세스 환경에 노출하지 않는다."""
+    token_path = os.environ.get("HF_TOKEN_PATH", "").strip()
+    if not token_path:
+        return None
+    try:
+        return Path(token_path).read_text(encoding="utf-8").strip() or None
+    except OSError as e:
+        logger.warning("HF_TOKEN_PATH 읽기 실패: %s", e)
+        return None
+
+
 def _load_kontext():  # noqa: ANN202
     """Kontext 파이프라인 lazy 싱글턴. Fill 의 T5/CLIP/VAE 재사용, Kontext 트랜스포머만 GGUF.
 
@@ -100,6 +113,7 @@ def _load_kontext():  # noqa: ANN202
     from transformers import (BitsAndBytesConfig, CLIPTextModel, CLIPTokenizer,
                               T5EncoderModel, T5TokenizerFast)
 
+    hf_token = _read_hf_token()
     logger.info("Kontext 로드: Fill 컴포넌트 개별 로드(T5 NF4) + 트랜스포머 GGUF")
     # T5 는 NF4 양자화(기존 flux_service 와 동일 설정 — 로드 시 GPU 상주, ~5GB)
     te2 = T5EncoderModel.from_pretrained(
@@ -107,22 +121,28 @@ def _load_kontext():  # noqa: ANN202
         quantization_config=BitsAndBytesConfig(
             load_in_4bit=True, bnb_4bit_quant_type="nf4",
             bnb_4bit_compute_dtype=torch.bfloat16),
-        torch_dtype=torch.bfloat16)
+        torch_dtype=torch.bfloat16, token=hf_token)
     te = CLIPTextModel.from_pretrained(
-        FILL_REPO, subfolder="text_encoder", torch_dtype=torch.bfloat16).to("cuda")
-    tok = CLIPTokenizer.from_pretrained(FILL_REPO, subfolder="tokenizer")
-    tok2 = T5TokenizerFast.from_pretrained(FILL_REPO, subfolder="tokenizer_2")
+        FILL_REPO, subfolder="text_encoder", torch_dtype=torch.bfloat16,
+        token=hf_token).to("cuda")
+    tok = CLIPTokenizer.from_pretrained(
+        FILL_REPO, subfolder="tokenizer", token=hf_token)
+    tok2 = T5TokenizerFast.from_pretrained(
+        FILL_REPO, subfolder="tokenizer_2", token=hf_token)
     vae = AutoencoderKL.from_pretrained(
-        FILL_REPO, subfolder="vae", torch_dtype=torch.bfloat16).to("cuda")
+        FILL_REPO, subfolder="vae", torch_dtype=torch.bfloat16,
+        token=hf_token).to("cuda")
 
-    gguf = hf_hub_download(GGUF_REPO, GGUF_FILE)
+    gguf = hf_hub_download(GGUF_REPO, GGUF_FILE, token=hf_token)
     transformer = FluxTransformer2DModel.from_single_file(
         gguf, quantization_config=GGUFQuantizationConfig(compute_dtype=torch.bfloat16),
         config=KONTEXT_REPO, subfolder="transformer", torch_dtype=torch.bfloat16,
+        token=hf_token,
     ).to("cuda")
     _kontext_pipeline = FluxKontextPipeline.from_pretrained(
         KONTEXT_REPO, transformer=transformer, text_encoder=te, text_encoder_2=te2,
         tokenizer=tok, tokenizer_2=tok2, vae=vae, torch_dtype=torch.bfloat16,
+        token=hf_token,
     )
     logger.info("Kontext 로드 완료 (VRAM peak ~13GB 실측)")
     return _kontext_pipeline
