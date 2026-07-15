@@ -356,15 +356,24 @@ def update_admin_inquiry_status(
     inquiry = get_inquiry_by_id(db, inquiry_id)
     if inquiry is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문의를 찾을 수 없습니다.")
-    inquiry = update_inquiry_status(db, inquiry, inquiry_status=request.status)
-    create_admin_audit_log(
-        db,
-        admin_user_id=current_admin.user_id,
-        action="inquiry.status_updated",
-        target_type="inquiry",
-        target_id=inquiry.id,
-        detail=f"status={request.status}",
-    )
+    try:
+        inquiry = update_inquiry_status(
+            db,
+            inquiry,
+            inquiry_status=request.status,
+            commit=False,
+        )
+        create_admin_audit_log(
+            db,
+            admin_user_id=current_admin.user_id,
+            action="inquiry.status_updated",
+            target_type="inquiry",
+            target_id=inquiry.id,
+            detail=f"status={request.status}",
+        )
+    except Exception:
+        db.rollback()
+        raise
     return _build_admin_inquiry_response(inquiry, inquiry.user)
 
 
@@ -378,19 +387,24 @@ def answer_admin_inquiry(
     inquiry = get_inquiry_by_id(db, inquiry_id)
     if inquiry is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문의를 찾을 수 없습니다.")
-    inquiry = answer_inquiry(
-        db,
-        inquiry,
-        answer=request.answer,
-        admin_user_id=current_admin.user_id,
-    )
-    create_admin_audit_log(
-        db,
-        admin_user_id=current_admin.user_id,
-        action="inquiry.answered",
-        target_type="inquiry",
-        target_id=inquiry.id,
-    )
+    try:
+        inquiry = answer_inquiry(
+            db,
+            inquiry,
+            answer=request.answer,
+            admin_user_id=current_admin.user_id,
+            commit=False,
+        )
+        create_admin_audit_log(
+            db,
+            admin_user_id=current_admin.user_id,
+            action="inquiry.answered",
+            target_type="inquiry",
+            target_id=inquiry.id,
+        )
+    except Exception:
+        db.rollback()
+        raise
     return _build_admin_inquiry_response(inquiry, inquiry.user)
 
 

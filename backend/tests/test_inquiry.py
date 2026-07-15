@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from fastapi import HTTPException
 from sqlalchemy import create_engine
@@ -14,9 +15,9 @@ from app.api.inquiries import (
     read_user_inquiry_detail,
     read_user_inquiries,
 )
-from app.database.admin_models import AdminAccount
+from app.database.admin_models import AdminAccount, AdminAuditLog
 from app.database.connection import Base
-from app.database.models import User
+from app.database.models import SupportInquiry, User
 from app.schemas.inquiry import (
     InquiryAnswerUpdateRequest,
     InquiryCreateRequest,
@@ -125,6 +126,12 @@ class InquiryApiTestCase(unittest.TestCase):
         self.assertEqual(answered.status, "answered")
         self.assertEqual(answered.answer, "결제 내역에서 확인할 수 있습니다.")
         self.assertEqual(answered.answered_by_admin_id, self.admin_user.id)
+        self.assertEqual(
+            self.session.query(AdminAuditLog)
+            .filter(AdminAuditLog.action == "inquiry.answered")
+            .count(),
+            1,
+        )
 
     def test_admin_can_update_inquiry_status(self) -> None:
         created = self._create_inquiry()
@@ -137,6 +144,29 @@ class InquiryApiTestCase(unittest.TestCase):
         )
 
         self.assertEqual(updated.status, "in_progress")
+
+    def test_inquiry_status_rolls_back_when_audit_log_fails(self) -> None:
+        created = self._create_inquiry()
+
+        with patch(
+            "app.api.admin.create_admin_audit_log",
+            side_effect=RuntimeError("audit log failed"),
+        ):
+            with self.assertRaises(RuntimeError):
+                update_admin_inquiry_status(
+                    inquiry_id=created.id,
+                    request=InquiryStatusUpdateRequest(status="in_progress"),
+                    db=self.session,
+                    current_admin=self.admin_account,
+                )
+
+        self.session.expire_all()
+        inquiry = (
+            self.session.query(SupportInquiry)
+            .filter(SupportInquiry.id == created.id)
+            .one()
+        )
+        self.assertEqual(inquiry.status, "pending")
 
 
 if __name__ == "__main__":

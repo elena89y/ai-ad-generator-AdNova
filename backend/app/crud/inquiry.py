@@ -75,9 +75,13 @@ def update_inquiry_status(
     inquiry: SupportInquiry,
     *,
     inquiry_status: str,
+    commit: bool = True,
 ) -> SupportInquiry:
     inquiry.status = inquiry_status
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     db.refresh(inquiry)
     return inquiry
 
@@ -88,11 +92,15 @@ def answer_inquiry(
     *,
     answer: str,
     admin_user_id: int,
+    commit: bool = True,
 ) -> SupportInquiry:
     inquiry.answer = answer
     inquiry.answered_by_admin_id = admin_user_id
     inquiry.answered_at = utc_now()
     inquiry.status = "answered"
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     db.refresh(inquiry)
     return inquiry
