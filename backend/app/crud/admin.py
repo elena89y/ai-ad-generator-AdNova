@@ -300,3 +300,44 @@ def get_purchase_history_for_admin(
         .filter(PurchaseHistory.id == purchase_id)
         .first()
     )
+
+
+def refund_demo_purchase_for_admin(
+    db: Session,
+    purchase: PurchaseHistory,
+) -> bool:
+    purchase.status = "refunded"
+
+    subscription = (
+        db.query(Subscription)
+        .filter(Subscription.user_id == purchase.user_id)
+        .first()
+    )
+    has_other_paid_subscription = (
+        db.query(PurchaseHistory.id)
+        .filter(
+            PurchaseHistory.user_id == purchase.user_id,
+            PurchaseHistory.item_type == "subscription",
+            PurchaseHistory.status == "paid",
+            PurchaseHistory.id != purchase.id,
+        )
+        .first()
+        is not None
+    )
+
+    subscription_revoked = False
+    if (
+        subscription is not None
+        and subscription.plan == "premium"
+        and subscription.status == "active"
+        and subscription.provider != "admin"
+        and not has_other_paid_subscription
+    ):
+        subscription.plan = "free"
+        subscription.status = "inactive"
+        subscription.cancel_at_period_end = False
+        subscription.cancel_requested_at = None
+        subscription_revoked = True
+
+    db.flush()
+    return subscription_revoked

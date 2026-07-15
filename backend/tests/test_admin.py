@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from fastapi import HTTPException
 from sqlalchemy import create_engine
@@ -14,17 +15,19 @@ from app.api.admin import (
     read_admin_subscriptions,
     read_admin_user_detail,
     read_admin_users,
+    refund_admin_demo_purchase,
     update_admin_user_status,
     update_admin_user_subscription,
 )
 from app.core.admin_security import get_current_admin
-from app.database.admin_models import AdminAccount
+from app.database.admin_models import AdminAccount, AdminAuditLog
 from app.database.billing_models import PurchaseHistory, Subscription
 from app.database.connection import Base
 from app.database.models import Advertisement, User
 from app.schemas.admin import (
     AdminUserStatusUpdateRequest,
     AdminUserSubscriptionUpdateRequest,
+    AdminDemoRefundRequest,
 )
 
 
@@ -255,6 +258,105 @@ class AdminApiTestCase(unittest.TestCase):
 
         self.assertEqual(response.username, "normaluser")
         self.assertEqual(response.description, "프리미엄 월 구독 (테스트)")
+
+    def test_admin_can_refund_demo_subscription_purchase(self) -> None:
+        purchase = self.session.query(PurchaseHistory).one()
+
+        response = refund_admin_demo_purchase(
+            purchase_id=purchase.id,
+            request=AdminDemoRefundRequest(reason="고객 요청"),
+            db=self.session,
+            current_admin=self.admin_account,
+        )
+
+        self.session.refresh(purchase)
+        subscription = self.session.query(Subscription).one()
+        self.assertEqual(response.purchase.status, "refunded")
+        self.assertTrue(response.subscription_revoked)
+        self.assertEqual(purchase.status, "refunded")
+        self.assertEqual(subscription.plan, "free")
+        self.assertEqual(subscription.status, "inactive")
+        summary = read_admin_summary(
+            db=self.session,
+            current_admin=self.admin_account,
+        )
+        self.assertEqual(summary.premium_users, 0)
+        self.assertEqual(summary.paid_purchase_count, 0)
+        self.assertEqual(
+            self.session.query(AdminAuditLog)
+            .filter(AdminAuditLog.action == "purchase.refunded")
+            .count(),
+            1,
+        )
+
+    def test_admin_cannot_refund_the_same_purchase_twice(self) -> None:
+        purchase = self.session.query(PurchaseHistory).one()
+        request = AdminDemoRefundRequest(reason="고객 요청")
+
+        refund_admin_demo_purchase(
+            purchase_id=purchase.id,
+            request=request,
+            db=self.session,
+            current_admin=self.admin_account,
+        )
+
+        with self.assertRaises(HTTPException) as context:
+            refund_admin_demo_purchase(
+                purchase_id=purchase.id,
+                request=request,
+                db=self.session,
+                current_admin=self.admin_account,
+            )
+
+        self.assertEqual(context.exception.status_code, 409)
+
+    def test_refund_keeps_premium_with_another_paid_subscription(self) -> None:
+        purchase = self.session.query(PurchaseHistory).one()
+        self.session.add(
+            PurchaseHistory(
+                user_id=self.user.id,
+                item_type="subscription",
+                description="추가 프리미엄 구독",
+                amount=9900,
+                currency="KRW",
+                status="paid",
+            )
+        )
+        self.session.commit()
+
+        response = refund_admin_demo_purchase(
+            purchase_id=purchase.id,
+            request=AdminDemoRefundRequest(reason="중복 결제"),
+            db=self.session,
+            current_admin=self.admin_account,
+        )
+
+        subscription = self.session.query(Subscription).one()
+        self.assertFalse(response.subscription_revoked)
+        self.assertEqual(subscription.plan, "premium")
+        self.assertEqual(subscription.status, "active")
+
+    def test_refund_rolls_back_when_audit_log_fails(self) -> None:
+        purchase = self.session.query(PurchaseHistory).one()
+
+        with patch(
+            "app.api.admin.create_admin_audit_log",
+            side_effect=RuntimeError("audit log failed"),
+        ):
+            with self.assertRaises(RuntimeError):
+                refund_admin_demo_purchase(
+                    purchase_id=purchase.id,
+                    request=AdminDemoRefundRequest(reason="테스트"),
+                    db=self.session,
+                    current_admin=self.admin_account,
+                )
+
+        self.session.expire_all()
+        restored_purchase = self.session.query(PurchaseHistory).one()
+        restored_subscription = self.session.query(Subscription).one()
+        self.assertEqual(restored_purchase.status, "paid")
+        self.assertEqual(restored_subscription.plan, "premium")
+        self.assertEqual(restored_subscription.status, "active")
 
     def test_missing_user_detail_is_rejected(self) -> None:
         with self.assertRaises(HTTPException) as context:

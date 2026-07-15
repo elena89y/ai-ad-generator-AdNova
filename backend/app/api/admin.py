@@ -16,6 +16,7 @@ from app.crud.admin import (
     list_purchase_histories_for_admin,
     list_admin_audit_logs,
     list_users_for_admin,
+    refund_demo_purchase_for_admin,
     update_user_active_status,
     update_user_premium_access,
 )
@@ -32,6 +33,8 @@ from app.database.models import User
 from app.schemas.admin import (
     AdminAuditLogListResponse,
     AdminAuditLogResponse,
+    AdminDemoRefundRequest,
+    AdminDemoRefundResponse,
     AdminMeResponse,
     AdminPurchaseHistoryListResponse,
     AdminPurchaseHistoryResponse,
@@ -213,6 +216,58 @@ def read_admin_purchase_histories(
             _build_admin_purchase_response(purchase, user)
             for purchase, user in rows
         ],
+    )
+
+
+@router.post(
+    "/purchases/{purchase_id}/refund",
+    response_model=AdminDemoRefundResponse,
+)
+def refund_admin_demo_purchase(
+    purchase_id: int,
+    request: AdminDemoRefundRequest,
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminDemoRefundResponse:
+    row = get_purchase_history_for_admin(db, purchase_id)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="구매 내역을 찾을 수 없습니다.",
+        )
+
+    purchase, user = row
+    if purchase.item_type != "subscription":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="현재는 구독 결제만 환불할 수 있습니다.",
+        )
+    if purchase.status != "paid":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="환불할 수 있는 결제 내역이 아닙니다.",
+        )
+
+    try:
+        subscription_revoked = refund_demo_purchase_for_admin(db, purchase)
+        create_admin_audit_log(
+            db,
+            admin_user_id=current_admin.user_id,
+            action="purchase.refunded",
+            target_type="purchase",
+            target_id=purchase.id,
+            detail=(
+                f"reason={request.reason}; "
+                f"subscription_revoked={subscription_revoked}"
+            ),
+        )
+    except Exception:
+        db.rollback()
+        raise
+
+    return AdminDemoRefundResponse(
+        purchase=_build_admin_purchase_response(purchase, user),
+        subscription_revoked=subscription_revoked,
     )
 
 
