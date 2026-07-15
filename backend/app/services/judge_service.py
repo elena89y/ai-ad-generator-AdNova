@@ -18,9 +18,13 @@
 from __future__ import annotations
 
 import base64
+import json
 import logging
 import mimetypes
 import os
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -28,6 +32,7 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger(__name__)
 
 JUDGE_MODEL = "gpt-5.4-mini"  # gpt_service.GPT_MODEL 과 일치 유지
+JUDGE_LOG_DIR = Path(__file__).resolve().parents[2] / "results" / "ai" / "judge_logs"
 
 
 # ── 구조화 스키마 ────────────────────────────────────────────────────────────
@@ -89,6 +94,62 @@ def _record_usage(label: str, raw) -> None:  # noqa: ANN001
         logger.warning(f"judge usage 기록 실패(무해): {e}")
 
 
+def _usage_dict(raw) -> dict[str, int]:  # noqa: ANN001
+    """LangChain raw AIMessage usage 를 JSONL 저장용 dict 로 정규화."""
+    um = getattr(raw, "usage_metadata", None) or {}
+    return {
+        "prompt_tokens": int(um.get("input_tokens", 0) or 0),
+        "completion_tokens": int(um.get("output_tokens", 0) or 0),
+        "total_tokens": int(um.get("total_tokens", 0) or 0),
+    }
+
+
+def _append_judge_log(original_path: Optional[str],
+                      candidate_paths: list[str],
+                      scores: list[AdScore],
+                      raws: list,  # noqa: ANN001
+                      best_path: str) -> None:
+    """후보별 GPT judge 결과를 JSONL 로 저장.
+
+    judge 는 비용이 드는 평가 호출이라, smoke/운영 선택 결과를 나중에 발표·실험 리포트·
+    셀렉터 캘리브레이션에 재사용할 수 있게 원장을 남긴다. 저장 실패는 선별 결과를 막지 않는다.
+    """
+    try:
+        now = datetime.now(timezone.utc)
+        JUDGE_LOG_DIR.mkdir(parents=True, exist_ok=True)
+        out = JUDGE_LOG_DIR / f"{now:%Y%m%d}.jsonl"
+        usage_total = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        candidates = []
+        for path, score, raw in zip(candidate_paths, scores, raws):
+            usage = _usage_dict(raw) if raw is not None else {
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+            }
+            for k in usage_total:
+                usage_total[k] += usage[k]
+            candidates.append({
+                "path": path,
+                "score": score.model_dump(),
+                "usage": usage,
+                "selected": path == best_path,
+            })
+        row = {
+            "run_id": uuid.uuid4().hex[:12],
+            "created_at": now.isoformat(),
+            "model": JUDGE_MODEL,
+            "selector": "gpt",
+            "original_path": original_path,
+            "best_path": best_path,
+            "candidates": candidates,
+            "usage_total": usage_total,
+        }
+        with out.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"judge 결과 저장 실패(무해): {e}")
+
+
 def _data_url(image_path: str) -> str:
     with open(image_path, "rb") as f:
         b64 = base64.b64encode(f.read()).decode("utf-8")
@@ -130,6 +191,7 @@ def score_batch(candidate_paths: list[str],
         inputs, config={"callbacks": _langfuse_callbacks(), "run_name": "judge_batch/score"}
     )  # [{raw, parsed, parsing_error}, ...] 순서 보존
     scores: list[AdScore] = []
+    raws: list = []
     for r in results:
         raw = r.get("raw") if isinstance(r, dict) else None
         parsed = r.get("parsed") if isinstance(r, dict) else None
@@ -138,6 +200,9 @@ def score_batch(candidate_paths: list[str],
         if parsed is None:
             parsed = AdScore(appeal=5, realism=5, identity=5, overall=5, reason="parse_fallback")
         scores.append(parsed)
+        raws.append(raw)
+    best_i = max(range(len(candidate_paths)), key=lambda i: scores[i].overall)
+    _append_judge_log(original_path, candidate_paths, scores, raws, candidate_paths[best_i])
     return scores
 
 
