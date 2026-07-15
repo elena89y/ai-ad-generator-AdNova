@@ -3,20 +3,25 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.core.admin_security import get_current_admin
+from app.core.admin_security import get_current_admin, get_current_super_admin
 from app.core.security import get_current_user
 from app.crud.admin import (
+    count_active_super_admins,
     count_advertisements_by_user,
     create_admin_audit_log,
+    get_admin_account_by_id,
     get_purchase_history_for_admin,
     get_admin_summary,
     get_subscription_for_admin,
     get_user_for_admin,
+    list_admin_accounts,
     list_subscriptions_for_admin,
     list_purchase_histories_for_admin,
     list_admin_audit_logs,
     list_users_for_admin,
     refund_demo_purchase_for_admin,
+    update_admin_account_active_status,
+    update_admin_account_role,
     update_user_active_status,
     update_user_premium_access,
 )
@@ -31,6 +36,10 @@ from app.database.billing_models import Subscription
 from app.database.connection import get_db
 from app.database.models import User
 from app.schemas.admin import (
+    AdminAccountListResponse,
+    AdminAccountResponse,
+    AdminAccountRoleUpdateRequest,
+    AdminAccountStatusUpdateRequest,
     AdminAuditLogListResponse,
     AdminAuditLogResponse,
     AdminDemoRefundRequest,
@@ -69,6 +78,158 @@ def read_admin_me(
         email=current_user.email,
         role=current_admin.role,
     )
+
+
+def _build_admin_account_response(
+    admin_account: AdminAccount,
+    user: User,
+) -> AdminAccountResponse:
+    return AdminAccountResponse(
+        id=admin_account.id,
+        user_id=user.id,
+        username=user.username,
+        email=user.email,
+        role=admin_account.role,
+        is_active=admin_account.is_active,
+        created_at=admin_account.created_at,
+        updated_at=admin_account.updated_at,
+    )
+
+
+@router.get("/accounts", response_model=AdminAccountListResponse)
+def read_admin_accounts(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    search: str | None = Query(None, min_length=1, max_length=100),
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_super_admin),
+) -> AdminAccountListResponse:
+    del current_admin
+    total, rows = list_admin_accounts(
+        db,
+        skip=skip,
+        limit=limit,
+        search=search,
+    )
+    return AdminAccountListResponse(
+        total=total,
+        items=[
+            _build_admin_account_response(admin_account, user)
+            for admin_account, user in rows
+        ],
+    )
+
+
+@router.patch(
+    "/accounts/{admin_account_id}/role",
+    response_model=AdminAccountResponse,
+)
+def update_admin_account_role_by_super_admin(
+    admin_account_id: int,
+    request: AdminAccountRoleUpdateRequest,
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_super_admin),
+) -> AdminAccountResponse:
+    row = get_admin_account_by_id(db, admin_account_id)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="관리자 계정을 찾을 수 없습니다.",
+        )
+
+    target_admin, user = row
+    if target_admin.id == current_admin.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="현재 로그인한 관리자 역할은 변경할 수 없습니다.",
+        )
+    if (
+        target_admin.role == "super_admin"
+        and target_admin.is_active
+        and request.role != "super_admin"
+        and count_active_super_admins(db) <= 1
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="활성 최고 관리자는 최소 한 명 이상 필요합니다.",
+        )
+
+    try:
+        update_admin_account_role(
+            db,
+            target_admin,
+            role=request.role,
+            commit=False,
+        )
+        create_admin_audit_log(
+            db,
+            admin_user_id=current_admin.user_id,
+            action="admin.role_updated",
+            target_type="admin_account",
+            target_id=target_admin.id,
+            detail=f"role={request.role}",
+        )
+    except Exception:
+        db.rollback()
+        raise
+
+    return _build_admin_account_response(target_admin, user)
+
+
+@router.patch(
+    "/accounts/{admin_account_id}/status",
+    response_model=AdminAccountResponse,
+)
+def update_admin_account_status_by_super_admin(
+    admin_account_id: int,
+    request: AdminAccountStatusUpdateRequest,
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_super_admin),
+) -> AdminAccountResponse:
+    row = get_admin_account_by_id(db, admin_account_id)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="관리자 계정을 찾을 수 없습니다.",
+        )
+
+    target_admin, user = row
+    if target_admin.id == current_admin.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="현재 로그인한 관리자 계정 상태는 변경할 수 없습니다.",
+        )
+    if (
+        target_admin.role == "super_admin"
+        and target_admin.is_active
+        and not request.is_active
+        and count_active_super_admins(db) <= 1
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="활성 최고 관리자는 최소 한 명 이상 필요합니다.",
+        )
+
+    try:
+        update_admin_account_active_status(
+            db,
+            target_admin,
+            is_active=request.is_active,
+            commit=False,
+        )
+        create_admin_audit_log(
+            db,
+            admin_user_id=current_admin.user_id,
+            action="admin.status_updated",
+            target_type="admin_account",
+            target_id=target_admin.id,
+            detail=f"is_active={request.is_active}",
+        )
+    except Exception:
+        db.rollback()
+        raise
+
+    return _build_admin_account_response(target_admin, user)
 
 
 @router.get("/summary", response_model=AdminSummaryResponse)
@@ -227,7 +388,7 @@ def refund_admin_demo_purchase(
     purchase_id: int,
     request: AdminDemoRefundRequest,
     db: Session = Depends(get_db),
-    current_admin: AdminAccount = Depends(get_current_admin),
+    current_admin: AdminAccount = Depends(get_current_super_admin),
 ) -> AdminDemoRefundResponse:
     row = get_purchase_history_for_admin(db, purchase_id)
     if row is None:
@@ -492,7 +653,7 @@ def update_admin_user_status(
     user_id: int,
     request: AdminUserStatusUpdateRequest,
     db: Session = Depends(get_db),
-    current_admin: AdminAccount = Depends(get_current_admin),
+    current_admin: AdminAccount = Depends(get_current_super_admin),
 ) -> AdminUserResponse:
     if user_id == current_admin.user_id:
         raise HTTPException(
@@ -543,7 +704,7 @@ def update_admin_user_subscription(
     user_id: int,
     request: AdminUserSubscriptionUpdateRequest,
     db: Session = Depends(get_db),
-    current_admin: AdminAccount = Depends(get_current_admin),
+    current_admin: AdminAccount = Depends(get_current_super_admin),
 ) -> AdminUserResponse:
     if user_id == current_admin.user_id:
         raise HTTPException(
