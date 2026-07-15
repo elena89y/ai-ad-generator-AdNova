@@ -7,6 +7,9 @@ from app.database.connection import get_db
 from app.database.models import User
 
 
+ADMIN_ROLES = {"operator", "super_admin"}
+
+
 def get_current_admin(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -24,5 +27,21 @@ def get_current_admin(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="관리자 권한이 필요합니다.",
         )
+    if admin_account.role not in ADMIN_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="유효하지 않은 관리자 역할입니다.",
+        )
 
     return admin_account
+
+
+def get_current_super_admin(
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminAccount:
+    if current_admin.role != "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="최고 관리자 권한이 필요합니다.",
+        )
+    return current_admin

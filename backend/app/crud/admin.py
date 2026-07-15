@@ -3,7 +3,7 @@ from datetime import timedelta
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from app.database.admin_models import AdminAuditLog
+from app.database.admin_models import AdminAccount, AdminAuditLog
 from app.database.billing_models import PurchaseHistory, Subscription, utc_now
 from app.database.models import Advertisement, SupportInquiry, User
 
@@ -81,6 +81,91 @@ def list_admin_audit_logs(
         query.count(),
         query.order_by(AdminAuditLog.created_at.desc()).offset(skip).limit(limit).all(),
     )
+
+
+def list_admin_accounts(
+    db: Session,
+    *,
+    skip: int,
+    limit: int,
+    search: str | None = None,
+) -> tuple[int, list[tuple[AdminAccount, User]]]:
+    query = db.query(AdminAccount, User).join(
+        User,
+        User.id == AdminAccount.user_id,
+    )
+    if search:
+        keyword = f"%{search}%"
+        query = query.filter(
+            or_(
+                User.username.ilike(keyword),
+                User.email.ilike(keyword),
+            )
+        )
+
+    total = query.count()
+    rows = (
+        query.order_by(AdminAccount.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    return total, rows
+
+
+def get_admin_account_by_id(
+    db: Session,
+    admin_account_id: int,
+) -> tuple[AdminAccount, User] | None:
+    return (
+        db.query(AdminAccount, User)
+        .join(User, User.id == AdminAccount.user_id)
+        .filter(AdminAccount.id == admin_account_id)
+        .first()
+    )
+
+
+def count_active_super_admins(db: Session) -> int:
+    return (
+        db.query(AdminAccount)
+        .filter(
+            AdminAccount.role == "super_admin",
+            AdminAccount.is_active.is_(True),
+        )
+        .count()
+    )
+
+
+def update_admin_account_role(
+    db: Session,
+    admin_account: AdminAccount,
+    *,
+    role: str,
+    commit: bool = True,
+) -> AdminAccount:
+    admin_account.role = role
+    if commit:
+        db.commit()
+    else:
+        db.flush()
+    db.refresh(admin_account)
+    return admin_account
+
+
+def update_admin_account_active_status(
+    db: Session,
+    admin_account: AdminAccount,
+    *,
+    is_active: bool,
+    commit: bool = True,
+) -> AdminAccount:
+    admin_account.is_active = is_active
+    if commit:
+        db.commit()
+    else:
+        db.flush()
+    db.refresh(admin_account)
+    return admin_account
 
 
 def list_users_for_admin(

@@ -6,6 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.api.admin import (
+    read_admin_accounts,
     read_admin_audit_logs,
     read_admin_summary,
     read_admin_me,
@@ -16,15 +17,19 @@ from app.api.admin import (
     read_admin_user_detail,
     read_admin_users,
     refund_admin_demo_purchase,
+    update_admin_account_role_by_super_admin,
+    update_admin_account_status_by_super_admin,
     update_admin_user_status,
     update_admin_user_subscription,
 )
-from app.core.admin_security import get_current_admin
+from app.core.admin_security import get_current_admin, get_current_super_admin
 from app.database.admin_models import AdminAccount, AdminAuditLog
 from app.database.billing_models import PurchaseHistory, Subscription
 from app.database.connection import Base
 from app.database.models import Advertisement, User
 from app.schemas.admin import (
+    AdminAccountRoleUpdateRequest,
+    AdminAccountStatusUpdateRequest,
     AdminUserStatusUpdateRequest,
     AdminUserSubscriptionUpdateRequest,
     AdminDemoRefundRequest,
@@ -88,6 +93,31 @@ class AdminApiTestCase(unittest.TestCase):
         )
         self.session.commit()
 
+    def _create_admin_account(
+        self,
+        *,
+        username: str,
+        role: str = "operator",
+        is_active: bool = True,
+    ) -> tuple[User, AdminAccount]:
+        user = User(
+            email=f"{username}@example.com",
+            username=username,
+            password_hash="test-hash",
+            is_active=True,
+        )
+        self.session.add(user)
+        self.session.commit()
+
+        admin_account = AdminAccount(
+            user_id=user.id,
+            role=role,
+            is_active=is_active,
+        )
+        self.session.add(admin_account)
+        self.session.commit()
+        return user, admin_account
+
     def tearDown(self) -> None:
         self.session.close()
         Base.metadata.drop_all(bind=self.engine)
@@ -121,6 +151,122 @@ class AdminApiTestCase(unittest.TestCase):
             get_current_admin(current_user=self.admin_user, db=self.session)
 
         self.assertEqual(context.exception.status_code, 403)
+
+    def test_operator_cannot_use_super_admin_dependency(self) -> None:
+        _, operator_account = self._create_admin_account(username="operator")
+
+        with self.assertRaises(HTTPException) as context:
+            get_current_super_admin(current_admin=operator_account)
+
+        self.assertEqual(context.exception.status_code, 403)
+
+    def test_invalid_admin_role_is_rejected(self) -> None:
+        invalid_user, _ = self._create_admin_account(
+            username="invalidrole",
+            role="unknown",
+        )
+
+        with self.assertRaises(HTTPException) as context:
+            get_current_admin(current_user=invalid_user, db=self.session)
+
+        self.assertEqual(context.exception.status_code, 403)
+
+    def test_super_admin_can_manage_operator_account(self) -> None:
+        operator_user, operator_account = self._create_admin_account(
+            username="operator",
+        )
+
+        accounts = read_admin_accounts(
+            skip=0,
+            limit=50,
+            search="operator",
+            db=self.session,
+            current_admin=self.admin_account,
+        )
+        updated_role = update_admin_account_role_by_super_admin(
+            admin_account_id=operator_account.id,
+            request=AdminAccountRoleUpdateRequest(role="super_admin"),
+            db=self.session,
+            current_admin=self.admin_account,
+        )
+        updated_status = update_admin_account_status_by_super_admin(
+            admin_account_id=operator_account.id,
+            request=AdminAccountStatusUpdateRequest(is_active=False),
+            db=self.session,
+            current_admin=self.admin_account,
+        )
+
+        self.assertEqual(accounts.total, 1)
+        self.assertEqual(updated_role.role, "super_admin")
+        self.assertFalse(updated_status.is_active)
+        with self.assertRaises(HTTPException) as context:
+            get_current_admin(current_user=operator_user, db=self.session)
+        self.assertEqual(context.exception.status_code, 403)
+        self.assertEqual(
+            self.session.query(AdminAuditLog)
+            .filter(AdminAuditLog.action.in_(["admin.role_updated", "admin.status_updated"]))
+            .count(),
+            2,
+        )
+
+    def test_super_admin_cannot_modify_own_admin_account(self) -> None:
+        with self.assertRaises(HTTPException) as role_context:
+            update_admin_account_role_by_super_admin(
+                admin_account_id=self.admin_account.id,
+                request=AdminAccountRoleUpdateRequest(role="operator"),
+                db=self.session,
+                current_admin=self.admin_account,
+            )
+        with self.assertRaises(HTTPException) as status_context:
+            update_admin_account_status_by_super_admin(
+                admin_account_id=self.admin_account.id,
+                request=AdminAccountStatusUpdateRequest(is_active=False),
+                db=self.session,
+                current_admin=self.admin_account,
+            )
+
+        self.assertEqual(role_context.exception.status_code, 400)
+        self.assertEqual(status_context.exception.status_code, 400)
+
+    def test_last_active_super_admin_is_protected(self) -> None:
+        _, other_super_admin = self._create_admin_account(
+            username="othersuper",
+            role="super_admin",
+        )
+        self.admin_account.is_active = False
+        self.session.commit()
+
+        with self.assertRaises(HTTPException) as context:
+            update_admin_account_status_by_super_admin(
+                admin_account_id=other_super_admin.id,
+                request=AdminAccountStatusUpdateRequest(is_active=False),
+                db=self.session,
+                current_admin=self.admin_account,
+            )
+
+        self.assertEqual(context.exception.status_code, 409)
+
+    def test_admin_role_update_rolls_back_when_audit_log_fails(self) -> None:
+        _, operator_account = self._create_admin_account(username="operator")
+
+        with patch(
+            "app.api.admin.create_admin_audit_log",
+            side_effect=RuntimeError("audit log failed"),
+        ):
+            with self.assertRaises(RuntimeError):
+                update_admin_account_role_by_super_admin(
+                    admin_account_id=operator_account.id,
+                    request=AdminAccountRoleUpdateRequest(role="super_admin"),
+                    db=self.session,
+                    current_admin=self.admin_account,
+                )
+
+        self.session.expire_all()
+        restored_account = self.session.query(AdminAccount).filter(
+            AdminAccount.id == operator_account.id
+        ).one()
+        self.assertEqual(restored_account.role, "operator")
+
 
     def test_admin_can_list_users_with_subscription_status(self) -> None:
         response = read_admin_users(

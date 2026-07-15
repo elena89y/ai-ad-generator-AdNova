@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -8,6 +9,30 @@ class AdminMeResponse(BaseModel):
     username: str
     email: str
     role: str
+
+
+class AdminAccountResponse(BaseModel):
+    id: int
+    user_id: int
+    username: str
+    email: str
+    role: str
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class AdminAccountListResponse(BaseModel):
+    total: int
+    items: list[AdminAccountResponse]
+
+
+class AdminAccountRoleUpdateRequest(BaseModel):
+    role: Literal["operator", "super_admin"]
+
+
+class AdminAccountStatusUpdateRequest(BaseModel):
+    is_active: bool
 
 
 class AdminSummaryResponse(BaseModel):
