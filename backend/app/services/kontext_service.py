@@ -156,13 +156,18 @@ def edit(
     guidance: float = DEFAULT_GUIDANCE,
     steps: int = DEFAULT_STEPS,
     output_dir: str = "backend/results/ai/kontext",
+    clip_prompt: Optional[str] = None,
 ) -> str:
-    """명령 기반 편집. instruction 은 build_instruction 산출(영어). 저장 경로 반환."""
+    """명령 기반 편집. 긴 instruction은 T5, 짧은 clip_prompt는 CLIP에 각각 전달한다."""
     import torch
 
     pipe = _load_kontext()
     img = _fit(Image.open(image_path).convert("RGB"))
-    out = pipe(image=img, prompt=instruction, guidance_scale=guidance,
+    # FLUX 이중 인코더: prompt=CLIP(77토큰), prompt_2=T5(최대 512토큰).
+    # StylePlan의 긴 정체성 잠금을 CLIP에 그대로 넣으면 핵심 무드가 잘리므로 역할을 분리한다.
+    prompt = clip_prompt or instruction
+    prompt_2 = instruction if clip_prompt else None
+    out = pipe(image=img, prompt=prompt, prompt_2=prompt_2, guidance_scale=guidance,
                num_inference_steps=steps,
                generator=torch.Generator("cuda").manual_seed(seed)).images[0]
     out_dir = Path(output_dir)
