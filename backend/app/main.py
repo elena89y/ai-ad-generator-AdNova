@@ -16,8 +16,13 @@ from app.api.kakao_auth import router as kakao_auth_router
 from app.api.naver_auth import router as naver_auth_router
 from app.api.export import router as export_router
 from app.core.config import settings
+from app.core.observability import init_langfuse, shutdown_langfuse
 from app.database import admin_models, models
 from app.database.connection import Base, engine
+
+# env(.env) 는 core.config 임포트 시점에 이미 로드됨 — Langfuse 는 그 다음, 첫 OpenAI/
+# LangChain 호출보다 반드시 앞서 초기화(자격증명 누락 방지, 마스킹 훅 등록).
+init_langfuse()
 
 Base.metadata.create_all(bind=engine)
 upload_dir = Path(settings.UPLOAD_DIR)
@@ -62,3 +67,9 @@ app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
 @app.get("/health", tags=["Health"])
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.on_event("shutdown")
+def _flush_langfuse() -> None:
+    """큐에 남은 트레이스 이벤트를 종료 전 전송(Langfuse 미설정 시 무해하게 스킵)."""
+    shutdown_langfuse()

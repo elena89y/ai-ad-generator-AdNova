@@ -16,6 +16,7 @@ authlib
 itsdangerous
 
 openai
+langfuse  # Langfuse 트레이싱 — app/core/observability.py 에서 초기화
 Pillow
 rembg
 
@@ -27,6 +28,7 @@ onnxruntime; sys_platform != "linux"
 # pydantic 2.10.4 유지 확인됨(충돌 없음, pip check clean)
 langgraph
 langchain-openai
+langchain  # langfuse.langchain.CallbackHandler 가 import 시점에 요구(judge_service.py 트레이싱)
 
 torch
 diffusers
