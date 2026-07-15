@@ -85,6 +85,8 @@ def list_users_for_admin(
     skip: int,
     limit: int,
     search: str | None = None,
+    is_active: bool | None = None,
+    plan: str | None = None,
 ) -> tuple[int, list[tuple[User, Subscription | None]]]:
     query = db.query(User, Subscription).outerjoin(
         Subscription,
@@ -97,6 +99,21 @@ def list_users_for_admin(
                 User.username.ilike(keyword),
                 User.email.ilike(keyword),
                 User.business_name.ilike(keyword),
+            )
+        )
+    if is_active is not None:
+        query = query.filter(User.is_active.is_(is_active))
+    if plan == "premium":
+        query = query.filter(
+            Subscription.plan == "premium",
+            Subscription.status == "active",
+        )
+    elif plan == "free":
+        query = query.filter(
+            or_(
+                Subscription.id.is_(None),
+                Subscription.plan != "premium",
+                Subscription.status != "active",
             )
         )
 

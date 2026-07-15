@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
@@ -142,6 +144,8 @@ def read_admin_users(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     search: str | None = Query(None, min_length=1, max_length=100),
+    is_active: bool | None = Query(None),
+    plan: Literal["free", "premium"] | None = Query(None),
     db: Session = Depends(get_db),
     current_admin: AdminAccount = Depends(get_current_admin),
 ) -> AdminUserListResponse:
@@ -151,6 +155,8 @@ def read_admin_users(
         skip=skip,
         limit=limit,
         search=search,
+        is_active=is_active,
+        plan=plan,
     )
     return AdminUserListResponse(
         total=total,
