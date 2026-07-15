@@ -245,6 +245,11 @@ def _build_admin_user_response(
     user: User,
     subscription: Subscription | None,
 ) -> AdminUserResponse:
+    is_premium = bool(
+        subscription
+        and subscription.plan == "premium"
+        and subscription.status == "active"
+    )
     return AdminUserResponse(
         id=user.id,
         username=user.username,
@@ -253,7 +258,7 @@ def _build_admin_user_response(
         business_name=user.business_name,
         is_active=user.is_active,
         created_at=user.created_at,
-        plan=subscription.plan if subscription else "free",
+        plan="premium" if is_premium else "free",
         subscription_status=subscription.status if subscription else None,
     )
 
@@ -398,6 +403,11 @@ def refund_admin_demo_purchase(
         )
 
     purchase, user = row
+    if purchase.provider != "demo":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="데모 결제 내역만 환불할 수 있습니다.",
+        )
     if purchase.item_type != "subscription":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
