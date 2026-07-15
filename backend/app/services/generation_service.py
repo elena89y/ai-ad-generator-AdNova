@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 
+import os
 import random
 import re
 from dataclasses import dataclass
@@ -23,6 +24,7 @@ _ASSET_ID_RE = re.compile(r"^[a-f0-9]{12}$")
 def is_valid_asset_id(asset_id: str) -> bool:
     return bool(_ASSET_ID_RE.match(asset_id or ""))
 
+from ..core.observability import observe, propagate_attributes
 from ..schemas.ads import ProductInfo, StylePreset
 from . import gpt_service, image_service
 from .prompt_service import build_image_prompt
@@ -169,6 +171,7 @@ def _platform_copies_safe(product: ProductInfo, style: StylePreset) -> dict[str,
         return {}
 
 
+@observe(name="generation.run_from_upload_v2")
 def run_from_upload_v2(
     image_path: str,
     product: ProductInfo,
@@ -184,41 +187,47 @@ def run_from_upload_v2(
 
     from .style_specs import resolve_style
 
-    # 입력 게이트(P0, 콜드런 배치 실측): 사진 피사체 ≠ 상품명이면 이름 기반 날조(없는 제품 생성)
-    #   위험 → 생성 전 차단. 관대한 판정(명백한 무관 사진만 거부), 판정 실패 시 통과.
-    gate = gpt_service.verify_photo_subject(image_path, product.name)
-    if not gate["match"]:
-        seen = f" (사진에는 '{gate['seen']}'이(가) 보여요)" if gate.get("seen") else ""
-        raise ValueError(
-            f"사진과 상품명('{product.name}')이 서로 달라 보여요.{seen} "
-            "상품이 잘 보이는 사진인지 확인해 주세요.")
-
+    # asset_id 를 먼저 발급 — 이 요청 안의 모든 하위 LLM 호출(gpt_service/judge_service 트레이스)을
+    # session_id=asset_id 로 묶는다. /ads/regenerate 는 같은 asset_id 로 rerun_v2 를 호출하므로,
+    # Langfuse Sessions 뷰에서 최초 생성 트레이스와 재생성 트레이스가 하나의 세션으로 이어져 보인다.
     asset_id = uuid.uuid4().hex[:12]
-    # regen 용으로 입력 원본 보존(v2 는 누끼/mask 없음 → 원본 재투입 방식)
-    saved = image_service.PROCESSED_DIR / f"{asset_id}_v2input{_P(image_path).suffix}"
-    saved.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy(image_path, saved)
 
-    # ⚠️ 결과는 서빙 디렉토리(RESULTS_DIR, 절대경로)에 저장 — process_ad 기본 output_dir 은
-    #   상대경로("backend/results/ai/route")라 uvicorn CWD(backend/)에서 backend/backend/... 로 풀려
-    #   /ads/image/{filename} 서빙이 404 남(실측 2026-07-10). 절대경로로 고정.
-    # ⚠️ 입력을 원본이 아니라 asset_id 로 이름 지은 saved(고유) 로 넣는다(실측 2026-07-12):
-    #   출력 파일명은 입력 stem 기반 → 같은 업로드를 다시 생성/스타일변경하면 URL 동일 → 브라우저가
-    #   캐시된 옛 이미지를 보여줘 "스타일 바꿔도 똑같이 나옴". saved(매 생성 고유) 로 넣으면 URL도 고유.
-    # Best-of-N: env BEST_OF_N 로 배포에서 제어(기본 1=기존 1샷). steps 도 env BEST_OF_STEPS.
-    import os as _os
-    _bon = max(1, int(_os.environ.get("BEST_OF_N", "1") or "1"))
-    _steps = int(_os.environ["BEST_OF_STEPS"]) if _os.environ.get("BEST_OF_STEPS") else None
-    r = process_ad(str(saved), product.name, poster=poster,
-                   style=resolve_style(style.value),
-                   output_dir=str(image_service.RESULTS_DIR),
-                   best_of=_bon, steps=_steps)
-    return GenerationOutput(
-        final_image_path=r.final_image_path, asset_id=asset_id, seed=seed or 0, style=style,
-        copy_text=r.copy_text, platform_copies=_platform_copies_safe(product, style),
-        poster=poster, generate_seconds=round(r.seconds, 2), harmonize_seconds=0.0)
+    with propagate_attributes(session_id=asset_id):
+        # 입력 게이트(P0, 콜드런 배치 실측): 사진 피사체 ≠ 상품명이면 이름 기반 날조(없는 제품 생성)
+        #   위험 → 생성 전 차단. 관대한 판정(명백한 무관 사진만 거부), 판정 실패 시 통과.
+        gate = gpt_service.verify_photo_subject(image_path, product.name)
+        if not gate["match"]:
+            seen = f" (사진에는 '{gate['seen']}'이(가) 보여요)" if gate.get("seen") else ""
+            raise ValueError(
+                f"사진과 상품명('{product.name}')이 서로 달라 보여요.{seen} "
+                "상품이 잘 보이는 사진인지 확인해 주세요.")
+
+        # regen 용으로 입력 원본 보존(v2 는 누끼/mask 없음 → 원본 재투입 방식)
+        saved = image_service.PROCESSED_DIR / f"{asset_id}_v2input{_P(image_path).suffix}"
+        saved.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(image_path, saved)
+
+        # ⚠️ 결과는 서빙 디렉토리(RESULTS_DIR, 절대경로)에 저장 — process_ad 기본 output_dir 은
+        #   상대경로("backend/results/ai/route")라 uvicorn CWD(backend/)에서 backend/backend/... 로 풀려
+        #   /ads/image/{filename} 서빙이 404 남(실측 2026-07-10). 절대경로로 고정.
+        # ⚠️ 입력을 원본이 아니라 asset_id 로 이름 지은 saved(고유) 로 넣는다(실측 2026-07-12):
+        #   출력 파일명은 입력 stem 기반 → 같은 업로드를 다시 생성/스타일변경하면 URL 동일 → 브라우저가
+        #   캐시된 옛 이미지를 보여줘 "스타일 바꿔도 똑같이 나옴". saved(매 생성 고유) 로 넣으면 URL도 고유.
+        # Best-of-N: env BEST_OF_N 로 배포에서 제어(기본 1=기존 1샷). steps 도 env BEST_OF_STEPS.
+        import os as _os
+        _bon = max(1, int(_os.environ.get("BEST_OF_N", "1") or "1"))
+        _steps = int(_os.environ["BEST_OF_STEPS"]) if _os.environ.get("BEST_OF_STEPS") else None
+        r = process_ad(str(saved), product.name, poster=poster,
+                       style=resolve_style(style.value),
+                       output_dir=str(image_service.RESULTS_DIR),
+                       best_of=_bon, steps=_steps)
+        return GenerationOutput(
+            final_image_path=r.final_image_path, asset_id=asset_id, seed=seed or 0, style=style,
+            copy_text=r.copy_text, platform_copies=_platform_copies_safe(product, style),
+            poster=poster, generate_seconds=round(r.seconds, 2), harmonize_seconds=0.0)
 
 
+@observe(name="generation.rerun_v2")
 def rerun_v2(
     asset_id: str,
     product: ProductInfo,
@@ -234,15 +243,18 @@ def rerun_v2(
 
     if not is_valid_asset_id(asset_id):
         raise ValueError(f"잘못된 asset_id 형식: {asset_id!r}")
-    cands = glob.glob(str(image_service.PROCESSED_DIR / f"{asset_id}_v2input.*"))
-    if not cands:
-        raise FileNotFoundError(f"v2 입력 원본 없음: asset_id={asset_id}")
-    r = process_ad(cands[0], product.name, poster=poster, style=resolve_style(style.value),
-                   output_dir=str(image_service.RESULTS_DIR))
-    return GenerationOutput(
-        final_image_path=r.final_image_path, asset_id=asset_id, seed=0, style=style,
-        copy_text=r.copy_text, platform_copies=_platform_copies_safe(product, style),
-        poster=poster, generate_seconds=round(r.seconds, 2), harmonize_seconds=0.0)
+
+    # session_id=asset_id — 최초 생성(run_from_upload_v2)이 같은 asset_id 로 연 세션에 합류.
+    with propagate_attributes(session_id=asset_id):
+        cands = glob.glob(str(image_service.PROCESSED_DIR / f"{asset_id}_v2input.*"))
+        if not cands:
+            raise FileNotFoundError(f"v2 입력 원본 없음: asset_id={asset_id}")
+        r = process_ad(cands[0], product.name, poster=poster, style=resolve_style(style.value),
+                       output_dir=str(image_service.RESULTS_DIR))
+        return GenerationOutput(
+            final_image_path=r.final_image_path, asset_id=asset_id, seed=0, style=style,
+            copy_text=r.copy_text, platform_copies=_platform_copies_safe(product, style),
+            poster=poster, generate_seconds=round(r.seconds, 2), harmonize_seconds=0.0)
 
 
 # =============================================================================
@@ -261,6 +273,58 @@ class ProcessedAd:
     seconds: float
     style: Optional[str] = None       # 디자인시스템 스타일 키(있으면 style_gen 경로)
     aesthetic: Optional[float] = None # NIMA 심미 점수(플라이휠 라벨)
+
+
+def _nima_best(cands: list[str]) -> str:
+    """NIMA 심미 top 후보. 실패 시 첫 후보 폴백(무해). (Kontext↔지표 VRAM 순차)"""
+    try:
+        from . import kontext_service
+        from ..harness import metrics
+        kontext_service.unload()
+        return max(cands, key=lambda p: (metrics.aesthetic(p).get("nima") or 0.0))
+    except Exception:
+        return cands[0]
+
+
+def _select_best(cands: list[str], original_path: Optional[str] = None) -> str:
+    """Best-of-N 선별기. SELECTOR env: nima(기본) | gpt(구조화 저지) | both(둘 다 로깅·비교).
+
+    both 는 프로덕션-세이프하게 NIMA 결과를 반환하되 GPT 점수·양측 선택을 로깅해
+    사람 선호 대비 클린 비교 데이터를 축적한다(clean-ab: 데이터로 우위 확인 전엔 배포 금지).
+    gpt 실패(키 없음·langchain 미설치·네트워크) 시 NIMA 로 폴백.
+    """
+    if len(cands) <= 1:
+        return cands[0]
+    sel = os.environ.get("SELECTOR", "nima").lower()
+
+    if sel == "nima":
+        return _nima_best(cands)
+
+    # gpt / both: GPT 구조화 저지로 채점 (실패 시 NIMA 폴백)
+    try:
+        from . import judge_service
+        # Kontext 상주 중이면 Vision 호출엔 무관하나, both 의 NIMA 계산과 순서 정리 위해 먼저 unload
+        try:
+            from . import kontext_service
+            kontext_service.unload()
+        except Exception:
+            pass
+        gpt_best, scores = judge_service.pick_best(cands, original_path=original_path)
+    except Exception as e:  # noqa: BLE001
+        logging.getLogger(__name__).warning(f"GPT 저지 실패 → NIMA 폴백: {e}")
+        return _nima_best(cands)
+
+    if sel == "gpt":
+        return gpt_best
+
+    # both: NIMA 도 계산해 양측 선택·점수 로깅, 반환은 NIMA(프로덕션 세이프)
+    nima_best = _nima_best(cands)
+    log = logging.getLogger(__name__)
+    log.info("[SELECTOR both] nima_pick=%s gpt_pick=%s agree=%s",
+             Path(nima_best).name, Path(gpt_best).name, nima_best == gpt_best)
+    for p, s in zip(cands, scores):
+        log.info("[SELECTOR both]   %s gpt_overall=%s (%s)", Path(p).name, s.overall, s.reason)
+    return nima_best
 
 
 def process_ad(
@@ -301,23 +365,16 @@ def process_ad(
         #   사물(SKU)이면 무드 무관 object_studio 로 고정(사물이 음식 씬 타면 붕괴) — 무드는 조판에 반영.
         #   여름음료 pop_split·케이크 cross_section 은 특수 조판/게이트 필요 → 당분간 명시 호출 유지.
         effective_style = "object_studio" if domain == "object" else style
-        # Best-of-N: N시드 생성 → NIMA 심미 top 선별(실측 2026-07-13: 1샷은 운빨, 시드편차 5.55~5.81,
-        #   NIMA 순위=육안 순위 일치). best_of=1 이면 기존 1샷. NIMA 실패 시 첫 결과 폴백(무해).
+        # Best-of-N: N시드 생성 → 선별기로 top 선택. best_of=1 이면 기존 1샷.
+        #   ⚠️ BON-002 기각(2026-07-13): NIMA 는 이미-좋은 이미지(5~6점대)를 변별 못 해 Best-of-N 무효.
+        #   선별기는 SELECTOR env 로 교체(nima 기본|gpt=구조화 저지|both=둘 다 로깅해 클린 비교).
         n = max(1, best_of)
         seeds = [7, 42, 123, 2024, 88, 512][:n]
         cands = [style_gen.generate_scene(image_path, effective_style, subject_en,
                                           output_dir=output_dir, seed=s, steps=steps) for s in seeds]
-        if len(cands) > 1:
-            try:
-                from . import kontext_service
-                from ..harness import metrics
-                kontext_service.unload()  # NIMA 전 VRAM 정리(Kontext↔지표 순차)
-                final = max(cands, key=lambda p: (metrics.aesthetic(p).get("nima") or 0.0))
-            except Exception:
-                final = cands[0]
-        else:
-            final = cands[0]
-        engine = f"style:{effective_style}" + (f"·bestof{n}" if n > 1 else "")
+        final = _select_best(cands, original_path=image_path)
+        sel = os.environ.get("SELECTOR", "nima")
+        engine = f"style:{effective_style}" + (f"·bestof{n}:{sel}" if n > 1 else "")
     else:
         route = router.process_input(image_path, name, knob=knob, output_dir=output_dir)
         final = route.output_path

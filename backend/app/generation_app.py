@@ -26,8 +26,12 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
+from .core.observability import init_langfuse, shutdown_langfuse
 from .schemas.ads import GenerateAdResponse, ProductInfo, RegenerateAdRequest, StylePreset
 from .services import generation_service, image_service
+
+# 위 load_dotenv() 다음, 서비스 임포트로 인한 첫 OpenAI 호출보다 앞서 초기화.
+init_langfuse()
 
 app = FastAPI(title="AdNova Generation Service", version="0.1.0")
 
@@ -52,6 +56,11 @@ def _to_response(out: generation_service.GenerationOutput) -> GenerateAdResponse
 @app.get("/health", tags=["Health"])
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "generation"}
+
+
+@app.on_event("shutdown")
+def _flush_langfuse() -> None:
+    shutdown_langfuse()
 
 
 @app.post("/generate", response_model=GenerateAdResponse, tags=["Generation"])

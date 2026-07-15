@@ -93,8 +93,17 @@ GPT_MODEL = "gpt-5.4-mini"  # STY-001 검증 완료. Nano 다운그레이드는 
 
 
 def _get_client():  # noqa: ANN202
-    """OpenAI 클라이언트 생성. key 는 env 에서만."""
-    from openai import OpenAI
+    """OpenAI 클라이언트 생성. key 는 env 에서만.
+
+    ⚠️ langfuse.openai 의 드롭인 대체 — import만 바꾸면 모든 chat.completions.create
+    호출(프롬프트·응답·지연시간·토큰·비용)이 자동으로 Langfuse 에 트레이싱된다.
+    LANGFUSE_PUBLIC_KEY 미설정이면(observability.init_langfuse 참고) 트레이싱 없이
+    평소와 동일하게 OpenAI 호출만 수행 — 이 함수 동작은 변하지 않는다.
+    """
+    try:
+        from langfuse.openai import OpenAI
+    except Exception:  # noqa: BLE001
+        from openai import OpenAI
 
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -160,12 +169,17 @@ def _caption_image(image_path: str) -> str:
 
 
 def _chat_json(messages: list, label: str) -> dict:
-    """JSON 강제 chat 호출 공통 래퍼. 토큰 사용량 기록 포함."""
+    """JSON 강제 chat 호출 공통 래퍼. 토큰 사용량 기록 포함.
+
+    name=label 로 Langfuse generation 이름을 기존 예산 추적 라벨과 통일 —
+    Langfuse UI 에서 어떤 호출인지(generate_copy/vision, judge_ad/vision 등) 바로 필터링 가능.
+    """
     client = _get_client()
     response = client.chat.completions.create(
         model=GPT_MODEL,
         messages=messages,
         response_format={"type": "json_object"},
+        name=label,
     )
     _record_usage(label, response)
     return json.loads(response.choices[0].message.content)
@@ -457,6 +471,14 @@ def generate_english_labels(product: ProductInfo) -> tuple[str, str]:
         p.strip() for p in (product.name, product.description) if p and p.strip()
     ) or "(상품 정보 없음)"
 
+    # A(구조화 출력): LangChain with_structured_output 으로 키 변형(트랩 #6) 원천 차단.
+    #   langchain 미설치/키 없음/파싱 실패 → 아래 기존 raw JSON 경로로 폴백(무해).
+    try:
+        from . import judge_service
+        return judge_service.structured_labels(product_context)
+    except Exception as e:  # noqa: BLE001
+        logger.info(f"구조화 라벨 폴백 → raw JSON 경로: {e}")
+
     instruction = (
         "아래 상품의 광고 포스터용 영문 라벨 2개를 만들어줘.\n"
         f"- 상품: {product_context}\n"
@@ -637,6 +659,7 @@ def detect_material(image_path: str) -> str:
             {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{image_b64}"}},
         ]}],
         response_format={"type": "json_object"},
+        name="detect_material",
     )
     _record_usage("detect_material", response)
     try:
@@ -719,6 +742,7 @@ def analyze_image_for_style(image_path: str) -> list[StyleCandidate]:
             }
         ],
         response_format={"type": "json_object"},
+        name="analyze_image_for_style/vision",
     )
     _record_usage("analyze_image_for_style/vision", response)
 

@@ -22,6 +22,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
+from ..core.observability import propagate_attributes
 from ..core.security import get_current_user
 from ..crud.advertisement import create_advertisement
 from ..crud.history import create_history
@@ -151,7 +152,9 @@ def decide_style(
                 raise HTTPException(status_code=403, detail="이미지 소유자만 스타일을 분석할 수 있습니다")
             image_path = row.file_path
 
-        return style_service.decide_style(req, image_path=image_path)
+        # user_id/tags 를 트레이스에 태그 — Langfuse UI 에서 사용자별·기능별(ads.style) 필터링용.
+        with propagate_attributes(user_id=str(current_user.id), tags=["ads.style"]):
+            return style_service.decide_style(req, image_path=image_path)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except FileNotFoundError as e:
@@ -219,15 +222,19 @@ def generate_ad(
     )
 
     try:
-        if generation_client.is_remote():
-            result = generation_client.generate_remote(
-                str(src_path), product, style, seed, use_vision, poster
-            )
-        else:
-            out = generation_service.run_from_upload_v2(
-                str(src_path), product, style, seed, use_vision, poster
-            )
-            result = _to_response(out)
+        # user_id/tags 를 트레이스에 태그 — 사용자별 비용·품질을 Langfuse 에서 필터링할 수 있게.
+        # (원격 GPU 서비스 경로는 별도 프로세스라 이 컨텍스트가 넘어가지 않고, 그쪽 프로세스가
+        #  자체적으로 트레이싱한다 — generation_client.is_remote() 분기 참고.)
+        with propagate_attributes(user_id=str(current_user_id), tags=["ads.generate"]):
+            if generation_client.is_remote():
+                result = generation_client.generate_remote(
+                    str(src_path), product, style, seed, use_vision, poster
+                )
+            else:
+                out = generation_service.run_from_upload_v2(
+                    str(src_path), product, style, seed, use_vision, poster
+                )
+                result = _to_response(out)
 
         _record_generated_result(
             user_id=current_user_id,
@@ -305,13 +312,14 @@ def regenerate_ad(
         ensure_ascii=False,
     )
     try:
-        if generation_client.is_remote():
-            result = generation_client.regenerate_remote(req.model_dump())
-        else:
-            out = generation_service.rerun_v2(
-                req.asset_id, product, req.style, req.prev_seed, req.use_vision, req.poster
-            )
-            result = _to_response(out)
+        with propagate_attributes(user_id=str(current_user_id), tags=["ads.regenerate"]):
+            if generation_client.is_remote():
+                result = generation_client.regenerate_remote(req.model_dump())
+            else:
+                out = generation_service.rerun_v2(
+                    req.asset_id, product, req.style, req.prev_seed, req.use_vision, req.poster
+                )
+                result = _to_response(out)
 
         _record_generated_result(
             db=db,
