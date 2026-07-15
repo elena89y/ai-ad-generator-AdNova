@@ -11,6 +11,12 @@ from app.crud.admin import (
     update_user_active_status,
     update_user_premium_access,
 )
+from app.crud.inquiry import (
+    answer_inquiry,
+    get_inquiry_by_id,
+    list_inquiries_for_admin,
+    update_inquiry_status,
+)
 from app.database.admin_models import AdminAccount
 from app.database.billing_models import Subscription
 from app.database.connection import get_db
@@ -24,6 +30,12 @@ from app.schemas.admin import (
     AdminUserResponse,
     AdminUserStatusUpdateRequest,
     AdminUserSubscriptionUpdateRequest,
+)
+from app.schemas.inquiry import (
+    AdminInquiryListResponse,
+    AdminInquiryResponse,
+    InquiryAnswerUpdateRequest,
+    InquiryStatusUpdateRequest,
 )
 
 
@@ -79,6 +91,24 @@ def _build_admin_purchase_response(
     )
 
 
+def _build_admin_inquiry_response(inquiry, user: User) -> AdminInquiryResponse:
+    return AdminInquiryResponse(
+        id=inquiry.id,
+        user_id=user.id,
+        username=user.username,
+        email=user.email,
+        category=inquiry.category,
+        title=inquiry.title,
+        content=inquiry.content,
+        status=inquiry.status,
+        answer=inquiry.answer,
+        answered_by_admin_id=inquiry.answered_by_admin_id,
+        answered_at=inquiry.answered_at,
+        created_at=inquiry.created_at,
+        updated_at=inquiry.updated_at,
+    )
+
+
 @router.get("/users", response_model=AdminUserListResponse)
 def read_admin_users(
     skip: int = Query(0, ge=0),
@@ -126,6 +156,78 @@ def read_admin_purchase_histories(
             for purchase, user in rows
         ],
     )
+
+
+@router.get("/inquiries", response_model=AdminInquiryListResponse)
+def read_admin_inquiries(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    inquiry_status: str | None = Query(None, min_length=1, max_length=30),
+    search: str | None = Query(None, min_length=1, max_length=100),
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminInquiryListResponse:
+    del current_admin
+    total, rows = list_inquiries_for_admin(
+        db,
+        skip=skip,
+        limit=limit,
+        inquiry_status=inquiry_status,
+        search=search,
+    )
+    return AdminInquiryListResponse(
+        total=total,
+        items=[
+            _build_admin_inquiry_response(inquiry, user)
+            for inquiry, user in rows
+        ],
+    )
+
+
+@router.get("/inquiries/{inquiry_id}", response_model=AdminInquiryResponse)
+def read_admin_inquiry_detail(
+    inquiry_id: int,
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminInquiryResponse:
+    del current_admin
+    inquiry = get_inquiry_by_id(db, inquiry_id)
+    if inquiry is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문의를 찾을 수 없습니다.")
+    return _build_admin_inquiry_response(inquiry, inquiry.user)
+
+
+@router.patch("/inquiries/{inquiry_id}/status", response_model=AdminInquiryResponse)
+def update_admin_inquiry_status(
+    inquiry_id: int,
+    request: InquiryStatusUpdateRequest,
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminInquiryResponse:
+    inquiry = get_inquiry_by_id(db, inquiry_id)
+    if inquiry is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문의를 찾을 수 없습니다.")
+    inquiry = update_inquiry_status(db, inquiry, inquiry_status=request.status)
+    return _build_admin_inquiry_response(inquiry, inquiry.user)
+
+
+@router.patch("/inquiries/{inquiry_id}/answer", response_model=AdminInquiryResponse)
+def answer_admin_inquiry(
+    inquiry_id: int,
+    request: InquiryAnswerUpdateRequest,
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminInquiryResponse:
+    inquiry = get_inquiry_by_id(db, inquiry_id)
+    if inquiry is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문의를 찾을 수 없습니다.")
+    inquiry = answer_inquiry(
+        db,
+        inquiry,
+        answer=request.answer,
+        admin_user_id=current_admin.user_id,
+    )
+    return _build_admin_inquiry_response(inquiry, inquiry.user)
 
 
 @router.get("/users/{user_id}", response_model=AdminUserDetailResponse)

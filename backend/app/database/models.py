@@ -32,6 +32,7 @@ class User(Base):
     images = relationship("Image", back_populates="user")
     advertisements = relationship("Advertisement", back_populates="user")
     histories = relationship("History", back_populates="user")
+    inquiries = relationship("SupportInquiry", back_populates="user")
 
 
 class Image(Base):
@@ -122,3 +123,26 @@ class History(Base):
 
     user = relationship("User", back_populates="histories")
     advertisement = relationship("Advertisement", back_populates="histories")
+
+
+class SupportInquiry(Base):
+    __tablename__ = "support_inquiries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    category = Column(String(50), default="general", nullable=False)
+    title = Column(String(255), nullable=False)
+    content = Column(Text, nullable=False)
+    status = Column(String(30), default="pending", nullable=False, index=True)
+    answer = Column(Text, nullable=True)
+    answered_by_admin_id = Column(Integer, nullable=True)
+    answered_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
+
+    user = relationship("User", back_populates="inquiries")
