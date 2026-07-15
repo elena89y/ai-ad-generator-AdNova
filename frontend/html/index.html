@@ -2110,7 +2110,7 @@ function pickPlat(el){
 /* ---------- generate flow ---------- */
 const steps=['사진을 분석하는 중…','스타일을 입히는 중…','광고 문구를 쓰는 중…','마무리하는 중…'];
 async function generate(){
-  if(freeLeft<=0){openUpgrade();return;}
+  if(!isPremium&&freeLeft<=0){openUpgrade();return;}
   if(!getToken()){
     toast('로그인 후 광고를 생성해 주세요');
     go('login');
@@ -2157,7 +2157,7 @@ async function generate(){
     try{data=await res.json();}catch(_){}
     if(!res.ok) throw new Error(readApiError(data,'광고 생성에 실패했습니다'));
     applyGeneratedResult(data);
-    useFreeCredit();
+    if(!isPremium)useFreeCredit();
     loadDashboardSummary(false);
     loadHistory(false);
     toast('광고가 생성되었습니다');
@@ -2172,7 +2172,7 @@ async function generate(){
 }
 
 async function regenerate(){
-  if(freeLeft<=0){openUpgrade();return;}
+  if(!isPremium&&freeLeft<=0){openUpgrade();return;}
   if(!getToken()){
     toast('로그인 후 광고를 다시 생성해 주세요');
     go('login');
@@ -2222,7 +2222,7 @@ async function regenerate(){
     try{data=await res.json();}catch(_){}
     if(!res.ok) throw new Error(readApiError(data,'다시 생성에 실패했습니다'));
     applyGeneratedResult(data);
-    useFreeCredit();
+    if(!isPremium)useFreeCredit();
     loadDashboardSummary(false);
     loadHistory(false);
     toast('광고를 다시 생성했습니다');
@@ -2685,6 +2685,7 @@ async function submitDemoCheckout(){
     let data=null;try{data=await res.json();}catch(_){}
     if(!res.ok)throw new Error(readApiError(data,'테스트 결제를 완료하지 못했습니다'));
     billingSummary=data;
+    renderBilling();
     go('billing');
     toast(demoCheckoutMode==='payment-method'?'결제 방법을 변경했습니다':'테스트 결제가 완료되어 프리미엄이 적용됐습니다');
   }catch(err){toast(err.message||'테스트 결제를 완료하지 못했습니다');}
