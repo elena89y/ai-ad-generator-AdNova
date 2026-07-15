@@ -8,8 +8,11 @@ from app.core.security import get_current_user
 from app.crud.admin import (
     count_advertisements_by_user,
     create_admin_audit_log,
+    get_purchase_history_for_admin,
     get_admin_summary,
+    get_subscription_for_admin,
     get_user_for_admin,
+    list_subscriptions_for_admin,
     list_purchase_histories_for_admin,
     list_admin_audit_logs,
     list_users_for_admin,
@@ -32,6 +35,8 @@ from app.schemas.admin import (
     AdminMeResponse,
     AdminPurchaseHistoryListResponse,
     AdminPurchaseHistoryResponse,
+    AdminSubscriptionListResponse,
+    AdminSubscriptionResponse,
     AdminUserDetailResponse,
     AdminUserListResponse,
     AdminUserResponse,
@@ -105,6 +110,25 @@ def _build_admin_purchase_response(
         currency=purchase.currency,
         status=purchase.status,
         purchased_at=purchase.purchased_at,
+    )
+
+
+def _build_admin_subscription_response(
+    subscription: Subscription,
+    user: User,
+) -> AdminSubscriptionResponse:
+    return AdminSubscriptionResponse(
+        id=subscription.id,
+        user_id=user.id,
+        username=user.username,
+        email=user.email,
+        plan=subscription.plan,
+        status=subscription.status,
+        provider=subscription.provider,
+        current_period_start=subscription.current_period_start,
+        current_period_end=subscription.current_period_end,
+        cancel_at_period_end=subscription.cancel_at_period_end,
+        cancel_requested_at=subscription.cancel_requested_at,
     )
 
 
@@ -192,6 +216,73 @@ def read_admin_purchase_histories(
     )
 
 
+@router.get("/purchases/{purchase_id}", response_model=AdminPurchaseHistoryResponse)
+def read_admin_purchase_history_detail(
+    purchase_id: int,
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminPurchaseHistoryResponse:
+    del current_admin
+    row = get_purchase_history_for_admin(db, purchase_id)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="구매 내역을 찾을 수 없습니다.",
+        )
+    purchase, user = row
+    return _build_admin_purchase_response(purchase, user)
+
+
+@router.get("/subscriptions", response_model=AdminSubscriptionListResponse)
+def read_admin_subscriptions(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    user_id: int | None = Query(None, gt=0),
+    plan: Literal["free", "premium"] | None = Query(None),
+    subscription_status: str | None = Query(None, min_length=1, max_length=30),
+    search: str | None = Query(None, min_length=1, max_length=100),
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminSubscriptionListResponse:
+    del current_admin
+    total, rows = list_subscriptions_for_admin(
+        db,
+        skip=skip,
+        limit=limit,
+        user_id=user_id,
+        plan=plan,
+        subscription_status=subscription_status,
+        search=search,
+    )
+    return AdminSubscriptionListResponse(
+        total=total,
+        items=[
+            _build_admin_subscription_response(subscription, user)
+            for subscription, user in rows
+        ],
+    )
+
+
+@router.get(
+    "/subscriptions/{subscription_id}",
+    response_model=AdminSubscriptionResponse,
+)
+def read_admin_subscription_detail(
+    subscription_id: int,
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminSubscriptionResponse:
+    del current_admin
+    row = get_subscription_for_admin(db, subscription_id)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="구독 정보를 찾을 수 없습니다.",
+        )
+    subscription, user = row
+    return _build_admin_subscription_response(subscription, user)
+
+
 @router.get("/audit-logs", response_model=AdminAuditLogListResponse)
 def read_admin_audit_logs(
     skip: int = Query(0, ge=0),
@@ -265,15 +356,24 @@ def update_admin_inquiry_status(
     inquiry = get_inquiry_by_id(db, inquiry_id)
     if inquiry is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문의를 찾을 수 없습니다.")
-    inquiry = update_inquiry_status(db, inquiry, inquiry_status=request.status)
-    create_admin_audit_log(
-        db,
-        admin_user_id=current_admin.user_id,
-        action="inquiry.status_updated",
-        target_type="inquiry",
-        target_id=inquiry.id,
-        detail=f"status={request.status}",
-    )
+    try:
+        inquiry = update_inquiry_status(
+            db,
+            inquiry,
+            inquiry_status=request.status,
+            commit=False,
+        )
+        create_admin_audit_log(
+            db,
+            admin_user_id=current_admin.user_id,
+            action="inquiry.status_updated",
+            target_type="inquiry",
+            target_id=inquiry.id,
+            detail=f"status={request.status}",
+        )
+    except Exception:
+        db.rollback()
+        raise
     return _build_admin_inquiry_response(inquiry, inquiry.user)
 
 
@@ -287,19 +387,24 @@ def answer_admin_inquiry(
     inquiry = get_inquiry_by_id(db, inquiry_id)
     if inquiry is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문의를 찾을 수 없습니다.")
-    inquiry = answer_inquiry(
-        db,
-        inquiry,
-        answer=request.answer,
-        admin_user_id=current_admin.user_id,
-    )
-    create_admin_audit_log(
-        db,
-        admin_user_id=current_admin.user_id,
-        action="inquiry.answered",
-        target_type="inquiry",
-        target_id=inquiry.id,
-    )
+    try:
+        inquiry = answer_inquiry(
+            db,
+            inquiry,
+            answer=request.answer,
+            admin_user_id=current_admin.user_id,
+            commit=False,
+        )
+        create_admin_audit_log(
+            db,
+            admin_user_id=current_admin.user_id,
+            action="inquiry.answered",
+            target_type="inquiry",
+            target_id=inquiry.id,
+        )
+    except Exception:
+        db.rollback()
+        raise
     return _build_admin_inquiry_response(inquiry, inquiry.user)
 
 
@@ -357,15 +462,24 @@ def update_admin_user_status(
         )
 
     user, subscription = row
-    update_user_active_status(db, user, is_active=request.is_active)
-    create_admin_audit_log(
-        db,
-        admin_user_id=current_admin.user_id,
-        action="user.status_updated",
-        target_type="user",
-        target_id=user.id,
-        detail=f"is_active={request.is_active}",
-    )
+    try:
+        update_user_active_status(
+            db,
+            user,
+            is_active=request.is_active,
+            commit=False,
+        )
+        create_admin_audit_log(
+            db,
+            admin_user_id=current_admin.user_id,
+            action="user.status_updated",
+            target_type="user",
+            target_id=user.id,
+            detail=f"is_active={request.is_active}",
+        )
+    except Exception:
+        db.rollback()
+        raise
     return _build_admin_user_response(user, subscription)
 
 
@@ -397,17 +511,22 @@ def update_admin_user_subscription(
             detail="사용자를 찾을 수 없습니다.",
         )
 
-    user, subscription = update_user_premium_access(
-        db,
-        user_id,
-        is_premium=request.is_premium,
-    )
-    create_admin_audit_log(
-        db,
-        admin_user_id=current_admin.user_id,
-        action="user.subscription_updated",
-        target_type="user",
-        target_id=user.id,
-        detail=f"is_premium={request.is_premium}",
-    )
+    try:
+        user, subscription = update_user_premium_access(
+            db,
+            user_id,
+            is_premium=request.is_premium,
+            commit=False,
+        )
+        create_admin_audit_log(
+            db,
+            admin_user_id=current_admin.user_id,
+            action="user.subscription_updated",
+            target_type="user",
+            target_id=user.id,
+            detail=f"is_premium={request.is_premium}",
+        )
+    except Exception:
+        db.rollback()
+        raise
     return _build_admin_user_response(user, subscription)

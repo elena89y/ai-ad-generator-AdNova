@@ -84,3 +84,22 @@ class AdminPurchaseHistoryResponse(BaseModel):
 class AdminPurchaseHistoryListResponse(BaseModel):
     total: int
     items: list[AdminPurchaseHistoryResponse]
+
+
+class AdminSubscriptionResponse(BaseModel):
+    id: int
+    user_id: int
+    username: str
+    email: str
+    plan: str
+    status: str
+    provider: str | None = None
+    current_period_start: datetime | None = None
+    current_period_end: datetime | None = None
+    cancel_at_period_end: bool
+    cancel_requested_at: datetime | None = None
+
+
+class AdminSubscriptionListResponse(BaseModel):
+    total: int
+    items: list[AdminSubscriptionResponse]
