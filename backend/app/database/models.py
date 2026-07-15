@@ -35,6 +35,21 @@ class User(Base):
     inquiries = relationship("SupportInquiry", back_populates="user")
 
 
+class CreditBalance(Base):
+    __tablename__ = "credit_balances"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False, index=True)
+    free_credits_remaining = Column(Integer, default=3, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
+
+
 class Image(Base):
     __tablename__ = "images"
 

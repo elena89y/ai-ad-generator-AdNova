@@ -19,7 +19,14 @@ from app.core.security import (
 from app.database.admin_models import AdminAccount
 from app.database.billing_models import PaymentMethod, PurchaseHistory, Subscription
 from app.database.connection import Base
-from app.database.models import Advertisement, History, Image, SupportInquiry, User
+from app.database.models import (
+    Advertisement,
+    CreditBalance,
+    History,
+    Image,
+    SupportInquiry,
+    User,
+)
 from app.schemas.account import AccountDeleteRequest, PasswordChangeRequest
 from app.services import image_service
 
@@ -149,6 +156,7 @@ class AccountApiTestCase(unittest.TestCase):
                         title="test inquiry",
                         content="test content",
                     ),
+                    CreditBalance(user_id=self.user.id, free_credits_remaining=2),
                 ]
             )
             self.session.commit()
@@ -172,6 +180,7 @@ class AccountApiTestCase(unittest.TestCase):
             self.assertEqual(self.session.query(PaymentMethod).count(), 0)
             self.assertEqual(self.session.query(PurchaseHistory).count(), 0)
             self.assertEqual(self.session.query(SupportInquiry).count(), 0)
+            self.assertEqual(self.session.query(CreditBalance).count(), 0)
             self.assertFalse(input_path.exists())
             self.assertFalse(output_path.exists())
 

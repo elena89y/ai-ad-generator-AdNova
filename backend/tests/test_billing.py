@@ -90,6 +90,7 @@ class BillingApiTestCase(unittest.TestCase):
         summary = read_billing_summary(db=self.session, current_user=self.user)
 
         self.assertTrue(summary.is_premium)
+        self.assertEqual(summary.free_credits_remaining, 3)
         self.assertEqual(summary.subscription.id, self.subscription.id)
         self.assertEqual(summary.payment_method.card_last4, "1234")
 

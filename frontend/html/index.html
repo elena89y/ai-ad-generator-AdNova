@@ -2157,7 +2157,7 @@ async function generate(){
     try{data=await res.json();}catch(_){}
     if(!res.ok) throw new Error(readApiError(data,'광고 생성에 실패했습니다'));
     applyGeneratedResult(data);
-    if(!isPremium)useFreeCredit();
+    loadBilling(false);
     loadDashboardSummary(false);
     loadHistory(false);
     toast('광고가 생성되었습니다');
@@ -2222,7 +2222,7 @@ async function regenerate(){
     try{data=await res.json();}catch(_){}
     if(!res.ok) throw new Error(readApiError(data,'다시 생성에 실패했습니다'));
     applyGeneratedResult(data);
-    if(!isPremium)useFreeCredit();
+    loadBilling(false);
     loadDashboardSummary(false);
     loadHistory(false);
     toast('광고를 다시 생성했습니다');
@@ -2253,11 +2253,8 @@ function updateUsage(){
     u.innerHTML='<span class="udots">'+dots+'</span> 체험 <b>'+freeLeft+'</b>회 남음';
   });
   document.querySelectorAll('.credits').forEach(el=>{
-    el.innerHTML=isPremium?'플랜 <b>프리미엄</b>':'크레딧 <b>3</b>';
+    el.innerHTML=isPremium?'플랜 <b>프리미엄</b>':'크레딧 <b>'+freeLeft+'</b>';
   });
-}
-function useFreeCredit(){
-  if(freeLeft>0){freeLeft--;updateUsage();if(freeLeft===0) toast('체험 3회를 모두 사용했어요');}
 }
 function openUpgrade(){closeProfile();document.getElementById('upgradeModal').classList.add('on');}
 function closeUpgrade(){document.getElementById('upgradeModal').classList.remove('on');}
@@ -2579,6 +2576,9 @@ function renderBilling(){
   const manage=document.getElementById('billingManage');
   const subscription=billingSummary&&billingSummary.subscription;
   const paymentMethod=billingSummary&&billingSummary.payment_method;
+  if(Number.isInteger(billingSummary?.free_credits_remaining)){
+    freeLeft=Math.max(0,billingSummary.free_credits_remaining);
+  }
   isPremium=Boolean(billingSummary&&billingSummary.is_premium);
   renderMembershipUI();
   const hasBillingData=Boolean(subscription||paymentMethod||billingPurchases.length);
@@ -2766,7 +2766,7 @@ function applyPremiumUI(){
   if(detailDl)detailDl.style.display=isPremium?'block':'none';
 }
 function renderMembershipUI(){
-  const planText=isPremium?'프리미엄':'무료 체험 · 3회 남음';
+  const planText=isPremium?'프리미엄':`무료 체험 · ${freeLeft}회 남음`;
   document.querySelectorAll('.pf-plan').forEach(el=>{el.textContent=planText;});
   document.querySelectorAll('#detailPremiumNotice,#sharePremiumNotice').forEach(el=>{el.style.display=isPremium?'none':'flex';});
   updateUsage();

@@ -1,7 +1,14 @@
 from sqlalchemy.orm import Session
 
 from app.database.billing_models import PaymentMethod, PurchaseHistory, Subscription
-from app.database.models import Advertisement, History, Image, SupportInquiry, User
+from app.database.models import (
+    Advertisement,
+    CreditBalance,
+    History,
+    Image,
+    SupportInquiry,
+    User,
+)
 
 
 def update_user_password(db: Session, user: User, password_hash: str) -> None:
@@ -24,6 +31,9 @@ def delete_user_account(db: Session, user: User) -> list[str]:
     ]
 
     try:
+        db.query(CreditBalance).filter(CreditBalance.user_id == user_id).delete(
+            synchronize_session=False
+        )
         db.query(SupportInquiry).filter(SupportInquiry.user_id == user_id).delete(
             synchronize_session=False
         )
