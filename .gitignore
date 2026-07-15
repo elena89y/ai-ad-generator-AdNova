@@ -28,3 +28,4 @@ backend/results/*
 !backend/uploads/.gitkeep
 !backend/processed/.gitkeep
 !backend/results/.gitkeep
+frontend/hienv/
