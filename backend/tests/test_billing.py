@@ -91,6 +91,8 @@ class BillingApiTestCase(unittest.TestCase):
 
         self.assertTrue(summary.is_premium)
         self.assertEqual(summary.free_credits_remaining, 3)
+        self.assertEqual(summary.free_credit_limit, 3)
+        self.assertIsNone(summary.next_free_credit_at)
         self.assertEqual(summary.subscription.id, self.subscription.id)
         self.assertEqual(summary.payment_method.card_last4, "1234")
 

@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -22,6 +23,7 @@ from app.database.connection import Base
 from app.database.models import (
     Advertisement,
     CreditBalance,
+    CreditRefillState,
     History,
     Image,
     SupportInquiry,
@@ -157,6 +159,10 @@ class AccountApiTestCase(unittest.TestCase):
                         content="test content",
                     ),
                     CreditBalance(user_id=self.user.id, free_credits_remaining=2),
+                    CreditRefillState(
+                        user_id=self.user.id,
+                        next_refill_at=datetime.now(timezone.utc) + timedelta(days=1),
+                    ),
                 ]
             )
             self.session.commit()
@@ -181,6 +187,7 @@ class AccountApiTestCase(unittest.TestCase):
             self.assertEqual(self.session.query(PurchaseHistory).count(), 0)
             self.assertEqual(self.session.query(SupportInquiry).count(), 0)
             self.assertEqual(self.session.query(CreditBalance).count(), 0)
+            self.assertEqual(self.session.query(CreditRefillState).count(), 0)
             self.assertFalse(input_path.exists())
             self.assertFalse(output_path.exists())
 

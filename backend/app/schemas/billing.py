@@ -46,5 +46,7 @@ class PurchaseHistoryResponse(BaseModel):
 class BillingSummaryResponse(BaseModel):
     is_premium: bool
     free_credits_remaining: int = Field(ge=0)
+    free_credit_limit: int = Field(ge=1)
+    next_free_credit_at: datetime | None = None
     subscription: SubscriptionResponse | None = None
     payment_method: PaymentMethodResponse | None = None

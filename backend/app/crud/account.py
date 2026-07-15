@@ -4,6 +4,7 @@ from app.database.billing_models import PaymentMethod, PurchaseHistory, Subscrip
 from app.database.models import (
     Advertisement,
     CreditBalance,
+    CreditRefillState,
     History,
     Image,
     SupportInquiry,
@@ -31,6 +32,9 @@ def delete_user_account(db: Session, user: User) -> list[str]:
     ]
 
     try:
+        db.query(CreditRefillState).filter(
+            CreditRefillState.user_id == user_id
+        ).delete(synchronize_session=False)
         db.query(CreditBalance).filter(CreditBalance.user_id == user_id).delete(
             synchronize_session=False
         )
