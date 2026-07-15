@@ -1,10 +1,82 @@
 from datetime import timedelta
 
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
+from app.database.admin_models import AdminAuditLog
 from app.database.billing_models import PurchaseHistory, Subscription, utc_now
-from app.database.models import Advertisement, User
+from app.database.models import Advertisement, SupportInquiry, User
+
+
+def get_admin_summary(db: Session) -> dict[str, int]:
+    paid_purchase_count, paid_purchase_amount = (
+        db.query(
+            func.count(PurchaseHistory.id),
+            func.coalesce(func.sum(PurchaseHistory.amount), 0),
+        )
+        .filter(PurchaseHistory.status == "paid")
+        .one()
+    )
+
+    return {
+        "total_users": db.query(User).count(),
+        "active_users": db.query(User).filter(User.is_active.is_(True)).count(),
+        "premium_users": (
+            db.query(Subscription)
+            .filter(Subscription.plan == "premium", Subscription.status == "active")
+            .count()
+        ),
+        "total_advertisements": db.query(Advertisement).count(),
+        "unresolved_inquiries": (
+            db.query(SupportInquiry)
+            .filter(SupportInquiry.status.in_(["pending", "in_progress"]))
+            .count()
+        ),
+        "paid_purchase_count": int(paid_purchase_count or 0),
+        "paid_purchase_amount": int(paid_purchase_amount or 0),
+    }
+
+
+def create_admin_audit_log(
+    db: Session,
+    *,
+    admin_user_id: int,
+    action: str,
+    target_type: str,
+    target_id: int,
+    detail: str | None = None,
+) -> AdminAuditLog:
+    audit_log = AdminAuditLog(
+        admin_user_id=admin_user_id,
+        action=action,
+        target_type=target_type,
+        target_id=target_id,
+        detail=detail,
+    )
+    db.add(audit_log)
+    db.commit()
+    db.refresh(audit_log)
+    return audit_log
+
+
+def list_admin_audit_logs(
+    db: Session,
+    *,
+    skip: int,
+    limit: int,
+    action: str | None = None,
+) -> tuple[int, list[tuple[AdminAuditLog, User]]]:
+    query = db.query(AdminAuditLog, User).join(
+        User,
+        User.id == AdminAuditLog.admin_user_id,
+    )
+    if action:
+        query = query.filter(AdminAuditLog.action == action)
+
+    return (
+        query.count(),
+        query.order_by(AdminAuditLog.created_at.desc()).offset(skip).limit(limit).all(),
+    )
 
 
 def list_users_for_admin(

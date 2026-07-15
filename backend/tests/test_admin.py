@@ -5,6 +5,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.api.admin import (
+    read_admin_audit_logs,
+    read_admin_summary,
     read_admin_me,
     read_admin_purchase_histories,
     read_admin_user_detail,
@@ -128,6 +130,20 @@ class AdminApiTestCase(unittest.TestCase):
         self.assertEqual(listed_user.plan, "premium")
         self.assertEqual(listed_user.subscription_status, "active")
 
+    def test_admin_can_read_summary(self) -> None:
+        response = read_admin_summary(
+            db=self.session,
+            current_admin=self.admin_account,
+        )
+
+        self.assertEqual(response.total_users, 2)
+        self.assertEqual(response.active_users, 2)
+        self.assertEqual(response.premium_users, 1)
+        self.assertEqual(response.total_advertisements, 1)
+        self.assertEqual(response.unresolved_inquiries, 0)
+        self.assertEqual(response.paid_purchase_count, 1)
+        self.assertEqual(response.paid_purchase_amount, 9900)
+
     def test_admin_can_read_user_detail(self) -> None:
         response = read_admin_user_detail(
             user_id=self.user.id,
@@ -193,6 +209,16 @@ class AdminApiTestCase(unittest.TestCase):
             current_admin=self.admin_account,
         )
         self.assertTrue(reactivated.is_active)
+
+        audit_logs = read_admin_audit_logs(
+            skip=0,
+            limit=50,
+            action="user.status_updated",
+            db=self.session,
+            current_admin=self.admin_account,
+        )
+        self.assertEqual(audit_logs.total, 2)
+        self.assertEqual(audit_logs.items[0].target_id, self.user.id)
 
     def test_admin_cannot_change_own_status(self) -> None:
         with self.assertRaises(HTTPException) as context:

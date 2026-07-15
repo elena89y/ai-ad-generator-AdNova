@@ -5,8 +5,11 @@ from app.core.admin_security import get_current_admin
 from app.core.security import get_current_user
 from app.crud.admin import (
     count_advertisements_by_user,
+    create_admin_audit_log,
+    get_admin_summary,
     get_user_for_admin,
     list_purchase_histories_for_admin,
+    list_admin_audit_logs,
     list_users_for_admin,
     update_user_active_status,
     update_user_premium_access,
@@ -22,6 +25,8 @@ from app.database.billing_models import Subscription
 from app.database.connection import get_db
 from app.database.models import User
 from app.schemas.admin import (
+    AdminAuditLogListResponse,
+    AdminAuditLogResponse,
     AdminMeResponse,
     AdminPurchaseHistoryListResponse,
     AdminPurchaseHistoryResponse,
@@ -30,6 +35,7 @@ from app.schemas.admin import (
     AdminUserResponse,
     AdminUserStatusUpdateRequest,
     AdminUserSubscriptionUpdateRequest,
+    AdminSummaryResponse,
 )
 from app.schemas.inquiry import (
     AdminInquiryListResponse,
@@ -53,6 +59,15 @@ def read_admin_me(
         email=current_user.email,
         role=current_admin.role,
     )
+
+
+@router.get("/summary", response_model=AdminSummaryResponse)
+def read_admin_summary(
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminSummaryResponse:
+    del current_admin
+    return AdminSummaryResponse(**get_admin_summary(db))
 
 
 def _build_admin_user_response(
@@ -109,6 +124,19 @@ def _build_admin_inquiry_response(inquiry, user: User) -> AdminInquiryResponse:
     )
 
 
+def _build_admin_audit_log_response(audit_log, user: User) -> AdminAuditLogResponse:
+    return AdminAuditLogResponse(
+        id=audit_log.id,
+        admin_user_id=audit_log.admin_user_id,
+        admin_username=user.username,
+        action=audit_log.action,
+        target_type=audit_log.target_type,
+        target_id=audit_log.target_id,
+        detail=audit_log.detail,
+        created_at=audit_log.created_at,
+    )
+
+
 @router.get("/users", response_model=AdminUserListResponse)
 def read_admin_users(
     skip: int = Query(0, ge=0),
@@ -154,6 +182,30 @@ def read_admin_purchase_histories(
         items=[
             _build_admin_purchase_response(purchase, user)
             for purchase, user in rows
+        ],
+    )
+
+
+@router.get("/audit-logs", response_model=AdminAuditLogListResponse)
+def read_admin_audit_logs(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    action: str | None = Query(None, min_length=1, max_length=100),
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminAuditLogListResponse:
+    del current_admin
+    total, rows = list_admin_audit_logs(
+        db,
+        skip=skip,
+        limit=limit,
+        action=action,
+    )
+    return AdminAuditLogListResponse(
+        total=total,
+        items=[
+            _build_admin_audit_log_response(audit_log, user)
+            for audit_log, user in rows
         ],
     )
 
@@ -208,6 +260,14 @@ def update_admin_inquiry_status(
     if inquiry is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문의를 찾을 수 없습니다.")
     inquiry = update_inquiry_status(db, inquiry, inquiry_status=request.status)
+    create_admin_audit_log(
+        db,
+        admin_user_id=current_admin.user_id,
+        action="inquiry.status_updated",
+        target_type="inquiry",
+        target_id=inquiry.id,
+        detail=f"status={request.status}",
+    )
     return _build_admin_inquiry_response(inquiry, inquiry.user)
 
 
@@ -226,6 +286,13 @@ def answer_admin_inquiry(
         inquiry,
         answer=request.answer,
         admin_user_id=current_admin.user_id,
+    )
+    create_admin_audit_log(
+        db,
+        admin_user_id=current_admin.user_id,
+        action="inquiry.answered",
+        target_type="inquiry",
+        target_id=inquiry.id,
     )
     return _build_admin_inquiry_response(inquiry, inquiry.user)
 
@@ -285,6 +352,14 @@ def update_admin_user_status(
 
     user, subscription = row
     update_user_active_status(db, user, is_active=request.is_active)
+    create_admin_audit_log(
+        db,
+        admin_user_id=current_admin.user_id,
+        action="user.status_updated",
+        target_type="user",
+        target_id=user.id,
+        detail=f"is_active={request.is_active}",
+    )
     return _build_admin_user_response(user, subscription)
 
 
@@ -320,5 +395,13 @@ def update_admin_user_subscription(
         db,
         user_id,
         is_premium=request.is_premium,
+    )
+    create_admin_audit_log(
+        db,
+        admin_user_id=current_admin.user_id,
+        action="user.subscription_updated",
+        target_type="user",
+        target_id=user.id,
+        detail=f"is_premium={request.is_premium}",
     )
     return _build_admin_user_response(user, subscription)
