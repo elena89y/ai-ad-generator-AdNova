@@ -9,6 +9,9 @@ from app.api.admin import (
     read_admin_summary,
     read_admin_me,
     read_admin_purchase_histories,
+    read_admin_purchase_history_detail,
+    read_admin_subscription_detail,
+    read_admin_subscriptions,
     read_admin_user_detail,
     read_admin_users,
     update_admin_user_status,
@@ -218,6 +221,40 @@ class AdminApiTestCase(unittest.TestCase):
 
         self.assertEqual(response.total, 1)
         self.assertEqual(response.items[0].status, "paid")
+
+    def test_admin_can_list_and_read_subscriptions(self) -> None:
+        listed = read_admin_subscriptions(
+            skip=0,
+            limit=50,
+            user_id=self.user.id,
+            plan="premium",
+            subscription_status="active",
+            search="normaluser",
+            db=self.session,
+            current_admin=self.admin_account,
+        )
+        detail = read_admin_subscription_detail(
+            subscription_id=listed.items[0].id,
+            db=self.session,
+            current_admin=self.admin_account,
+        )
+
+        self.assertEqual(listed.total, 1)
+        self.assertEqual(listed.items[0].email, "user@example.com")
+        self.assertEqual(detail.plan, "premium")
+        self.assertEqual(detail.status, "active")
+
+    def test_admin_can_read_purchase_history_detail(self) -> None:
+        purchase = self.session.query(PurchaseHistory).one()
+
+        response = read_admin_purchase_history_detail(
+            purchase_id=purchase.id,
+            db=self.session,
+            current_admin=self.admin_account,
+        )
+
+        self.assertEqual(response.username, "normaluser")
+        self.assertEqual(response.description, "프리미엄 월 구독 (테스트)")
 
     def test_missing_user_detail_is_rejected(self) -> None:
         with self.assertRaises(HTTPException) as context:

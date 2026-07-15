@@ -45,6 +45,7 @@ def create_admin_audit_log(
     target_type: str,
     target_id: int,
     detail: str | None = None,
+    commit: bool = True,
 ) -> AdminAuditLog:
     audit_log = AdminAuditLog(
         admin_user_id=admin_user_id,
@@ -54,7 +55,10 @@ def create_admin_audit_log(
         detail=detail,
     )
     db.add(audit_log)
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     db.refresh(audit_log)
     return audit_log
 
@@ -148,9 +152,13 @@ def update_user_active_status(
     user: User,
     *,
     is_active: bool,
+    commit: bool = True,
 ) -> User:
     user.is_active = is_active
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     db.refresh(user)
     return user
 
@@ -160,6 +168,7 @@ def update_user_premium_access(
     user_id: int,
     *,
     is_premium: bool,
+    commit: bool = True,
 ) -> tuple[User, Subscription | None]:
     subscription = (
         db.query(Subscription).filter(Subscription.user_id == user_id).first()
@@ -184,10 +193,64 @@ def update_user_premium_access(
         subscription.cancel_at_period_end = False
         subscription.cancel_requested_at = None
 
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     user = db.query(User).filter(User.id == user_id).one()
     db.refresh(user)
     return user, subscription
+
+
+def list_subscriptions_for_admin(
+    db: Session,
+    *,
+    skip: int,
+    limit: int,
+    user_id: int | None = None,
+    plan: str | None = None,
+    subscription_status: str | None = None,
+    search: str | None = None,
+) -> tuple[int, list[tuple[Subscription, User]]]:
+    query = db.query(Subscription, User).join(
+        User,
+        User.id == Subscription.user_id,
+    )
+    if user_id is not None:
+        query = query.filter(Subscription.user_id == user_id)
+    if plan:
+        query = query.filter(Subscription.plan == plan)
+    if subscription_status:
+        query = query.filter(Subscription.status == subscription_status)
+    if search:
+        keyword = f"%{search}%"
+        query = query.filter(
+            or_(
+                User.username.ilike(keyword),
+                User.email.ilike(keyword),
+            )
+        )
+
+    total = query.count()
+    rows = (
+        query.order_by(Subscription.updated_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    return total, rows
+
+
+def get_subscription_for_admin(
+    db: Session,
+    subscription_id: int,
+) -> tuple[Subscription, User] | None:
+    return (
+        db.query(Subscription, User)
+        .join(User, User.id == Subscription.user_id)
+        .filter(Subscription.id == subscription_id)
+        .first()
+    )
 
 
 def list_purchase_histories_for_admin(
@@ -225,3 +288,15 @@ def list_purchase_histories_for_admin(
         .all()
     )
     return total, rows
+
+
+def get_purchase_history_for_admin(
+    db: Session,
+    purchase_id: int,
+) -> tuple[PurchaseHistory, User] | None:
+    return (
+        db.query(PurchaseHistory, User)
+        .join(User, User.id == PurchaseHistory.user_id)
+        .filter(PurchaseHistory.id == purchase_id)
+        .first()
+    )
