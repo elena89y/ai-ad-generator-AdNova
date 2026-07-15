@@ -9,14 +9,14 @@ import os
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api import account, ads, billing, dashboard, history, images
+from app.api import account, admin, ads, billing, dashboard, history, images
 from app.api.auth import router as auth_router
 from app.api.google_auth import router as google_auth_router
 from app.api.kakao_auth import router as kakao_auth_router
 from app.api.naver_auth import router as naver_auth_router
 from app.api.export import router as export_router
 from app.core.config import settings
-from app.database import models
+from app.database import admin_models, models
 from app.database.connection import Base, engine
 
 Base.metadata.create_all(bind=engine)
@@ -46,6 +46,7 @@ app.add_middleware(
 
 app.include_router(auth_router, prefix=settings.API_PREFIX)
 app.include_router(account.router, prefix=settings.API_PREFIX)
+app.include_router(admin.router, prefix=settings.API_PREFIX)
 app.include_router(google_auth_router, prefix=settings.API_PREFIX)
 app.include_router(kakao_auth_router, prefix=settings.API_PREFIX)
 app.include_router(naver_auth_router, prefix=settings.API_PREFIX)
