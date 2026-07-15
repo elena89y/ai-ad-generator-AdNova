@@ -4,9 +4,9 @@
   v1 RealVis 의 실패(마블링 뭉갬·맨손 생성·토핑 드리프트)를 Kontext 는 "건드리지 말라"는
   보존절로 회피 — 명령에 없는 것은 안 바꾼다.
 
-디스크·VRAM 절약(100G/L4 제약): 트랜스포머 GGUF Q4(~6.5G)만 수령, T5/CLIP/VAE 는
-  기존 FLUX.1-Fill-dev 레포/파이프라인에서 재사용. 실측 VRAM peak 13.2G.
-  ⚠️ Fill 과 트랜스포머 동시 상주 불가 → Kontext 로드 시 Fill 트랜스포머 해제.
+디스크·VRAM 절약(100G/L4 제약): Kontext 트랜스포머는 GGUF Q4(~6.5G)만 받고,
+  T5/CLIP/VAE/tokenizer 는 FLUX.1-Fill-dev 의 서브컴포넌트만 개별 로드한다.
+  Fill 파이프라인 전체나 Fill transformer 블롭은 운영 Kontext 경로에서 필요 없다.
 
 프롬프트 규약(§6): 명령형 단문 + 구체 명사 + 사진어휘 + **보존절 필수**(negative 없음)
   + 정직성 가드. 영어만(CLIP/T5 한글 오염 금지).
@@ -78,32 +78,42 @@ def build_instruction(template: str, subject_en: str,
 
 
 # --- 로딩 (Fill 컴포넌트 재사용) -----------------------------------------------
+FILL_REPO = "black-forest-labs/FLUX.1-Fill-dev"   # T5/CLIP/VAE/토크나이저 재사용 소스
+
+
 def _load_kontext():  # noqa: ANN202
     """Kontext 파이프라인 lazy 싱글턴. Fill 의 T5/CLIP/VAE 재사용, Kontext 트랜스포머만 GGUF.
 
-    ⚠️ Fill 트랜스포머를 해제하므로, 이후 B모드(FLUX Fill) 재사용 시 재로드 필요.
+    개선(2026-07-11): 기존엔 Fill 파이프라인 통째 로드 후 트랜스포머를 버렸다 —
+    23GB fp16 트랜스포머를 로드했다 버리는 순수 낭비(콜드로드 2분+, RAM 압박).
+    → 필요한 컴포넌트만 개별 로드. Fill 트랜스포머 블롭에 의존하지 않으므로
+    디스크 절약을 위해 트랜스포머 블롭 삭제도 가능해짐(T5/CLIP/VAE 는 보존 필수).
     """
     global _kontext_pipeline
     if _kontext_pipeline is not None:
         return _kontext_pipeline
 
-    import gc
-
     import torch
-    from diffusers import (FluxKontextPipeline, FluxTransformer2DModel,
-                           GGUFQuantizationConfig)
+    from diffusers import (AutoencoderKL, FluxKontextPipeline,
+                           FluxTransformer2DModel, GGUFQuantizationConfig)
     from huggingface_hub import hf_hub_download
+    from transformers import (BitsAndBytesConfig, CLIPTextModel, CLIPTokenizer,
+                              T5EncoderModel, T5TokenizerFast)
 
-    from . import flux_service
-
-    logger.info("Kontext 로드: Fill 컴포넌트 재사용 + 트랜스포머 GGUF")
-    fill = flux_service._load_flux_fill()
-    te, te2 = fill.text_encoder, fill.text_encoder_2
-    tok, tok2, vae = fill.tokenizer, fill.tokenizer_2, fill.vae
-    fill.transformer = None
-    flux_service._flux_pipeline = None      # Fill 트랜스포머 참조 제거 → GC
-    del fill
-    gc.collect(); torch.cuda.empty_cache()
+    logger.info("Kontext 로드: Fill 컴포넌트 개별 로드(T5 NF4) + 트랜스포머 GGUF")
+    # T5 는 NF4 양자화(기존 flux_service 와 동일 설정 — 로드 시 GPU 상주, ~5GB)
+    te2 = T5EncoderModel.from_pretrained(
+        FILL_REPO, subfolder="text_encoder_2",
+        quantization_config=BitsAndBytesConfig(
+            load_in_4bit=True, bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16),
+        torch_dtype=torch.bfloat16)
+    te = CLIPTextModel.from_pretrained(
+        FILL_REPO, subfolder="text_encoder", torch_dtype=torch.bfloat16).to("cuda")
+    tok = CLIPTokenizer.from_pretrained(FILL_REPO, subfolder="tokenizer")
+    tok2 = T5TokenizerFast.from_pretrained(FILL_REPO, subfolder="tokenizer_2")
+    vae = AutoencoderKL.from_pretrained(
+        FILL_REPO, subfolder="vae", torch_dtype=torch.bfloat16).to("cuda")
 
     gguf = hf_hub_download(GGUF_REPO, GGUF_FILE)
     transformer = FluxTransformer2DModel.from_single_file(
