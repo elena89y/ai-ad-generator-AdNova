@@ -4,12 +4,18 @@ from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.api.admin import read_admin_me, read_admin_user_detail, read_admin_users
+from app.api.admin import (
+    read_admin_me,
+    read_admin_user_detail,
+    read_admin_users,
+    update_admin_user_status,
+)
 from app.core.admin_security import get_current_admin
 from app.database.admin_models import AdminAccount
 from app.database.billing_models import Subscription
 from app.database.connection import Base
 from app.database.models import Advertisement, User
+from app.schemas.admin import AdminUserStatusUpdateRequest
 
 
 class AdminApiTestCase(unittest.TestCase):
@@ -125,6 +131,56 @@ class AdminApiTestCase(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.status_code, 404)
+
+    def test_admin_can_deactivate_and_reactivate_normal_user(self) -> None:
+        deactivated = update_admin_user_status(
+            user_id=self.user.id,
+            request=AdminUserStatusUpdateRequest(is_active=False),
+            db=self.session,
+            current_admin=self.admin_account,
+        )
+        self.assertFalse(deactivated.is_active)
+
+        reactivated = update_admin_user_status(
+            user_id=self.user.id,
+            request=AdminUserStatusUpdateRequest(is_active=True),
+            db=self.session,
+            current_admin=self.admin_account,
+        )
+        self.assertTrue(reactivated.is_active)
+
+    def test_admin_cannot_change_own_status(self) -> None:
+        with self.assertRaises(HTTPException) as context:
+            update_admin_user_status(
+                user_id=self.admin_user.id,
+                request=AdminUserStatusUpdateRequest(is_active=False),
+                db=self.session,
+                current_admin=self.admin_account,
+            )
+
+        self.assertEqual(context.exception.status_code, 400)
+
+    def test_admin_cannot_change_another_admin_status(self) -> None:
+        other_admin_user = User(
+            email="other-admin@example.com",
+            username="otheradmin",
+            password_hash="test-hash",
+            is_active=True,
+        )
+        self.session.add(other_admin_user)
+        self.session.commit()
+        self.session.add(AdminAccount(user_id=other_admin_user.id))
+        self.session.commit()
+
+        with self.assertRaises(HTTPException) as context:
+            update_admin_user_status(
+                user_id=other_admin_user.id,
+                request=AdminUserStatusUpdateRequest(is_active=False),
+                db=self.session,
+                current_admin=self.admin_account,
+            )
+
+        self.assertEqual(context.exception.status_code, 403)
 
 
 if __name__ == "__main__":

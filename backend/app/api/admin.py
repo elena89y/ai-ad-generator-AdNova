@@ -7,6 +7,7 @@ from app.crud.admin import (
     count_advertisements_by_user,
     get_user_for_admin,
     list_users_for_admin,
+    update_user_active_status,
 )
 from app.database.admin_models import AdminAccount
 from app.database.billing_models import Subscription
@@ -17,6 +18,7 @@ from app.schemas.admin import (
     AdminUserDetailResponse,
     AdminUserListResponse,
     AdminUserResponse,
+    AdminUserStatusUpdateRequest,
 )
 
 
@@ -96,3 +98,37 @@ def read_admin_user_detail(
         updated_at=user.updated_at,
         advertisement_count=count_advertisements_by_user(db, user.id),
     )
+
+
+@router.patch("/users/{user_id}/status", response_model=AdminUserResponse)
+def update_admin_user_status(
+    user_id: int,
+    request: AdminUserStatusUpdateRequest,
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminUserResponse:
+    if user_id == current_admin.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="현재 로그인한 관리자 계정의 상태는 변경할 수 없습니다.",
+        )
+
+    target_admin = (
+        db.query(AdminAccount).filter(AdminAccount.user_id == user_id).first()
+    )
+    if target_admin is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="관리자 계정 상태는 이 기능으로 변경할 수 없습니다.",
+        )
+
+    row = get_user_for_admin(db, user_id)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="사용자를 찾을 수 없습니다.",
+        )
+
+    user, subscription = row
+    update_user_active_status(db, user, is_active=request.is_active)
+    return _build_admin_user_response(user, subscription)

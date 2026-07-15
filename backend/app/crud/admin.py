@@ -50,3 +50,15 @@ def get_user_for_admin(
 
 def count_advertisements_by_user(db: Session, user_id: int) -> int:
     return db.query(Advertisement).filter(Advertisement.user_id == user_id).count()
+
+
+def update_user_active_status(
+    db: Session,
+    user: User,
+    *,
+    is_active: bool,
+) -> User:
+    user.is_active = is_active
+    db.commit()
+    db.refresh(user)
+    return user

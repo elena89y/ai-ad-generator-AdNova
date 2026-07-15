@@ -31,3 +31,7 @@ class AdminUserDetailResponse(AdminUserResponse):
     business_type: str | None = None
     updated_at: datetime
     advertisement_count: int
+
+
+class AdminUserStatusUpdateRequest(BaseModel):
+    is_active: bool
