@@ -121,6 +121,8 @@ class AdminApiTestCase(unittest.TestCase):
             skip=0,
             limit=50,
             search=None,
+            is_active=None,
+            plan=None,
             db=self.session,
             current_admin=self.admin_account,
         )
@@ -129,6 +131,40 @@ class AdminApiTestCase(unittest.TestCase):
         self.assertEqual(response.total, 2)
         self.assertEqual(listed_user.plan, "premium")
         self.assertEqual(listed_user.subscription_status, "active")
+
+    def test_admin_can_filter_users_by_status_and_plan(self) -> None:
+        inactive_user = User(
+            email="inactive@example.com",
+            username="inactiveuser",
+            password_hash="test-hash",
+            is_active=False,
+        )
+        self.session.add(inactive_user)
+        self.session.commit()
+
+        inactive_users = read_admin_users(
+            skip=0,
+            limit=50,
+            search=None,
+            is_active=False,
+            plan="free",
+            db=self.session,
+            current_admin=self.admin_account,
+        )
+        premium_users = read_admin_users(
+            skip=0,
+            limit=50,
+            search=None,
+            is_active=True,
+            plan="premium",
+            db=self.session,
+            current_admin=self.admin_account,
+        )
+
+        self.assertEqual(inactive_users.total, 1)
+        self.assertEqual(inactive_users.items[0].id, inactive_user.id)
+        self.assertEqual(premium_users.total, 1)
+        self.assertEqual(premium_users.items[0].id, self.user.id)
 
     def test_admin_can_read_summary(self) -> None:
         response = read_admin_summary(
