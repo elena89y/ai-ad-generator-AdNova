@@ -338,6 +338,50 @@ def test_cached_rerun_records_two_calls_without_analysis_request(tmp_path, monke
     ]
 
 
+def test_rerun_product_name_change_invalidates_cached_analysis(tmp_path, monkeypatch):
+    processed_dir = tmp_path / "processed"
+    results_dir = tmp_path / "results"
+    processed_dir.mkdir()
+    results_dir.mkdir()
+    (processed_dir / f"{ASSET_ID}_v2input.png").write_bytes(b"input")
+    old_analysis = _analysis()
+    new_analysis = _analysis(
+        display_name="딸기 스무디",
+        subject_en="strawberry smoothie",
+        core_ingredients=["strawberry", "milk"],
+        temperature="iced",
+    )
+
+    monkeypatch.setenv("UNIFIED_ANALYSIS", "1")
+    monkeypatch.setattr(image_service, "PROCESSED_DIR", processed_dir)
+    monkeypatch.setattr(image_service, "RESULTS_DIR", results_dir)
+    monkeypatch.setattr(generation_service, "_next_seed", lambda _prev: 99)
+    assert generation_service._save_photo_analysis(ASSET_ID, old_analysis)
+    calls = 0
+    captured = {}
+
+    def fake_analysis(*_args):
+        nonlocal calls
+        calls += 1
+        return new_analysis
+
+    def fake_process(*args, **kwargs):
+        captured["analysis"] = kwargs["analysis"]
+        return _fake_process(results_dir)(*args, **kwargs)
+
+    monkeypatch.setattr(gpt_service, "analyze_photo", fake_analysis)
+    monkeypatch.setattr(generation_service, "process_ad", fake_process)
+    monkeypatch.setattr(generation_service, "_platform_copies_safe", lambda *_args: {})
+
+    generation_service.rerun_v2(
+        ASSET_ID, ProductInfo(name="딸기 스무디"), StylePreset.MONOTONE, prev_seed=42,
+    )
+
+    assert calls == 1
+    assert captured["analysis"] == new_analysis
+    assert generation_service._load_photo_analysis(ASSET_ID) == new_analysis
+
+
 def test_legacy_asset_rerun_analyzes_once_and_creates_cache(tmp_path, monkeypatch):
     processed_dir = tmp_path / "processed"
     results_dir = tmp_path / "results"

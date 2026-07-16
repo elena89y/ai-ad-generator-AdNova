@@ -228,6 +228,14 @@ def _load_photo_analysis(asset_id: str) -> Optional[gpt_service.PhotoAnalysis]:
         return None
 
 
+def _analysis_matches_product(
+    analysis: gpt_service.PhotoAnalysis,
+    product_name: Optional[str],
+) -> bool:
+    """asset 캐시가 현재 재생성 상품명으로 만든 분석인지 확인한다."""
+    return analysis.display_name.strip() == (product_name or "").strip()
+
+
 def _platform_copies_safe(
     product: ProductInfo,
     style: StylePreset,
@@ -365,6 +373,12 @@ def rerun_v2(
                 )
                 shutil.copy(source, rerun_input)
             analysis = _load_photo_analysis(asset_id) if unified_analysis else None
+            if analysis is not None and not _analysis_matches_product(analysis, product.name):
+                logging.getLogger(__name__).info(
+                    "통합 분석 캐시 상품명 불일치 → 재분석: asset_id=%s",
+                    asset_id,
+                )
+                analysis = None
             if unified_analysis and analysis is None:
                 with run.stage("analysis"):
                     analysis = gpt_service.analyze_photo(str(source), product.name)
