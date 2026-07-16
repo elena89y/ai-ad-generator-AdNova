@@ -15,6 +15,13 @@ from ..core.config import settings
 from ..schemas.ads import GenerateAdResponse, ProductInfo, StylePreset
 from . import image_service
 
+_MIN_TIMEOUT_S = 300
+
+
+def _request_timeout() -> int:
+    """GPU queue 대기와 warm 생성을 함께 견디는 최소 HTTP timeout."""
+    return max(_MIN_TIMEOUT_S, settings.GENERATION_TIMEOUT_S)
+
 
 def is_remote() -> bool:
     return bool(settings.GENERATION_SERVICE_URL)
@@ -30,7 +37,7 @@ def _fetch_and_localize(body: dict) -> GenerateAdResponse:
     name = Path(body["image_url"]).name
     base = settings.GENERATION_SERVICE_URL.rstrip("/")
     resp = requests.get(
-        f"{base}{body['image_url']}", timeout=settings.GENERATION_TIMEOUT_S
+        f"{base}{body['image_url']}", timeout=_request_timeout()
     )
     resp.raise_for_status()
     image_service.RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -65,7 +72,7 @@ def generate_remote(
             data["seed"] = str(seed)
         resp = requests.post(
             f"{base}/generate", files=files, data=data,
-            timeout=settings.GENERATION_TIMEOUT_S,
+            timeout=_request_timeout(),
         )
     resp.raise_for_status()
     return _fetch_and_localize(resp.json())
@@ -77,7 +84,7 @@ def regenerate_remote(payload: dict) -> GenerateAdResponse:
 
     base = settings.GENERATION_SERVICE_URL.rstrip("/")
     resp = requests.post(
-        f"{base}/regenerate", json=payload, timeout=settings.GENERATION_TIMEOUT_S
+        f"{base}/regenerate", json=payload, timeout=_request_timeout()
     )
     resp.raise_for_status()
     return _fetch_and_localize(resp.json())

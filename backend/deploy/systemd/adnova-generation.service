@@ -1,0 +1,31 @@
+[Unit]
+Description=AdNova resident GPU generation worker
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=spai0803
+Group=spai0803
+WorkingDirectory=/home/spai0803/ai-ad-generator-AdNova/backend
+EnvironmentFile=/home/spai0803/ai-ad-generator-AdNova/backend/.env
+Environment="HF_HOME=/opt/adnova/models"
+Environment="HF_HUB_CACHE=/opt/adnova/models/hub"
+Environment="HF_TOKEN_PATH=/opt/adnova/secrets/hf_token"
+Environment="U2NET_HOME=/opt/adnova/models/u2net"
+Environment="PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True"
+Environment="PRELOAD_KONTEXT=1"
+Environment="GPU_QUEUE_TIMEOUT=180"
+Environment="BEST_OF_N=1"
+Environment="ADNOVA_EVAL=0"
+ExecStart=/home/spai0803/ai-ad-generator-AdNova/backend/.venv/bin/uvicorn app.generation_app:app --host 127.0.0.1 --port 8100 --workers 1
+ExecStartPost=/bin/bash -c 'for i in $(seq 1 72); do /usr/bin/curl -fsS http://127.0.0.1:8100/health | /usr/bin/grep -q "worker.*ready" && exit 0; /usr/bin/sleep 5; done; exit 1'
+TimeoutStartSec=420
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
