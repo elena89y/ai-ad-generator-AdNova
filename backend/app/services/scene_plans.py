@@ -1,4 +1,4 @@
-"""광고 장면 플랜 — 담당: 한의정. DIRECTION_v4.1 P4C-1 장면 계약.
+"""광고 장면 플랜 — 담당: 한의정. DIRECTION_v4.2 P4B-R 장면 계약.
 
 ScenePlan = 배경 생성 프롬프트(오프라인 라이브러리 빌드용) + 합성 기하 + 카피 여백 + 광원방향.
   - light_dir 는 프롬프트에 명시해 '사전 확정' — 접지 그림자 방향을 추정할 필요가 없다.
@@ -28,6 +28,8 @@ class ScenePlan:
     surface_y: float          # 접지선 y (0~1)
     light_dir: str            # "left" | "right" — 프롬프트와 그림자 방향의 단일 출처
     text_zone: str            # "top" | "top_left" | "top_right" — overlay 헤드라인 위치
+    render_mode: str = "sdxl"  # "code" | "sdxl" — 배경 소싱 티어(D-12)
+    palette: tuple[str, ...] = ()  # 코드 렌더러 입력 hex 팔레트
     view_angle: str = "eye"   # "eye" | "high" | "top" — 입력 사진과 장면의 카메라 각도 계약
     shadow_strength: float = 0.35
     reflection_strength: float = 0.0
@@ -80,50 +82,61 @@ NEGATIVE_PROMPT = (
 
 
 def _p(style, domain, archetype, scene, pos, scale, sy, light, tz,
-       props=(), recompose=False, view="eye", shadow=0.35, reflection=0.0) -> ScenePlan:
+       props=(), recompose=False, view="eye", shadow=0.35, reflection=0.0,
+       render_mode="sdxl", palette=()) -> ScenePlan:
     return ScenePlan(
         key=f"{style}/{domain}/{archetype}", style=style, domain=domain,
         archetype=archetype, scene=scene, subject_pos=pos, subject_scale=scale,
         surface_y=sy, light_dir=light, text_zone=tz, view_angle=view,
         shadow_strength=shadow, reflection_strength=reflection,
-        prop_slots=props, requires_recompose=recompose)
+        prop_slots=props, requires_recompose=recompose,
+        render_mode=render_mode, palette=tuple(palette))
 
 
 PLANS: list[ScenePlan] = [
     # ── pop ─────────────────────────────────────────────────────────────────
+    _p("pop", "drink", "diagonal_field",
+       "curated klein-blue and cream diagonal fields with one hard shadow stripe",
+       (0.55, 0.60), 0.46, 0.72, "left", "top_left",
+       render_mode="code", palette=("#2B3FBB", "#F2ECE3")),
     _p("pop", "drink", "diagonal_splash",
        "bold electric blue and orange color-block wall, glossy orange surface, "
        "dynamic diagonal composition",
-       (0.55, 0.60), 0.46, 0.72, "left", "top_left", props=("splash", "ice")),
+       (0.55, 0.60), 0.46, 0.72, "left", "top_left", props=("splash", "ice"),
+       recompose=True),
     _p("pop", "drink", "color_block_duo",
-       "two flat saturated color panels, cobalt blue and tangerine, one hard sun shadow "
+       "two curated flat color panels, klein blue and warm cream, one hard sun shadow "
        "stripe across a glossy tabletop",
-       (0.50, 0.62), 0.42, 0.74, "right", "top"),
+       (0.50, 0.62), 0.42, 0.74, "right", "top",
+       render_mode="code", palette=("#2B3FBB", "#F2ECE3")),
     _p("pop", "object", "color_block",
-       "flat vivid duotone wall in cobalt and lime green, geometric shadow shapes, "
+       "flat curated duotone wall in muted teal and warm cream, geometric shadow shapes, "
        "glossy seamless floor",
-       (0.50, 0.62), 0.42, 0.74, "left", "top"),
+       (0.50, 0.62), 0.42, 0.74, "left", "top",
+       render_mode="code", palette=("#2D6A6F", "#F2ECE3")),
     _p("pop", "object", "concept_stage",
-       "saturated coral backdrop with one oversized matte geometric cylinder prop, "
-       "playful hard studio light",
-       (0.58, 0.62), 0.40, 0.74, "right", "top_left"),
+       "muted coral wall and warm cream seamless floor with one diagonal edge accent",
+       (0.58, 0.62), 0.40, 0.74, "right", "top_left",
+       render_mode="code", palette=("#C96D5B", "#F2ECE3")),
     # ── editorial ───────────────────────────────────────────────────────────
     _p("editorial", "drink", "asym_negative",
        "premium magazine still-life, warm gray stone tray on pale plaster wall, "
        "generous negative space, single window light",
-       (0.62, 0.64), 0.40, 0.76, "left", "top_left"),
+       (0.62, 0.64), 0.40, 0.76, "left", "top_left",
+       render_mode="code", palette=("#E8E0D4", "#D8CDBC")),
     _p("editorial", "drink", "split_card",
-       "two-tone split backdrop, ivory upper and warm taupe lower band, "
-       "minimal ceramic pedestal",
-       (0.50, 0.66), 0.38, 0.78, "right", "top"),
+       "two-tone seamless split with ivory upper wall and warm taupe lower band",
+       (0.50, 0.66), 0.38, 0.78, "right", "top",
+       render_mode="code", palette=("#F2EDE4", "#B7A48F")),
     _p("editorial", "object", "asym_negative",
        "architectural beige plaster niche, deep soft shadow, generous negative space, "
        "gallery lighting",
-       (0.60, 0.64), 0.40, 0.76, "left", "top_left"),
-    _p("editorial", "object", "pedestal_min",
-       "matte white column pedestal against soft beige seamless, one long "
-       "architectural shadow",
-       (0.50, 0.60), 0.38, 0.70, "right", "top"),
+       (0.60, 0.64), 0.40, 0.76, "left", "top_left",
+       render_mode="code", palette=("#E8E0D4", "#D8CDBC")),
+    _p("editorial", "object", "seamless_min",
+       "bright cement wall and clean white seamless floor with soft tonal falloff",
+       (0.50, 0.60), 0.38, 0.70, "right", "top",
+       render_mode="code", palette=("#EDE8DF", "#FAF8F4")),
     # ── realism ─────────────────────────────────────────────────────────────
     _p("realism", "drink", "cafe_table_window",
        "sunlit wooden cafe table by a large window, blurred cozy interior bokeh, "
@@ -139,36 +152,44 @@ PLANS: list[ScenePlan] = [
        "washed pale linen cloth on a bright table, gentle fabric folds, soft daylight",
        (0.50, 0.64), 0.42, 0.78, "right", "top"),
     # ── pastel ──────────────────────────────────────────────────────────────
-    _p("pastel", "drink", "soft_pedestal",
-       "pastel pink and lavender studio, round mint pedestal, dreamy soft glow, "
-       "smooth gradient backdrop",
-       (0.50, 0.60), 0.40, 0.70, "left", "top"),
+    _p("pastel", "drink", "soft_seamless",
+       "pastel pink to lavender wall with a mint seamless floor band",
+       (0.50, 0.60), 0.40, 0.70, "left", "top",
+       render_mode="code", palette=("#F7D6E0", "#D9CDF2", "#CFE8DD")),
+    _p("pastel", "drink", "cloud_gradient",
+       "clean sky blue to blush two-tone gradient with a soft vignette",
+       (0.50, 0.58), 0.42, 0.68, "right", "top",
+       render_mode="code", palette=("#CDE4F7", "#F7DCE3")),
     _p("pastel", "drink", "dreamy_cloud",
        "soft cream cloud shapes, baby blue to blush pink gradient, glossy "
        "reflective floor",
        (0.50, 0.58), 0.42, 0.68, "right", "top", recompose=True,
        reflection=0.12),
-    _p("pastel", "object", "soft_pedestal",
-       "pale mint wall, round blush pedestal, dreamy soft glow, smooth gradient",
-       (0.50, 0.60), 0.40, 0.70, "left", "top"),
-    _p("pastel", "object", "floating_shelf",
-       "thin floating shelf on a pastel lilac wall, soft even light, tiny soft shadows",
-       (0.50, 0.55), 0.36, 0.62, "right", "top"),
+    _p("pastel", "object", "soft_seamless",
+       "pale mint wall with a blush seamless floor band and soft tonal falloff",
+       (0.50, 0.60), 0.40, 0.70, "left", "top",
+       render_mode="code", palette=("#DFF0E8", "#F3D9DF")),
+    _p("pastel", "object", "lilac_seamless",
+       "pastel lilac wall with a pale lavender seamless floor band",
+       (0.50, 0.55), 0.36, 0.62, "right", "top",
+       render_mode="code", palette=("#E4D9F2", "#F7F4FB")),
     # ── monotone (결정 D-3: 중립 판 + style_finish 듀오톤 착색) ────────────────
-    _p("monotone", "drink", "tone_pedestal",
-       "neutral light gray seamless studio, round matte pedestal, single soft "
-       "spotlight, smooth gradient falloff",
-       (0.50, 0.60), 0.40, 0.70, "left", "top"),
+    _p("monotone", "drink", "tone_seamless",
+       "neutral light gray wall and floor seamless with a smooth tonal falloff",
+       (0.50, 0.60), 0.40, 0.70, "left", "top",
+       render_mode="code", palette=("#DCDCDC", "#9A9A9A")),
     _p("monotone", "drink", "dark_mono",
        "deep charcoal studio, dramatic single rim light, dark subtly reflective surface",
-       (0.50, 0.62), 0.42, 0.74, "right", "top", reflection=0.12),
-    _p("monotone", "object", "tone_pedestal",
-       "neutral light gray seamless studio, round matte pedestal, single soft "
-       "spotlight, smooth gradient falloff",
-       (0.50, 0.60), 0.40, 0.70, "left", "top"),
+       (0.50, 0.62), 0.42, 0.74, "right", "top", reflection=0.12,
+       render_mode="code", palette=("#1E1E22", "#4A4A52")),
+    _p("monotone", "object", "tone_seamless",
+       "neutral light gray wall and floor seamless with a smooth tonal falloff",
+       (0.50, 0.60), 0.40, 0.70, "left", "top",
+       render_mode="code", palette=("#DCDCDC", "#9A9A9A")),
     _p("monotone", "object", "dark_mono",
        "deep charcoal studio, dramatic single rim light, dark subtly reflective surface",
-       (0.50, 0.62), 0.42, 0.74, "right", "top", reflection=0.12),
+       (0.50, 0.62), 0.42, 0.74, "right", "top", reflection=0.12,
+       render_mode="code", palette=("#1E1E22", "#4A4A52")),
     # ── warm_vintage ────────────────────────────────────────────────────────
     _p("warm_vintage", "drink", "linen_organic",
        "beige linen tablecloth, dried grass stems in soft focus behind, warm golden "
