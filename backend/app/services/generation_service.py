@@ -9,13 +9,14 @@
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import random
 import re
 import time
 from contextlib import nullcontext
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -192,11 +193,50 @@ def rerun(
 # --- v2 드롭인 어댑터 (구 run_from_upload/rerun 대체) — Kontext(process_ad) 사용 -------------
 #   시그니처·반환형(GenerationOutput) 동일 → ads.py·generation_app 은 함수명만 교체.
 #   StylePreset(무드) → resolve_style → style_spec 키. 4매체 카피 + 정직성 게이트 포함.
-def _platform_copies_safe(product: ProductInfo, style: StylePreset) -> dict[str, dict]:
+def _unified_analysis_enabled() -> bool:
+    """통합 Vision 분석 플래그. 기본 off로 기존 호출 그래프를 보존한다."""
+    return os.environ.get("UNIFIED_ANALYSIS", "0") == "1"
+
+
+def _analysis_cache_path(asset_id: str) -> Path:
+    if not is_valid_asset_id(asset_id):
+        raise ValueError(f"잘못된 asset_id 형식: {asset_id!r}")
+    return image_service.PROCESSED_DIR / f"{asset_id}_analysis.json"
+
+
+def _save_photo_analysis(asset_id: str, analysis: gpt_service.PhotoAnalysis) -> bool:
+    """통합 분석을 asset별 JSON으로 원자 저장한다. 실패는 기존 경로 가용성을 막지 않는다."""
+    try:
+        cache_path = _analysis_cache_path(asset_id)
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        pending = cache_path.with_suffix(".json.tmp")
+        pending.write_text(json.dumps(asdict(analysis), ensure_ascii=False), encoding="utf-8")
+        pending.replace(cache_path)
+        return True
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger(__name__).warning("통합 분석 캐시 저장 실패: %s", exc)
+        return False
+
+
+def _load_photo_analysis(asset_id: str) -> Optional[gpt_service.PhotoAnalysis]:
+    """asset 통합 분석 캐시를 읽는다. 누락·구버전·손상 파일은 ``None``으로 폴백한다."""
+    try:
+        payload = json.loads(_analysis_cache_path(asset_id).read_text(encoding="utf-8"))
+        return gpt_service.PhotoAnalysis(**payload)
+    except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        logging.getLogger(__name__).info("통합 분석 캐시 사용 불가: %s", exc)
+        return None
+
+
+def _platform_copies_safe(
+    product: ProductInfo,
+    style: StylePreset,
+    analysis: Optional[gpt_service.PhotoAnalysis] = None,
+) -> dict[str, dict]:
     """4매체 카피 + 정직성 게이트(core_ingredients 대조로 재료 환각 차단). 실패해도 {} (무해)."""
     try:
-        analysis = gpt_service.analyze_menu(product.name)
-        core = getattr(analysis, "core_ingredients", None) or None
+        resolved = analysis or gpt_service.analyze_menu(product.name)
+        core = getattr(resolved, "core_ingredients", None) or None
         return gpt_service.generate_platform_copy(product, style, core_ingredients=core)
     except Exception:
         return {}
@@ -227,18 +267,27 @@ def run_from_upload_v2(
     _bon = max(1, int(_os.environ.get("BEST_OF_N", "1") or "1"))
     _steps = int(_os.environ["BEST_OF_STEPS"]) if _os.environ.get("BEST_OF_STEPS") else None
     actual_seed = 42 if seed is None else seed
+    unified_analysis = _unified_analysis_enabled()
 
     with propagate_attributes(session_id=asset_id):
         with RunLogger(
-            phase="V3P1", mode="pending", engine="pending", input=image_path,
+            phase="V4P4A" if unified_analysis else "V3P1",
+            mode="pending", engine="pending", input=image_path,
             seed=actual_seed,
             params={"asset_id": asset_id, "name": product.name, "style": style.value,
                     "poster": poster, "best_of": _bon, "steps": _steps,
                     "request": "generate"},
         ) as run:
             # 입력 게이트(P0): 명백한 사진-상품명 불일치만 생성 전에 차단한다.
+            analysis = None
             with run.stage("input_gate"):
-                gate = gpt_service.verify_photo_subject(image_path, product.name)
+                if unified_analysis:
+                    analysis = gpt_service.analyze_photo(image_path, product.name)
+                gate = (
+                    {"match": analysis.match, "seen": analysis.seen}
+                    if analysis is not None
+                    else gpt_service.verify_photo_subject(image_path, product.name)
+                )
             if not gate["match"]:
                 seen = f" (사진에는 '{gate['seen']}'이(가) 보여요)" if gate.get("seen") else ""
                 raise ValueError(
@@ -250,13 +299,15 @@ def run_from_upload_v2(
                 saved = image_service.PROCESSED_DIR / f"{asset_id}_v2input{_P(image_path).suffix}"
                 saved.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy(image_path, saved)
+                if analysis is not None:
+                    _save_photo_analysis(asset_id, analysis)
 
             # 결과는 서빙 디렉토리 절대경로에 저장하고 asset_id stem으로 URL 충돌을 막는다.
             r = process_ad(
                 str(saved), product.name, poster=poster,
                 style=resolve_style(style.value), output_dir=str(image_service.RESULTS_DIR),
                 use_vision=use_vision, seed=actual_seed, best_of=_bon, steps=_steps,
-                log=False, _run=run,
+                log=False, analysis=analysis, _run=run,
             )
             run.set_meta(
                 mode=getattr(r, "domain", "unknown"),
@@ -266,7 +317,7 @@ def run_from_upload_v2(
             )
             run.set_output(r.final_image_path)
             with run.stage("platform_copy"):
-                platform_copies = _platform_copies_safe(product, style)
+                platform_copies = _platform_copies_safe(product, style, analysis)
             return GenerationOutput(
                 final_image_path=r.final_image_path, asset_id=asset_id, seed=r.seed, style=style,
                 copy_text=r.copy_text, platform_copies=platform_copies,
@@ -296,8 +347,10 @@ def rerun_v2(
     # session_id=asset_id — 최초 생성(run_from_upload_v2)이 같은 asset_id 로 연 세션에 합류.
     with propagate_attributes(session_id=asset_id):
         new_seed = _next_seed(prev_seed)
+        unified_analysis = _unified_analysis_enabled()
         with RunLogger(
-            phase="V3P1", mode="pending", engine="pending", input=asset_id,
+            phase="V4P4A" if unified_analysis else "V3P1",
+            mode="pending", engine="pending", input=asset_id,
             seed=new_seed,
             params={"asset_id": asset_id, "name": product.name, "style": style.value,
                     "poster": poster, "request": "regenerate"},
@@ -311,11 +364,18 @@ def rerun_v2(
                     f"{asset_id}_rerun_{uuid.uuid4().hex[:8]}_v2input{source.suffix}"
                 )
                 shutil.copy(source, rerun_input)
+            analysis = _load_photo_analysis(asset_id) if unified_analysis else None
+            if unified_analysis and analysis is None:
+                with run.stage("analysis"):
+                    analysis = gpt_service.analyze_photo(str(source), product.name)
+                if analysis is not None:
+                    _save_photo_analysis(asset_id, analysis)
             try:
                 r = process_ad(
                     str(rerun_input), product.name, poster=poster,
                     style=resolve_style(style.value), output_dir=str(image_service.RESULTS_DIR),
-                    use_vision=use_vision, seed=new_seed, log=False, _run=run,
+                    use_vision=use_vision, seed=new_seed, log=False,
+                    analysis=analysis, _run=run,
                 )
             finally:
                 rerun_input.unlink(missing_ok=True)
@@ -327,7 +387,7 @@ def rerun_v2(
             )
             run.set_output(r.final_image_path)
             with run.stage("platform_copy"):
-                platform_copies = _platform_copies_safe(product, style)
+                platform_copies = _platform_copies_safe(product, style, analysis)
             return GenerationOutput(
                 final_image_path=r.final_image_path, asset_id=asset_id, seed=r.seed, style=style,
                 copy_text=r.copy_text, platform_copies=platform_copies,
@@ -422,6 +482,7 @@ def process_ad(
     seed: Optional[int] = None,
     best_of: int = 1,
     steps: Optional[int] = None,
+    analysis: Optional[gpt_service.PhotoAnalysis] = None,
     _run=None,  # noqa: ANN001
 ) -> ProcessedAd:
     """사진 + 상품명 → 자동 라우팅(또는 스타일 씬) 리터치 + 문구 + 포스터. 사용자는 이름만 입력.
@@ -435,19 +496,20 @@ def process_ad(
     if _run is not None:
         return _process_ad_impl(
             image_path, name, knob, poster, layout, use_vision, style,
-            output_dir, seed, best_of, steps, run=_run,
+            output_dir, seed, best_of, steps, analysis, run=_run,
         )
     if not log:
         return _process_ad_impl(
             image_path, name, knob, poster, layout, use_vision, style,
-            output_dir, seed, best_of, steps, run=None,
+            output_dir, seed, best_of, steps, analysis, run=None,
         )
 
     try:
         from ..harness.run_logger import RunLogger
 
         run = RunLogger(
-            phase="V3P1", mode="pending", engine="pending", input=image_path,
+            phase="V4P4A" if _unified_analysis_enabled() else "V3P1",
+            mode="pending", engine="pending", input=image_path,
             seed=seed,
             params={"name": name, "style": style, "layout": layout,
                     "best_of": best_of, "steps": steps},
@@ -456,13 +518,13 @@ def process_ad(
         logging.getLogger(__name__).warning("RunLogger 초기화 실패: %s", exc)
         return _process_ad_impl(
             image_path, name, knob, poster, layout, use_vision, style,
-            output_dir, seed, best_of, steps, run=None,
+            output_dir, seed, best_of, steps, analysis, run=None,
         )
 
     with run:
         result = _process_ad_impl(
             image_path, name, knob, poster, layout, use_vision, style,
-            output_dir, seed, best_of, steps, run=run,
+            output_dir, seed, best_of, steps, analysis, run=run,
         )
         run.set_meta(mode=result.domain, engine=result.engine, seed=result.seed)
         run.set_output(result.final_image_path)
@@ -483,6 +545,7 @@ def _process_ad_impl(
     seed: Optional[int],
     best_of: int,
     steps: Optional[int],
+    analysis: Optional[gpt_service.PhotoAnalysis],
     run=None,  # noqa: ANN001
 ) -> ProcessedAd:
     """process_ad 실제 생성 본문. run이 있으면 단계별 시간을 함께 기록한다."""
@@ -497,10 +560,10 @@ def _process_ad_impl(
         from . import style_gen
         # subject_en 은 analyze_menu 로 산출(한글→영문, CLIP 함정 회피)
         with _stage(run, "analysis"):
-            analysis = gpt_service.analyze_menu(name)
-        subject_en = getattr(analysis, "subject_en", None) or name
-        domain = getattr(analysis, "domain", "food")
-        food_mode = getattr(analysis, "food_mode", None)
+            resolved_analysis = analysis or gpt_service.analyze_menu(name)
+        subject_en = getattr(resolved_analysis, "subject_en", None) or name
+        domain = getattr(resolved_analysis, "domain", "food")
+        food_mode = getattr(resolved_analysis, "food_mode", None)
         style_domain = "drink" if food_mode == "cafe" else domain
         # 포맷 자동감지(STYLE_SYSTEM v2): style 은 '무드', 포맷은 콘텐츠로 결정.
         #   STY-003~005 이후 사물도 선택 무드를 적용하되, StylePlan이 상품은 고정하고 배경·조명만 바꾼다.
@@ -526,7 +589,9 @@ def _process_ad_impl(
         engine = f"style:{effective_style}" + (f"·bestof{len(seeds)}:{sel}" if len(seeds) > 1 else "")
     else:
         with _stage(run, "generate"):
-            route = router.process_input(image_path, name, knob=knob, output_dir=output_dir)
+            route = router.process_input(
+                image_path, name, knob=knob, output_dir=output_dir, analysis=analysis,
+            )
         final = route.output_path
         subject_en, domain, engine = route.subject_en, route.domain, route.engine
         selected_seed = 0 if seed is None else seed

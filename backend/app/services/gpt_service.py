@@ -527,8 +527,49 @@ class MenuAnalysis:
         return self.subject_en
 
 
+@dataclass
+class PhotoAnalysis:
+    """사진+상품명 통합 분석. 입력 게이트·라우팅·장면 연출이 Vision 1회 결과를 공유한다."""
+
+    match: bool
+    seen: str
+    domain: str
+    display_name: str
+    subject_en: str
+    category: str
+    core_ingredients: list[str]
+    texture_hero: bool
+    material: str
+    food_mode: str
+    lang: str
+    container_kind: str
+    container_color: str
+    container_opacity: str
+    temperature: str
+    view_angle: str
+    visible_text: str
+
+    @property
+    def food_en(self) -> str:
+        """MenuAnalysis의 기존 별칭과 동일한 하위호환 계약."""
+        return self.subject_en
+
+
 _MENU_CATEGORIES = "fried, soup, bakery, grill, beef, pork, default"
 _MATERIALS = ("matte", "reflective", "transparent", "default")
+_CONTAINER_OPACITIES = ("opaque", "transparent", "translucent")
+_TEMPERATURES = ("hot", "iced", "ambient")
+_VIEW_ANGLES = ("eye", "high", "top")
+
+
+def _json_bool(value, field: str) -> bool:  # noqa: ANN001
+    """JSON boolean과 문자열 true/false만 허용한다. 애매한 값은 통합 분석 전체를 폴백한다."""
+    if isinstance(value, bool):
+        return value
+    normalized = str(value).strip().lower()
+    if normalized in ("true", "false"):
+        return normalized == "true"
+    raise ValueError(f"잘못된 {field}: {value!r}")
 
 
 def build_cake_layers(name: str, subject_en: str = "", image_desc: str = "") -> dict:
@@ -614,6 +655,96 @@ def analyze_menu(name: str) -> MenuAnalysis:
         food_mode="cafe" if str(low.get("food_mode", "dish")).lower() == "cafe" else "dish",
         lang="en" if str(low.get("lang", "")).lower().startswith("en") else "ko",
     )
+
+
+def analyze_photo(image_path: str, name: str) -> Optional[PhotoAnalysis]:
+    """사진+상품명 → 게이트·라우팅·연출 통합 분석. 실패하면 기존 경로용 ``None`` 반환.
+
+    MenuAnalysis의 모든 필드와 사진 근거 필드를 한 번의 Vision 호출로 받는다. 응답 키는
+    소문자 snake_case로 고정하며 core_ingredients와 이미지 프롬프트용 값은 영어를 강제한다.
+    """
+    display_name = (name or "").strip()
+    instruction = (
+        "너는 소상공인 광고 파이프라인의 사진·상품 통합 분석기야. 사진과 상품명을 함께 분석해 "
+        "아래 키를 정확히 사용한 JSON으로만 응답해.\n"
+        f"- 상품명: {display_name or '(빈 입력)'}\n"
+        "입력 게이트는 관대하게 판단해. 사진의 주 피사체가 상품명과 같은 종류 또는 같은 대분류의 "
+        "음식·음료·제품이면 match=true이고, 색·브랜드·세부 차이는 무시해. 상품이 전혀 없는 무관한 "
+        "사람·동물·풍경·빈 배경처럼 명백히 다를 때만 match=false로 해.\n"
+        "분류 규칙:\n"
+        "1. domain은 먹는 상품이면 food, 사물·제품이면 object.\n"
+        f"2. category는 food일 때 [{_MENU_CATEGORIES}] 중 하나, object는 default.\n"
+        "3. subject_en은 실제 상품만 설명하는 영어 2~6단어. 브랜드명·과장 금지.\n"
+        "4. core_ingredients는 food의 핵심 재료를 English words only 배열 최대 4개, object는 [].\n"
+        "5. texture_hero는 마블링·파우더·회처럼 미세 텍스처가 상품 핵심일 때만 true.\n"
+        "6. material은 matte|reflective|transparent|default 중 하나. 사진의 실제 표면을 근거로 해.\n"
+        "7. food_mode는 그릇 요리면 dish, 카페 음료·케이크·베이커리·디저트면 cafe, object는 dish.\n"
+        "8. lang은 상품명이 한글이면 ko, 영어면 en. display_name은 입력 상품명을 그대로 보존해.\n"
+        "9. container_kind와 container_color는 사진 속 주 상품 용기 기준 영어 소문자. 용기가 없으면 "
+        "kind=none, color=none. container_opacity는 opaque|transparent|translucent 중 하나.\n"
+        "10. temperature는 사진의 김·성에·얼음 근거를 우선하고 상품명을 보조해 hot|iced|ambient 중 하나.\n"
+        "11. view_angle은 eye|high|top 중 하나. visible_text는 제품 표면에 실제 보이는 글자 원문이며 "
+        "없거나 판독 불가하면 빈 문자열. seen은 사진에 실제 보이는 것을 한국어 한 줄로 써.\n"
+        'JSON 키: {"match":true,"seen":"","domain":"food","display_name":"",'
+        '"subject_en":"cafe latte","category":"default","core_ingredients":["espresso","milk"],'
+        '"texture_hero":false,"material":"default","food_mode":"cafe","lang":"ko",'
+        '"container_kind":"cup","container_color":"white","container_opacity":"opaque",'
+        '"temperature":"hot","view_angle":"eye","visible_text":""}'
+    )
+    content = [
+        {"type": "text", "text": instruction},
+        _vision_part(image_path),
+    ]
+    try:
+        result = _chat_json([{"role": "user", "content": content}], label="analyze_photo")
+        if not isinstance(result, dict):
+            raise TypeError("analyze_photo 응답이 JSON 객체가 아님")
+
+        domain = "object" if str(result["domain"]).strip().lower() == "object" else "food"
+        category = str(result["category"]).strip().lower()
+        if category not in ("fried", "soup", "bakery", "grill", "beef", "pork", "default"):
+            category = "default"
+        material = str(result["material"]).strip().lower()
+        if material not in _MATERIALS:
+            material = "default"
+        ingredients = result["core_ingredients"]
+        if not isinstance(ingredients, list):
+            raise TypeError("core_ingredients가 배열이 아님")
+        opacity = str(result["container_opacity"]).strip().lower()
+        temperature = str(result["temperature"]).strip().lower()
+        view_angle = str(result["view_angle"]).strip().lower()
+        if opacity not in _CONTAINER_OPACITIES:
+            raise ValueError(f"잘못된 container_opacity: {opacity}")
+        if temperature not in _TEMPERATURES:
+            raise ValueError(f"잘못된 temperature: {temperature}")
+        if view_angle not in _VIEW_ANGLES:
+            raise ValueError(f"잘못된 view_angle: {view_angle}")
+
+        return PhotoAnalysis(
+            match=_json_bool(result["match"], "match"),
+            seen=str(result.get("seen", ""))[:80],
+            domain=domain,
+            display_name=display_name,
+            subject_en=str(result["subject_en"]).strip() or "product",
+            category=category,
+            core_ingredients=(
+                [str(item).strip().lower() for item in ingredients if str(item).strip()][:4]
+                if domain == "food" else []
+            ),
+            texture_hero=_json_bool(result["texture_hero"], "texture_hero") and domain == "food",
+            material=material,
+            food_mode="cafe" if str(result["food_mode"]).strip().lower() == "cafe" else "dish",
+            lang="en" if str(result["lang"]).strip().lower() == "en" else "ko",
+            container_kind=str(result["container_kind"]).strip().lower() or "none",
+            container_color=str(result["container_color"]).strip().lower() or "none",
+            container_opacity=opacity,
+            temperature=temperature,
+            view_angle=view_angle,
+            visible_text=str(result.get("visible_text", ""))[:200],
+        )
+    except Exception as exc:  # 기존 verify_photo_subject+analyze_menu 경로로 폴백
+        logger.warning("analyze_photo 실패 → 기존 분석 경로 폴백: %s", exc)
+        return None
 
 
 def verify_photo_subject(image_path: str, name: str) -> dict:

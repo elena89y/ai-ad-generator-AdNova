@@ -24,17 +24,21 @@ class RouteResult:
 
 
 def process_input(image_path: str, name: str, knob: Optional[float] = None,
-                  output_dir: str = "backend/results/ai/route") -> RouteResult:
+                  output_dir: str = "backend/results/ai/route",
+                  analysis=None) -> RouteResult:  # noqa: ANN001
     """사진 + 상품명 → 자동 라우팅 광고 리터치. 사용자는 이름만 입력."""
     from . import gpt_service
 
-    a = gpt_service.analyze_menu(name)
+    a = analysis or gpt_service.analyze_menu(name)
 
     # C 사물: 누끼 + 클린보정 + 스튜디오
     if a.domain == "object":
         from . import object_service
         # 재질은 이름이 아니라 사진(Vision)으로 판정 — 이름만으론 유광/무광/투명 구분 불가.
-        material = gpt_service.detect_material(image_path)
+        material = (
+            getattr(a, "material", "default")
+            if analysis is not None else gpt_service.detect_material(image_path)
+        )
         intensity = 1.0 if knob is None else max(0.0, min(1.5, knob * 1.5))
         r = object_service.generate_object_ad(
             image_path, material=material, intensity=intensity, output_dir=output_dir)
