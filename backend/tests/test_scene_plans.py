@@ -32,6 +32,26 @@ def test_bg_prompt_within_clip_budget_and_rules():
             assert not any(ord(c) > 0x2E7F for c in prompt), "프롬프트에 비ASCII(한글) 금지"
 
 
+def test_pilot_empty_prompts_forbid_unrequested_set_dressing():
+    jobs, _ = scene_builder._build_jobs("ignored", candidates=6, pilot=True)
+    for plan, props in jobs:
+        assert props == ()
+        prompt = build_bg_prompt(plan, props)
+        for phrase in (
+            "bare empty set",
+            "no furniture",
+            "no plants",
+            "no vases",
+            "no studio equipment",
+        ):
+            assert phrase in prompt
+        assert "dried grass" not in plan.scene
+        assert "dried botanicals" not in plan.scene
+
+    for phrase in ("chair", "tripod", "light stand", "busy pattern", "repeating stripes"):
+        assert phrase in scene_plans.NEGATIVE_PROMPT
+
+
 def test_geometry_ranges():
     for p in PLANS:
         assert 0.2 <= p.subject_scale <= 0.6
