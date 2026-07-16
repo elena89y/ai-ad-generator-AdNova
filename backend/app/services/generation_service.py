@@ -24,6 +24,34 @@ _ASSET_ID_RE = re.compile(r"^[a-f0-9]{12}$")
 def is_valid_asset_id(asset_id: str) -> bool:
     return bool(_ASSET_ID_RE.match(asset_id or ""))
 
+
+def _next_seed(prev_seed: Optional[int]) -> int:
+    """직전 값과 다른 uint32 seed를 발급한다."""
+    new_seed = random.randint(0, 2**32 - 1)
+    while prev_seed is not None and new_seed == prev_seed:
+        new_seed = random.randint(0, 2**32 - 1)
+    return new_seed
+
+
+def _style_seeds(seed: Optional[int], best_of: int) -> list[int]:
+    """단일 생성은 요청 seed, Best-of-N은 서로 다른 고정 후보 seed를 사용한다."""
+    if best_of <= 1:
+        return [42 if seed is None else seed]
+
+    pool = [7, 42, 123, 2024, 88, 512]
+    if seed is not None:
+        pool = [seed, *(candidate for candidate in pool if candidate != seed)]
+    return pool[:min(best_of, len(pool))]
+
+
+def _tag_seed_output(path: str, seed: int) -> str:
+    """Best-of-N 후보가 같은 stem을 덮어쓰지 않도록 seed별 파일로 보존한다."""
+    src = Path(path)
+    tagged = src.with_name(f"{src.stem}_s{seed}{src.suffix}")
+    if src != tagged:
+        src.replace(tagged)
+    return str(tagged)
+
 from ..core.observability import observe, propagate_attributes
 from ..schemas.ads import ProductInfo, StylePreset
 from . import gpt_service, image_service
@@ -217,12 +245,14 @@ def run_from_upload_v2(
         import os as _os
         _bon = max(1, int(_os.environ.get("BEST_OF_N", "1") or "1"))
         _steps = int(_os.environ["BEST_OF_STEPS"]) if _os.environ.get("BEST_OF_STEPS") else None
+        actual_seed = 42 if seed is None else seed
         r = process_ad(str(saved), product.name, poster=poster,
                        style=resolve_style(style.value),
                        output_dir=str(image_service.RESULTS_DIR),
+                       use_vision=use_vision, seed=actual_seed,
                        best_of=_bon, steps=_steps)
         return GenerationOutput(
-            final_image_path=r.final_image_path, asset_id=asset_id, seed=seed or 0, style=style,
+            final_image_path=r.final_image_path, asset_id=asset_id, seed=r.seed, style=style,
             copy_text=r.copy_text, platform_copies=_platform_copies_safe(product, style),
             poster=poster, generate_seconds=round(r.seconds, 2), harmonize_seconds=0.0)
 
@@ -236,8 +266,10 @@ def rerun_v2(
     use_vision: bool = False,
     poster: bool = False,
 ) -> GenerationOutput:
-    """v2 재생성 — 보존한 입력 원본으로 process_ad 재실행."""
+    """v2 재생성 — 새 seed와 고유 입력 stem으로 기존 결과를 덮어쓰지 않는다."""
     import glob
+    import shutil
+    import uuid
 
     from .style_specs import resolve_style
 
@@ -249,10 +281,24 @@ def rerun_v2(
         cands = glob.glob(str(image_service.PROCESSED_DIR / f"{asset_id}_v2input.*"))
         if not cands:
             raise FileNotFoundError(f"v2 입력 원본 없음: asset_id={asset_id}")
-        r = process_ad(cands[0], product.name, poster=poster, style=resolve_style(style.value),
-                       output_dir=str(image_service.RESULTS_DIR))
+
+        source = Path(cands[0])
+        rerun_input = image_service.PROCESSED_DIR / (
+            f"{asset_id}_rerun_{uuid.uuid4().hex[:8]}_v2input{source.suffix}"
+        )
+        shutil.copy(source, rerun_input)
+        new_seed = _next_seed(prev_seed)
+        try:
+            r = process_ad(
+                str(rerun_input), product.name, poster=poster,
+                style=resolve_style(style.value),
+                output_dir=str(image_service.RESULTS_DIR),
+                use_vision=use_vision, seed=new_seed,
+            )
+        finally:
+            rerun_input.unlink(missing_ok=True)
         return GenerationOutput(
-            final_image_path=r.final_image_path, asset_id=asset_id, seed=0, style=style,
+            final_image_path=r.final_image_path, asset_id=asset_id, seed=r.seed, style=style,
             copy_text=r.copy_text, platform_copies=_platform_copies_safe(product, style),
             poster=poster, generate_seconds=round(r.seconds, 2), harmonize_seconds=0.0)
 
@@ -271,6 +317,7 @@ class ProcessedAd:
     copy_text: str            # '헤드라인\n서브카피' (FR-09)
     poster: bool
     seconds: float
+    seed: int
     style: Optional[str] = None       # 디자인시스템 스타일 키(있으면 style_gen 경로)
     aesthetic: Optional[float] = None # NIMA 심미 점수(플라이휠 라벨)
 
@@ -337,6 +384,7 @@ def process_ad(
     style: Optional[str] = None,
     output_dir: str = "backend/results/ai/route",
     log: bool = True,
+    seed: Optional[int] = None,
     best_of: int = 1,
     steps: Optional[int] = None,
 ) -> ProcessedAd:
@@ -370,18 +418,24 @@ def process_ad(
         # Best-of-N: N시드 생성 → 선별기로 top 선택. best_of=1 이면 기존 1샷.
         #   ⚠️ BON-002 기각(2026-07-13): NIMA 는 이미-좋은 이미지(5~6점대)를 변별 못 해 Best-of-N 무효.
         #   선별기는 SELECTOR env 로 교체(nima 기본|gpt=구조화 저지|both=둘 다 로깅해 클린 비교).
-        n = max(1, best_of)
-        seeds = [7, 42, 123, 2024, 88, 512][:n]
-        cands = [style_gen.generate_scene(image_path, effective_style, subject_en,
-                                          output_dir=output_dir, seed=s, steps=steps,
-                                          domain=style_domain) for s in seeds]
+        seeds = _style_seeds(seed, max(1, best_of))
+        cands = []
+        for candidate_seed in seeds:
+            candidate = style_gen.generate_scene(
+                image_path, effective_style, subject_en,
+                output_dir=output_dir, seed=candidate_seed, steps=steps,
+                domain=style_domain,
+            )
+            cands.append(_tag_seed_output(candidate, candidate_seed))
         final = _select_best(cands, original_path=image_path)
+        selected_seed = seeds[cands.index(final)]
         sel = os.environ.get("SELECTOR", "nima")
-        engine = f"style:{effective_style}" + (f"·bestof{n}:{sel}" if n > 1 else "")
+        engine = f"style:{effective_style}" + (f"·bestof{len(seeds)}:{sel}" if len(seeds) > 1 else "")
     else:
         route = router.process_input(image_path, name, knob=knob, output_dir=output_dir)
         final = route.output_path
         subject_en, domain, engine = route.subject_en, route.domain, route.engine
+        selected_seed = 0 if seed is None else seed
 
     # 문구 (FR-09) — 상품명 + 리터치 이미지 기반. 톤은 EDITORIAL 기본.
     product = ProductInfo(name=name)
@@ -409,7 +463,8 @@ def process_ad(
     result = ProcessedAd(
         final_image_path=final, domain=domain, engine=engine,
         subject_en=subject_en, copy_text=copy.copy_text, poster=poster,
-        seconds=round(time.time() - t0, 2), style=style, aesthetic=aesthetic,
+        seconds=round(time.time() - t0, 2), seed=selected_seed,
+        style=style, aesthetic=aesthetic,
     )
 
     # 원장 적재(재생성 불가 결과를 학습자산으로 — DIRECTION D-플라이휠)
