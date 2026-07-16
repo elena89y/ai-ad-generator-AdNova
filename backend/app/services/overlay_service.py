@@ -17,6 +17,7 @@ from __future__ import annotations
 import colorsys
 import logging
 import math
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -38,6 +39,66 @@ _TEMPLATE_BY_PRESET = {
 }
 
 
+@dataclass(frozen=True)
+class TypographyToken:
+    """P4T 스타일별 조판 계약. 크기는 캔버스 높이 대비 비율이다."""
+
+    key: str
+    head_latin: str
+    head_korean: str
+    body_font: str
+    head_weight: int
+    body_weight: int
+    align: str
+    head_size: float
+    body_size: float
+    letter_spacing: float
+    body_spacing: float
+    accent_element: str
+    foreground: Optional[tuple[int, int, int]]
+    accent: tuple[int, int, int]
+    palette: tuple[str, ...]
+
+
+TYPOGRAPHY_TOKENS: dict[str, TypographyToken] = {
+    "editorial": TypographyToken(
+        "editorial", "space_grotesk", "maru_bold", "pretendard_medium",
+        700, 500, "center", 0.062, 0.024, 0.16, 0.12, "rule", None,
+        (93, 76, 63), ("#F2ECE3", "#5D4C3F"),
+    ),
+    "pop": TypographyToken(
+        "pop", "anton", "pretendard_black", "pretendard_medium",
+        900, 500, "left", 0.082, 0.028, 0.0, 0.03, "chip",
+        (242, 236, 227), (238, 188, 66), ("#2B3FBB", "#F2ECE3", "#EEBC42"),
+    ),
+    "realism": TypographyToken(
+        "realism", "space_grotesk", "pretendard_bold", "pretendard_medium",
+        700, 500, "left", 0.058, 0.025, 0.02, 0.02, "hairline", None,
+        (90, 110, 78), ("#F2ECE3", "#5A6E4E"),
+    ),
+    "pastel_float": TypographyToken(
+        "pastel_float", "paperlogy_extra", "paperlogy_extra", "paperlogy_semibold",
+        800, 600, "center", 0.066, 0.026, 0.01, 0.03, "chip", None,
+        (181, 119, 164), ("#F3DCE8", "#E3DAF1", "#B577A4"),
+    ),
+    "monotone": TypographyToken(
+        "monotone", "space_grotesk", "pretendard_medium", "pretendard_light",
+        500, 300, "center", 0.060, 0.022, 0.18, 0.16, "rule",
+        (242, 236, 227), (154, 154, 154), ("#202126", "#F2ECE3", "#9A9A9A"),
+    ),
+    "warm_vintage": TypographyToken(
+        "warm_vintage", "maru_bold", "maru_bold", "maru_regular",
+        700, 400, "left", 0.064, 0.026, 0.04, 0.02, "hairline",
+        (248, 239, 218), (211, 180, 119), ("#4B2D18", "#F8EFDA", "#D3B477"),
+    ),
+}
+
+
+def get_typography_token(style_key: Optional[str]) -> TypographyToken:
+    """알 수 없는 스타일은 에디토리얼 조판으로 안전하게 폴백한다."""
+    return TYPOGRAPHY_TOKENS.get(style_key or "", TYPOGRAPHY_TOKENS["editorial"])
+
+
 # --- 폰트 -----------------------------------------------------------------------
 def _font(kind: str, size: int) -> ImageFont.FreeTypeFont:
     """kind: serif(명조) / hand(펜스크립트) / gothic / gothic_bold / didone(영문 세리프)."""
@@ -56,6 +117,17 @@ def _font(kind: str, size: int) -> ImageFont.FreeTypeFont:
         "hand_casual": "Gaegu-Regular.ttf",
         "display_round": "DoHyeon-Regular.ttf",
         "condensed": "BebasNeue-Regular.ttf",
+        # P4T 폰트 팩: 스타일 조판 토큰의 웨이트를 파일 단위로 고정한다.
+        "pretendard_light": "Pretendard-Light.otf",
+        "pretendard_medium": "Pretendard-Medium.otf",
+        "pretendard_bold": "Pretendard-Bold.otf",
+        "pretendard_black": "Pretendard-Black.otf",
+        "paperlogy_semibold": "Paperlogy-6SemiBold.ttf",
+        "paperlogy_extra": "Paperlogy-8ExtraBold.ttf",
+        "maru_regular": "MaruBuri-Regular.ttf",
+        "maru_bold": "MaruBuri-Bold.ttf",
+        "space_grotesk": "SpaceGrotesk-Medium.ttf",
+        "anton": "Anton-Regular.ttf",
     }
     path = FONT_DIR / names[kind]
     if not path.is_file():
@@ -144,6 +216,148 @@ def _spaced_text(draw, xy, text, font, fill, spacing_frac=0.10, anchor_center_x=
         draw.text((x, y), ch, font=font, fill=fill)
         x += w + gap
     return total
+
+
+def _spaced_width(draw, text: str, font, spacing_frac: float) -> float:  # noqa: ANN001
+    widths = [draw.textlength(ch, font=font) for ch in text]
+    return sum(widths) + max(0, len(text) - 1) * font.size * spacing_frac
+
+
+def _fit_spaced_font(
+    draw, text: str, kind: str, size: int, max_w: float, spacing_frac: float,
+    min_size: int = 16,
+):  # noqa: ANN001, ANN201
+    font = _font(kind, size)
+    while _spaced_width(draw, text, font, spacing_frac) > max_w and size > min_size:
+        size = max(min_size, int(size * 0.93))
+        font = _font(kind, size)
+    return font
+
+
+def _top_complexity(img: Image.Image, height_frac: float = 0.42) -> tuple[float, float]:
+    """상단 텍스트 존의 명암 분산과 경계량. 평가 모델 없이 numpy만 쓴다."""
+    gray = np.asarray(img.convert("L"), dtype=np.float32)
+    band = gray[: max(2, int(gray.shape[0] * height_frac))]
+    dx = np.abs(np.diff(band, axis=1)).mean() if band.shape[1] > 1 else 0.0
+    dy = np.abs(np.diff(band, axis=0)).mean() if band.shape[0] > 1 else 0.0
+    return float(band.std()), float((dx + dy) / 2)
+
+
+def _needs_readability_scrim(img: Image.Image) -> bool:
+    std, edge = _top_complexity(img)
+    return std >= 32.0 or edge >= 9.0
+
+
+def _apply_top_scrim(
+    img: Image.Image,
+    foreground: tuple[int, int, int],
+    height_frac: float = 0.46,
+) -> Image.Image:
+    """복잡한 배경의 상단에만 페이드 스크림을 넣어 글자 대비를 확보한다."""
+    w, h = img.size
+    sh = max(1, int(h * height_frac))
+    lum = 0.299 * foreground[0] + 0.587 * foreground[1] + 0.114 * foreground[2]
+    base = (12, 11, 10) if lum >= 145 else (250, 247, 240)
+    alpha = (np.linspace(1.0, 0.0, sh) ** 1.7 * 142).astype(np.uint8)
+    layer = np.zeros((sh, w, 4), dtype=np.uint8)
+    layer[..., :3] = base
+    layer[..., 3] = np.repeat(alpha[:, None], w, axis=1)
+    out = img.convert("RGBA")
+    scrim = Image.fromarray(layer, "RGBA")
+    out.alpha_composite(scrim, (0, 0))
+    return out.convert("RGB")
+
+
+def _resolve_token_color(img: Image.Image, token: TypographyToken) -> tuple[int, int, int]:
+    if token.foreground is not None:
+        return token.foreground
+    return DARK if _bg_is_bright(img, y_frac=0.32) else IVORY
+
+
+def _apply_style_typography(
+    img: Image.Image,
+    headline: str,
+    subcopy: str,
+    kicker: str,
+    token: TypographyToken,
+) -> Image.Image:
+    """P4T 조판 렌더. 배경·상품 픽셀은 스크림 외에는 건드리지 않는다."""
+    w, h = img.size
+    text_color = _resolve_token_color(img, token)
+    if _needs_readability_scrim(img):
+        img = _apply_top_scrim(img, text_color)
+    draw = ImageDraw.Draw(img)
+    margin = int(w * 0.067)
+    max_w = w * (0.82 if token.align == "left" else 0.86)
+    center_x = w / 2 if token.align == "center" else None
+    x = margin
+    y = int(h * 0.064)
+
+    body_font = _font(token.body_font, max(16, int(h * token.body_size)))
+    if kicker and token.accent_element == "chip":
+        chip_font = _fit_spaced_font(
+            draw, kicker.upper(), token.body_font, max(15, int(h * 0.020)),
+            w * 0.32, token.body_spacing,
+        )
+        chip_w = _spaced_width(draw, kicker.upper(), chip_font, token.body_spacing)
+        pad_x, pad_y = int(w * 0.018), int(h * 0.010)
+        chip_x = int((w - chip_w - 2 * pad_x) / 2) if center_x else margin
+        chip_box = [chip_x, y, chip_x + chip_w + 2 * pad_x, y + chip_font.size + 2 * pad_y]
+        radius = max(4, int(chip_font.size * 0.7))
+        draw.rounded_rectangle(chip_box, radius=radius, fill=token.accent)
+        _spaced_text(
+            draw, (chip_x + pad_x, y + pad_y - 1), kicker.upper(), chip_font, DARK,
+            spacing_frac=token.body_spacing,
+        )
+        y = int(chip_box[3] + h * 0.020)
+    elif token.accent_element == "hairline":
+        line_w = int(w * (0.12 if token.align == "left" else 0.10))
+        line_x = margin if center_x is None else int(center_x - line_w / 2)
+        draw.rectangle([line_x, y, line_x + line_w, y + 2], fill=token.accent)
+        y += int(h * 0.026)
+
+    head = headline.upper() if headline.isascii() else headline
+    head_kind = token.head_latin if head.isascii() else token.head_korean
+    lines = _split_headline(head) if token.key == "pop" or len(head) > 24 else [head]
+    if token.key == "pop" and len(lines) == 1 and len(head) > 8:
+        midpoint = max(1, len(head) // 2)
+        lines = [head[:midpoint].rstrip(), head[midpoint:].lstrip()]
+
+    target_size = max(20, int(h * token.head_size))
+    line_gap = int(target_size * (1.05 if token.key == "pop" else 1.18))
+    for line in lines:
+        font = _fit_spaced_font(
+            draw, line, head_kind, target_size, max_w, token.letter_spacing,
+        )
+        _spaced_text(
+            draw, (x, y), line, font, text_color,
+            spacing_frac=token.letter_spacing, anchor_center_x=center_x,
+        )
+        y += max(line_gap, int(font.size * 1.14))
+
+    if token.accent_element == "rule":
+        rule_w = int(w * (0.14 if token.align == "center" else 0.10))
+        rule_x = margin if center_x is None else int(center_x - rule_w / 2)
+        y += int(h * 0.004)
+        draw.rectangle([rule_x, y, rule_x + rule_w, y + 2], fill=token.accent)
+        y += int(h * 0.020)
+    else:
+        y += int(h * 0.015)
+
+    if subcopy:
+        sub_font = _fit_spaced_font(
+            draw, subcopy, token.body_font, body_font.size, max_w, token.body_spacing,
+        )
+        _spaced_text(
+            draw, (x, y), subcopy, sub_font, text_color,
+            spacing_frac=token.body_spacing, anchor_center_x=center_x,
+        )
+    elif token.accent_element == "chip" and not kicker:
+        # 카피가 짧아 칩을 못 쓰는 경우에도 스타일 액센트가 사라지지 않게 짧은 룰로 폴백.
+        rule_w = int(w * 0.08)
+        rule_x = margin if center_x is None else int(center_x - rule_w / 2)
+        draw.rectangle([rule_x, y, rule_x + rule_w, y + 3], fill=token.accent)
+    return img
 
 
 # --- 템플릿: ring (원형 타이포, editorial) --------------------------------------
@@ -464,6 +678,8 @@ def apply_food_poster(
     layout:
       - overlay : 풀블리드 사진 + 하단 부드러운 그라데이션 위 좌측 정렬 텍스트
       - panel   : 사진 상단 + 하단 솔리드 딥톤 패널(에디토리얼 카드), 중앙 정렬
+      - minimal : 배경 블록 없이 하단 좌측 텍스트
+      - style   : P4T 스타일 토큰 기반 상단 조판(기존 레이아웃에 영향 없는 opt-in)
     """
     # 스타일 키 주면 디자인시스템 스펙에서 폰트·액센트 자동 매핑(명시 인자가 우선)
     if style_key:
@@ -476,6 +692,16 @@ def apply_food_poster(
     w, h = img.size
     acc = accent or _dominant_warm(img)
     margin = int(w * 0.08)
+
+    if layout == "style":
+        token = get_typography_token(style_key)
+        img = _apply_style_typography(img, headline, subcopy, kicker, token)
+        out = Path(output_path) if output_path else Path(image_path).with_name(
+            Path(image_path).stem + "_poster_style.png"
+        )
+        img.save(out, format="PNG")
+        logger.info("스타일 조판 적용 완료 (%s): %s", token.key, out)
+        return str(out)
 
     head_lines = _split_headline(headline) if len(headline) > 9 else [headline]
     head_kind = head_kind or ("didone" if headline.isascii() else "serif")
