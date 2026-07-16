@@ -96,28 +96,28 @@ def _p(style, domain, archetype, scene, pos, scale, sy, light, tz,
 PLANS: list[ScenePlan] = [
     # ── pop ─────────────────────────────────────────────────────────────────
     _p("pop", "drink", "diagonal_field",
-       "two diagonal color fields with one hard shadow stripe",
+       "curated klein-blue and cream diagonal fields with one hard shadow stripe",
        (0.55, 0.60), 0.46, 0.72, "left", "top_left",
-       render_mode="code", palette=("#2146C7", "#FF7A1A")),
+       render_mode="code", palette=("#2B3FBB", "#F2ECE3")),
     _p("pop", "drink", "diagonal_splash",
        "bold electric blue and orange color-block wall, glossy orange surface, "
        "dynamic diagonal composition",
        (0.55, 0.60), 0.46, 0.72, "left", "top_left", props=("splash", "ice"),
        recompose=True),
     _p("pop", "drink", "color_block_duo",
-       "two flat saturated color panels, cobalt blue and tangerine, one hard sun shadow "
+       "two curated flat color panels, klein blue and warm cream, one hard sun shadow "
        "stripe across a glossy tabletop",
        (0.50, 0.62), 0.42, 0.74, "right", "top",
-       render_mode="code", palette=("#2146C7", "#FF7A1A")),
+       render_mode="code", palette=("#2B3FBB", "#F2ECE3")),
     _p("pop", "object", "color_block",
-       "flat vivid duotone wall in cobalt and lime green, geometric shadow shapes, "
+       "flat curated duotone wall in muted teal and warm cream, geometric shadow shapes, "
        "glossy seamless floor",
        (0.50, 0.62), 0.42, 0.74, "left", "top",
-       render_mode="code", palette=("#2146C7", "#B7E340")),
+       render_mode="code", palette=("#2D6A6F", "#F2ECE3")),
     _p("pop", "object", "concept_stage",
-       "saturated coral wall and cream seamless floor with one diagonal edge accent",
+       "muted coral wall and warm cream seamless floor with one diagonal edge accent",
        (0.58, 0.62), 0.40, 0.74, "right", "top_left",
-       render_mode="code", palette=("#FF6F61", "#F5EFE6")),
+       render_mode="code", palette=("#C96D5B", "#F2ECE3")),
     # ── editorial ───────────────────────────────────────────────────────────
     _p("editorial", "drink", "asym_negative",
        "premium magazine still-life, warm gray stone tray on pale plaster wall, "

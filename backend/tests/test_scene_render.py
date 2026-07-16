@@ -12,10 +12,10 @@ from app.services.scene_plans import PLANS, plans_for
 
 
 TIER1_CONTRACT = {
-    "pop/drink/diagonal_field": ("#2146C7", "#FF7A1A"),
-    "pop/drink/color_block_duo": ("#2146C7", "#FF7A1A"),
-    "pop/object/color_block": ("#2146C7", "#B7E340"),
-    "pop/object/concept_stage": ("#FF6F61", "#F5EFE6"),
+    "pop/drink/diagonal_field": ("#2B3FBB", "#F2ECE3"),
+    "pop/drink/color_block_duo": ("#2B3FBB", "#F2ECE3"),
+    "pop/object/color_block": ("#2D6A6F", "#F2ECE3"),
+    "pop/object/concept_stage": ("#C96D5B", "#F2ECE3"),
     "editorial/drink/split_card": ("#F2EDE4", "#B7A48F"),
     "editorial/drink/asym_negative": ("#E8E0D4", "#D8CDBC"),
     "editorial/object/asym_negative": ("#E8E0D4", "#D8CDBC"),
