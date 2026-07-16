@@ -37,7 +37,7 @@ def _eval_device() -> str:
     try:
         import torch
 
-        return _eval_device()
+        return "cuda" if torch.cuda.is_available() else "cpu"
     except Exception:
         return "cpu"
 
@@ -99,8 +99,8 @@ def _dino_embed(img: Image.Image, size: int = 224):  # noqa: ANN202
     s = size / min(w, h)
     im = im.resize((round(w * s), round(h * s)), Image.BICUBIC)
     w, h = im.size
-    l, t = (w - size) // 2, (h - size) // 2
-    im = im.crop((l, t, l + size, t + size))
+    left, top = (w - size) // 2, (h - size) // 2
+    im = im.crop((left, top, left + size, top + size))
     arr = np.asarray(im, dtype=np.float32) / 255.0
     arr = (arr - np.array([0.485, 0.456, 0.406], np.float32)) / np.array([0.229, 0.224, 0.225], np.float32)
     x = torch.from_numpy(arr).permute(2, 0, 1).unsqueeze(0).float()
@@ -131,7 +131,6 @@ def _load_lpips():  # noqa: ANN202
     global _lpips
     if _lpips is None:
         import lpips
-        import torch
 
         m = lpips.LPIPS(net="alex", verbose=False)
         if _eval_device() == "cuda":
@@ -168,7 +167,6 @@ def _load_nima():  # noqa: ANN202
     global _nima
     if _nima is None:
         import pyiqa
-        import torch
 
         _nima = pyiqa.create_metric("nima", device=_eval_device())
     return _nima
