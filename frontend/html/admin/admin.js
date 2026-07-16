@@ -5,7 +5,7 @@
  * true  : 임시 데이터와 admin/admin 로그인 사용
  * false : /api/admin/* 백엔드 API 사용
  */
-const USE_ADMIN_MOCK = true;
+const USE_ADMIN_MOCK = false;
 
 const API_BASE_URL =
   window.ADNOVA_CONFIG?.API_BASE_URL ||
@@ -305,7 +305,7 @@ async function adminApiFetch(path, options = {}) {
 
   if (response.status === 401 || response.status === 403) {
     clearAuth();
-    showLoginScreen();
+    window.location.replace("../");
     throw new Error("관리자 인증이 필요합니다.");
   }
 
@@ -804,7 +804,7 @@ async function changeUserPlan(userId, nextPlan, selectElement) {
   try {
     if (!USE_ADMIN_MOCK) {
       await adminApiFetch(
-        `/api/admin/subscriptions/${user.subscription_id || user.id}`,
+        `/api/admin/users/${user.id}/subscription`,
         {
           method: "PATCH",
           body: JSON.stringify({
@@ -1660,28 +1660,83 @@ function isValidPassword(password) {
   return passwordPattern.test(password);
 }
 
-async function changeAdminPassword(event) {
-  event.preventDefault();
+function showPasswordChangeMessage(message, type = "error") {
+  const messageElement = getElement("passwordChangeMessage");
 
-  const currentPassword = getElement("currentAdminPassword")?.value;
-  const newPassword = getElement("newAdminPassword")?.value;
-  const confirmPassword = getElement("confirmAdminPassword")?.value;
+  if (!messageElement) return;
 
-  if (!currentPassword || !newPassword || !confirmPassword) {
-    showToast("비밀번호 항목을 모두 입력해주세요.", "error");
+  if (!message) {
+    messageElement.textContent = "";
+    messageElement.hidden = true;
+    messageElement.classList.remove("is-success");
     return;
   }
 
-  if (newPassword !== confirmPassword) {
-    showToast("새 비밀번호가 서로 일치하지 않습니다.", "error");
+  messageElement.textContent = message;
+  messageElement.hidden = false;
+  messageElement.classList.toggle(
+    "is-success",
+    type === "success"
+  );
+}
+
+function toggleAdminPasswordVisibility(event) {
+  const button = event.currentTarget;
+  const input = getElement(button.dataset.passwordTarget);
+
+  if (!input) return;
+
+  const willShowPassword = input.type === "password";
+
+  input.type = willShowPassword ? "text" : "password";
+  button.textContent = willShowPassword ? "가리기" : "보기";
+  button.setAttribute(
+    "aria-label",
+    willShowPassword
+      ? "비밀번호 가리기"
+      : "비밀번호 보기"
+  );
+}
+
+async function changeAdminPassword(event) {
+  event.preventDefault();
+  showPasswordChangeMessage("");
+
+  const currentPassword =
+    getElement("currentAdminPassword")?.value || "";
+  const newPassword =
+    getElement("newAdminPassword")?.value || "";
+  const confirmPassword =
+    getElement("confirmAdminPassword")?.value || "";
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    showPasswordChangeMessage(
+      "현재 비밀번호와 새 비밀번호를 모두 입력해주세요."
+    );
     return;
   }
 
   if (!isValidPassword(newPassword)) {
-    showToast(
-      "새 비밀번호는 8~20자의 영문 대소문자, 숫자, 특수문자를 포함해야 합니다.",
-      "error"
+    showPasswordChangeMessage(
+      "새 비밀번호는 8~20자이며 영문 대문자, 소문자, 숫자, 특수문자를 각각 1개 이상 포함해야 합니다."
     );
+    getElement("newAdminPassword")?.focus();
+    return;
+  }
+
+  if (newPassword !== confirmPassword) {
+    showPasswordChangeMessage(
+      "새 비밀번호와 비밀번호 확인이 일치하지 않습니다."
+    );
+    getElement("confirmAdminPassword")?.focus();
+    return;
+  }
+
+  if (currentPassword === newPassword) {
+    showPasswordChangeMessage(
+      "새 비밀번호는 현재 비밀번호와 다르게 입력해주세요."
+    );
+    getElement("newAdminPassword")?.focus();
     return;
   }
 
@@ -1694,7 +1749,10 @@ async function changeAdminPassword(event) {
         throw new Error("현재 비밀번호가 올바르지 않습니다.");
       }
 
-      localStorage.setItem(MOCK_ADMIN_PASSWORD_KEY, newPassword);
+      localStorage.setItem(
+        MOCK_ADMIN_PASSWORD_KEY,
+        newPassword
+      );
     } else {
       await adminApiFetch("/api/admin/password", {
         method: "PATCH",
@@ -1706,9 +1764,27 @@ async function changeAdminPassword(event) {
     }
 
     event.target.reset();
+
+    document
+      .querySelectorAll("[data-password-target]")
+      .forEach((button) => {
+        const input = getElement(button.dataset.passwordTarget);
+
+        if (input) input.type = "password";
+
+        button.textContent = "보기";
+        button.setAttribute("aria-label", "비밀번호 보기");
+      });
+
+    showPasswordChangeMessage(
+      "관리자 비밀번호가 변경되었습니다.",
+      "success"
+    );
     showToast("관리자 비밀번호가 변경되었습니다.");
   } catch (error) {
-    showToast(error.message, "error");
+    showPasswordChangeMessage(
+      error.message || "비밀번호 변경에 실패했습니다."
+    );
   }
 }
 

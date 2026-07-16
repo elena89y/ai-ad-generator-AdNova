@@ -556,40 +556,89 @@
         </div>
 
         <article class="panel form-panel">
-          <form id="passwordChangeForm">
+          <form id="passwordChangeForm" novalidate>
             <label class="field">
               <span>현재 비밀번호</span>
-              <input
-                id="currentAdminPassword"
-                type="password"
-                autocomplete="current-password"
-                required
-              >
+
+              <div class="password-input-wrapper">
+                <input
+                  id="currentAdminPassword"
+                  type="password"
+                  autocomplete="current-password"
+                  required
+                >
+
+                <button
+                  type="button"
+                  class="password-visibility-button"
+                  data-password-target="currentAdminPassword"
+                  aria-label="현재 비밀번호 보기"
+                >
+                  보기
+                </button>
+              </div>
             </label>
 
             <label class="field">
               <span>새 비밀번호</span>
-              <input
-                id="newAdminPassword"
-                type="password"
-                autocomplete="new-password"
-                required
+
+              <div class="password-input-wrapper">
+                <input
+                  id="newAdminPassword"
+                  type="password"
+                  autocomplete="new-password"
+                  aria-describedby="adminPasswordRule"
+                  required
+                >
+
+                <button
+                  type="button"
+                  lass="password-visibility-button"
+                  data-password-target="newAdminPassword"
+                  aria-label="새 비밀번호 보기"
+                >
+                  보기
+                </button>
+              </div>
+
+              <small
+                id="adminPasswordRule"
+                class="password-rule"
               >
-              <small>
-                대문자, 소문자, 숫자, 특수문자를 포함한
-                8~20자
+                8~20자이며 영문 대문자, 소문자, 숫자,
+                특수문자를 각각 1개 이상 포함해야 합니다.
               </small>
             </label>
 
             <label class="field">
               <span>새 비밀번호 확인</span>
-              <input
-                id="confirmAdminPassword"
-                type="password"
-                autocomplete="new-password"
-                required
-              >
+
+              <div class="password-input-wrapper">
+                <input
+                  id="confirmAdminPassword"
+                  type="password"
+                  autocomplete="new-password"
+                  required
+                >
+
+                <button
+                  type="button"
+                  class="password-visibility-button"
+                  data-password-target="confirmAdminPassword"
+                  aria-label="새 비밀번호 확인 보기"
+                >
+                  보기
+                </button>
+              </div>
             </label>
+
+            <p
+              id="passwordChangeMessage"
+              class="password-form-message"
+              role="alert"
+              aria-live="polite"
+              hidden
+            ></p>
 
             <button
               class="primary-button"

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.security import create_access_token, hash_password, verify_password
 from app.database.connection import get_db
+from app.database.admin_models import AdminAccount
 from app.database.models import User
 from app.schemas.auth import (
     UserCreate,
@@ -96,6 +97,15 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
         expires_delta=access_token_expires,
     )
 
+    admin_account = (
+        db.query(AdminAccount)
+        .filter(
+            AdminAccount.user_id == user.id,
+            AdminAccount.is_active.is_(True),
+        )
+        .first()
+    )
+
     return {
         "access_token": access_token,
         "token_type": "bearer",
@@ -110,6 +120,8 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
             "created_at": user.created_at,
             "updated_at": user.updated_at,
             "auth_provider": "local",
+            "is_admin": admin_account is not None,
+            "role": admin_account.role if admin_account else "user",
         },
     }
 

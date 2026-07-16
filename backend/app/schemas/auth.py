@@ -71,15 +71,17 @@ class UserCreate(BaseModel):
 class UserLogin(BaseModel):
     username: str = Field(
         ...,
-        min_length=7,
+        min_length=5,
         max_length=12,
-        description="7~12자의 영문/숫자 아이디",
+        description="일반 계정은 7~12자, 관리자 기본 계정은 admin",
     )
     password: str
 
     @field_validator("username")
     @classmethod
     def validate_username(cls, value: str) -> str:
+        if value.lower() == "admin":
+            return "admin"
         if not re.match(USERNAME_PATTERN, value):
             raise ValueError(
                 "아이디는 영문과 숫자만 사용할 수 있으며 7~12자여야 합니다."
