@@ -50,3 +50,19 @@ class BillingSummaryResponse(BaseModel):
     next_free_credit_at: datetime | None = None
     subscription: SubscriptionResponse | None = None
     payment_method: PaymentMethodResponse | None = None
+
+
+class RefundRequestCreate(BaseModel):
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class RefundRequestResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    purchase_id: int
+    amount: int
+    reason: str
+    status: str
+    requested_at: datetime
+    processed_at: datetime | None = None

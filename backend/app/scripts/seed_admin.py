@@ -34,10 +34,10 @@ def main() -> None:
 
         admin = db.query(AdminAccount).filter(AdminAccount.user_id == user.id).first()
         if admin is None:
-            admin = AdminAccount(user_id=user.id, role="admin", is_active=True)
+            admin = AdminAccount(user_id=user.id, role="super_admin", is_active=True)
             db.add(admin)
         else:
-            admin.role = "admin"
+            admin.role = "super_admin"
             admin.is_active = True
 
         db.commit()

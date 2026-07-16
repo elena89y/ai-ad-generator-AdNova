@@ -17,7 +17,7 @@ from app.api.naver_auth import router as naver_auth_router
 from app.api.export import router as export_router
 from app.core.config import settings
 from app.core.observability import init_langfuse, shutdown_langfuse
-from app.database import admin_models, models
+from app.database import admin_models, billing_models, models
 from app.database.connection import Base, engine
 
 # env(.env) 는 core.config 임포트 시점에 이미 로드됨 — Langfuse 는 그 다음, 첫 OpenAI/

@@ -137,3 +137,36 @@ class AdminSubscriptionResponse(BaseModel):
 class AdminSubscriptionListResponse(BaseModel):
     total: int
     items: list[AdminSubscriptionResponse]
+
+
+class AdminRefundResponse(BaseModel):
+    id: int
+    purchase_id: int
+    user_id: int
+    username: str
+    email: str
+    description: str
+    amount: int
+    reason: str
+    status: str
+    rejection_reason: str | None = None
+    requested_at: datetime
+    processed_at: datetime | None = None
+
+
+class AdminRefundListResponse(BaseModel):
+    total: int
+    items: list[AdminRefundResponse]
+
+
+class AdminRefundRejectRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class AdminPasswordChangeRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=8, max_length=20)
+
+
+class AdminMessageResponse(BaseModel):
+    message: str

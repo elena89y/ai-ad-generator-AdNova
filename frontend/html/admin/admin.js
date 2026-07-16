@@ -1,9 +1,8 @@
 "use strict";
 
 /*
- * 백엔드 관리자 API가 완성되기 전까지는 true로 사용합니다.
- * true  : 임시 데이터와 admin/admin 로그인 사용
- * false : /api/admin/* 백엔드 API 사용
+ * false : 실제 /api/admin/* 백엔드 API 사용
+ * true  : 프론트 UI만 확인할 때 임시 데이터 사용
  */
 const USE_ADMIN_MOCK = false;
 
@@ -19,6 +18,7 @@ const MOCK_ADMIN_PASSWORD_KEY = "adnova_mock_admin_password";
 let users = [];
 let payments = [];
 let inquiries = [];
+let refundRecords = [];
 
 let currentSection = "dashboard";
 let currentPaymentView = "orders";
@@ -305,7 +305,7 @@ async function adminApiFetch(path, options = {}) {
 
   if (response.status === 401 || response.status === 403) {
     clearAuth();
-    window.location.replace("../");
+    showLoginScreen();
     throw new Error("관리자 인증이 필요합니다.");
   }
 
@@ -467,16 +467,44 @@ async function loadAdminData() {
       payments = cloneData(MOCK_PAYMENTS);
       inquiries = cloneData(MOCK_INQUIRIES);
     } else {
-      const [userResponse, paymentResponse, inquiryResponse] =
+      const [userResponse, paymentResponse, inquiryResponse, refundResponse] =
         await Promise.all([
           adminApiFetch("/api/admin/users"),
-          adminApiFetch("/api/admin/payments"),
-          adminApiFetch("/api/admin/inquiries")
+          adminApiFetch("/api/admin/purchases"),
+          adminApiFetch("/api/admin/inquiries"),
+          adminApiFetch("/api/admin/refunds")
         ]);
 
       users = normalizeList(userResponse, ["users"]);
-      payments = normalizeList(paymentResponse, ["payments"]);
-      inquiries = normalizeList(inquiryResponse, ["inquiries"]);
+      payments = normalizeList(paymentResponse, ["payments"]).map((item) => ({
+        ...item,
+        order_number: item.order_number || `ADN-${String(item.id).padStart(6, "0")}`,
+        user_name: item.user_name || item.username,
+        product: item.product || item.description,
+        paid_at: item.paid_at || item.purchased_at
+      }));
+      inquiries = normalizeList(inquiryResponse, ["inquiries"]).map((item) => ({
+        ...item,
+        user_name: item.user_name || item.username,
+        reply: item.reply ?? item.answer
+      }));
+      refundRecords = normalizeList(refundResponse, ["refunds"]);
+
+      refundRecords.forEach((refund) => {
+        const payment = payments.find(
+          (item) => String(item.id) === String(refund.purchase_id)
+        );
+        if (!payment) return;
+        payment.refund_id = refund.id;
+        payment.refund_amount = refund.amount;
+        payment.refund_reason = refund.reason;
+        payment.refund_requested_at = refund.requested_at;
+        payment.refund_processed_at = refund.processed_at;
+        payment.refund_rejection_reason = refund.rejection_reason;
+        payment.refund_request_status = refund.status;
+        if (refund.status === "pending") payment.status = "refund_pending";
+        if (refund.status === "approved") payment.status = "refunded";
+      });
     }
 
     renderAll();
@@ -808,7 +836,7 @@ async function changeUserPlan(userId, nextPlan, selectElement) {
         {
           method: "PATCH",
           body: JSON.stringify({
-            plan: nextPlan
+            is_premium: nextPlan === "PREMIUM"
           })
         }
       );
@@ -958,9 +986,22 @@ function getRefundRequests() {
     );
 }
 
+function getRefundHistory() {
+  return payments
+    .filter((payment) =>
+      ["approved", "rejected"].includes(payment.refund_request_status)
+    )
+    .sort((a, b) =>
+      String(b.refund_processed_at || "").localeCompare(
+        String(a.refund_processed_at || "")
+      )
+    );
+}
+
 function renderPayments() {
   const filteredPayments = getFilteredPayments();
   const refundRequests = getRefundRequests();
+  const refundHistory = getRefundHistory();
   const totalRefundRequests = payments.filter(
     (payment) => payment.status === "refund_pending"
   ).length;
@@ -969,6 +1010,8 @@ function renderPayments() {
     const resultCount =
       currentPaymentView === "refunds"
         ? refundRequests.length
+        : currentPaymentView === "refund-history"
+          ? refundHistory.length
         : filteredPayments.length;
 
     getElement("paymentResultCount").textContent =
@@ -992,16 +1035,19 @@ function renderPayments() {
   const orderPanel = getElement("orderPaymentPanel");
   const memberPanel = getElement("memberPaymentPanel");
   const refundPanel = getElement("refundRequestPanel");
+  const refundHistoryPanel = getElement("refundHistoryPanel");
   const statusFilter = getElement("paymentStatusFilter");
 
   if (orderPanel) orderPanel.hidden = currentPaymentView !== "orders";
   if (memberPanel) memberPanel.hidden = currentPaymentView !== "members";
   if (refundPanel) refundPanel.hidden = currentPaymentView !== "refunds";
-  if (statusFilter) statusFilter.disabled = currentPaymentView === "refunds";
+  if (refundHistoryPanel) refundHistoryPanel.hidden = currentPaymentView !== "refund-history";
+  if (statusFilter) statusFilter.disabled = ["refunds", "refund-history"].includes(currentPaymentView);
 
   renderOrderPayments(filteredPayments);
   renderMemberPayments(filteredPayments);
   renderRefundRequests(refundRequests);
+  renderRefundHistory(refundHistory);
 }
 
 function renderOrderPayments(filteredPayments) {
@@ -1232,6 +1278,26 @@ function renderRefundRequests(refundRequests) {
     .join("");
 }
 
+function renderRefundHistory(items) {
+  const tbody = getElement("refundHistoryRows");
+  if (!tbody) return;
+  if (items.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-cell">처리된 환불 내역이 없습니다.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = items.map((payment) => `
+    <tr>
+      <td>${escapeHtml(payment.refund_processed_at || "-")}</td>
+      <td><div class="table-primary">${escapeHtml(payment.order_number)}</div></td>
+      <td><div class="table-primary">${escapeHtml(payment.user_name)}</div><div class="table-secondary">${escapeHtml(payment.email)}</div></td>
+      <td>${escapeHtml(payment.product)}</td>
+      <td>${formatCurrency(payment.refund_amount || payment.amount)}</td>
+      <td><span class="status-badge ${payment.refund_request_status === "approved" ? "refunded" : "failed"}">${payment.refund_request_status === "approved" ? "환불 완료" : "환불 거절"}</span></td>
+      <td>${escapeHtml(payment.refund_rejection_reason || payment.refund_reason || "-")}</td>
+    </tr>
+  `).join("");
+}
+
 async function approveRefundRequest(paymentId) {
   const payment = payments.find(
     (item) => String(item.id) === String(paymentId)
@@ -1253,9 +1319,7 @@ async function approveRefundRequest(paymentId) {
       );
     }
 
-    payment.status = "refunded";
-    payment.refund_processed_at = new Date().toISOString();
-    renderAll();
+    await loadAdminData();
     showToast("환불 신청을 승인했습니다.");
   } catch (error) {
     showToast(error.message, "error");
@@ -1290,10 +1354,7 @@ async function rejectRefundRequest(paymentId) {
       );
     }
 
-    payment.status = "paid";
-    payment.refund_rejected_at = new Date().toISOString();
-    payment.refund_rejection_reason = rejectionReason.trim();
-    renderAll();
+    await loadAdminData();
     showToast("환불 신청을 거절했습니다.");
   } catch (error) {
     showToast(error.message, "error");
@@ -1362,27 +1423,16 @@ async function processRefund() {
 
   try {
     if (!USE_ADMIN_MOCK) {
-      await adminApiFetch("/api/admin/refunds", {
+      await adminApiFetch(`/api/admin/purchases/${payment.id}/refund`, {
         method: "POST",
         body: JSON.stringify({
-          payment_id: payment.id,
-          order_number: payment.order_number,
-          amount: refundAmount,
           reason
         })
       });
     }
 
-    payment.status =
-      refundAmount === Number(payment.amount)
-        ? "refunded"
-        : "refund_pending";
-
-    payment.refund_amount = refundAmount;
-    payment.refund_reason = reason;
-
     closeModal("refundModal");
-    renderAll();
+    await loadAdminData();
     showToast("환불 처리가 완료되었습니다.");
   } catch (error) {
     showToast(error.message, "error");
@@ -1627,11 +1677,11 @@ async function saveInquiryReply() {
   try {
     if (!USE_ADMIN_MOCK) {
       await adminApiFetch(
-        `/api/admin/inquiries/${inquiry.id}/reply`,
+        `/api/admin/inquiries/${inquiry.id}/answer`,
         {
-          method: "POST",
+          method: "PATCH",
           body: JSON.stringify({
-            reply
+            answer: reply
           })
         }
       );
@@ -1674,10 +1724,7 @@ function showPasswordChangeMessage(message, type = "error") {
 
   messageElement.textContent = message;
   messageElement.hidden = false;
-  messageElement.classList.toggle(
-    "is-success",
-    type === "success"
-  );
+  messageElement.classList.toggle("is-success", type === "success");
 }
 
 function toggleAdminPasswordVisibility(event) {
@@ -1686,20 +1733,25 @@ function toggleAdminPasswordVisibility(event) {
 
   if (!input) return;
 
-  const willShowPassword = input.type === "password";
+  const showPassword = input.type === "password";
 
-  input.type = willShowPassword ? "text" : "password";
-  button.textContent = willShowPassword ? "가리기" : "보기";
+  input.type = showPassword ? "text" : "password";
+  button.classList.toggle("is-visible", showPassword);
+
   button.setAttribute(
     "aria-label",
-    willShowPassword
-      ? "비밀번호 가리기"
-      : "비밀번호 보기"
+    showPassword ? "비밀번호 숨기기" : "비밀번호 보기"
+  );
+
+  button.setAttribute(
+    "aria-pressed",
+    String(showPassword)
   );
 }
 
 async function changeAdminPassword(event) {
   event.preventDefault();
+
   showPasswordChangeMessage("");
 
   const currentPassword =
@@ -1749,10 +1801,7 @@ async function changeAdminPassword(event) {
         throw new Error("현재 비밀번호가 올바르지 않습니다.");
       }
 
-      localStorage.setItem(
-        MOCK_ADMIN_PASSWORD_KEY,
-        newPassword
-      );
+      localStorage.setItem(MOCK_ADMIN_PASSWORD_KEY, newPassword);
     } else {
       await adminApiFetch("/api/admin/password", {
         method: "PATCH",
@@ -1772,8 +1821,9 @@ async function changeAdminPassword(event) {
 
         if (input) input.type = "password";
 
-        button.textContent = "보기";
+        button.classList.remove("is-visible");
         button.setAttribute("aria-label", "비밀번호 보기");
+        button.setAttribute("aria-pressed", "false");
       });
 
     showPasswordChangeMessage(
@@ -1996,6 +2046,45 @@ function bindEvents() {
     saveInquiryReply
   );
 
+  document
+    .querySelectorAll("[data-password-target]")
+    .forEach((button) => {
+    button.classList.add("password-visibility-button");
+
+    button.innerHTML = `
+      <svg
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+      >
+        <path
+          d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"
+        ></path>
+        <circle cx="12" cy="12" r="2.7"></circle>
+        <path
+          class="password-eye-slash"
+          d="M4 4l16 16"
+        ></path>
+      </svg>
+    `;
+
+    button.setAttribute("aria-pressed", "false");
+
+    button.addEventListener(
+      "click",
+      toggleAdminPasswordVisibility
+    );
+  });
+
+  [
+    "currentAdminPassword",
+    "newAdminPassword",
+    "confirmAdminPassword"
+  ].forEach((inputId) => {
+    getElement(inputId)?.addEventListener("input", () => {
+      showPasswordChangeMessage("");
+    });
+  });
+
   getElement("passwordChangeForm")?.addEventListener(
     "submit",
     changeAdminPassword
@@ -2040,49 +2129,35 @@ function handlePaymentTableClick(event) {
    최초 실행
 ========================================= */
 
-async function initializeAdminPage(){
+async function initializeAdminPage() {
   bindEvents();
 
-  /*
-   * 임시 프론트 테스트 단계에서는
-   * 관리자 로그인 화면을 보여주지 않고 바로 대시보드를 엽니다.
-   */
-  if(USE_ADMIN_MOCK){
-    const adminUser={
-      id:0,
-      username:'admin',
-      name:'AdNova 관리자',
-      email:'admin@adnova.com',
-      role:'admin',
-      is_admin:true
+  if (USE_ADMIN_MOCK) {
+    const adminUser = {
+      id: 0,
+      username: "admin",
+      name: "AdNova 관리자",
+      email: "admin@adnova.com",
+      role: "admin",
+      is_admin: true
     };
 
-    localStorage.setItem(
-      ACCESS_TOKEN_KEY,
-      'mock-admin-token'
-    );
-
-    localStorage.setItem(
-      USER_KEY,
-      JSON.stringify(adminUser)
-    );
+    localStorage.setItem(ACCESS_TOKEN_KEY, "mock-admin-token");
+    localStorage.setItem(USER_KEY, JSON.stringify(adminUser));
 
     await showAdminApp();
     return;
   }
 
-  /*
-   * 백엔드 연결 이후에 사용하는 실제 관리자 권한 검사
-   */
-  const token=localStorage.getItem(ACCESS_TOKEN_KEY);
-  const storedUser=getStoredUser();
+  const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+  const storedUser = getStoredUser();
 
-  if(token && isAdminUser(storedUser)){
+  if (token && isAdminUser(storedUser)) {
     await showAdminApp();
     return;
   }
 
-  window.location.replace('../');
+  window.location.replace("../");
 }
 
 document.addEventListener("DOMContentLoaded", initializeAdminPage);

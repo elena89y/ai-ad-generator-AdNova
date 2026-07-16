@@ -365,6 +365,14 @@
             환불 신청
             <span id="refundRequestCount" class="view-count-badge">0</span>
           </button>
+
+          <button
+            class="view-switch-button"
+            data-payment-view="refund-history"
+            type="button"
+          >
+            환불 내역
+          </button>
         </div>
 
         <div class="toolbar">
@@ -483,6 +491,30 @@
             </table>
           </div>
         </article>
+
+        <!-- 처리된 환불 내역 -->
+        <article
+          id="refundHistoryPanel"
+          class="panel table-panel"
+          hidden
+        >
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>처리일</th>
+                  <th>주문번호</th>
+                  <th>회원</th>
+                  <th>상품</th>
+                  <th>환불액</th>
+                  <th>처리 상태</th>
+                  <th>사유</th>
+                </tr>
+              </thead>
+              <tbody id="refundHistoryRows"></tbody>
+            </table>
+          </div>
+        </article>
       </section>
 
       <!-- 1:1 문의 관리 -->
@@ -593,7 +625,7 @@
 
                 <button
                   type="button"
-                  lass="password-visibility-button"
+                  class="password-visibility-button"
                   data-password-target="newAdminPassword"
                   aria-label="새 비밀번호 보기"
                 >
