@@ -1,6 +1,9 @@
 """v4.1 P4C-1 장면 플랜·파일럿 빌더 회귀 테스트 — 담당: 한의정."""
 from __future__ import annotations
 
+import sys
+from types import SimpleNamespace
+
 import pytest
 
 from app.services import scene_plans
@@ -92,6 +95,37 @@ def test_generate_retries_once_then_reports_failure():
     assert retries == 1
     assert error == "boom"
     assert calls == 2
+
+
+def test_sdxl_loader_pins_fp16_variant(monkeypatch):
+    captured = {}
+
+    class FakePipeline:
+        @classmethod
+        def from_pretrained(cls, repo, **kwargs):
+            captured.update(repo=repo, kwargs=kwargs)
+            return cls()
+
+        def to(self, device):
+            captured["device"] = device
+            return self
+
+    monkeypatch.setitem(
+        sys.modules,
+        "diffusers",
+        SimpleNamespace(StableDiffusionXLPipeline=FakePipeline),
+    )
+
+    pipe = scene_builder._load_sdxl_pipeline(SimpleNamespace(float16="float16"))
+
+    assert isinstance(pipe, FakePipeline)
+    assert captured["repo"] == scene_builder.SDXL_REPO
+    assert captured["kwargs"] == {
+        "torch_dtype": "float16",
+        "use_safetensors": True,
+        "variant": "fp16",
+    }
+    assert captured["device"] == "cuda"
 
 
 def test_finalize_plan_key_requires_exact_registered_prefix():

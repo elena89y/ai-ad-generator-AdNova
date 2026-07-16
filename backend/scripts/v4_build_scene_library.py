@@ -73,6 +73,18 @@ def _guard_vram() -> None:
                  "sudo systemctl stop adnova-generation.service 후 재실행 (결정 D-1)")
 
 
+def _load_sdxl_pipeline(torch_module):  # noqa: ANN001, ANN202
+    """공용 캐시의 FP16 가중치만 선택해 FP32 모델의 추가 다운로드·메모리 사용을 막는다."""
+    from diffusers import StableDiffusionXLPipeline
+
+    return StableDiffusionXLPipeline.from_pretrained(
+        SDXL_REPO,
+        torch_dtype=torch_module.float16,
+        use_safetensors=True,
+        variant="fp16",
+    ).to("cuda")
+
+
 def _variants(plan) -> list[tuple]:
     """소품 변형: 항상 무소품 판 + (소품 있으면) 슬롯 전체를 넣은 판 1개."""
     out: list[tuple] = [()]
@@ -162,7 +174,6 @@ def _write_timing_report(outdir: Path, pilot: bool, load_s: float,
 def cmd_build(args) -> None:
     _guard_vram()
     import torch
-    from diffusers import StableDiffusionXLPipeline
 
     outdir = Path(args.outdir)
     cand_dir = outdir / "candidates"
@@ -179,8 +190,7 @@ def cmd_build(args) -> None:
           f"(예상 {n_img * 16 / 60:.0f}분 @16s/장)")
 
     load_started = time.perf_counter()
-    pipe = StableDiffusionXLPipeline.from_pretrained(
-        SDXL_REPO, torch_dtype=torch.float16, use_safetensors=True).to("cuda")
+    pipe = _load_sdxl_pipeline(torch)
     load_s = time.perf_counter() - load_started
 
     rows = []
