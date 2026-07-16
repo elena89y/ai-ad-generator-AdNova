@@ -554,12 +554,45 @@ class PhotoAnalysis:
         """MenuAnalysis의 기존 별칭과 동일한 하위호환 계약."""
         return self.subject_en
 
+    def __post_init__(self) -> None:
+        """캐시를 포함해 프롬프트로 흐르는 필드의 enum·영문 계약을 검증한다."""
+        if not isinstance(self.match, bool) or not isinstance(self.texture_hero, bool):
+            raise ValueError("PhotoAnalysis boolean 필드 형식 오류")
+        enum_fields = {
+            "domain": (self.domain, ("food", "object")),
+            "category": (self.category, tuple(_MENU_CATEGORIES.split(", "))),
+            "material": (self.material, _MATERIALS),
+            "food_mode": (self.food_mode, ("dish", "cafe")),
+            "lang": (self.lang, ("ko", "en")),
+            "container_opacity": (self.container_opacity, _CONTAINER_OPACITIES),
+            "temperature": (self.temperature, _TEMPERATURES),
+            "view_angle": (self.view_angle, _VIEW_ANGLES),
+        }
+        for field, (value, allowed) in enum_fields.items():
+            if value not in allowed:
+                raise ValueError(f"잘못된 {field}: {value!r}")
+        if not isinstance(self.core_ingredients, list):
+            raise ValueError("core_ingredients가 배열이 아님")
+        _require_ascii_prompt_text(self.subject_en, "subject_en")
+        _require_ascii_prompt_text(self.container_kind, "container_kind")
+        _require_ascii_prompt_text(self.container_color, "container_color")
+        for ingredient in self.core_ingredients:
+            _require_ascii_prompt_text(ingredient, "core_ingredients")
+
 
 _MENU_CATEGORIES = "fried, soup, bakery, grill, beef, pork, default"
 _MATERIALS = ("matte", "reflective", "transparent", "default")
 _CONTAINER_OPACITIES = ("opaque", "transparent", "translucent")
 _TEMPERATURES = ("hot", "iced", "ambient")
 _VIEW_ANGLES = ("eye", "high", "top")
+
+
+def _require_ascii_prompt_text(value, field: str) -> str:  # noqa: ANN001
+    """이미지 프롬프트 후보값은 비어 있지 않은 ASCII 문자열만 허용한다."""
+    text = str(value).strip()
+    if not text or not text.isascii():
+        raise ValueError(f"영문 프롬프트 계약 위반 {field}: {value!r}")
+    return text
 
 
 def _json_bool(value, field: str) -> bool:  # noqa: ANN001
@@ -691,11 +724,11 @@ def analyze_photo(image_path: str, name: str) -> Optional[PhotoAnalysis]:
         '"container_kind":"cup","container_color":"white","container_opacity":"opaque",'
         '"temperature":"hot","view_angle":"eye","visible_text":""}'
     )
-    content = [
-        {"type": "text", "text": instruction},
-        _vision_part(image_path),
-    ]
     try:
+        content = [
+            {"type": "text", "text": instruction},
+            _vision_part(image_path),
+        ]
         result = _chat_json([{"role": "user", "content": content}], label="analyze_photo")
         if not isinstance(result, dict):
             raise TypeError("analyze_photo 응답이 JSON 객체가 아님")
@@ -720,23 +753,36 @@ def analyze_photo(image_path: str, name: str) -> Optional[PhotoAnalysis]:
         if view_angle not in _VIEW_ANGLES:
             raise ValueError(f"잘못된 view_angle: {view_angle}")
 
+        subject_en = _require_ascii_prompt_text(result["subject_en"], "subject_en")
+        container_kind = _require_ascii_prompt_text(
+            result["container_kind"], "container_kind",
+        ).lower()
+        container_color = _require_ascii_prompt_text(
+            result["container_color"], "container_color",
+        ).lower()
+        normalized_ingredients = [
+            _require_ascii_prompt_text(item, "core_ingredients").lower()
+            for item in ingredients
+            if str(item).strip()
+        ][:4]
+
         return PhotoAnalysis(
             match=_json_bool(result["match"], "match"),
             seen=str(result.get("seen", ""))[:80],
             domain=domain,
             display_name=display_name,
-            subject_en=str(result["subject_en"]).strip() or "product",
+            subject_en=subject_en,
             category=category,
             core_ingredients=(
-                [str(item).strip().lower() for item in ingredients if str(item).strip()][:4]
+                normalized_ingredients
                 if domain == "food" else []
             ),
             texture_hero=_json_bool(result["texture_hero"], "texture_hero") and domain == "food",
             material=material,
             food_mode="cafe" if str(result["food_mode"]).strip().lower() == "cafe" else "dish",
             lang="en" if str(result["lang"]).strip().lower() == "en" else "ko",
-            container_kind=str(result["container_kind"]).strip().lower() or "none",
-            container_color=str(result["container_color"]).strip().lower() or "none",
+            container_kind=container_kind,
+            container_color=container_color,
             container_opacity=opacity,
             temperature=temperature,
             view_angle=view_angle,

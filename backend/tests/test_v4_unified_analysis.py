@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
+import pytest
+
 from app.harness.run_logger import RunLogger
 from app.schemas.ads import ProductInfo, StylePreset
 from app.services import generation_service, gpt_service, image_service, router
@@ -115,6 +117,57 @@ def test_analyze_photo_parse_failure_returns_none(monkeypatch):
     assert gpt_service.analyze_photo("broken.png", "상품") is None
 
 
+def test_analyze_photo_vision_read_failure_returns_none(monkeypatch):
+    monkeypatch.setattr(
+        gpt_service,
+        "_vision_part",
+        lambda _path: (_ for _ in ()).throw(OSError("missing image")),
+    )
+    monkeypatch.setattr(
+        gpt_service,
+        "_chat_json",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("must not call API")),
+    )
+
+    assert gpt_service.analyze_photo("missing.png", "상품") is None
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [
+        ("subject_en", "카페라떼"),
+        ("core_ingredients", ["우유"]),
+        ("container_kind", "유리컵"),
+        ("container_color", "투명"),
+    ],
+)
+def test_analyze_photo_rejects_non_ascii_prompt_fields(monkeypatch, field, invalid):
+    payload = {
+        "match": True,
+        "seen": "흰 컵의 카페라떼",
+        "domain": "food",
+        "display_name": "ignored",
+        "subject_en": "cafe latte",
+        "category": "default",
+        "core_ingredients": ["espresso", "milk"],
+        "texture_hero": False,
+        "material": "default",
+        "food_mode": "cafe",
+        "lang": "ko",
+        "container_kind": "cup",
+        "container_color": "clear",
+        "container_opacity": "transparent",
+        "temperature": "hot",
+        "view_angle": "eye",
+        "visible_text": "카페",
+    }
+    payload[field] = invalid
+    monkeypatch.setattr(gpt_service, "_vision_part", lambda _path: {})
+    monkeypatch.setattr(gpt_service, "_chat_json", lambda *_args, **_kwargs: payload)
+
+    assert gpt_service.analyze_photo("latte.png", "카페라떼") is None
+
+
 def test_photo_analysis_cache_roundtrip_and_corruption_fallback(tmp_path, monkeypatch):
     monkeypatch.setattr(image_service, "PROCESSED_DIR", tmp_path)
     expected = _analysis(visible_text="CAFE 24")
@@ -124,6 +177,11 @@ def test_photo_analysis_cache_roundtrip_and_corruption_fallback(tmp_path, monkey
 
     cache_path = tmp_path / f"{ASSET_ID}_analysis.json"
     cache_path.write_text("{broken", encoding="utf-8")
+    assert generation_service._load_photo_analysis(ASSET_ID) is None
+
+    invalid = json.loads(json.dumps(expected.__dict__, ensure_ascii=False))
+    invalid["container_color"] = "흰색"
+    cache_path.write_text(json.dumps(invalid, ensure_ascii=False), encoding="utf-8")
     assert generation_service._load_photo_analysis(ASSET_ID) is None
 
 
