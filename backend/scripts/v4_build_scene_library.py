@@ -29,6 +29,7 @@ import argparse
 import fnmatch
 import hashlib
 import json
+import os
 import shutil
 import sys
 import time
@@ -38,6 +39,26 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.services import scene_plans  # noqa: E402
 
 SDXL_REPO = "stabilityai/stable-diffusion-xl-base-1.0"
+SDXL_REQUIRED_FILES = (
+    "model_index.json",
+    "scheduler/scheduler_config.json",
+    "text_encoder/config.json",
+    "text_encoder/model.fp16.safetensors",
+    "text_encoder_2/config.json",
+    "text_encoder_2/model.fp16.safetensors",
+    "tokenizer/merges.txt",
+    "tokenizer/special_tokens_map.json",
+    "tokenizer/tokenizer_config.json",
+    "tokenizer/vocab.json",
+    "tokenizer_2/merges.txt",
+    "tokenizer_2/special_tokens_map.json",
+    "tokenizer_2/tokenizer_config.json",
+    "tokenizer_2/vocab.json",
+    "unet/config.json",
+    "unet/diffusion_pytorch_model.fp16.safetensors",
+    "vae/config.json",
+    "vae/diffusion_pytorch_model.fp16.safetensors",
+)
 SEEDS = [11, 23, 37, 49, 61, 73]
 PILOT_STYLES = ("pop", "warm_vintage")
 PILOT_DOMAINS = ("drink", "object")
@@ -73,12 +94,34 @@ def _guard_vram() -> None:
                  "sudo systemctl stop adnova-generation.service 후 재실행 (결정 D-1)")
 
 
+def _resolve_local_sdxl_snapshot() -> Path:
+    """허브의 전체 저장소 검사를 피하고 실행에 필요한 FP16 스냅샷만 검증한다."""
+    hf_home = Path(os.environ.get("HF_HOME", Path.home() / ".cache" / "huggingface"))
+    hub_cache = Path(os.environ.get("HF_HUB_CACHE", hf_home / "hub"))
+    repo_cache = hub_cache / f"models--{SDXL_REPO.replace('/', '--')}"
+    main_ref = repo_cache / "refs" / "main"
+    if not main_ref.is_file():
+        raise FileNotFoundError(f"SDXL main ref 없음: {main_ref}")
+
+    revision = main_ref.read_text(encoding="utf-8").strip()
+    if not revision:
+        raise FileNotFoundError(f"SDXL main ref가 비어 있음: {main_ref}")
+    snapshot = repo_cache / "snapshots" / revision
+    missing = [name for name in SDXL_REQUIRED_FILES if not (snapshot / name).is_file()]
+    if missing:
+        preview = ", ".join(missing[:5])
+        suffix = f" 외 {len(missing) - 5}개" if len(missing) > 5 else ""
+        raise FileNotFoundError(f"SDXL FP16 필수 파일 누락: {preview}{suffix}")
+    return snapshot
+
+
 def _load_sdxl_pipeline(torch_module):  # noqa: ANN001, ANN202
     """공용 캐시의 FP16 가중치만 선택해 FP32 모델의 추가 다운로드·메모리 사용을 막는다."""
     from diffusers import StableDiffusionXLPipeline
 
+    snapshot = _resolve_local_sdxl_snapshot()
     return StableDiffusionXLPipeline.from_pretrained(
-        SDXL_REPO,
+        str(snapshot),
         torch_dtype=torch_module.float16,
         use_safetensors=True,
         variant="fp16",
