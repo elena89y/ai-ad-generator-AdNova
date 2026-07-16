@@ -60,28 +60,22 @@ def build_bg_prompt(plan: ScenePlan, props: tuple = ()) -> str:
     """플랜 → SDXL 배경 프롬프트. 규칙(v4 P4-1): 광고장면 선언 + 장면 + 광원 + 빈 자리 +
     카피 여백 + 금지어. 60단어 이하 유지(CLIP 77토큰)."""
     prop_txt = ""
-    empty_set_txt = ""
     if props:
         prop_txt = ", " + ", ".join(PROP_PHRASES[p] for p in props if p in PROP_PHRASES)
-    else:
-        empty_set_txt = ", bare empty set, no decor, no furniture, no plants, no vases"
     pos_word = "center" if abs(plan.subject_pos[0] - 0.5) < 0.06 else (
         "right" if plan.subject_pos[0] > 0.5 else "left")
     zone = plan.text_zone.replace("_", " ")
     return (
-        f"commercial product backdrop, no product, {plan.scene}{prop_txt}"
-        f"{empty_set_txt}, "
-        f"soft {plan.light_dir}-side light, empty lower {pos_word} product surface, "
-        f"clear {zone} headline space, photorealistic, no text or people, "
-        f"no studio equipment"
+        f"commercial advertising photography backdrop, no product, {plan.scene}{prop_txt}, "
+        f"soft {plan.light_dir}-side key light, empty surface in the lower {pos_word} "
+        f"for product placement, clean uncluttered {zone} area for headline, "
+        f"photorealistic, no text, no letters, no people"
     )
 
 
 NEGATIVE_PROMPT = (
     "text, letters, words, watermark, logo, person, hands, cup, mug, glass, "
     "bottle, can, jar, plate of food, product, cartoon, illustration, frame"
-    ", chair, furniture, tripod, light stand, reflector, cable, busy pattern, "
-    "repeating stripes, mosaic, clutter"
 )
 
 
@@ -98,20 +92,20 @@ def _p(style, domain, archetype, scene, pos, scale, sy, light, tz,
 PLANS: list[ScenePlan] = [
     # ── pop ─────────────────────────────────────────────────────────────────
     _p("pop", "drink", "diagonal_splash",
-       "two large solid electric blue and orange planes divided by one clean diagonal, "
-       "smooth orange tabletop",
+       "bold electric blue and orange color-block wall, glossy orange surface, "
+       "dynamic diagonal composition",
        (0.55, 0.60), 0.46, 0.72, "left", "top_left", props=("splash", "ice")),
     _p("pop", "drink", "color_block_duo",
-       "two broad solid cobalt and tangerine panels, one simple diagonal sun shadow, "
-       "smooth glossy tabletop",
+       "two flat saturated color panels, cobalt blue and tangerine, one hard sun shadow "
+       "stripe across a glossy tabletop",
        (0.50, 0.62), 0.42, 0.74, "right", "top"),
     _p("pop", "object", "color_block",
-       "two broad solid cobalt and lime planes, one simple geometric shadow, "
-       "smooth seamless floor",
+       "flat vivid duotone wall in cobalt and lime green, geometric shadow shapes, "
+       "glossy seamless floor",
        (0.50, 0.62), 0.42, 0.74, "left", "top"),
     _p("pop", "object", "concept_stage",
-       "solid coral backdrop, one low plain cylindrical pedestal centered below, "
-       "single clean hard shadow",
+       "saturated coral backdrop with one oversized matte geometric cylinder prop, "
+       "playful hard studio light",
        (0.58, 0.62), 0.40, 0.74, "right", "top_left"),
     # ── editorial ───────────────────────────────────────────────────────────
     _p("editorial", "drink", "asym_negative",
@@ -177,19 +171,18 @@ PLANS: list[ScenePlan] = [
        (0.50, 0.62), 0.42, 0.74, "right", "top", reflection=0.12),
     # ── warm_vintage ────────────────────────────────────────────────────────
     _p("warm_vintage", "drink", "linen_organic",
-       "plain beige linen sweep with restrained folds only at the far edges, "
-       "smooth clear tabletop, warm golden afternoon light",
+       "beige linen tablecloth, dried grass stems in soft focus behind, warm golden "
+       "afternoon light, organic textures",
        (0.52, 0.64), 0.42, 0.78, "left", "top"),
     _p("warm_vintage", "drink", "wood_morning",
-       "plain warm wood table, clean kraft paper wall, one gentle morning sunbeam",
+       "rustic warm wood table, kraft paper texture wall, gentle morning sunbeam",
        (0.50, 0.64), 0.42, 0.78, "right", "top", props=("beans",)),
     _p("warm_vintage", "object", "linen_organic",
-       "plain beige linen sweep with restrained folds only at the far edges, "
-       "clear tabletop, warm golden light",
+       "beige linen backdrop with soft folds, minimal dried botanicals aside, warm "
+       "golden light",
        (0.52, 0.64), 0.42, 0.78, "left", "top"),
     _p("warm_vintage", "object", "craft_paper",
-       "plain kraft paper sweep in beige tones, subtle texture, clear tabletop, "
-       "soft warm light",
+       "kraft paper backdrop in beige tones, subtle paper texture, soft warm light",
        (0.50, 0.64), 0.42, 0.78, "right", "top"),
 ]
 
