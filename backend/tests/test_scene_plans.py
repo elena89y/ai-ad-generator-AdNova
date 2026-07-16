@@ -97,7 +97,7 @@ def test_generate_retries_once_then_reports_failure():
     assert calls == 2
 
 
-def test_sdxl_loader_pins_fp16_variant(monkeypatch):
+def test_sdxl_loader_pins_fp16_local_cache(monkeypatch):
     captured = {}
 
     class FakePipeline:
@@ -124,8 +124,40 @@ def test_sdxl_loader_pins_fp16_variant(monkeypatch):
         "torch_dtype": "float16",
         "use_safetensors": True,
         "variant": "fp16",
+        "local_files_only": True,
     }
     assert captured["device"] == "cuda"
+
+
+def test_pilot_existing_candidates_require_fresh_outdir(tmp_path):
+    jobs, seeds = scene_builder._build_jobs("ignored", candidates=6, pilot=True)
+    cand_dir = tmp_path / "candidates"
+    cand_dir.mkdir()
+    first_plan, first_props = jobs[0]
+    first_name = scene_builder._candidate_name(first_plan, first_props, seeds[0])
+    (cand_dir / first_name).write_bytes(b"stale")
+
+    assert scene_builder._existing_pilot_candidates(cand_dir, jobs, seeds) == [first_name]
+
+
+def test_pilot_build_stops_before_model_load_when_outdir_is_stale(tmp_path, monkeypatch):
+    jobs, seeds = scene_builder._build_jobs("ignored", candidates=6, pilot=True)
+    cand_dir = tmp_path / "candidates"
+    cand_dir.mkdir()
+    plan, props = jobs[0]
+    (cand_dir / scene_builder._candidate_name(plan, props, seeds[0])).write_bytes(b"stale")
+    monkeypatch.setattr(scene_builder, "_guard_vram", lambda: None)
+    monkeypatch.setattr(
+        scene_builder,
+        "_load_sdxl_pipeline",
+        lambda _torch: (_ for _ in ()).throw(AssertionError("model must not load")),
+    )
+    args = SimpleNamespace(
+        outdir=str(tmp_path), plans="ignored", candidates=6, pilot=True, steps=28,
+    )
+
+    with pytest.raises(SystemExit, match="비어 있는 새 --outdir"):
+        scene_builder.cmd_build(args)
 
 
 def test_finalize_plan_key_requires_exact_registered_prefix():

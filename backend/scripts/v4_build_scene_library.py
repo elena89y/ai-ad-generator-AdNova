@@ -82,6 +82,7 @@ def _load_sdxl_pipeline(torch_module):  # noqa: ANN001, ANN202
         torch_dtype=torch_module.float16,
         use_safetensors=True,
         variant="fp16",
+        local_files_only=True,
     ).to("cuda")
 
 
@@ -119,6 +120,22 @@ def _generate_with_retry(render):
         except Exception as exc:  # 생성기 예외는 장별로 격리해 전체 빌드를 계속한다.
             last_error = exc
     return None, 1, str(last_error)
+
+
+def _candidate_name(plan, props: tuple, seed: int) -> str:  # noqa: ANN001
+    return f"{plan.key.replace('/', '_')}__{'-'.join(props) or 'none'}__s{seed}.png"
+
+
+def _existing_pilot_candidates(cand_dir: Path, jobs: list[tuple],
+                               seeds: tuple[int, ...]) -> list[str]:
+    """파일럿 측정 오염을 막기 위해 같은 계약의 기존 후보를 찾는다."""
+    existing = []
+    for plan, props in jobs:
+        for seed in seeds:
+            name = _candidate_name(plan, props, seed)
+            if (cand_dir / name).is_file():
+                existing.append(name)
+    return existing
 
 
 def _plan_key_from_candidate(name: str) -> str:
@@ -173,7 +190,6 @@ def _write_timing_report(outdir: Path, pilot: bool, load_s: float,
 
 def cmd_build(args) -> None:
     _guard_vram()
-    import torch
 
     outdir = Path(args.outdir)
     cand_dir = outdir / "candidates"
@@ -185,9 +201,18 @@ def cmd_build(args) -> None:
         sys.exit(str(exc))
     plan_count = len({p.key for p, _ in jobs})
     n_img = len(jobs) * len(seeds)
+    if args.pilot:
+        existing = _existing_pilot_candidates(cand_dir, jobs, seeds)
+        if existing:
+            sys.exit(
+                f"P4B 파일럿 기존 후보 {len(existing)}장 발견 — 타이밍·프롬프트 검증 오염 방지를 "
+                "위해 비어 있는 새 --outdir를 사용하세요"
+            )
     mode = "P4B pilot" if args.pilot else "full build"
     print(f"[{mode}] 플랜 {plan_count} · 프롬프트셋 {len(jobs)} · 이미지 {n_img}장 "
           f"(예상 {n_img * 16 / 60:.0f}분 @16s/장)")
+
+    import torch
 
     load_started = time.perf_counter()
     pipe = _load_sdxl_pipeline(torch)
@@ -203,7 +228,7 @@ def cmd_build(args) -> None:
         prompt = scene_plans.build_bg_prompt(plan, props)
         assert len(prompt.split()) <= 60, f"프롬프트 60단어 초과(77토큰 함정): {plan.key}"
         for seed in seeds:
-            name = f"{plan.key.replace('/', '_')}__{'-'.join(props) or 'none'}__s{seed}.png"
+            name = _candidate_name(plan, props, seed)
             fp = cand_dir / name
             if fp.exists():
                 skipped += 1
