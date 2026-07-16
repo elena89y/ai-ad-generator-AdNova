@@ -547,6 +547,37 @@ def process_ad(
         return result
 
 
+# 디저트 어휘 — food_mode=cafe(카페 이산제품: 음료+디저트 혼재)에서 '음료 아님'을 판별.
+#   2026-07-17 라이브 결함: '말차베리쿠키'가 cafe→drink로 승격 → drink 지시문("Keep the
+#   drink, cup or glass, foam…")이 존재하지 않는 컵을 지어내 쿠키가 라떼로 재생성됨(날조).
+_DESSERT_HINTS = (
+    "cookie", "cake", "scone", "bread", "croissant", "macaron", "macaroon", "muffin",
+    "tart", "donut", "doughnut", "brownie", "pastry", "dessert", "pie", "waffle",
+    "bagel", "bun", "roll", "pudding", "tiramisu", "financier", "madeleine",
+)
+_DRINK_CONTAINERS = ("cup", "glass", "mug", "bottle", "can", "tumbler", "jar")
+
+
+def _resolve_style_domain(analysis, domain: str, food_mode: Optional[str],
+                          subject_en: str) -> str:  # noqa: ANN001
+    """StylePlan 도메인 정규화. drink 는 '실제 음료'일 때만 — 디저트의 drink 승격 금지.
+
+    1차: PhotoAnalysis(UNIFIED_ANALYSIS 경로)의 container_kind — 사진 근거(D-4).
+    2차(텍스트 폴백): category=bakery 또는 subject_en 디저트 어휘면 food 유지.
+    """
+    if domain != "food" or food_mode != "cafe":
+        return domain
+    container = getattr(analysis, "container_kind", None)
+    if container is not None:  # Vision 근거 우선
+        return "drink" if str(container).lower() in _DRINK_CONTAINERS else domain
+    if getattr(analysis, "category", "") == "bakery":
+        return domain
+    low = (subject_en or "").lower()
+    if any(hint in low for hint in _DESSERT_HINTS):
+        return domain
+    return "drink"
+
+
 def _process_ad_impl(
     image_path: str,
     name: str,
@@ -578,7 +609,7 @@ def _process_ad_impl(
         subject_en = getattr(resolved_analysis, "subject_en", None) or name
         domain = getattr(resolved_analysis, "domain", "food")
         food_mode = getattr(resolved_analysis, "food_mode", None)
-        style_domain = "drink" if food_mode == "cafe" else domain
+        style_domain = _resolve_style_domain(resolved_analysis, domain, food_mode, subject_en)
         # 포맷 자동감지(STYLE_SYSTEM v2): style 은 '무드', 포맷은 콘텐츠로 결정.
         #   STY-003~005 이후 사물도 선택 무드를 적용하되, StylePlan이 상품은 고정하고 배경·조명만 바꾼다.
         #   여름음료 pop_split·케이크 cross_section 은 특수 조판/게이트 필요 → 당분간 명시 호출 유지.
