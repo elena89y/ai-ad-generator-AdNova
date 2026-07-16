@@ -99,7 +99,7 @@ def test_generate_retries_once_then_reports_failure():
     assert calls == 2
 
 
-def test_sdxl_loader_pins_fp16_local_cache(monkeypatch):
+def test_sdxl_loader_pins_fp16_local_cache(tmp_path, monkeypatch):
     captured = {}
 
     class FakePipeline:
@@ -117,11 +117,12 @@ def test_sdxl_loader_pins_fp16_local_cache(monkeypatch):
         "diffusers",
         SimpleNamespace(StableDiffusionXLPipeline=FakePipeline),
     )
+    monkeypatch.setattr(scene_builder, "_resolve_local_sdxl_snapshot", lambda: tmp_path)
 
     pipe = scene_builder._load_sdxl_pipeline(SimpleNamespace(float16="float16"))
 
     assert isinstance(pipe, FakePipeline)
-    assert captured["repo"] == scene_builder.SDXL_REPO
+    assert captured["repo"] == str(tmp_path)
     assert captured["kwargs"] == {
         "torch_dtype": "float16",
         "use_safetensors": True,
@@ -129,6 +130,36 @@ def test_sdxl_loader_pins_fp16_local_cache(monkeypatch):
         "local_files_only": True,
     }
     assert captured["device"] == "cuda"
+
+
+def test_resolve_local_sdxl_snapshot_validates_required_files(tmp_path, monkeypatch):
+    hub_cache = tmp_path / "hub"
+    repo_cache = hub_cache / "models--stabilityai--stable-diffusion-xl-base-1.0"
+    snapshot = repo_cache / "snapshots" / "revision-1"
+    for relative_path in scene_builder.SDXL_REQUIRED_FILES:
+        path = snapshot / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"cached")
+    main_ref = repo_cache / "refs" / "main"
+    main_ref.parent.mkdir(parents=True)
+    main_ref.write_text("revision-1\n", encoding="utf-8")
+    monkeypatch.setenv("HF_HUB_CACHE", str(hub_cache))
+
+    assert scene_builder._resolve_local_sdxl_snapshot() == snapshot
+
+
+def test_resolve_local_sdxl_snapshot_rejects_missing_weight(tmp_path, monkeypatch):
+    hub_cache = tmp_path / "hub"
+    repo_cache = hub_cache / "models--stabilityai--stable-diffusion-xl-base-1.0"
+    snapshot = repo_cache / "snapshots" / "revision-1"
+    snapshot.mkdir(parents=True)
+    main_ref = repo_cache / "refs" / "main"
+    main_ref.parent.mkdir(parents=True)
+    main_ref.write_text("revision-1\n", encoding="utf-8")
+    monkeypatch.setenv("HF_HUB_CACHE", str(hub_cache))
+
+    with pytest.raises(FileNotFoundError, match="SDXL FP16 필수 파일 누락"):
+        scene_builder._resolve_local_sdxl_snapshot()
 
 
 def test_pilot_existing_candidates_require_fresh_outdir(tmp_path):
