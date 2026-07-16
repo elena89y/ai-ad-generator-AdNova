@@ -12,6 +12,7 @@ from app.core.security import (
     verify_password,
 )
 from app.crud.account import delete_user_account, update_user_password
+from app.database.admin_models import AdminAccount
 from app.database.connection import get_db
 from app.database.models import User
 from app.schemas.account import (
@@ -81,6 +82,17 @@ def delete_account(
     current_user: User = Depends(get_current_user),
     auth_provider: str = Depends(get_current_auth_provider),
 ) -> None:
+    admin_account = (
+        db.query(AdminAccount.id)
+        .filter(AdminAccount.user_id == current_user.id)
+        .first()
+    )
+    if admin_account is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="관리자 계정은 일반 회원탈퇴를 사용할 수 없습니다.",
+        )
+
     is_social_login = auth_provider in SOCIAL_AUTH_PROVIDERS
     if not is_social_login and (
         not request.current_password

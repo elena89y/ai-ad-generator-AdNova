@@ -9,12 +9,20 @@
 """
 from __future__ import annotations
 
+import logging
 import os
 import random
 import re
+import time
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+
+from ..core.observability import observe, propagate_attributes
+from ..schemas.ads import ProductInfo, StylePreset
+from . import gpt_service, image_service
+from .prompt_service import build_image_prompt
 
 # asset_id 형식: preprocess 가 uuid4().hex[:12] 로 생성 → 12자리 hex 만 허용.
 # 경로 탈출(../, /, \) 차단 (백엔드 리뷰 5번).
@@ -24,10 +32,33 @@ _ASSET_ID_RE = re.compile(r"^[a-f0-9]{12}$")
 def is_valid_asset_id(asset_id: str) -> bool:
     return bool(_ASSET_ID_RE.match(asset_id or ""))
 
-from ..core.observability import observe, propagate_attributes
-from ..schemas.ads import ProductInfo, StylePreset
-from . import gpt_service, image_service
-from .prompt_service import build_image_prompt
+
+def _next_seed(prev_seed: Optional[int]) -> int:
+    """직전 값과 다른 uint32 seed를 발급한다."""
+    new_seed = random.randint(0, 2**32 - 1)
+    while prev_seed is not None and new_seed == prev_seed:
+        new_seed = random.randint(0, 2**32 - 1)
+    return new_seed
+
+
+def _style_seeds(seed: Optional[int], best_of: int) -> list[int]:
+    """단일 생성은 요청 seed, Best-of-N은 서로 다른 고정 후보 seed를 사용한다."""
+    if best_of <= 1:
+        return [42 if seed is None else seed]
+
+    pool = [7, 42, 123, 2024, 88, 512]
+    if seed is not None:
+        pool = [seed, *(candidate for candidate in pool if candidate != seed)]
+    return pool[:min(best_of, len(pool))]
+
+
+def _tag_seed_output(path: str, seed: int) -> str:
+    """Best-of-N 후보가 같은 stem을 덮어쓰지 않도록 seed별 파일로 보존한다."""
+    src = Path(path)
+    tagged = src.with_name(f"{src.stem}_s{seed}{src.suffix}")
+    if src != tagged:
+        src.replace(tagged)
+    return str(tagged)
 
 # 스타일 → 평면배경 모드 (SDXL 회색조 회귀·소품 잔재 우회, IMG-002/QUA-007)
 _FLAT_BG = {"editorial": "editorial", "retro_paper": "retro", "pastel_float": "pastel"}
@@ -185,46 +216,61 @@ def run_from_upload_v2(
     import uuid
     from pathlib import Path as _P
 
+    from ..harness.run_logger import RunLogger
     from .style_specs import resolve_style
 
     # asset_id 를 먼저 발급 — 이 요청 안의 모든 하위 LLM 호출(gpt_service/judge_service 트레이스)을
     # session_id=asset_id 로 묶는다. /ads/regenerate 는 같은 asset_id 로 rerun_v2 를 호출하므로,
     # Langfuse Sessions 뷰에서 최초 생성 트레이스와 재생성 트레이스가 하나의 세션으로 이어져 보인다.
     asset_id = uuid.uuid4().hex[:12]
+    import os as _os
+    _bon = max(1, int(_os.environ.get("BEST_OF_N", "1") or "1"))
+    _steps = int(_os.environ["BEST_OF_STEPS"]) if _os.environ.get("BEST_OF_STEPS") else None
+    actual_seed = 42 if seed is None else seed
 
     with propagate_attributes(session_id=asset_id):
-        # 입력 게이트(P0, 콜드런 배치 실측): 사진 피사체 ≠ 상품명이면 이름 기반 날조(없는 제품 생성)
-        #   위험 → 생성 전 차단. 관대한 판정(명백한 무관 사진만 거부), 판정 실패 시 통과.
-        gate = gpt_service.verify_photo_subject(image_path, product.name)
-        if not gate["match"]:
-            seen = f" (사진에는 '{gate['seen']}'이(가) 보여요)" if gate.get("seen") else ""
-            raise ValueError(
-                f"사진과 상품명('{product.name}')이 서로 달라 보여요.{seen} "
-                "상품이 잘 보이는 사진인지 확인해 주세요.")
+        with RunLogger(
+            phase="V3P1", mode="pending", engine="pending", input=image_path,
+            seed=actual_seed,
+            params={"asset_id": asset_id, "name": product.name, "style": style.value,
+                    "poster": poster, "best_of": _bon, "steps": _steps,
+                    "request": "generate"},
+        ) as run:
+            # 입력 게이트(P0): 명백한 사진-상품명 불일치만 생성 전에 차단한다.
+            with run.stage("input_gate"):
+                gate = gpt_service.verify_photo_subject(image_path, product.name)
+            if not gate["match"]:
+                seen = f" (사진에는 '{gate['seen']}'이(가) 보여요)" if gate.get("seen") else ""
+                raise ValueError(
+                    f"사진과 상품명('{product.name}')이 서로 달라 보여요.{seen} "
+                    "상품이 잘 보이는 사진인지 확인해 주세요.")
 
-        # regen 용으로 입력 원본 보존(v2 는 누끼/mask 없음 → 원본 재투입 방식)
-        saved = image_service.PROCESSED_DIR / f"{asset_id}_v2input{_P(image_path).suffix}"
-        saved.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(image_path, saved)
+            # regen 용으로 입력 원본 보존(v2 는 누끼/mask 없음 → 원본 재투입 방식)
+            with run.stage("input_prepare"):
+                saved = image_service.PROCESSED_DIR / f"{asset_id}_v2input{_P(image_path).suffix}"
+                saved.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(image_path, saved)
 
-        # ⚠️ 결과는 서빙 디렉토리(RESULTS_DIR, 절대경로)에 저장 — process_ad 기본 output_dir 은
-        #   상대경로("backend/results/ai/route")라 uvicorn CWD(backend/)에서 backend/backend/... 로 풀려
-        #   /ads/image/{filename} 서빙이 404 남(실측 2026-07-10). 절대경로로 고정.
-        # ⚠️ 입력을 원본이 아니라 asset_id 로 이름 지은 saved(고유) 로 넣는다(실측 2026-07-12):
-        #   출력 파일명은 입력 stem 기반 → 같은 업로드를 다시 생성/스타일변경하면 URL 동일 → 브라우저가
-        #   캐시된 옛 이미지를 보여줘 "스타일 바꿔도 똑같이 나옴". saved(매 생성 고유) 로 넣으면 URL도 고유.
-        # Best-of-N: env BEST_OF_N 로 배포에서 제어(기본 1=기존 1샷). steps 도 env BEST_OF_STEPS.
-        import os as _os
-        _bon = max(1, int(_os.environ.get("BEST_OF_N", "1") or "1"))
-        _steps = int(_os.environ["BEST_OF_STEPS"]) if _os.environ.get("BEST_OF_STEPS") else None
-        r = process_ad(str(saved), product.name, poster=poster,
-                       style=resolve_style(style.value),
-                       output_dir=str(image_service.RESULTS_DIR),
-                       best_of=_bon, steps=_steps)
-        return GenerationOutput(
-            final_image_path=r.final_image_path, asset_id=asset_id, seed=seed or 0, style=style,
-            copy_text=r.copy_text, platform_copies=_platform_copies_safe(product, style),
-            poster=poster, generate_seconds=round(r.seconds, 2), harmonize_seconds=0.0)
+            # 결과는 서빙 디렉토리 절대경로에 저장하고 asset_id stem으로 URL 충돌을 막는다.
+            r = process_ad(
+                str(saved), product.name, poster=poster,
+                style=resolve_style(style.value), output_dir=str(image_service.RESULTS_DIR),
+                use_vision=use_vision, seed=actual_seed, best_of=_bon, steps=_steps,
+                log=False, _run=run,
+            )
+            run.set_meta(
+                mode=getattr(r, "domain", "unknown"),
+                engine=getattr(r, "engine", "unknown"),
+                seed=r.seed,
+                subject_en=getattr(r, "subject_en", ""),
+            )
+            run.set_output(r.final_image_path)
+            with run.stage("platform_copy"):
+                platform_copies = _platform_copies_safe(product, style)
+            return GenerationOutput(
+                final_image_path=r.final_image_path, asset_id=asset_id, seed=r.seed, style=style,
+                copy_text=r.copy_text, platform_copies=platform_copies,
+                poster=poster, generate_seconds=round(r.seconds, 2), harmonize_seconds=0.0)
 
 
 @observe(name="generation.rerun_v2")
@@ -236,9 +282,12 @@ def rerun_v2(
     use_vision: bool = False,
     poster: bool = False,
 ) -> GenerationOutput:
-    """v2 재생성 — 보존한 입력 원본으로 process_ad 재실행."""
+    """v2 재생성 — 새 seed와 고유 입력 stem으로 기존 결과를 덮어쓰지 않는다."""
     import glob
+    import shutil
+    import uuid
 
+    from ..harness.run_logger import RunLogger
     from .style_specs import resolve_style
 
     if not is_valid_asset_id(asset_id):
@@ -246,15 +295,43 @@ def rerun_v2(
 
     # session_id=asset_id — 최초 생성(run_from_upload_v2)이 같은 asset_id 로 연 세션에 합류.
     with propagate_attributes(session_id=asset_id):
-        cands = glob.glob(str(image_service.PROCESSED_DIR / f"{asset_id}_v2input.*"))
-        if not cands:
-            raise FileNotFoundError(f"v2 입력 원본 없음: asset_id={asset_id}")
-        r = process_ad(cands[0], product.name, poster=poster, style=resolve_style(style.value),
-                       output_dir=str(image_service.RESULTS_DIR))
-        return GenerationOutput(
-            final_image_path=r.final_image_path, asset_id=asset_id, seed=0, style=style,
-            copy_text=r.copy_text, platform_copies=_platform_copies_safe(product, style),
-            poster=poster, generate_seconds=round(r.seconds, 2), harmonize_seconds=0.0)
+        new_seed = _next_seed(prev_seed)
+        with RunLogger(
+            phase="V3P1", mode="pending", engine="pending", input=asset_id,
+            seed=new_seed,
+            params={"asset_id": asset_id, "name": product.name, "style": style.value,
+                    "poster": poster, "request": "regenerate"},
+        ) as run:
+            with run.stage("input_prepare"):
+                cands = glob.glob(str(image_service.PROCESSED_DIR / f"{asset_id}_v2input.*"))
+                if not cands:
+                    raise FileNotFoundError(f"v2 입력 원본 없음: asset_id={asset_id}")
+                source = Path(cands[0])
+                rerun_input = image_service.PROCESSED_DIR / (
+                    f"{asset_id}_rerun_{uuid.uuid4().hex[:8]}_v2input{source.suffix}"
+                )
+                shutil.copy(source, rerun_input)
+            try:
+                r = process_ad(
+                    str(rerun_input), product.name, poster=poster,
+                    style=resolve_style(style.value), output_dir=str(image_service.RESULTS_DIR),
+                    use_vision=use_vision, seed=new_seed, log=False, _run=run,
+                )
+            finally:
+                rerun_input.unlink(missing_ok=True)
+            run.set_meta(
+                mode=getattr(r, "domain", "unknown"),
+                engine=getattr(r, "engine", "unknown"),
+                seed=r.seed,
+                subject_en=getattr(r, "subject_en", ""),
+            )
+            run.set_output(r.final_image_path)
+            with run.stage("platform_copy"):
+                platform_copies = _platform_copies_safe(product, style)
+            return GenerationOutput(
+                final_image_path=r.final_image_path, asset_id=asset_id, seed=r.seed, style=style,
+                copy_text=r.copy_text, platform_copies=platform_copies,
+                poster=poster, generate_seconds=round(r.seconds, 2), harmonize_seconds=0.0)
 
 
 # =============================================================================
@@ -271,6 +348,7 @@ class ProcessedAd:
     copy_text: str            # '헤드라인\n서브카피' (FR-09)
     poster: bool
     seconds: float
+    seed: int
     style: Optional[str] = None       # 디자인시스템 스타일 키(있으면 style_gen 경로)
     aesthetic: Optional[float] = None # NIMA 심미 점수(플라이휠 라벨)
 
@@ -327,6 +405,10 @@ def _select_best(cands: list[str], original_path: Optional[str] = None) -> str:
     return nima_best
 
 
+def _stage(run, name: str):  # noqa: ANN001, ANN202
+    return run.stage(name) if run is not None else nullcontext()
+
+
 def process_ad(
     image_path: str,
     name: str,
@@ -337,17 +419,73 @@ def process_ad(
     style: Optional[str] = None,
     output_dir: str = "backend/results/ai/route",
     log: bool = True,
+    seed: Optional[int] = None,
     best_of: int = 1,
     steps: Optional[int] = None,
+    _run=None,  # noqa: ANN001
 ) -> ProcessedAd:
     """사진 + 상품명 → 자동 라우팅(또는 스타일 씬) 리터치 + 문구 + 포스터. 사용자는 이름만 입력.
 
     knob(0~1): 공통 강도 슬라이더. layout: overlay|panel(포스터).
     style: 디자인시스템 스타일 키(editorial/realism/pop/…) 지정 시 style_gen 씬 생성 경로,
            None 이면 기존 이름기반 A/B/C 자동 라우팅(하위호환). GPU 필요.
-    log: True 면 RunLogger 로 원장 적재 + NIMA 심미 기록(Phase 5 플라이휠 축적). 실패해도 결과엔 영향 없음.
+    log: True 면 RunLogger 로 전체 시간·단계·OpenAI usage를 적재한다.
+         심미 평가는 ADNOVA_EVAL=1인 평가 실행에서만 기록한다.
     """
-    import time
+    if _run is not None:
+        return _process_ad_impl(
+            image_path, name, knob, poster, layout, use_vision, style,
+            output_dir, seed, best_of, steps, run=_run,
+        )
+    if not log:
+        return _process_ad_impl(
+            image_path, name, knob, poster, layout, use_vision, style,
+            output_dir, seed, best_of, steps, run=None,
+        )
+
+    try:
+        from ..harness.run_logger import RunLogger
+
+        run = RunLogger(
+            phase="V3P1", mode="pending", engine="pending", input=image_path,
+            seed=seed,
+            params={"name": name, "style": style, "layout": layout,
+                    "best_of": best_of, "steps": steps},
+        )
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger(__name__).warning("RunLogger 초기화 실패: %s", exc)
+        return _process_ad_impl(
+            image_path, name, knob, poster, layout, use_vision, style,
+            output_dir, seed, best_of, steps, run=None,
+        )
+
+    with run:
+        result = _process_ad_impl(
+            image_path, name, knob, poster, layout, use_vision, style,
+            output_dir, seed, best_of, steps, run=run,
+        )
+        run.set_meta(mode=result.domain, engine=result.engine, seed=result.seed)
+        run.set_output(result.final_image_path)
+        if result.aesthetic is not None:
+            run.add_metric("aesthetic", result.aesthetic)
+        return result
+
+
+def _process_ad_impl(
+    image_path: str,
+    name: str,
+    knob: Optional[float],
+    poster: bool,
+    layout: str,
+    use_vision: bool,
+    style: Optional[str],
+    output_dir: str,
+    seed: Optional[int],
+    best_of: int,
+    steps: Optional[int],
+    run=None,  # noqa: ANN001
+) -> ProcessedAd:
+    """process_ad 실제 생성 본문. run이 있으면 단계별 시간을 함께 기록한다."""
 
     from . import router
     from .overlay_service import apply_food_poster
@@ -358,31 +496,45 @@ def process_ad(
     if style:
         from . import style_gen
         # subject_en 은 analyze_menu 로 산출(한글→영문, CLIP 함정 회피)
-        analysis = gpt_service.analyze_menu(name)
+        with _stage(run, "analysis"):
+            analysis = gpt_service.analyze_menu(name)
         subject_en = getattr(analysis, "subject_en", None) or name
         domain = getattr(analysis, "domain", "food")
+        food_mode = getattr(analysis, "food_mode", None)
+        style_domain = "drink" if food_mode == "cafe" else domain
         # 포맷 자동감지(STYLE_SYSTEM v2): style 은 '무드', 포맷은 콘텐츠로 결정.
-        #   사물(SKU)이면 무드 무관 object_studio 로 고정(사물이 음식 씬 타면 붕괴) — 무드는 조판에 반영.
+        #   STY-003~005 이후 사물도 선택 무드를 적용하되, StylePlan이 상품은 고정하고 배경·조명만 바꾼다.
         #   여름음료 pop_split·케이크 cross_section 은 특수 조판/게이트 필요 → 당분간 명시 호출 유지.
-        effective_style = "object_studio" if domain == "object" else style
+        effective_style = style
         # Best-of-N: N시드 생성 → 선별기로 top 선택. best_of=1 이면 기존 1샷.
         #   ⚠️ BON-002 기각(2026-07-13): NIMA 는 이미-좋은 이미지(5~6점대)를 변별 못 해 Best-of-N 무효.
         #   선별기는 SELECTOR env 로 교체(nima 기본|gpt=구조화 저지|both=둘 다 로깅해 클린 비교).
-        n = max(1, best_of)
-        seeds = [7, 42, 123, 2024, 88, 512][:n]
-        cands = [style_gen.generate_scene(image_path, effective_style, subject_en,
-                                          output_dir=output_dir, seed=s, steps=steps) for s in seeds]
-        final = _select_best(cands, original_path=image_path)
+        seeds = _style_seeds(seed, max(1, best_of))
+        cands = []
+        with _stage(run, "generate"):
+            for candidate_seed in seeds:
+                candidate = style_gen.generate_scene(
+                    image_path, effective_style, subject_en,
+                    output_dir=output_dir, seed=candidate_seed, steps=steps,
+                    domain=style_domain,
+                )
+                cands.append(_tag_seed_output(candidate, candidate_seed))
+        with _stage(run, "select"):
+            final = _select_best(cands, original_path=image_path)
+        selected_seed = seeds[cands.index(final)]
         sel = os.environ.get("SELECTOR", "nima")
-        engine = f"style:{effective_style}" + (f"·bestof{n}:{sel}" if n > 1 else "")
+        engine = f"style:{effective_style}" + (f"·bestof{len(seeds)}:{sel}" if len(seeds) > 1 else "")
     else:
-        route = router.process_input(image_path, name, knob=knob, output_dir=output_dir)
+        with _stage(run, "generate"):
+            route = router.process_input(image_path, name, knob=knob, output_dir=output_dir)
         final = route.output_path
         subject_en, domain, engine = route.subject_en, route.domain, route.engine
+        selected_seed = 0 if seed is None else seed
 
     # 문구 (FR-09) — 상품명 + 리터치 이미지 기반. 톤은 EDITORIAL 기본.
     product = ProductInfo(name=name)
-    copy = _generate_copy(final, product, StylePreset.EDITORIAL, use_vision)
+    with _stage(run, "copy"):
+        copy = _generate_copy(final, product, StylePreset.EDITORIAL, use_vision)
 
     if poster:
         headline, _, subcopy = copy.copy_text.partition("\n")
@@ -393,34 +545,26 @@ def process_ad(
         if any(k in headline for k in ("제공되지 않", "이미지 정보", "이미지 설명", "알 수 없")):
             headline, subcopy = name, ""
         # 스타일 지정 시 폰트·액센트 자동 매핑(style_specs)
-        final = apply_food_poster(final, headline, subcopy, layout=layout, style_key=style)
+        with _stage(run, "poster"):
+            final = apply_food_poster(final, headline, subcopy, layout=layout, style_key=style)
 
     # 심미 점수(플라이휠 라벨) — 실패 무해
     aesthetic = None
-    try:
-        from ..harness.metrics import aesthetic_primary
-        aesthetic = aesthetic_primary(final)
-    except Exception:
-        pass
+    # 운영 의존성에 pyiqa/CLIP이 없으면 매 요청 실패만 반복한다. 평가 실행은 명시적으로 켠다.
+    if os.environ.get("ADNOVA_EVAL", "0") == "1":
+        with _stage(run, "evaluate"):
+            try:
+                from ..harness.metrics import aesthetic_primary
+                aesthetic = aesthetic_primary(final)
+            except Exception:
+                pass
 
     result = ProcessedAd(
         final_image_path=final, domain=domain, engine=engine,
         subject_en=subject_en, copy_text=copy.copy_text, poster=poster,
-        seconds=round(time.time() - t0, 2), style=style, aesthetic=aesthetic,
+        seconds=round(time.time() - t0, 2), seed=selected_seed,
+        style=style, aesthetic=aesthetic,
     )
-
-    # 원장 적재(재생성 불가 결과를 학습자산으로 — DIRECTION D-플라이휠)
-    if log:
-        try:
-            from ..harness.run_logger import RunLogger
-            with RunLogger(phase="P6", mode=domain, engine=engine, input=image_path,
-                           params={"name": name, "style": style, "subject_en": subject_en,
-                                   "layout": layout}) as run:
-                run.set_output(final)
-                if aesthetic is not None:
-                    run.add_metric("aesthetic", aesthetic)
-        except Exception:
-            pass
 
     return result
 

@@ -113,7 +113,8 @@ def _get_or_create_naver_user(
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
-        return new_user
+        return new_user, True
+        
     except IntegrityError as exc:
         db.rollback()
 

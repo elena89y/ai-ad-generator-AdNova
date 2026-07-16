@@ -21,6 +21,7 @@ import json
 import logging
 import mimetypes
 import os
+from functools import lru_cache
 from dataclasses import dataclass
 from typing import Optional
 
@@ -171,15 +172,15 @@ def _caption_image(image_path: str) -> str:
 def _chat_json(messages: list, label: str) -> dict:
     """JSON 강제 chat 호출 공통 래퍼. 토큰 사용량 기록 포함.
 
-    name=label 로 Langfuse generation 이름을 기존 예산 추적 라벨과 통일 —
-    Langfuse UI 에서 어떤 호출인지(generate_copy/vision, judge_ad/vision 등) 바로 필터링 가능.
+    호출 라벨은 usage 로그와 상위 observe span 에서 관리한다. ``name`` 은 OpenAI
+    Chat Completions 표준 인자가 아니며, Langfuse 래퍼가 공식 클라이언트로 전달하면
+    요청 전에 TypeError 가 발생하므로 API 호출 인자로 넘기지 않는다.
     """
     client = _get_client()
     response = client.chat.completions.create(
         model=GPT_MODEL,
         messages=messages,
         response_format={"type": "json_object"},
-        name=label,
     )
     _record_usage(label, response)
     return json.loads(response.choices[0].message.content)
@@ -559,12 +560,15 @@ def build_cake_layers(name: str, subject_en: str = "", image_desc: str = "") -> 
         return {"layers": [], "top": "", "plausible": False}
 
 
+@lru_cache(maxsize=256)
 def analyze_menu(name: str) -> MenuAnalysis:
     """상품명(한/영) → 라우팅 정보. 사용자는 이름만 입력, 나머지는 GPT 매핑.
 
     최상위로 domain(food/object) 을 판정 — 음식이면 category·재료·texture_hero,
     사물이면 material 을 뽑는다. display_name 은 원문 보존(헤드라인용).
     """
+    # 이름 기반 분석은 결정적이며 같은 생성에서 라우팅·플랫폼 카피가 중복 호출한다.
+    # 예외는 lru_cache에 저장되지 않으므로 일시적인 API 실패도 고착되지 않는다.
     display_name = (name or "").strip()
     instruction = (
         "너는 소상공인 광고 파이프라인의 상품 분석기야. 아래 '상품명'을 분석해 JSON 으로만 응답해.\n"
@@ -659,7 +663,6 @@ def detect_material(image_path: str) -> str:
             {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{image_b64}"}},
         ]}],
         response_format={"type": "json_object"},
-        name="detect_material",
     )
     _record_usage("detect_material", response)
     try:
@@ -742,7 +745,6 @@ def analyze_image_for_style(image_path: str) -> list[StyleCandidate]:
             }
         ],
         response_format={"type": "json_object"},
-        name="analyze_image_for_style/vision",
     )
     _record_usage("analyze_image_for_style/vision", response)
 

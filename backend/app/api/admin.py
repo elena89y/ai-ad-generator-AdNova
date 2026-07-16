@@ -1,46 +1,67 @@
-import json
-import re
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.core.admin_security import get_current_admin
-from app.core.security import get_current_user, hash_password, verify_password
+from app.core.admin_security import get_current_admin, get_current_super_admin
+from app.core.security import get_current_user
 from app.crud.admin import (
+    count_active_super_admins,
     count_advertisements_by_user,
+    create_admin_audit_log,
+    get_admin_account_by_id,
+    get_purchase_history_for_admin,
+    get_admin_summary,
+    get_subscription_for_admin,
     get_user_for_admin,
+    list_admin_accounts,
+    list_subscriptions_for_admin,
+    list_purchase_histories_for_admin,
+    list_admin_audit_logs,
     list_users_for_admin,
+    refund_demo_purchase_for_admin,
+    update_admin_account_active_status,
+    update_admin_account_role,
+    update_user_active_status,
+    update_user_premium_access,
 )
-from app.database.admin_models import (
-    AdminAccount,
-    AdminLog,
-    Inquiry,
-    RefundRequest,
-    utc_now,
+from app.crud.inquiry import (
+    answer_inquiry,
+    get_inquiry_by_id,
+    list_inquiries_for_admin,
+    update_inquiry_status,
 )
-from app.database.billing_models import PurchaseHistory, Subscription
+from app.database.admin_models import AdminAccount
+from app.database.billing_models import Subscription
 from app.database.connection import get_db
 from app.database.models import User
 from app.schemas.admin import (
-    AdminInquiryListResponse,
-    AdminInquiryReplyRequest,
-    AdminInquiryResponse,
+    AdminAccountListResponse,
+    AdminAccountResponse,
+    AdminAccountRoleUpdateRequest,
+    AdminAccountStatusUpdateRequest,
+    AdminAuditLogListResponse,
+    AdminAuditLogResponse,
+    AdminDemoRefundRequest,
+    AdminDemoRefundResponse,
     AdminMeResponse,
-    AdminMessageResponse,
-    AdminPasswordChangeRequest,
-    AdminPaymentListResponse,
-    AdminPaymentResponse,
-    AdminRefundCreateRequest,
-    AdminRefundRejectRequest,
-    AdminRefundResponse,
-    AdminSubscriptionUpdateRequest,
+    AdminPurchaseHistoryListResponse,
+    AdminPurchaseHistoryResponse,
+    AdminSubscriptionListResponse,
+    AdminSubscriptionResponse,
     AdminUserDetailResponse,
     AdminUserListResponse,
     AdminUserResponse,
-    AdminUserStatusRequest,
+    AdminUserStatusUpdateRequest,
+    AdminUserSubscriptionUpdateRequest,
+    AdminSummaryResponse,
 )
-from app.schemas.auth import PASSWORD_PATTERN
+from app.schemas.inquiry import (
+    AdminInquiryListResponse,
+    AdminInquiryResponse,
+    InquiryAnswerUpdateRequest,
+    InquiryStatusUpdateRequest,
+)
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -59,10 +80,176 @@ def read_admin_me(
     )
 
 
+def _build_admin_account_response(
+    admin_account: AdminAccount,
+    user: User,
+) -> AdminAccountResponse:
+    return AdminAccountResponse(
+        id=admin_account.id,
+        user_id=user.id,
+        username=user.username,
+        email=user.email,
+        role=admin_account.role,
+        is_active=admin_account.is_active,
+        created_at=admin_account.created_at,
+        updated_at=admin_account.updated_at,
+    )
+
+
+@router.get("/accounts", response_model=AdminAccountListResponse)
+def read_admin_accounts(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    search: str | None = Query(None, min_length=1, max_length=100),
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_super_admin),
+) -> AdminAccountListResponse:
+    del current_admin
+    total, rows = list_admin_accounts(
+        db,
+        skip=skip,
+        limit=limit,
+        search=search,
+    )
+    return AdminAccountListResponse(
+        total=total,
+        items=[
+            _build_admin_account_response(admin_account, user)
+            for admin_account, user in rows
+        ],
+    )
+
+
+@router.patch(
+    "/accounts/{admin_account_id}/role",
+    response_model=AdminAccountResponse,
+)
+def update_admin_account_role_by_super_admin(
+    admin_account_id: int,
+    request: AdminAccountRoleUpdateRequest,
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_super_admin),
+) -> AdminAccountResponse:
+    row = get_admin_account_by_id(db, admin_account_id)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="관리자 계정을 찾을 수 없습니다.",
+        )
+
+    target_admin, user = row
+    if target_admin.id == current_admin.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="현재 로그인한 관리자 역할은 변경할 수 없습니다.",
+        )
+    if (
+        target_admin.role == "super_admin"
+        and target_admin.is_active
+        and request.role != "super_admin"
+        and count_active_super_admins(db) <= 1
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="활성 최고 관리자는 최소 한 명 이상 필요합니다.",
+        )
+
+    try:
+        update_admin_account_role(
+            db,
+            target_admin,
+            role=request.role,
+            commit=False,
+        )
+        create_admin_audit_log(
+            db,
+            admin_user_id=current_admin.user_id,
+            action="admin.role_updated",
+            target_type="admin_account",
+            target_id=target_admin.id,
+            detail=f"role={request.role}",
+        )
+    except Exception:
+        db.rollback()
+        raise
+
+    return _build_admin_account_response(target_admin, user)
+
+
+@router.patch(
+    "/accounts/{admin_account_id}/status",
+    response_model=AdminAccountResponse,
+)
+def update_admin_account_status_by_super_admin(
+    admin_account_id: int,
+    request: AdminAccountStatusUpdateRequest,
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_super_admin),
+) -> AdminAccountResponse:
+    row = get_admin_account_by_id(db, admin_account_id)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="관리자 계정을 찾을 수 없습니다.",
+        )
+
+    target_admin, user = row
+    if target_admin.id == current_admin.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="현재 로그인한 관리자 계정 상태는 변경할 수 없습니다.",
+        )
+    if (
+        target_admin.role == "super_admin"
+        and target_admin.is_active
+        and not request.is_active
+        and count_active_super_admins(db) <= 1
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="활성 최고 관리자는 최소 한 명 이상 필요합니다.",
+        )
+
+    try:
+        update_admin_account_active_status(
+            db,
+            target_admin,
+            is_active=request.is_active,
+            commit=False,
+        )
+        create_admin_audit_log(
+            db,
+            admin_user_id=current_admin.user_id,
+            action="admin.status_updated",
+            target_type="admin_account",
+            target_id=target_admin.id,
+            detail=f"is_active={request.is_active}",
+        )
+    except Exception:
+        db.rollback()
+        raise
+
+    return _build_admin_account_response(target_admin, user)
+
+
+@router.get("/summary", response_model=AdminSummaryResponse)
+def read_admin_summary(
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminSummaryResponse:
+    del current_admin
+    return AdminSummaryResponse(**get_admin_summary(db))
+
+
 def _build_admin_user_response(
     user: User,
     subscription: Subscription | None,
 ) -> AdminUserResponse:
+    is_premium = bool(
+        subscription
+        and subscription.plan == "premium"
+        and subscription.status == "active"
+    )
     return AdminUserResponse(
         id=user.id,
         username=user.username,
@@ -71,9 +258,77 @@ def _build_admin_user_response(
         business_name=user.business_name,
         is_active=user.is_active,
         created_at=user.created_at,
-        plan=subscription.plan if subscription else "free",
+        plan="premium" if is_premium else "free",
         subscription_status=subscription.status if subscription else None,
-        subscription_id=subscription.id if subscription else None,
+    )
+
+
+def _build_admin_purchase_response(
+    purchase,
+    user: User,
+) -> AdminPurchaseHistoryResponse:
+    return AdminPurchaseHistoryResponse(
+        id=purchase.id,
+        user_id=user.id,
+        username=user.username,
+        email=user.email,
+        provider=purchase.provider,
+        item_type=purchase.item_type,
+        description=purchase.description,
+        amount=purchase.amount,
+        currency=purchase.currency,
+        status=purchase.status,
+        purchased_at=purchase.purchased_at,
+    )
+
+
+def _build_admin_subscription_response(
+    subscription: Subscription,
+    user: User,
+) -> AdminSubscriptionResponse:
+    return AdminSubscriptionResponse(
+        id=subscription.id,
+        user_id=user.id,
+        username=user.username,
+        email=user.email,
+        plan=subscription.plan,
+        status=subscription.status,
+        provider=subscription.provider,
+        current_period_start=subscription.current_period_start,
+        current_period_end=subscription.current_period_end,
+        cancel_at_period_end=subscription.cancel_at_period_end,
+        cancel_requested_at=subscription.cancel_requested_at,
+    )
+
+
+def _build_admin_inquiry_response(inquiry, user: User) -> AdminInquiryResponse:
+    return AdminInquiryResponse(
+        id=inquiry.id,
+        user_id=user.id,
+        username=user.username,
+        email=user.email,
+        category=inquiry.category,
+        title=inquiry.title,
+        content=inquiry.content,
+        status=inquiry.status,
+        answer=inquiry.answer,
+        answered_by_admin_id=inquiry.answered_by_admin_id,
+        answered_at=inquiry.answered_at,
+        created_at=inquiry.created_at,
+        updated_at=inquiry.updated_at,
+    )
+
+
+def _build_admin_audit_log_response(audit_log, user: User) -> AdminAuditLogResponse:
+    return AdminAuditLogResponse(
+        id=audit_log.id,
+        admin_user_id=audit_log.admin_user_id,
+        admin_username=user.username,
+        action=audit_log.action,
+        target_type=audit_log.target_type,
+        target_id=audit_log.target_id,
+        detail=audit_log.detail,
+        created_at=audit_log.created_at,
     )
 
 
@@ -82,6 +337,8 @@ def read_admin_users(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     search: str | None = Query(None, min_length=1, max_length=100),
+    is_active: bool | None = Query(None),
+    plan: Literal["free", "premium"] | None = Query(None),
     db: Session = Depends(get_db),
     current_admin: AdminAccount = Depends(get_current_admin),
 ) -> AdminUserListResponse:
@@ -91,11 +348,290 @@ def read_admin_users(
         skip=skip,
         limit=limit,
         search=search,
+        is_active=is_active,
+        plan=plan,
     )
     return AdminUserListResponse(
         total=total,
         items=[_build_admin_user_response(user, subscription) for user, subscription in rows],
     )
+
+
+@router.get("/purchases", response_model=AdminPurchaseHistoryListResponse)
+def read_admin_purchase_histories(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    user_id: int | None = Query(None, gt=0),
+    search: str | None = Query(None, min_length=1, max_length=100),
+    payment_status: str | None = Query(None, min_length=1, max_length=30),
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminPurchaseHistoryListResponse:
+    del current_admin
+    total, rows = list_purchase_histories_for_admin(
+        db,
+        skip=skip,
+        limit=limit,
+        user_id=user_id,
+        search=search,
+        payment_status=payment_status,
+    )
+    return AdminPurchaseHistoryListResponse(
+        total=total,
+        items=[
+            _build_admin_purchase_response(purchase, user)
+            for purchase, user in rows
+        ],
+    )
+
+
+@router.post(
+    "/purchases/{purchase_id}/refund",
+    response_model=AdminDemoRefundResponse,
+)
+def refund_admin_demo_purchase(
+    purchase_id: int,
+    request: AdminDemoRefundRequest,
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_super_admin),
+) -> AdminDemoRefundResponse:
+    row = get_purchase_history_for_admin(db, purchase_id)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="구매 내역을 찾을 수 없습니다.",
+        )
+
+    purchase, user = row
+    if purchase.provider != "demo":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="데모 결제 내역만 환불할 수 있습니다.",
+        )
+    if purchase.item_type != "subscription":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="현재는 구독 결제만 환불할 수 있습니다.",
+        )
+    if purchase.status != "paid":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="환불할 수 있는 결제 내역이 아닙니다.",
+        )
+
+    try:
+        subscription_revoked = refund_demo_purchase_for_admin(db, purchase)
+        create_admin_audit_log(
+            db,
+            admin_user_id=current_admin.user_id,
+            action="purchase.refunded",
+            target_type="purchase",
+            target_id=purchase.id,
+            detail=(
+                f"reason={request.reason}; "
+                f"subscription_revoked={subscription_revoked}"
+            ),
+        )
+    except Exception:
+        db.rollback()
+        raise
+
+    return AdminDemoRefundResponse(
+        purchase=_build_admin_purchase_response(purchase, user),
+        subscription_revoked=subscription_revoked,
+    )
+
+
+@router.get("/purchases/{purchase_id}", response_model=AdminPurchaseHistoryResponse)
+def read_admin_purchase_history_detail(
+    purchase_id: int,
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminPurchaseHistoryResponse:
+    del current_admin
+    row = get_purchase_history_for_admin(db, purchase_id)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="구매 내역을 찾을 수 없습니다.",
+        )
+    purchase, user = row
+    return _build_admin_purchase_response(purchase, user)
+
+
+@router.get("/subscriptions", response_model=AdminSubscriptionListResponse)
+def read_admin_subscriptions(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    user_id: int | None = Query(None, gt=0),
+    plan: Literal["free", "premium"] | None = Query(None),
+    subscription_status: str | None = Query(None, min_length=1, max_length=30),
+    search: str | None = Query(None, min_length=1, max_length=100),
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminSubscriptionListResponse:
+    del current_admin
+    total, rows = list_subscriptions_for_admin(
+        db,
+        skip=skip,
+        limit=limit,
+        user_id=user_id,
+        plan=plan,
+        subscription_status=subscription_status,
+        search=search,
+    )
+    return AdminSubscriptionListResponse(
+        total=total,
+        items=[
+            _build_admin_subscription_response(subscription, user)
+            for subscription, user in rows
+        ],
+    )
+
+
+@router.get(
+    "/subscriptions/{subscription_id}",
+    response_model=AdminSubscriptionResponse,
+)
+def read_admin_subscription_detail(
+    subscription_id: int,
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminSubscriptionResponse:
+    del current_admin
+    row = get_subscription_for_admin(db, subscription_id)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="구독 정보를 찾을 수 없습니다.",
+        )
+    subscription, user = row
+    return _build_admin_subscription_response(subscription, user)
+
+
+@router.get("/audit-logs", response_model=AdminAuditLogListResponse)
+def read_admin_audit_logs(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    action: str | None = Query(None, min_length=1, max_length=100),
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminAuditLogListResponse:
+    del current_admin
+    total, rows = list_admin_audit_logs(
+        db,
+        skip=skip,
+        limit=limit,
+        action=action,
+    )
+    return AdminAuditLogListResponse(
+        total=total,
+        items=[
+            _build_admin_audit_log_response(audit_log, user)
+            for audit_log, user in rows
+        ],
+    )
+
+
+@router.get("/inquiries", response_model=AdminInquiryListResponse)
+def read_admin_inquiries(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    inquiry_status: str | None = Query(None, min_length=1, max_length=30),
+    search: str | None = Query(None, min_length=1, max_length=100),
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminInquiryListResponse:
+    del current_admin
+    total, rows = list_inquiries_for_admin(
+        db,
+        skip=skip,
+        limit=limit,
+        inquiry_status=inquiry_status,
+        search=search,
+    )
+    return AdminInquiryListResponse(
+        total=total,
+        items=[
+            _build_admin_inquiry_response(inquiry, user)
+            for inquiry, user in rows
+        ],
+    )
+
+
+@router.get("/inquiries/{inquiry_id}", response_model=AdminInquiryResponse)
+def read_admin_inquiry_detail(
+    inquiry_id: int,
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminInquiryResponse:
+    del current_admin
+    inquiry = get_inquiry_by_id(db, inquiry_id)
+    if inquiry is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문의를 찾을 수 없습니다.")
+    return _build_admin_inquiry_response(inquiry, inquiry.user)
+
+
+@router.patch("/inquiries/{inquiry_id}/status", response_model=AdminInquiryResponse)
+def update_admin_inquiry_status(
+    inquiry_id: int,
+    request: InquiryStatusUpdateRequest,
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminInquiryResponse:
+    inquiry = get_inquiry_by_id(db, inquiry_id)
+    if inquiry is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문의를 찾을 수 없습니다.")
+    try:
+        inquiry = update_inquiry_status(
+            db,
+            inquiry,
+            inquiry_status=request.status,
+            commit=False,
+        )
+        create_admin_audit_log(
+            db,
+            admin_user_id=current_admin.user_id,
+            action="inquiry.status_updated",
+            target_type="inquiry",
+            target_id=inquiry.id,
+            detail=f"status={request.status}",
+        )
+    except Exception:
+        db.rollback()
+        raise
+    return _build_admin_inquiry_response(inquiry, inquiry.user)
+
+
+@router.patch("/inquiries/{inquiry_id}/answer", response_model=AdminInquiryResponse)
+def answer_admin_inquiry(
+    inquiry_id: int,
+    request: InquiryAnswerUpdateRequest,
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminInquiryResponse:
+    inquiry = get_inquiry_by_id(db, inquiry_id)
+    if inquiry is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문의를 찾을 수 없습니다.")
+    try:
+        inquiry = answer_inquiry(
+            db,
+            inquiry,
+            answer=request.answer,
+            admin_user_id=current_admin.user_id,
+            commit=False,
+        )
+        create_admin_audit_log(
+            db,
+            admin_user_id=current_admin.user_id,
+            action="inquiry.answered",
+            target_type="inquiry",
+            target_id=inquiry.id,
+        )
+    except Exception:
+        db.rollback()
+        raise
+    return _build_admin_inquiry_response(inquiry, inquiry.user)
 
 
 @router.get("/users/{user_id}", response_model=AdminUserDetailResponse)
@@ -122,394 +658,101 @@ def read_admin_user_detail(
     )
 
 
-def _write_admin_log(
-    db: Session,
-    admin: AdminAccount,
-    *,
-    action: str,
-    target_type: str,
-    target_id: int | None,
-    before: dict | None = None,
-    after: dict | None = None,
-    note: str | None = None,
-) -> None:
-    db.add(
-        AdminLog(
-            admin_id=admin.id,
-            action=action,
-            target_type=target_type,
-            target_id=target_id,
-            before_value=json.dumps(before, ensure_ascii=False) if before else None,
-            after_value=json.dumps(after, ensure_ascii=False) if after else None,
-            note=note,
-        )
-    )
-
-
 @router.patch("/users/{user_id}/status", response_model=AdminUserResponse)
 def update_admin_user_status(
     user_id: int,
-    request: AdminUserStatusRequest,
+    request: AdminUserStatusUpdateRequest,
     db: Session = Depends(get_db),
-    current_admin: AdminAccount = Depends(get_current_admin),
+    current_admin: AdminAccount = Depends(get_current_super_admin),
 ) -> AdminUserResponse:
-    user = db.query(User).filter(User.id == user_id).first()
-    if user is None:
-        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
-    if user.id == current_admin.user_id and not request.is_active:
-        raise HTTPException(status_code=409, detail="자기 관리자 계정은 정지할 수 없습니다.")
+    if user_id == current_admin.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="현재 로그인한 관리자 계정의 상태는 변경할 수 없습니다.",
+        )
 
-    before = {"is_active": user.is_active}
-    user.is_active = request.is_active
-    _write_admin_log(
-        db,
-        current_admin,
-        action="user_status_update",
-        target_type="user",
-        target_id=user.id,
-        before=before,
-        after={"is_active": user.is_active},
+    target_admin = (
+        db.query(AdminAccount).filter(AdminAccount.user_id == user_id).first()
     )
-    db.commit()
-    db.refresh(user)
-    subscription = db.query(Subscription).filter(Subscription.user_id == user.id).first()
+    if target_admin is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="관리자 계정 상태는 이 기능으로 변경할 수 없습니다.",
+        )
+
+    row = get_user_for_admin(db, user_id)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="사용자를 찾을 수 없습니다.",
+        )
+
+    user, subscription = row
+    try:
+        update_user_active_status(
+            db,
+            user,
+            is_active=request.is_active,
+            commit=False,
+        )
+        create_admin_audit_log(
+            db,
+            admin_user_id=current_admin.user_id,
+            action="user.status_updated",
+            target_type="user",
+            target_id=user.id,
+            detail=f"is_active={request.is_active}",
+        )
+    except Exception:
+        db.rollback()
+        raise
     return _build_admin_user_response(user, subscription)
 
 
-@router.patch(
-    "/users/{user_id}/subscription",
-    response_model=AdminUserResponse,
-)
+@router.patch("/users/{user_id}/subscription", response_model=AdminUserResponse)
 def update_admin_user_subscription(
     user_id: int,
-    request: AdminSubscriptionUpdateRequest,
+    request: AdminUserSubscriptionUpdateRequest,
     db: Session = Depends(get_db),
-    current_admin: AdminAccount = Depends(get_current_admin),
+    current_admin: AdminAccount = Depends(get_current_super_admin),
 ) -> AdminUserResponse:
-    user = db.query(User).filter(User.id == user_id).first()
-    if user is None:
-        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
-
-    plan = request.plan.strip().lower()
-    if plan not in {"free", "premium"}:
-        raise HTTPException(status_code=422, detail="지원하지 않는 구독 플랜입니다.")
-
-    subscription = db.query(Subscription).filter(Subscription.user_id == user.id).first()
-    before = {
-        "plan": subscription.plan if subscription else "free",
-        "status": subscription.status if subscription else None,
-    }
-    if subscription is None:
-        subscription = Subscription(user_id=user.id)
-        db.add(subscription)
-
-    subscription.plan = plan
-    subscription.status = "active" if plan == "premium" else "inactive"
-    subscription.cancel_at_period_end = False
-    subscription.cancel_requested_at = None
-    _write_admin_log(
-        db,
-        current_admin,
-        action="subscription_update",
-        target_type="user",
-        target_id=user.id,
-        before=before,
-        after={"plan": subscription.plan, "status": subscription.status},
-    )
-    db.commit()
-    db.refresh(subscription)
-    return _build_admin_user_response(user, subscription)
-
-
-def _latest_refund(db: Session, payment_id: int) -> RefundRequest | None:
-    return (
-        db.query(RefundRequest)
-        .filter(RefundRequest.payment_id == payment_id)
-        .order_by(RefundRequest.requested_at.desc())
-        .first()
-    )
-
-
-def _build_admin_payment_response(
-    db: Session,
-    payment: PurchaseHistory,
-    user: User,
-) -> AdminPaymentResponse:
-    refund = _latest_refund(db, payment.id)
-    payment_status = payment.status
-    if refund and refund.status == "pending":
-        payment_status = "refund_pending"
-    elif refund and refund.status == "approved":
-        payment_status = "refunded"
-
-    return AdminPaymentResponse(
-        id=payment.id,
-        user_id=user.id,
-        order_number=payment.provider_payment_id or f"ADN-{payment.id:08d}",
-        user_name=user.name or user.username,
-        email=user.email,
-        business_name=user.business_name,
-        product=payment.description,
-        amount=payment.amount,
-        currency=payment.currency,
-        paid_at=payment.purchased_at,
-        status=payment_status,
-        refund_id=refund.id if refund else None,
-        refund_amount=refund.amount if refund else None,
-        refund_reason=refund.reason if refund else None,
-        refund_requested_at=refund.requested_at if refund else None,
-    )
-
-
-@router.get("/payments", response_model=AdminPaymentListResponse)
-def read_admin_payments(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(200, ge=1, le=500),
-    search: str | None = Query(None, max_length=100),
-    db: Session = Depends(get_db),
-    current_admin: AdminAccount = Depends(get_current_admin),
-) -> AdminPaymentListResponse:
-    del current_admin
-    query = db.query(PurchaseHistory, User).join(User, User.id == PurchaseHistory.user_id)
-    if search:
-        keyword = f"%{search}%"
-        query = query.filter(
-            or_(
-                User.username.ilike(keyword),
-                User.name.ilike(keyword),
-                User.email.ilike(keyword),
-                User.business_name.ilike(keyword),
-                PurchaseHistory.provider_payment_id.ilike(keyword),
-                PurchaseHistory.description.ilike(keyword),
-            )
-        )
-    total = query.count()
-    rows = (
-        query.order_by(PurchaseHistory.purchased_at.desc())
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
-    return AdminPaymentListResponse(
-        total=total,
-        items=[_build_admin_payment_response(db, payment, user) for payment, user in rows],
-    )
-
-
-def _build_refund_response(refund: RefundRequest) -> AdminRefundResponse:
-    return AdminRefundResponse(
-        id=refund.id,
-        payment_id=refund.payment_id,
-        status=refund.status,
-        amount=refund.amount,
-        reason=refund.reason,
-        rejection_reason=refund.rejection_reason,
-        requested_at=refund.requested_at,
-        processed_at=refund.processed_at,
-    )
-
-
-@router.post("/refunds", response_model=AdminRefundResponse, status_code=201)
-def create_admin_refund(
-    request: AdminRefundCreateRequest,
-    db: Session = Depends(get_db),
-    current_admin: AdminAccount = Depends(get_current_admin),
-) -> AdminRefundResponse:
-    payment = db.query(PurchaseHistory).filter(PurchaseHistory.id == request.payment_id).first()
-    if payment is None:
-        raise HTTPException(status_code=404, detail="결제 내역을 찾을 수 없습니다.")
-    if payment.status not in {"paid", "refund_pending"}:
-        raise HTTPException(status_code=409, detail="환불할 수 없는 결제 상태입니다.")
-    if request.amount > payment.amount:
-        raise HTTPException(status_code=422, detail="환불 금액이 결제 금액을 초과합니다.")
-
-    refund = RefundRequest(
-        payment_id=payment.id,
-        user_id=payment.user_id,
-        amount=request.amount,
-        reason=request.reason,
-        status="approved",
-        processed_by=current_admin.id,
-        processed_at=utc_now(),
-    )
-    payment.status = "refunded"
-    db.add(refund)
-    db.flush()
-    _write_admin_log(
-        db,
-        current_admin,
-        action="refund_create",
-        target_type="refund",
-        target_id=refund.id,
-        after={"payment_id": payment.id, "amount": request.amount, "status": "approved"},
-        note=request.reason,
-    )
-    db.commit()
-    db.refresh(refund)
-    return _build_refund_response(refund)
-
-
-@router.post("/refunds/{refund_id}/approve", response_model=AdminRefundResponse)
-def approve_admin_refund(
-    refund_id: int,
-    db: Session = Depends(get_db),
-    current_admin: AdminAccount = Depends(get_current_admin),
-) -> AdminRefundResponse:
-    refund = db.query(RefundRequest).filter(RefundRequest.id == refund_id).first()
-    if refund is None:
-        raise HTTPException(status_code=404, detail="환불 신청을 찾을 수 없습니다.")
-    if refund.status != "pending":
-        raise HTTPException(status_code=409, detail="이미 처리된 환불 신청입니다.")
-
-    payment = db.query(PurchaseHistory).filter(PurchaseHistory.id == refund.payment_id).first()
-    if payment is None:
-        raise HTTPException(status_code=404, detail="결제 내역을 찾을 수 없습니다.")
-    refund.status = "approved"
-    refund.processed_by = current_admin.id
-    refund.processed_at = utc_now()
-    payment.status = "refunded"
-    _write_admin_log(
-        db,
-        current_admin,
-        action="refund_approve",
-        target_type="refund",
-        target_id=refund.id,
-        before={"status": "pending"},
-        after={"status": "approved"},
-    )
-    db.commit()
-    db.refresh(refund)
-    return _build_refund_response(refund)
-
-
-@router.post("/refunds/{refund_id}/reject", response_model=AdminRefundResponse)
-def reject_admin_refund(
-    refund_id: int,
-    request: AdminRefundRejectRequest,
-    db: Session = Depends(get_db),
-    current_admin: AdminAccount = Depends(get_current_admin),
-) -> AdminRefundResponse:
-    refund = db.query(RefundRequest).filter(RefundRequest.id == refund_id).first()
-    if refund is None:
-        raise HTTPException(status_code=404, detail="환불 신청을 찾을 수 없습니다.")
-    if refund.status != "pending":
-        raise HTTPException(status_code=409, detail="이미 처리된 환불 신청입니다.")
-
-    payment = db.query(PurchaseHistory).filter(PurchaseHistory.id == refund.payment_id).first()
-    refund.status = "rejected"
-    refund.rejection_reason = request.reason
-    refund.processed_by = current_admin.id
-    refund.processed_at = utc_now()
-    if payment is not None:
-        payment.status = "paid"
-    _write_admin_log(
-        db,
-        current_admin,
-        action="refund_reject",
-        target_type="refund",
-        target_id=refund.id,
-        before={"status": "pending"},
-        after={"status": "rejected"},
-        note=request.reason,
-    )
-    db.commit()
-    db.refresh(refund)
-    return _build_refund_response(refund)
-
-
-def _build_admin_inquiry_response(inquiry: Inquiry, user: User) -> AdminInquiryResponse:
-    return AdminInquiryResponse(
-        id=inquiry.id,
-        user_id=user.id,
-        user_name=user.name or user.username,
-        email=user.email,
-        business_name=user.business_name,
-        title=inquiry.title,
-        content=inquiry.content,
-        status=inquiry.status,
-        reply=inquiry.reply,
-        created_at=inquiry.created_at,
-        answered_at=inquiry.answered_at,
-    )
-
-
-@router.get("/inquiries", response_model=AdminInquiryListResponse)
-def read_admin_inquiries(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(200, ge=1, le=500),
-    db: Session = Depends(get_db),
-    current_admin: AdminAccount = Depends(get_current_admin),
-) -> AdminInquiryListResponse:
-    del current_admin
-    query = db.query(Inquiry, User).join(User, User.id == Inquiry.user_id)
-    total = query.count()
-    rows = query.order_by(Inquiry.created_at.desc()).offset(skip).limit(limit).all()
-    return AdminInquiryListResponse(
-        total=total,
-        items=[_build_admin_inquiry_response(inquiry, user) for inquiry, user in rows],
-    )
-
-
-@router.post(
-    "/inquiries/{inquiry_id}/reply",
-    response_model=AdminInquiryResponse,
-)
-def reply_admin_inquiry(
-    inquiry_id: int,
-    request: AdminInquiryReplyRequest,
-    db: Session = Depends(get_db),
-    current_admin: AdminAccount = Depends(get_current_admin),
-) -> AdminInquiryResponse:
-    row = (
-        db.query(Inquiry, User)
-        .join(User, User.id == Inquiry.user_id)
-        .filter(Inquiry.id == inquiry_id)
-        .first()
-    )
-    if row is None:
-        raise HTTPException(status_code=404, detail="문의를 찾을 수 없습니다.")
-    inquiry, user = row
-    before = {"status": inquiry.status, "reply": inquiry.reply}
-    inquiry.reply = request.reply
-    inquiry.status = "answered"
-    inquiry.answered_by = current_admin.id
-    inquiry.answered_at = utc_now()
-    _write_admin_log(
-        db,
-        current_admin,
-        action="inquiry_reply",
-        target_type="inquiry",
-        target_id=inquiry.id,
-        before=before,
-        after={"status": inquiry.status, "reply": inquiry.reply},
-    )
-    db.commit()
-    db.refresh(inquiry)
-    return _build_admin_inquiry_response(inquiry, user)
-
-
-@router.patch("/password", response_model=AdminMessageResponse)
-def change_admin_password(
-    request: AdminPasswordChangeRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-    current_admin: AdminAccount = Depends(get_current_admin),
-) -> AdminMessageResponse:
-    if not verify_password(request.current_password, current_user.password_hash):
-        raise HTTPException(status_code=400, detail="현재 비밀번호가 올바르지 않습니다.")
-    if not re.match(PASSWORD_PATTERN, request.new_password):
+    if user_id == current_admin.user_id:
         raise HTTPException(
-            status_code=422,
-            detail="새 비밀번호는 영문 대소문자, 숫자, 특수문자를 포함해야 합니다.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="현재 로그인한 관리자 계정의 플랜은 변경할 수 없습니다.",
         )
 
-    current_user.password_hash = hash_password(request.new_password)
-    _write_admin_log(
-        db,
-        current_admin,
-        action="admin_password_change",
-        target_type="admin",
-        target_id=current_admin.id,
+    target_admin = (
+        db.query(AdminAccount).filter(AdminAccount.user_id == user_id).first()
     )
-    db.commit()
-    return AdminMessageResponse(message="관리자 비밀번호가 변경되었습니다.")
+    if target_admin is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="관리자 계정 플랜은 이 기능으로 변경할 수 없습니다.",
+        )
+
+    if get_user_for_admin(db, user_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="사용자를 찾을 수 없습니다.",
+        )
+
+    try:
+        user, subscription = update_user_premium_access(
+            db,
+            user_id,
+            is_premium=request.is_premium,
+            commit=False,
+        )
+        create_admin_audit_log(
+            db,
+            admin_user_id=current_admin.user_id,
+            action="user.subscription_updated",
+            target_type="user",
+            target_id=user.id,
+            detail=f"is_premium={request.is_premium}",
+        )
+    except Exception:
+        db.rollback()
+        raise
+    return _build_admin_user_response(user, subscription)

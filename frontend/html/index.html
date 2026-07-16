@@ -1461,6 +1461,9 @@ function clearAuth(){
   billingSummary=null;
   billingPurchases=[];
   isPremium=false;
+  freeTotal=3;
+  freeLeft=3;
+  freeNextRefillAt=null;
   syncUserUI();
   renderBilling();
 }
@@ -2137,7 +2140,7 @@ function pickPlat(el){
 /* ---------- generate flow ---------- */
 const steps=['사진을 분석하는 중…','스타일을 입히는 중…','광고 문구를 쓰는 중…','마무리하는 중…'];
 async function generate(){
-  if(freeLeft<=0){openUpgrade();return;}
+  if(!isPremium&&freeLeft<=0){openUpgrade();return;}
   if(!getToken()){
     toast('로그인 후 광고를 생성해 주세요');
     go('login');
@@ -2184,7 +2187,7 @@ async function generate(){
     try{data=await res.json();}catch(_){}
     if(!res.ok) throw new Error(readApiError(data,'광고 생성에 실패했습니다'));
     applyGeneratedResult(data);
-    useFreeCredit();
+    loadBilling(false);
     loadDashboardSummary(false);
     loadHistory(false);
     toast('광고가 생성되었습니다');
@@ -2199,7 +2202,7 @@ async function generate(){
 }
 
 async function regenerate(){
-  if(freeLeft<=0){openUpgrade();return;}
+  if(!isPremium&&freeLeft<=0){openUpgrade();return;}
   if(!getToken()){
     toast('로그인 후 광고를 다시 생성해 주세요');
     go('login');
@@ -2249,7 +2252,7 @@ async function regenerate(){
     try{data=await res.json();}catch(_){}
     if(!res.ok) throw new Error(readApiError(data,'다시 생성에 실패했습니다'));
     applyGeneratedResult(data);
-    useFreeCredit();
+    loadBilling(false);
     loadDashboardSummary(false);
     loadHistory(false);
     toast('광고를 다시 생성했습니다');
@@ -2268,7 +2271,20 @@ function slide(v){var a=document.getElementById('afterLayer');var hd=document.ge
 function resetSlider(){var r=document.getElementById('range');if(r){r.value=50;slide(50);}}
 
 /* ---------- freemium usage ---------- */
-let freeTotal=3, freeLeft=3;
+let freeTotal=3, freeLeft=3, freeNextRefillAt=null;
+function formatCreditRefillCountdown(){
+  if(isPremium)return '';
+  if(freeLeft>=freeTotal)return '충전 완료';
+  if(!freeNextRefillAt)return '';
+  const target=new Date(freeNextRefillAt).getTime();
+  if(Number.isNaN(target))return '';
+  const remaining=Math.max(0,target-Date.now());
+  if(remaining===0)return '충전 확인 중';
+  const totalMinutes=Math.ceil(remaining/60000);
+  const hours=Math.floor(totalMinutes/60);
+  const minutes=totalMinutes%60;
+  return hours>0?`${hours}시간 ${minutes}분 후 +1`:`${minutes}분 후 +1`;
+}
 function updateUsage(){
   document.querySelectorAll('.usage').forEach(u=>{
     if(isPremium){
@@ -2277,14 +2293,12 @@ function updateUsage(){
     }
     let dots='';
     for(let k=0;k<freeTotal;k++) dots+='<i class="'+(k<freeLeft?'on':'')+'"></i>';
-    u.innerHTML='<span class="udots">'+dots+'</span> 체험 <b>'+freeLeft+'</b>회 남음';
+    const refillText=formatCreditRefillCountdown();
+    u.innerHTML='<span class="udots">'+dots+'</span> 체험 <b>'+freeLeft+'</b>회'+(refillText?' · '+refillText:'');
   });
   document.querySelectorAll('.credits').forEach(el=>{
-    el.innerHTML=isPremium?'플랜 <b>프리미엄</b>':'크레딧 <b>3</b>';
+    el.innerHTML=isPremium?'플랜 <b>프리미엄</b>':'크레딧 <b>'+freeLeft+'</b>';
   });
-}
-function useFreeCredit(){
-  if(freeLeft>0){freeLeft--;updateUsage();if(freeLeft===0) toast('체험 3회를 모두 사용했어요');}
 }
 function openUpgrade(){closeProfile();document.getElementById('upgradeModal').classList.add('on');}
 function closeUpgrade(){document.getElementById('upgradeModal').classList.remove('on');}
@@ -2606,6 +2620,13 @@ function renderBilling(){
   const manage=document.getElementById('billingManage');
   const subscription=billingSummary&&billingSummary.subscription;
   const paymentMethod=billingSummary&&billingSummary.payment_method;
+  if(Number.isInteger(billingSummary?.free_credit_limit)){
+    freeTotal=Math.max(1,billingSummary.free_credit_limit);
+  }
+  if(Number.isInteger(billingSummary?.free_credits_remaining)){
+    freeLeft=Math.max(0,billingSummary.free_credits_remaining);
+  }
+  freeNextRefillAt=billingSummary?.next_free_credit_at||null;
   isPremium=Boolean(billingSummary&&billingSummary.is_premium);
   renderMembershipUI();
   const hasBillingData=Boolean(subscription||paymentMethod||billingPurchases.length);
@@ -2712,6 +2733,7 @@ async function submitDemoCheckout(){
     let data=null;try{data=await res.json();}catch(_){}
     if(!res.ok)throw new Error(readApiError(data,'테스트 결제를 완료하지 못했습니다'));
     billingSummary=data;
+    renderBilling();
     go('billing');
     toast(demoCheckoutMode==='payment-method'?'결제 방법을 변경했습니다':'테스트 결제가 완료되어 프리미엄이 적용됐습니다');
   }catch(err){toast(err.message||'테스트 결제를 완료하지 못했습니다');}
@@ -2792,7 +2814,8 @@ function applyPremiumUI(){
   if(detailDl)detailDl.style.display=isPremium?'block':'none';
 }
 function renderMembershipUI(){
-  const planText=isPremium?'프리미엄':'무료 체험 · 3회 남음';
+  const refillText=formatCreditRefillCountdown();
+  const planText=isPremium?'프리미엄':`무료 체험 · ${freeLeft}회${refillText?` · ${refillText}`:''}`;
   document.querySelectorAll('.pf-plan').forEach(el=>{el.textContent=planText;});
   document.querySelectorAll('#detailPremiumNotice,#sharePremiumNotice').forEach(el=>{el.style.display=isPremium?'none':'flex';});
   updateUsage();
@@ -2823,6 +2846,12 @@ else{ads.splice(0,ads.length);renderCards();}
 slide(50);
 updateUsage();
 renderBilling();applyPremiumUI();
+setInterval(()=>{
+  if(!getToken()||isPremium||!freeNextRefillAt)return;
+  const target=new Date(freeNextRefillAt).getTime();
+  if(!Number.isNaN(target)&&target<=Date.now())loadBilling(false);
+  else renderMembershipUI();
+},60000);
 document.getElementById('upgradeModal').addEventListener('click',e=>{if(e.target.id==='upgradeModal')closeUpgrade();});
 const API_BASE =
     window.location.hostname === "localhost"
@@ -2855,6 +2884,13 @@ document
   
   const isNewUser =
   hashParams.get("is_new_user") === "true";
+  
+  console.log("[OAuth 신규 사용자 확인]", {
+  rawValue: hashParams.get("is_new_user"),
+  isNewUser: isNewUser,
+  provider: provider,
+  userId: userId
+});
 
   if (!accessToken) {
     return;

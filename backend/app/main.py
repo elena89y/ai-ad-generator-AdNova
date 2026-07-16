@@ -9,7 +9,7 @@ import os
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api import account, admin, ads, billing, dashboard, history, images, support
+from app.api import account, admin, ads, billing, dashboard, history, images, inquiries
 from app.api.auth import router as auth_router
 from app.api.google_auth import router as google_auth_router
 from app.api.kakao_auth import router as kakao_auth_router
@@ -17,7 +17,7 @@ from app.api.naver_auth import router as naver_auth_router
 from app.api.export import router as export_router
 from app.core.config import settings
 from app.core.observability import init_langfuse, shutdown_langfuse
-from app.database import admin_models, billing_models, models
+from app.database import admin_models, models
 from app.database.connection import Base, engine
 
 # env(.env) 는 core.config 임포트 시점에 이미 로드됨 — Langfuse 는 그 다음, 첫 OpenAI/
@@ -61,7 +61,7 @@ app.include_router(billing.router, prefix=settings.API_PREFIX)
 app.include_router(dashboard.router, prefix=settings.API_PREFIX)
 app.include_router(history.router, prefix=settings.API_PREFIX)
 app.include_router(images.router, prefix=settings.API_PREFIX)
-app.include_router(support.router, prefix=settings.API_PREFIX)
+app.include_router(inquiries.router, prefix=settings.API_PREFIX)
 app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
 
 

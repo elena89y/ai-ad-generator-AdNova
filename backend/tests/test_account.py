@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -16,9 +17,18 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
+from app.database.admin_models import AdminAccount
 from app.database.billing_models import PaymentMethod, PurchaseHistory, Subscription
 from app.database.connection import Base
-from app.database.models import Advertisement, History, Image, User
+from app.database.models import (
+    Advertisement,
+    CreditBalance,
+    CreditRefillState,
+    History,
+    Image,
+    SupportInquiry,
+    User,
+)
 from app.schemas.account import AccountDeleteRequest, PasswordChangeRequest
 from app.services import image_service
 
@@ -142,6 +152,17 @@ class AccountApiTestCase(unittest.TestCase):
                         amount=9900,
                         status="paid",
                     ),
+                    SupportInquiry(
+                        user_id=self.user.id,
+                        category="general",
+                        title="test inquiry",
+                        content="test content",
+                    ),
+                    CreditBalance(user_id=self.user.id, free_credits_remaining=2),
+                    CreditRefillState(
+                        user_id=self.user.id,
+                        next_refill_at=datetime.now(timezone.utc) + timedelta(days=1),
+                    ),
                 ]
             )
             self.session.commit()
@@ -164,6 +185,9 @@ class AccountApiTestCase(unittest.TestCase):
             self.assertEqual(self.session.query(Subscription).count(), 0)
             self.assertEqual(self.session.query(PaymentMethod).count(), 0)
             self.assertEqual(self.session.query(PurchaseHistory).count(), 0)
+            self.assertEqual(self.session.query(SupportInquiry).count(), 0)
+            self.assertEqual(self.session.query(CreditBalance).count(), 0)
+            self.assertEqual(self.session.query(CreditRefillState).count(), 0)
             self.assertFalse(input_path.exists())
             self.assertFalse(output_path.exists())
 
@@ -178,6 +202,28 @@ class AccountApiTestCase(unittest.TestCase):
 
         self.assertEqual(context.exception.status_code, 400)
         self.assertEqual(self.session.query(User).count(), 1)
+
+    def test_admin_account_cannot_use_regular_account_deletion(self) -> None:
+        self.session.add(
+            AdminAccount(
+                user_id=self.user.id,
+                role="operator",
+                is_active=True,
+            )
+        )
+        self.session.commit()
+
+        with self.assertRaises(HTTPException) as context:
+            delete_account(
+                request=AccountDeleteRequest(current_password=self.password),
+                db=self.session,
+                current_user=self.user,
+                auth_provider="local",
+            )
+
+        self.assertEqual(context.exception.status_code, 409)
+        self.assertEqual(self.session.query(User).count(), 1)
+        self.assertEqual(self.session.query(AdminAccount).count(), 1)
 
     def test_social_login_user_can_delete_account_without_password(self) -> None:
         delete_account(

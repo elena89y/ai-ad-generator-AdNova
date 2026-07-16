@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -8,6 +9,56 @@ class AdminMeResponse(BaseModel):
     username: str
     email: str
     role: str
+
+
+class AdminAccountResponse(BaseModel):
+    id: int
+    user_id: int
+    username: str
+    email: str
+    role: str
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class AdminAccountListResponse(BaseModel):
+    total: int
+    items: list[AdminAccountResponse]
+
+
+class AdminAccountRoleUpdateRequest(BaseModel):
+    role: Literal["operator", "super_admin"]
+
+
+class AdminAccountStatusUpdateRequest(BaseModel):
+    is_active: bool
+
+
+class AdminSummaryResponse(BaseModel):
+    total_users: int
+    active_users: int
+    premium_users: int
+    total_advertisements: int
+    unresolved_inquiries: int
+    paid_purchase_count: int
+    paid_purchase_amount: int
+
+
+class AdminAuditLogResponse(BaseModel):
+    id: int
+    admin_user_id: int
+    admin_username: str
+    action: str
+    target_type: str
+    target_id: int
+    detail: str | None = None
+    created_at: datetime
+
+
+class AdminAuditLogListResponse(BaseModel):
+    total: int
+    items: list[AdminAuditLogResponse]
 
 
 class AdminUserResponse(BaseModel):
@@ -20,7 +71,6 @@ class AdminUserResponse(BaseModel):
     created_at: datetime
     plan: str
     subscription_status: str | None = None
-    subscription_id: int | None = None
 
 
 class AdminUserListResponse(BaseModel):
@@ -34,86 +84,56 @@ class AdminUserDetailResponse(AdminUserResponse):
     advertisement_count: int
 
 
-class AdminUserStatusRequest(BaseModel):
+class AdminUserStatusUpdateRequest(BaseModel):
     is_active: bool
 
 
-class AdminSubscriptionUpdateRequest(BaseModel):
-    plan: str = Field(min_length=1, max_length=30)
+class AdminUserSubscriptionUpdateRequest(BaseModel):
+    is_premium: bool
 
 
-class AdminPaymentResponse(BaseModel):
+class AdminPurchaseHistoryResponse(BaseModel):
     id: int
     user_id: int
-    order_number: str
-    user_name: str
+    username: str
     email: str
-    business_name: str | None = None
-    product: str
+    provider: str | None = None
+    item_type: str
+    description: str
     amount: int
     currency: str
-    paid_at: datetime
     status: str
-    refund_id: int | None = None
-    refund_amount: int | None = None
-    refund_reason: str | None = None
-    refund_requested_at: datetime | None = None
+    purchased_at: datetime
 
 
-class AdminPaymentListResponse(BaseModel):
+class AdminPurchaseHistoryListResponse(BaseModel):
     total: int
-    items: list[AdminPaymentResponse]
+    items: list[AdminPurchaseHistoryResponse]
 
 
-class AdminRefundCreateRequest(BaseModel):
-    payment_id: int
-    order_number: str | None = None
-    amount: int = Field(gt=0)
-    reason: str = Field(min_length=1, max_length=1000)
+class AdminDemoRefundRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=255)
 
 
-class AdminRefundRejectRequest(BaseModel):
-    reason: str = Field(min_length=1, max_length=1000)
+class AdminDemoRefundResponse(BaseModel):
+    purchase: AdminPurchaseHistoryResponse
+    subscription_revoked: bool
 
 
-class AdminRefundResponse(BaseModel):
-    id: int
-    payment_id: int
-    status: str
-    amount: int
-    reason: str
-    rejection_reason: str | None = None
-    requested_at: datetime
-    processed_at: datetime | None = None
-
-
-class AdminInquiryResponse(BaseModel):
+class AdminSubscriptionResponse(BaseModel):
     id: int
     user_id: int
-    user_name: str
+    username: str
     email: str
-    business_name: str | None = None
-    title: str
-    content: str
+    plan: str
     status: str
-    reply: str | None = None
-    created_at: datetime
-    answered_at: datetime | None = None
+    provider: str | None = None
+    current_period_start: datetime | None = None
+    current_period_end: datetime | None = None
+    cancel_at_period_end: bool
+    cancel_requested_at: datetime | None = None
 
 
-class AdminInquiryListResponse(BaseModel):
+class AdminSubscriptionListResponse(BaseModel):
     total: int
-    items: list[AdminInquiryResponse]
-
-
-class AdminInquiryReplyRequest(BaseModel):
-    reply: str = Field(min_length=1, max_length=5000)
-
-
-class AdminPasswordChangeRequest(BaseModel):
-    current_password: str
-    new_password: str = Field(min_length=8, max_length=20)
-
-
-class AdminMessageResponse(BaseModel):
-    message: str
+    items: list[AdminSubscriptionResponse]
