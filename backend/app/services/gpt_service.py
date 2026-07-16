@@ -171,15 +171,15 @@ def _caption_image(image_path: str) -> str:
 def _chat_json(messages: list, label: str) -> dict:
     """JSON 강제 chat 호출 공통 래퍼. 토큰 사용량 기록 포함.
 
-    name=label 로 Langfuse generation 이름을 기존 예산 추적 라벨과 통일 —
-    Langfuse UI 에서 어떤 호출인지(generate_copy/vision, judge_ad/vision 등) 바로 필터링 가능.
+    호출 라벨은 usage 로그와 상위 observe span 에서 관리한다. ``name`` 은 OpenAI
+    Chat Completions 표준 인자가 아니며, Langfuse 래퍼가 공식 클라이언트로 전달하면
+    요청 전에 TypeError 가 발생하므로 API 호출 인자로 넘기지 않는다.
     """
     client = _get_client()
     response = client.chat.completions.create(
         model=GPT_MODEL,
         messages=messages,
         response_format={"type": "json_object"},
-        name=label,
     )
     _record_usage(label, response)
     return json.loads(response.choices[0].message.content)
@@ -659,7 +659,6 @@ def detect_material(image_path: str) -> str:
             {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{image_b64}"}},
         ]}],
         response_format={"type": "json_object"},
-        name="detect_material",
     )
     _record_usage("detect_material", response)
     try:
@@ -742,7 +741,6 @@ def analyze_image_for_style(image_path: str) -> list[StyleCandidate]:
             }
         ],
         response_format={"type": "json_object"},
-        name="analyze_image_for_style/vision",
     )
     _record_usage("analyze_image_for_style/vision", response)
 
