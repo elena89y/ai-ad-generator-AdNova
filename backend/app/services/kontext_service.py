@@ -148,6 +148,11 @@ def _load_kontext():  # noqa: ANN202
     return _kontext_pipeline
 
 
+def preload() -> None:
+    """상주 생성 워커 시작 시 Kontext를 1회 미리 로드한다."""
+    _load_kontext()
+
+
 def unload() -> None:
     """Kontext 파이프라인 언로드 — VRAM 확보."""
     import gc
