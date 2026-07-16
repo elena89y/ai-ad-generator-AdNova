@@ -1845,20 +1845,84 @@ async function loginWithCredentials(username,password){
 }
 async function handleLogin(e){
   if(e) e.preventDefault();
+
   const username=document.getElementById('loginUsername').value.trim();
   const password=document.getElementById('loginPassword').value;
-  if(!username){toast('아이디를 입력해 주세요');return;}
-  if(!USERNAME_PATTERN.test(username)){toast('아이디는 영문과 숫자만 사용해서 7~12자로 입력해 주세요');return;}
-  if(!password){toast('비밀번호를 입력해 주세요');return;}
+
+  if(!username){
+    toast('아이디를 입력해주세요.');
+    return;
+  }
+
+  if(!password){
+    toast('비밀번호를 입력해주세요.');
+    return;
+  }
+
+  /*
+   * 백엔드 관리자 계정이 만들어지기 전 사용하는 임시 관리자 로그인
+   * 최초 로그인: admin / admin
+   * 관리자 페이지에서 비밀번호를 변경하면 변경한 비밀번호로 로그인
+   */
+  if(username==='admin'){
+    const adminPassword=
+      localStorage.getItem('adnova_mock_admin_password') || 'admin';
+
+    if(password!==adminPassword){
+      toast('관리자 비밀번호가 올바르지 않습니다.');
+      return;
+    }
+
+    const adminUser={
+      id:0,
+      username:'admin',
+      name:'AdNova 관리자',
+      email:'admin@adnova.com',
+      role:'admin',
+      is_admin:true
+    };
+
+    localStorage.setItem('adnova_access_token','mock-admin-token');
+    localStorage.setItem('adnova_user',JSON.stringify(adminUser));
+
+    toast('관리자로 로그인되었습니다.');
+
+    setTimeout(()=>{
+      window.location.href='./admin/?mock_admin=1';
+    },300);
+
+    return;
+  }
+
+  if(!USERNAME_PATTERN.test(username)){
+    toast('아이디는 영문과 숫자를 사용해 7~12자로 입력해주세요.');
+    return;
+  }
 
   try{
-    await loginWithCredentials(username,password);
-    toast('로그인되었습니다');
+    const data=await loginWithCredentials(username,password);
+    const user=data?.user || getStoredUser();
+
+    if(
+      user?.role==='admin' ||
+      user?.is_admin===true
+    ){
+      toast('관리자로 로그인되었습니다.');
+
+      setTimeout(()=>{
+        window.location.href='./admin/?mock_admin=1';
+      },300);
+
+      return;
+    }
+
+    toast('로그인되었습니다.');
     go('dashboard');
   }catch(err){
-    toast(err.message||'로그인에 실패했습니다');
+    toast(err.message || '로그인에 실패했습니다.');
   }
 }
+
 async function handleSignup(e){
   if(e) e.preventDefault();
   const email=document.getElementById('signupEmail').value.trim();
@@ -1901,9 +1965,7 @@ async function handleSignup(e){
 }
 function handleLogout(){
   clearAuth();
-  closeProfile();
-  go('login');
-  toast('로그아웃되었습니다');
+  window.location.href='./admin/';
 }
 function clearAccountPasswordFields(){
   ['currentPassword','newPassword','newPasswordConfirm','deleteAccountPassword'].forEach(id=>{
@@ -2933,5 +2995,7 @@ document
     </div>
   </div>
 </div>
+
+
 
 </body></html>
