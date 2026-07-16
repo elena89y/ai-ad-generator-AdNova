@@ -147,6 +147,47 @@ def _plan_key_from_candidate(name: str) -> str:
     raise ValueError(f"등록되지 않은 plan key 접두사: {prefix}")
 
 
+def _load_manifest_entries() -> list[dict]:
+    """기존 매니페스트를 읽는다. 손상 파일은 덮어쓰지 않고 finalize를 중단한다."""
+    if not MANIFEST.is_file():
+        return []
+    entries = []
+    for line_no, line in enumerate(MANIFEST.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"매니페스트 JSON 손상({line_no}행): {exc}") from exc
+        if not isinstance(entry, dict) or not all(key in entry for key in ("plan", "file", "sha256")):
+            raise ValueError(f"매니페스트 항목 형식 오류({line_no}행)")
+        entries.append(entry)
+    return entries
+
+
+def _manifest_plan_indices(entries: list[dict]) -> dict[str, int]:
+    """기존 확정 파일의 plan별 최대 연번을 복원한다."""
+    indices: dict[str, int] = {}
+    for entry in entries:
+        plan_key = str(entry["plan"])
+        prefix = f"{plan_key.replace('/', '_')}__"
+        filename = str(entry["file"])
+        suffix = filename.removeprefix(prefix).removesuffix(".png")
+        if filename.startswith(prefix) and suffix.isdigit():
+            indices[plan_key] = max(indices.get(plan_key, 0), int(suffix))
+    return indices
+
+
+def _write_manifest_entries(entries: list[dict]) -> None:
+    """병합된 매니페스트를 원자 교체한다."""
+    pending = MANIFEST.with_suffix(".jsonl.tmp")
+    pending.write_text(
+        "".join(json.dumps(entry, ensure_ascii=False) + "\n" for entry in entries),
+        encoding="utf-8",
+    )
+    pending.replace(MANIFEST)
+
+
 def _write_timing_report(outdir: Path, pilot: bool, load_s: float,
                          image_timings: list[dict], expected_images: int,
                          generated: int, skipped: int, retries: int,
@@ -287,27 +328,47 @@ def cmd_finalize(args) -> None:
     if not picks:
         sys.exit("picks 비어있음")
     MANIFEST.parent.mkdir(parents=True, exist_ok=True)
-    seen: dict[str, int] = {}
-    with open(MANIFEST, "w", encoding="utf-8") as mf:
-        for name in picks:
-            src = cand_dir / name
-            if not src.exists():
-                sys.exit(f"후보 없음: {name}")
-            try:
-                plan_key = _plan_key_from_candidate(name)
-            except ValueError as exc:
-                sys.exit(str(exc))
-            props = [] if "__none__" in name else name.split("__")[1].split("-")
-            seen[plan_key] = seen.get(plan_key, 0) + 1
-            dst = outdir / f"{plan_key.replace('/', '_')}__{seen[plan_key]}.png"
-            shutil.copy(src, dst)
-            mf.write(json.dumps({
-                "plan": plan_key, "file": dst.name, "sha256": _sha256(dst),
-                "version": 1, "props": props, "curated_by": args.curated_by,
-            }, ensure_ascii=False) + "\n")
-            print(f"채택 {plan_key} ← {name}")
+    validated = []
+    for name in picks:
+        src = cand_dir / name
+        if not src.exists():
+            sys.exit(f"후보 없음: {name}")
+        try:
+            plan_key = _plan_key_from_candidate(name)
+        except ValueError as exc:
+            sys.exit(str(exc))
+        props = [] if "__none__" in name else name.split("__")[1].split("-")
+        validated.append((name, src, plan_key, props, _sha256(src)))
+
+    try:
+        entries = _load_manifest_entries()
+    except ValueError as exc:
+        sys.exit(str(exc))
+    seen = _manifest_plan_indices(entries)
+    for name, src, plan_key, props, source_hash in validated:
+        duplicate = next(
+            (
+                entry for entry in entries
+                if entry["plan"] == plan_key and entry["sha256"] == source_hash
+                and (outdir / str(entry["file"])).is_file()
+                and _sha256(outdir / str(entry["file"])) == source_hash
+            ),
+            None,
+        )
+        if duplicate is not None:
+            print(f"이미 채택됨 {plan_key} ← {name}")
+            continue
+        seen[plan_key] = seen.get(plan_key, 0) + 1
+        dst = outdir / f"{plan_key.replace('/', '_')}__{seen[plan_key]}.png"
+        shutil.copy(src, dst)
+        entries.append({
+            "plan": plan_key, "file": dst.name, "sha256": _sha256(dst),
+            "version": 1, "props": props, "curated_by": args.curated_by,
+        })
+        print(f"채택 {plan_key} ← {name}")
+    _write_manifest_entries(entries)
     missing = {p.key for p in scene_plans.PLANS
-               if not p.requires_recompose} - set(seen)
+               if not p.requires_recompose} - {str(entry["plan"]) for entry in entries}
     if missing:
         print(f"⚠️ 채택본 없는 플랜(런타임 폴백됨): {sorted(missing)}")
     print(f"매니페스트 → {MANIFEST}")

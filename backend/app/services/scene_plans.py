@@ -188,6 +188,8 @@ PLANS: list[ScenePlan] = [
 
 _BY_KEY = {p.key: p for p in PLANS}
 assert len(_BY_KEY) == len(PLANS), "ScenePlan.key 중복"
+_FLAT_KEYS = {p.key.replace("/", "_") for p in PLANS}
+assert len(_FLAT_KEYS) == len(PLANS), "ScenePlan 파일명용 key 충돌"
 
 
 def plans_for(style: str, domain: str, allow_recompose: bool = False) -> list[ScenePlan]:

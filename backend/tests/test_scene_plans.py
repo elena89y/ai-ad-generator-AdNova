@@ -1,6 +1,7 @@
 """v4.1 P4C-1 장면 플랜·파일럿 빌더 회귀 테스트 — 담당: 한의정."""
 from __future__ import annotations
 
+import json
 import sys
 from types import SimpleNamespace
 
@@ -14,6 +15,7 @@ from scripts import v4_build_scene_library as scene_builder
 def test_plan_keys_unique_and_complete():
     keys = [p.key for p in PLANS]
     assert len(keys) == len(set(keys))
+    assert len(keys) == len({key.replace("/", "_") for key in keys})
     # 6무드 × 2도메인 모두 비-재연출 플랜이 1개 이상 (합성 경로 폴백 없는 구멍 방지)
     for style in ("pop", "editorial", "realism", "pastel", "monotone", "warm_vintage"):
         for domain in ("drink", "object"):
@@ -165,3 +167,41 @@ def test_finalize_plan_key_requires_exact_registered_prefix():
     assert scene_builder._plan_key_from_candidate(name) == "warm_vintage/drink/linen_organic"
     with pytest.raises(ValueError, match="등록되지 않은"):
         scene_builder._plan_key_from_candidate("warm_drink_linen__none__s11.png")
+
+
+def test_finalize_merges_manifest_without_overwrite_or_duplicate(tmp_path, monkeypatch):
+    outdir = tmp_path / "library"
+    cand_dir = outdir / "candidates"
+    cand_dir.mkdir(parents=True)
+    manifest = tmp_path / "assets" / "scene_library_manifest.jsonl"
+    manifest.parent.mkdir()
+    monkeypatch.setattr(scene_builder, "MANIFEST", manifest)
+
+    plan_key = "pop/drink/diagonal_splash"
+    old_final = outdir / "pop_drink_diagonal_splash__1.png"
+    old_final.write_bytes(b"old-final")
+    old_entry = {
+        "plan": plan_key,
+        "file": old_final.name,
+        "sha256": scene_builder._sha256(old_final),
+        "version": 1,
+        "props": [],
+        "curated_by": "first",
+    }
+    manifest.write_text(json.dumps(old_entry) + "\n", encoding="utf-8")
+
+    candidate_name = "pop_drink_diagonal_splash__none__s23.png"
+    candidate = cand_dir / candidate_name
+    candidate.write_bytes(b"new-final")
+    picks = tmp_path / "picks.txt"
+    picks.write_text(candidate_name + "\n", encoding="utf-8")
+    args = SimpleNamespace(outdir=str(outdir), picks=str(picks), curated_by="second")
+
+    scene_builder.cmd_finalize(args)
+    entries = [json.loads(line) for line in manifest.read_text().splitlines()]
+    assert entries[0] == old_entry
+    assert entries[1]["file"] == "pop_drink_diagonal_splash__2.png"
+    assert old_final.read_bytes() == b"old-final"
+
+    scene_builder.cmd_finalize(args)
+    assert len(manifest.read_text().splitlines()) == 2
