@@ -21,6 +21,7 @@ import json
 import logging
 import mimetypes
 import os
+from functools import lru_cache
 from dataclasses import dataclass
 from typing import Optional
 
@@ -559,12 +560,15 @@ def build_cake_layers(name: str, subject_en: str = "", image_desc: str = "") -> 
         return {"layers": [], "top": "", "plausible": False}
 
 
+@lru_cache(maxsize=256)
 def analyze_menu(name: str) -> MenuAnalysis:
     """상품명(한/영) → 라우팅 정보. 사용자는 이름만 입력, 나머지는 GPT 매핑.
 
     최상위로 domain(food/object) 을 판정 — 음식이면 category·재료·texture_hero,
     사물이면 material 을 뽑는다. display_name 은 원문 보존(헤드라인용).
     """
+    # 이름 기반 분석은 결정적이며 같은 생성에서 라우팅·플랫폼 카피가 중복 호출한다.
+    # 예외는 lru_cache에 저장되지 않으므로 일시적인 API 실패도 고착되지 않는다.
     display_name = (name or "").strip()
     instruction = (
         "너는 소상공인 광고 파이프라인의 상품 분석기야. 아래 '상품명'을 분석해 JSON 으로만 응답해.\n"

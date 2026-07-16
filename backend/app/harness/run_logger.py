@@ -16,9 +16,11 @@
 from __future__ import annotations
 
 import json
+import logging
 import subprocess
 import time
 import uuid
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -116,7 +118,8 @@ class RunLogger:
             "input": input,
             "seed": seed,
             "params": params or {},
-            "metrics": {},
+            "metrics": {"openai_calls": 0, "openai_tokens": 0, "openai_cost_usd": 0.0},
+            "stages": {},
             "timing": {"load_s": None, "infer_s": None, "total_s": None},
             "vram_peak_gb": 0.0,      # = vram.peak_allocated_gb (하위호환)
             "vram": {},               # allocated/reserved/free/total (OOM 진단, 연정 PDF #7)
@@ -166,6 +169,12 @@ class RunLogger:
                     {"model": model, "label": u.label, "tok_in": ti, "tok_out": to,
                      "cost_usd": cost_of(model, ti, to)}
                 )
+            usage = self.record["llm_usage"]
+            self.record["metrics"].update(
+                openai_calls=len(usage),
+                openai_tokens=sum(item["tok_in"] + item["tok_out"] for item in usage),
+                openai_cost_usd=round(sum(item["cost_usd"] for item in usage), 8),
+            )
         except Exception:
             pass
 
@@ -199,6 +208,23 @@ class RunLogger:
         base = self._t_load if self._t_load is not None else self._t0
         self.record["timing"]["infer_s"] = round(end - base, 2)
 
+    def set_meta(self, **kw: Any) -> None:
+        """생성 도중 확정되는 mode/engine/seed 등을 원장에 반영한다."""
+        for key, value in kw.items():
+            if key not in ("ts", "timing"):
+                self.record[key] = value
+
+    @contextmanager
+    def stage(self, name: str):  # noqa: ANN201
+        """한 생성 안의 단계별 누적 소요시간을 기록한다."""
+        started = time.perf_counter()
+        try:
+            yield
+        finally:
+            elapsed = time.perf_counter() - started
+            previous = self.record["stages"].get(name, 0.0)
+            self.record["stages"][name] = round(previous + elapsed, 2)
+
     # --- 채우기 ---
     def add_metric(self, key: str, value: Any) -> None:
         self.record["metrics"][key] = value
@@ -225,6 +251,10 @@ class RunLogger:
 
     # --- 저장 ---
     def _append(self) -> None:
-        self._runs_path.parent.mkdir(parents=True, exist_ok=True)
-        with self._runs_path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(self.record, ensure_ascii=False) + "\n")
+        try:
+            self._runs_path.parent.mkdir(parents=True, exist_ok=True)
+            with self._runs_path.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(self.record, ensure_ascii=False) + "\n")
+        except OSError as exc:
+            # 계측 저장 장애가 이미 완성된 광고 응답을 실패시키면 안 된다.
+            logging.getLogger(__name__).warning("RunLogger 원장 저장 실패: %s", exc)
