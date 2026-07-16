@@ -1,8 +1,11 @@
-"""v4 P4-1 장면 플랜 회귀 테스트 — 담당: 한의정."""
+"""v4.1 P4C-1 장면 플랜·파일럿 빌더 회귀 테스트 — 담당: 한의정."""
 from __future__ import annotations
+
+import pytest
 
 from app.services import scene_plans
 from app.services.scene_plans import PLANS, build_bg_prompt, get_plan, map_props
+from scripts import v4_build_scene_library as scene_builder
 
 
 def test_plan_keys_unique_and_complete():
@@ -30,6 +33,17 @@ def test_geometry_ranges():
         assert 0.4 <= p.surface_y <= 0.9
         assert 0.0 < p.subject_pos[0] < 1.0 and 0.0 < p.subject_pos[1] < 1.0
         assert p.light_dir in ("left", "right")
+        assert p.view_angle in ("eye", "high", "top")
+        assert p.view_angle == "eye"
+        assert 0.0 <= p.shadow_strength <= 1.0
+        assert 0.0 <= p.reflection_strength <= 1.0
+
+    reflected = {p.key for p in PLANS if p.reflection_strength > 0}
+    assert reflected == {
+        "pastel/drink/dreamy_cloud",
+        "monotone/drink/dark_mono",
+        "monotone/object/dark_mono",
+    }
 
 
 def test_rotation_and_recompose_filter():
@@ -43,7 +57,45 @@ def test_rotation_and_recompose_filter():
 
 
 def test_map_props_honesty_boundary():
-    assert map_props(["coffee beans", "milk"], []) == {"beans", "splash"}
-    assert map_props(["orange zest"], ["steam"]) == {"fruit", "steam"}
+    assert map_props(["coffee", "milk"], []) == {"beans", "splash"}
+    assert map_props(["orange"], ["steam"]) == {"orange", "steam"}
+    assert map_props(["strawberry"], []) == {"strawberry"}
+    assert map_props(["berry"], []) == {"strawberry"}
+    assert map_props(["citrus"], []) == set()
+    assert map_props(["mint"], []) == set()
+    assert map_props(["orange zest"], []) == set()
     assert map_props(None, []) == set()          # 매핑 불가 → 소품 없는 판
     assert map_props(["truffle"], []) == set()   # 미등록 재료는 소품 금지
+
+
+def test_pilot_contract_is_exactly_24_prop_free_images():
+    jobs, seeds = scene_builder._build_jobs("ignored", candidates=6, pilot=True)
+    assert len(jobs) == 8
+    assert seeds == (11, 23, 37)
+    assert len(jobs) * len(seeds) == 24
+    assert {p.style for p, _ in jobs} == {"pop", "warm_vintage"}
+    assert {p.domain for p, _ in jobs} == {"drink", "object"}
+    assert tuple(p.key for p, _ in jobs) == scene_builder.PILOT_PLAN_KEYS
+    assert all(props == () for _, props in jobs)
+
+
+def test_generate_retries_once_then_reports_failure():
+    calls = 0
+
+    def fail():
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("boom")
+
+    image, retries, error = scene_builder._generate_with_retry(fail)
+    assert image is None
+    assert retries == 1
+    assert error == "boom"
+    assert calls == 2
+
+
+def test_finalize_plan_key_requires_exact_registered_prefix():
+    name = "warm_vintage_drink_linen_organic__none__s11.png"
+    assert scene_builder._plan_key_from_candidate(name) == "warm_vintage/drink/linen_organic"
+    with pytest.raises(ValueError, match="등록되지 않은"):
+        scene_builder._plan_key_from_candidate("warm_drink_linen__none__s11.png")

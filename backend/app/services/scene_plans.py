@@ -1,4 +1,4 @@
-"""광고 장면 플랜 — 담당: 한의정. DIRECTION_v4 P4-1 (연정님 개선요청 PDF '장면 설계' 구현).
+"""광고 장면 플랜 — 담당: 한의정. DIRECTION_v4.1 P4C-1 장면 계약.
 
 ScenePlan = 배경 생성 프롬프트(오프라인 라이브러리 빌드용) + 합성 기하 + 카피 여백 + 광원방향.
   - light_dir 는 프롬프트에 명시해 '사전 확정' — 접지 그림자 방향을 추정할 필요가 없다.
@@ -28,6 +28,9 @@ class ScenePlan:
     surface_y: float          # 접지선 y (0~1)
     light_dir: str            # "left" | "right" — 프롬프트와 그림자 방향의 단일 출처
     text_zone: str            # "top" | "top_left" | "top_right" — overlay 헤드라인 위치
+    view_angle: str = "eye"   # "eye" | "high" | "top" — 입력 사진과 장면의 카메라 각도 계약
+    shadow_strength: float = 0.35
+    reflection_strength: float = 0.0
     prop_slots: tuple = ()    # PROP_PHRASES 키 중 이 장면에 어울리는 것
     requires_recompose: bool = False  # True = P5 재연출 전용(합성 부적합 구도)
 
@@ -35,20 +38,21 @@ class ScenePlan:
 # 소품 문구 — 이 어휘 밖의 소품을 프롬프트에 넣지 말 것(정직성 게이트가 검사하는 목록)
 PROP_PHRASES: dict[str, str] = {
     "beans": "a few scattered coffee beans",
-    "fruit": "fresh citrus slices",
-    "berry": "a few fresh strawberries",
+    "orange": "fresh orange slices",
+    "lemon": "fresh lemon slices",
+    "strawberry": "a few fresh strawberries",
     "ice": "clear ice cubes and water droplets",
     "splash": "a frozen dynamic milk splash arc mid-air",
     "steam": "gentle steam wisps",
 }
 
-# core_ingredients(영문 소문자 포함어) → prop 슬롯. 매핑 없으면 소품 없는 판 사용.
+# core_ingredients(정규화된 영문 단어) → prop 슬롯. 정확 일치가 아니면 소품 없는 판 사용.
 PROP_MAP: dict[str, str] = {
     "coffee": "beans", "espresso": "beans", "bean": "beans",
     "milk": "splash", "cream": "splash",
-    "orange": "fruit", "lemon": "fruit", "citrus": "fruit", "grapefruit": "fruit",
-    "strawberry": "berry", "berry": "berry",
-    "ice": "ice", "mint": "fruit",
+    "orange": "orange", "lemon": "lemon",
+    "strawberry": "strawberry", "berry": "strawberry",
+    "ice": "ice",
 }
 
 
@@ -76,12 +80,13 @@ NEGATIVE_PROMPT = (
 
 
 def _p(style, domain, archetype, scene, pos, scale, sy, light, tz,
-       props=(), recompose=False) -> ScenePlan:
+       props=(), recompose=False, view="eye", shadow=0.35, reflection=0.0) -> ScenePlan:
     return ScenePlan(
         key=f"{style}/{domain}/{archetype}", style=style, domain=domain,
         archetype=archetype, scene=scene, subject_pos=pos, subject_scale=scale,
-        surface_y=sy, light_dir=light, text_zone=tz, prop_slots=props,
-        requires_recompose=recompose)
+        surface_y=sy, light_dir=light, text_zone=tz, view_angle=view,
+        shadow_strength=shadow, reflection_strength=reflection,
+        prop_slots=props, requires_recompose=recompose)
 
 
 PLANS: list[ScenePlan] = [
@@ -126,7 +131,7 @@ PLANS: list[ScenePlan] = [
        (0.50, 0.63), 0.44, 0.78, "left", "top", props=("beans",)),
     _p("realism", "drink", "marble_daylight",
        "white marble countertop, airy bright kitchen bokeh, soft daylight",
-       (0.52, 0.64), 0.44, 0.78, "right", "top", props=("beans", "fruit")),
+       (0.52, 0.64), 0.44, 0.78, "right", "top", props=("lemon",)),
     _p("realism", "object", "desk_daylight",
        "light oak desk by a bright window, minimal home office bokeh, natural daylight",
        (0.50, 0.63), 0.42, 0.78, "left", "top"),
@@ -141,7 +146,8 @@ PLANS: list[ScenePlan] = [
     _p("pastel", "drink", "dreamy_cloud",
        "soft cream cloud shapes, baby blue to blush pink gradient, glossy "
        "reflective floor",
-       (0.50, 0.58), 0.42, 0.68, "right", "top", recompose=True),
+       (0.50, 0.58), 0.42, 0.68, "right", "top", recompose=True,
+       reflection=0.12),
     _p("pastel", "object", "soft_pedestal",
        "pale mint wall, round blush pedestal, dreamy soft glow, smooth gradient",
        (0.50, 0.60), 0.40, 0.70, "left", "top"),
@@ -155,14 +161,14 @@ PLANS: list[ScenePlan] = [
        (0.50, 0.60), 0.40, 0.70, "left", "top"),
     _p("monotone", "drink", "dark_mono",
        "deep charcoal studio, dramatic single rim light, dark subtly reflective surface",
-       (0.50, 0.62), 0.42, 0.74, "right", "top"),
+       (0.50, 0.62), 0.42, 0.74, "right", "top", reflection=0.12),
     _p("monotone", "object", "tone_pedestal",
        "neutral light gray seamless studio, round matte pedestal, single soft "
        "spotlight, smooth gradient falloff",
        (0.50, 0.60), 0.40, 0.70, "left", "top"),
     _p("monotone", "object", "dark_mono",
        "deep charcoal studio, dramatic single rim light, dark subtly reflective surface",
-       (0.50, 0.62), 0.42, 0.74, "right", "top"),
+       (0.50, 0.62), 0.42, 0.74, "right", "top", reflection=0.12),
     # ── warm_vintage ────────────────────────────────────────────────────────
     _p("warm_vintage", "drink", "linen_organic",
        "beige linen tablecloth, dried grass stems in soft focus behind, warm golden "
@@ -201,11 +207,10 @@ def get_plan(style: str, domain: str, seed: int = 0,
 
 
 def map_props(core_ingredients: list[str] | None, effects: list[str]) -> set[str]:
-    """core_ingredients(영문) + 온도효과 → 허용 prop 슬롯 집합. 이 밖의 소품 판은 선택 금지."""
+    """정확 일치하는 재료·효과만 prop으로 허용한다. 모호한 부분문자열은 소품 없음으로 둔다."""
     allowed: set[str] = set(e for e in effects if e in PROP_PHRASES)
     for ing in (core_ingredients or []):
-        low = str(ing).lower()
-        for kw, slot in PROP_MAP.items():
-            if kw in low:
-                allowed.add(slot)
+        slot = PROP_MAP.get(str(ing).strip().lower())
+        if slot:
+            allowed.add(slot)
     return allowed
