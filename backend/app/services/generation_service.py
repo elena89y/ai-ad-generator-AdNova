@@ -632,6 +632,18 @@ def _process_ad_impl(
         selected_seed = seeds[cands.index(final)]
         sel = os.environ.get("SELECTOR", "nima")
         engine = f"style:{effective_style}" + (f"·bestof{len(seeds)}:{sel}" if len(seeds) > 1 else "")
+
+        # 프롬프트만으로 약하게 표현된 무드를 CPU 색 마감으로 보강한다. 실제 상품 마스크가
+        # 없는 현재 Kontext 경로는 중앙 소프트 보호를 쓰므로, 실제 이미지 게이트 전에는 기본 off.
+        if os.environ.get("STYLE_FINISH", "0") == "1":
+            from . import style_finish
+
+            with _stage(run, "style_finish"):
+                final = style_finish.apply(
+                    final,
+                    style_key=effective_style,
+                    strength=float(os.environ.get("STYLE_FINISH_STRENGTH", "0.6")),
+                )
     else:
         with _stage(run, "generate"):
             route = router.process_input(
