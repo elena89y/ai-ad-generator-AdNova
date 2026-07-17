@@ -137,10 +137,15 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
 def admin_login(user_data: UserLogin, db: Session = Depends(get_db)):
     user = _authenticate_credentials(user_data, db)
     admin_account = _get_admin_account(db, user.id)
-    if admin_account is None or not admin_account.is_active:
+    if admin_account is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="활성화된 관리자 계정만 로그인할 수 있습니다.",
+            detail="일반 사용자 계정은 관리자 페이지에서 로그인할 수 없습니다.",
+        )
+    if not admin_account.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="비활성화된 관리자 계정입니다.",
         )
     if admin_account.role not in {"operator", "super_admin"}:
         raise HTTPException(

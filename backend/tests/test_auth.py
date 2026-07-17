@@ -111,6 +111,28 @@ class AuthApiTestCase(unittest.TestCase):
         self.assertTrue(result["user"]["is_admin"])
         self.assertEqual(result["user"]["role"], "super_admin")
 
+    def test_regular_user_cannot_use_admin_login(self) -> None:
+        regular_user = User(
+            email="user@example.com",
+            username="regularuser",
+            password_hash=hash_password("Password1!"),
+            is_active=True,
+        )
+        self.session.add(regular_user)
+        self.session.commit()
+
+        with self.assertRaises(HTTPException) as context:
+            admin_login(
+                user_data=UserLogin(username="regularuser", password="Password1!"),
+                db=self.session,
+            )
+
+        self.assertEqual(context.exception.status_code, 403)
+        self.assertEqual(
+            context.exception.detail,
+            "일반 사용자 계정은 관리자 페이지에서 로그인할 수 없습니다.",
+        )
+
     def test_username_can_be_found_by_email(self) -> None:
         result = find_username(
             request=UsernameFindRequest(email="LOGIN@EXAMPLE.COM"),
