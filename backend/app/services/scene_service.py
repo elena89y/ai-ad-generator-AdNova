@@ -288,8 +288,11 @@ def _lab_to_rgb(lab: np.ndarray) -> np.ndarray:
 
 
 def _harmonize_color(product_rgba: Image.Image, bg: Image.Image, place_xy: tuple[int, int],
-                     delta_e_cap: float = 6.0) -> Image.Image:
-    """⑥ 색 조화: 제품 LAB a·b 채널만 배경 색온도로 보정. L·디테일 불변. ΔE≤cap. 경계 2px feather."""
+                     delta_e_cap: float = 6.0) -> tuple[Image.Image, float]:
+    """⑥ 색 조화: 제품 LAB a·b 채널만 배경 색온도로 보정. L·디테일 불변. ΔE≤cap. 경계 2px feather.
+
+    반환 (조화 이미지, 적용 ΔE) — ΔE는 P6B 인라인 게이트가 회귀 안전망으로 재검한다.
+    """
     w, h = product_rgba.size
     canvas_w, canvas_h = bg.size
     left, top = place_xy
@@ -298,7 +301,7 @@ def _harmonize_color(product_rgba: Image.Image, bg: Image.Image, place_xy: tuple
         min(canvas_w, left + w), min(canvas_h, top + h),
     )
     if crop_box[2] <= crop_box[0] or crop_box[3] <= crop_box[1]:
-        return product_rgba
+        return product_rgba, 0.0
     bg_crop = bg.crop(crop_box).convert("RGB").resize((w, h))
 
     product_rgb = np.asarray(product_rgba.convert("RGB"))
@@ -314,6 +317,7 @@ def _harmonize_color(product_rgba: Image.Image, bg: Image.Image, place_xy: tuple
         scale = delta_e_cap / delta_e
         shift_a *= scale
         shift_b *= scale
+        delta_e = delta_e_cap
 
     out_lab = product_lab.copy()
     out_lab[..., 1] += shift_a
@@ -330,7 +334,7 @@ def _harmonize_color(product_rgba: Image.Image, bg: Image.Image, place_xy: tuple
 
     out = Image.fromarray(blended, "RGB").convert("RGBA")
     out.putalpha(Image.fromarray((alpha * 255).astype(np.uint8)))
-    return out
+    return out, round(delta_e, 3)
 
 
 def _reflection(product_rgba: Image.Image, strength: float) -> Image.Image:
@@ -399,7 +403,7 @@ def compose_scene(image_path: str, analysis, style_key: str, style_domain: str,
     shadow_y = place_xy[1] + product.height - shadow.height // 2
     canvas.alpha_composite(shadow, (shadow_x, shadow_y))
 
-    harmonized = _harmonize_color(product, bg, place_xy)
+    harmonized, applied_delta_e = _harmonize_color(product, bg, place_xy)
     canvas.alpha_composite(harmonized, place_xy)
 
     if plan.reflection_strength > 0:
@@ -411,4 +415,8 @@ def compose_scene(image_path: str, analysis, style_key: str, style_domain: str,
     out_path = out_dir / f"{Path(image_path).stem}_scene.png"
     canvas.convert("RGB").save(out_path, format="PNG")
 
-    return {"ok": True, "path": str(out_path), "text_zone": plan.text_zone, "plan": plan.key}
+    # stats: P6B 인라인 게이트·runs.jsonl 계측용 (cutout 신뢰도 + 적용 색조화 ΔE)
+    stats = dict(cut.get("stats") or {})
+    stats["delta_e"] = applied_delta_e
+    return {"ok": True, "path": str(out_path), "text_zone": plan.text_zone,
+            "plan": plan.key, "stats": stats}

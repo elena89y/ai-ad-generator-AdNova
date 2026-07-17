@@ -170,7 +170,8 @@ def test_trim_to_alpha_bbox_removes_rembg_padding():
 def test_harmonize_color_preserves_alpha_and_caps_delta_e():
     product = Image.new("RGBA", (40, 40), (220, 40, 40, 255))
     bg = Image.new("RGB", (200, 200), (20, 60, 120))  # 강한 색온도 차이
-    harmonized = scene_service._harmonize_color(product, bg, (10, 10))
+    harmonized, applied_delta_e = scene_service._harmonize_color(product, bg, (10, 10))
+    assert 0.0 < applied_delta_e <= 6.0  # 반환 ΔE도 상한 준수(P6B 게이트 입력)
     orig_alpha = np.asarray(product.split()[-1])
     new_alpha = np.asarray(harmonized.split()[-1])
     assert np.array_equal(orig_alpha, new_alpha)  # 알파(형태)는 절대 불변

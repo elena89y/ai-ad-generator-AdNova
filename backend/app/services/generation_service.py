@@ -667,6 +667,7 @@ def _process_ad_impl(
         #   여름음료 pop_split·케이크 cross_section 은 특수 조판/게이트 필요 → 당분간 명시 호출 유지.
         effective_style = style
         final: Optional[str] = None
+        compose_stats: Optional[dict] = None
 
         # 합성 경로(P4D, 결정 D-11): SCENE_COMPOSE=1 + object/drink + Vision 적합성일 때만 시도.
         #   실패(sc["ok"]=False)하면 아무 것도 건드리지 않고 기존 Kontext 경로로 자연 폴백한다.
@@ -685,6 +686,7 @@ def _process_ad_impl(
                 engine = f"scene:{sc['plan']}"
                 text_zone = sc["text_zone"]
                 selected_seed = compose_seed
+                compose_stats = sc.get("stats")
 
         if final is None:
             # P5 음료 재연출(결정 D-4 개정): drink & DRINK_RECOMPOSE=1 & (합성 부적격 또는
@@ -732,6 +734,26 @@ def _process_ad_impl(
                     style_key=effective_style,
                     strength=float(os.environ.get("STYLE_FINISH_STRENGTH", "0.6")),
                 )
+
+        # P6B 인라인 게이트(결정 D-5·D-7): audit=채점만 기록, enforce=style 재마감 개입.
+        #   기본 off. enforce는 P6A 캘리브레이션(V4P6-001) 후에만 켠다. gate 결과는
+        #   runs.jsonl(add_metric)에만 — 응답 스키마 노출은 범수 조율 전 금지.
+        from . import inline_gate
+
+        _gate_mode = inline_gate.gate_mode()
+        if _gate_mode == "audit":
+            with _stage(run, "gate"):
+                gate = inline_gate.evaluate(final, effective_style, compose_stats)
+            if run is not None:
+                run.add_metric("gate", {**gate, "mode": "audit"})
+        elif _gate_mode == "enforce":
+            with _stage(run, "gate"):
+                enforced = inline_gate.enforce(final, effective_style, compose_stats)
+            final = enforced["path"]
+            if run is not None:
+                run.add_metric("gate", {**enforced["gate"], "mode": "enforce",
+                                        "gate_failed": enforced["gate_failed"],
+                                        "refinished": enforced["refinished"]})
     else:
         with _stage(run, "generate"):
             route = router.process_input(
