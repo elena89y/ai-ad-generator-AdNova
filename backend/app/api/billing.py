@@ -12,13 +12,15 @@ from app.crud.billing import (
     update_demo_payment_method,
 )
 from app.crud.credits import DEFAULT_FREE_CREDITS, get_credit_status
-from app.database.billing_models import Subscription
+from app.database.billing_models import PurchaseHistory, RefundRequest, Subscription
 from app.database.connection import get_db
 from app.database.models import User
 from app.schemas.billing import (
     BillingSummaryResponse,
     DemoCardRequest,
     PurchaseHistoryResponse,
+    RefundRequestCreate,
+    RefundRequestResponse,
 )
 
 
@@ -62,6 +64,43 @@ def read_purchase_histories(
     current_user: User = Depends(get_current_user),
 ) -> list[PurchaseHistoryResponse]:
     return list_purchase_histories_by_user(db, current_user.id, limit=limit)
+
+
+@router.post(
+    "/purchases/{purchase_id}/refund-request",
+    response_model=RefundRequestResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_refund_request(
+    purchase_id: int,
+    request: RefundRequestCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> RefundRequest:
+    purchase = db.query(PurchaseHistory).filter(
+        PurchaseHistory.id == purchase_id,
+        PurchaseHistory.user_id == current_user.id,
+    ).first()
+    if purchase is None:
+        raise HTTPException(status_code=404, detail="결제 내역을 찾을 수 없습니다.")
+    if purchase.status != "paid":
+        raise HTTPException(status_code=409, detail="환불 신청 가능한 결제가 아닙니다.")
+    pending = db.query(RefundRequest).filter(
+        RefundRequest.purchase_id == purchase.id,
+        RefundRequest.status == "pending",
+    ).first()
+    if pending is not None:
+        raise HTTPException(status_code=409, detail="이미 처리 대기 중인 환불 신청이 있습니다.")
+    refund = RefundRequest(
+        purchase_id=purchase.id,
+        user_id=current_user.id,
+        amount=purchase.amount,
+        reason=request.reason.strip(),
+    )
+    db.add(refund)
+    db.commit()
+    db.refresh(refund)
+    return refund
 
 
 @router.post("/demo/subscribe", response_model=BillingSummaryResponse)

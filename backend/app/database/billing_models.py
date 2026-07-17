@@ -74,3 +74,18 @@ class PurchaseHistory(Base):
     status = Column(String(30), nullable=False)
     purchased_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class RefundRequest(Base):
+    __tablename__ = "refund_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    purchase_id = Column(Integer, ForeignKey("purchase_histories.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    amount = Column(Integer, nullable=False)
+    reason = Column(String(500), nullable=False)
+    status = Column(String(30), default="pending", nullable=False, index=True)
+    rejection_reason = Column(String(500), nullable=True)
+    processed_by_admin_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    requested_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    processed_at = Column(DateTime(timezone=True), nullable=True)

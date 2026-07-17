@@ -1848,20 +1848,49 @@ async function loginWithCredentials(username,password){
 }
 async function handleLogin(e){
   if(e) e.preventDefault();
+
   const username=document.getElementById('loginUsername').value.trim();
   const password=document.getElementById('loginPassword').value;
-  if(!username){toast('아이디를 입력해 주세요');return;}
-  if(!USERNAME_PATTERN.test(username)){toast('아이디는 영문과 숫자만 사용해서 7~12자로 입력해 주세요');return;}
-  if(!password){toast('비밀번호를 입력해 주세요');return;}
+
+  if(!username){
+    toast('아이디를 입력해주세요.');
+    return;
+  }
+
+  if(!password){
+    toast('비밀번호를 입력해주세요.');
+    return;
+  }
+
+  /*
+   * 일반 회원은 7~12자이며,
+   * DB에 등록된 기본 관리자 admin은 예외로 허용합니다.
+   */
+  if(username!=='admin' && !USERNAME_PATTERN.test(username)){
+    toast('아이디는 영문과 숫자를 사용해 7~12자로 입력해주세요.');
+    return;
+  }
 
   try{
-    await loginWithCredentials(username,password);
-    toast('로그인되었습니다');
+    const data=await loginWithCredentials(username,password);
+    const user=data?.user || getStoredUser();
+
+    if(
+      user?.is_admin===true ||
+      user?.role==='admin'
+    ){
+      toast('관리자로 로그인되었습니다.');
+      window.location.href='./admin/';
+      return;
+    }
+
+    toast('로그인되었습니다.');
     go('dashboard');
   }catch(err){
-    toast(err.message||'로그인에 실패했습니다');
+    toast(err.message || '로그인에 실패했습니다.');
   }
 }
+
 async function handleSignup(e){
   if(e) e.preventDefault();
   const email=document.getElementById('signupEmail').value.trim();
@@ -1874,7 +1903,10 @@ async function handleSignup(e){
   if(!email){toast('이메일을 입력해 주세요');return;}
   if(!isValidEmail(email)){toast('이메일 형식이 올바르지 않습니다');return;}
   if(!username){toast('아이디를 입력해 주세요');return;}
-  if(!USERNAME_PATTERN.test(username)){toast('아이디는 영문과 숫자만 사용해서 7~12자로 입력해 주세요');return;}
+  if(!USERNAME_PATTERN.test(username)){
+      toast('아이디는 영문과 숫자를 사용해 7~12자로 입력해주세요.');
+      return;
+  }
   if(!password){toast('비밀번호를 입력해 주세요');return;}
   if(!PASSWORD_PATTERN.test(password)){toast('비밀번호는 8~20자이며 대문자, 소문자, 숫자, 특수문자를 각각 1개 이상 포함해야 합니다');return;}
   if(password!==passwordConfirm){toast('비밀번호가 서로 다릅니다');return;}
@@ -1904,9 +1936,7 @@ async function handleSignup(e){
 }
 function handleLogout(){
   clearAuth();
-  closeProfile();
-  go('login');
-  toast('로그아웃되었습니다');
+  window.location.href='./admin/';
 }
 function clearAccountPasswordFields(){
   ['currentPassword','newPassword','newPasswordConfirm','deleteAccountPassword'].forEach(id=>{
@@ -2969,5 +2999,7 @@ document
     </div>
   </div>
 </div>
+
+
 
 </body></html>

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.admin_security import get_current_admin, get_current_super_admin
-from app.core.security import get_current_user
+from app.core.security import get_current_user, hash_password, verify_password
 from app.crud.admin import (
     count_active_super_admins,
     count_advertisements_by_user,
@@ -32,7 +32,7 @@ from app.crud.inquiry import (
     update_inquiry_status,
 )
 from app.database.admin_models import AdminAccount
-from app.database.billing_models import Subscription
+from app.database.billing_models import PurchaseHistory, RefundRequest, Subscription, utc_now
 from app.database.connection import get_db
 from app.database.models import User
 from app.schemas.admin import (
@@ -55,6 +55,11 @@ from app.schemas.admin import (
     AdminUserStatusUpdateRequest,
     AdminUserSubscriptionUpdateRequest,
     AdminSummaryResponse,
+    AdminRefundListResponse,
+    AdminRefundRejectRequest,
+    AdminRefundResponse,
+    AdminPasswordChangeRequest,
+    AdminMessageResponse,
 )
 from app.schemas.inquiry import (
     AdminInquiryListResponse,
@@ -65,6 +70,23 @@ from app.schemas.inquiry import (
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+def _build_refund_response(refund: RefundRequest, purchase: PurchaseHistory, user: User) -> AdminRefundResponse:
+    return AdminRefundResponse(
+        id=refund.id,
+        purchase_id=purchase.id,
+        user_id=user.id,
+        username=user.username,
+        email=user.email,
+        description=purchase.description,
+        amount=refund.amount,
+        reason=refund.reason,
+        status=refund.status,
+        rejection_reason=refund.rejection_reason,
+        requested_at=refund.requested_at,
+        processed_at=refund.processed_at,
+    )
 
 
 @router.get("/me", response_model=AdminMeResponse)
@@ -421,6 +443,16 @@ def refund_admin_demo_purchase(
 
     try:
         subscription_revoked = refund_demo_purchase_for_admin(db, purchase)
+        refund_record = RefundRequest(
+            purchase_id=purchase.id,
+            user_id=user.id,
+            amount=purchase.amount,
+            reason=request.reason.strip(),
+            status="approved",
+            processed_by_admin_id=current_admin.user_id,
+            processed_at=utc_now(),
+        )
+        db.add(refund_record)
         create_admin_audit_log(
             db,
             admin_user_id=current_admin.user_id,
@@ -756,3 +788,116 @@ def update_admin_user_subscription(
         db.rollback()
         raise
     return _build_admin_user_response(user, subscription)
+
+
+@router.get("/refunds", response_model=AdminRefundListResponse)
+def read_admin_refunds(
+    refund_status: str | None = Query(None, alias="status"),
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminRefundListResponse:
+    del current_admin
+    query = (
+        db.query(RefundRequest, PurchaseHistory, User)
+        .join(PurchaseHistory, PurchaseHistory.id == RefundRequest.purchase_id)
+        .join(User, User.id == RefundRequest.user_id)
+    )
+    if refund_status:
+        query = query.filter(RefundRequest.status == refund_status)
+    rows = query.order_by(RefundRequest.requested_at.desc()).all()
+    return AdminRefundListResponse(
+        total=len(rows),
+        items=[_build_refund_response(refund, purchase, user) for refund, purchase, user in rows],
+    )
+
+
+@router.post("/refunds/{refund_id}/approve", response_model=AdminRefundResponse)
+def approve_admin_refund(
+    refund_id: int,
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_super_admin),
+) -> AdminRefundResponse:
+    row = (
+        db.query(RefundRequest, PurchaseHistory, User)
+        .join(PurchaseHistory, PurchaseHistory.id == RefundRequest.purchase_id)
+        .join(User, User.id == RefundRequest.user_id)
+        .filter(RefundRequest.id == refund_id)
+        .first()
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="환불 신청을 찾을 수 없습니다.")
+    refund, purchase, user = row
+    if refund.status != "pending":
+        raise HTTPException(status_code=409, detail="이미 처리된 환불 신청입니다.")
+    refund.status = "approved"
+    refund.processed_at = utc_now()
+    refund.processed_by_admin_id = current_admin.user_id
+    purchase.status = "refunded"
+    create_admin_audit_log(
+        db,
+        admin_user_id=current_admin.user_id,
+        action="refund.approved",
+        target_type="refund",
+        target_id=refund.id,
+        detail=f"purchase_id={purchase.id}; amount={refund.amount}",
+    )
+    db.commit()
+    return _build_refund_response(refund, purchase, user)
+
+
+@router.post("/refunds/{refund_id}/reject", response_model=AdminRefundResponse)
+def reject_admin_refund(
+    refund_id: int,
+    request: AdminRefundRejectRequest,
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_super_admin),
+) -> AdminRefundResponse:
+    row = (
+        db.query(RefundRequest, PurchaseHistory, User)
+        .join(PurchaseHistory, PurchaseHistory.id == RefundRequest.purchase_id)
+        .join(User, User.id == RefundRequest.user_id)
+        .filter(RefundRequest.id == refund_id)
+        .first()
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="환불 신청을 찾을 수 없습니다.")
+    refund, purchase, user = row
+    if refund.status != "pending":
+        raise HTTPException(status_code=409, detail="이미 처리된 환불 신청입니다.")
+    refund.status = "rejected"
+    refund.rejection_reason = request.reason.strip()
+    refund.processed_at = utc_now()
+    refund.processed_by_admin_id = current_admin.user_id
+    create_admin_audit_log(
+        db,
+        admin_user_id=current_admin.user_id,
+        action="refund.rejected",
+        target_type="refund",
+        target_id=refund.id,
+        detail=f"reason={refund.rejection_reason}",
+    )
+    db.commit()
+    return _build_refund_response(refund, purchase, user)
+
+
+@router.patch("/password", response_model=AdminMessageResponse)
+def change_admin_password(
+    request: AdminPasswordChangeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    current_admin: AdminAccount = Depends(get_current_admin),
+) -> AdminMessageResponse:
+    if not verify_password(request.current_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="현재 비밀번호가 올바르지 않습니다.")
+    if request.current_password == request.new_password:
+        raise HTTPException(status_code=400, detail="새 비밀번호는 현재 비밀번호와 달라야 합니다.")
+    current_user.password_hash = hash_password(request.new_password)
+    create_admin_audit_log(
+        db,
+        admin_user_id=current_admin.user_id,
+        action="admin.password_changed",
+        target_type="admin",
+        target_id=current_admin.id,
+    )
+    db.commit()
+    return AdminMessageResponse(message="관리자 비밀번호가 변경되었습니다.")
