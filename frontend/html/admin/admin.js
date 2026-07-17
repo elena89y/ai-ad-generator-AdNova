@@ -222,6 +222,56 @@ function formatCurrency(amount) {
   return `${Number(amount || 0).toLocaleString("ko-KR")}원`;
 }
 
+function formatAdminDate(value, includeTime = true) {
+  if (!value) return "-";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    ...(includeTime
+      ? { hour: "2-digit", minute: "2-digit", hour12: false }
+      : {})
+  }).format(date);
+}
+
+function getAuditActionLabel(action) {
+  const labels = {
+    "admin.role_updated": "관리자 권한 변경",
+    "admin.status_updated": "관리자 계정 상태 변경",
+    "admin.password_changed": "관리자 비밀번호 변경",
+    "user.status_updated": "회원 계정 상태 변경",
+    "user.subscription_updated": "회원 플랜 변경",
+    "purchase.refunded": "결제 환불",
+    "refund.approved": "환불 신청 승인",
+    "refund.rejected": "환불 신청 거절",
+    "inquiry.status_updated": "문의 상태 변경",
+    "inquiry.answered": "문의 답변 등록"
+  };
+
+  return labels[action] || action;
+}
+
+function getAuditTargetTypeLabel(targetType) {
+  const labels = {
+    admin_account: "관리자 계정",
+    admin: "관리자 계정",
+    user: "회원",
+    purchase: "결제",
+    refund: "환불 신청",
+    inquiry: "문의"
+  };
+
+  return labels[targetType] || targetType;
+}
+
+function getAuditTargetLabel(log) {
+  return `${getAuditTargetTypeLabel(log.target_type)} #${log.target_id}`;
+}
+
 function cloneData(data) {
   return JSON.parse(JSON.stringify(data));
 }
@@ -509,7 +559,7 @@ function applyAdminIdentity() {
    데이터 불러오기
 ========================================= */
 
-async function loadAdminData() {
+async function loadAdminData({ showError = true } = {}) {
   try {
     if (USE_ADMIN_MOCK) {
       currentAdmin = {
@@ -589,8 +639,18 @@ async function loadAdminData() {
 
     applyAdminIdentity();
     renderAll();
+    if (getElement("adminRefreshStatus")) {
+      getElement("adminRefreshStatus").textContent =
+        `마지막 갱신 ${new Date().toLocaleTimeString("ko-KR", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit"
+        })}`;
+    }
+    return true;
   } catch (error) {
-    showToast(error.message, "error");
+    if (showError) showToast(error.message, "error");
+    return false;
   }
 }
 
@@ -685,6 +745,7 @@ function renderDashboard() {
 
   renderRecentPayments();
   renderRecentInquiries();
+  renderRecentAuditLogs();
 }
 
 function renderRecentPayments() {
@@ -717,7 +778,7 @@ function renderRecentPayments() {
               ${getPaymentStatusLabel(payment.status)}
             </span>
           </td>
-          <td>${escapeHtml(payment.paid_at)}</td>
+          <td>${escapeHtml(formatAdminDate(payment.paid_at))}</td>
         </tr>
       `
     )
@@ -759,13 +820,37 @@ function renderRecentInquiries() {
             <p>${escapeHtml(inquiry.content)}</p>
             <div class="recent-inquiry-meta">
               <span>${escapeHtml(inquiry.user_name)}</span>
-              <time>${escapeHtml(inquiry.created_at)}</time>
+              <time>${escapeHtml(formatAdminDate(inquiry.created_at))}</time>
             </div>
           </div>
         </button>
       `
     )
     .join("");
+}
+
+function renderRecentAuditLogs() {
+  const tbody = getElement("recentAuditRows");
+  if (!tbody) return;
+
+  const recentLogs = auditLogs.slice(0, 5);
+  if (recentLogs.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="4" class="empty-cell">기록된 관리자 활동이 없습니다.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = recentLogs.map((log) => `
+    <tr>
+      <td>${escapeHtml(formatAdminDate(log.created_at))}</td>
+      <td>${escapeHtml(log.admin_username)}</td>
+      <td>${escapeHtml(getAuditActionLabel(log.action))}</td>
+      <td>${escapeHtml(getAuditTargetLabel(log))}</td>
+    </tr>
+  `).join("");
 }
 
 /* =========================================
@@ -838,6 +923,9 @@ function renderUsers() {
         (item) => String(item.user_id) === String(user.id)
       );
       const canManageUser = isSuperAdmin() && !isAdminAccount;
+      const managementReason = isAdminAccount
+        ? "관리자 계정 관리 메뉴에서 변경할 수 있습니다."
+        : "최고 관리자만 변경할 수 있습니다.";
 
       return `
         <tr>
@@ -858,6 +946,7 @@ function renderUsers() {
             <select
               class="table-select"
               data-user-plan="${escapeHtml(user.id)}"
+              title="${canManageUser ? "회원 플랜 변경" : managementReason}"
               ${canManageUser ? "" : "disabled"}
             >
               <option value="FREE" ${plan === "FREE" ? "selected" : ""}>
@@ -876,13 +965,13 @@ function renderUsers() {
               ${plan}
             </span>
           </td>
-          <td>${escapeHtml(subscription?.current_period_end || "-")}</td>
+          <td>${escapeHtml(formatAdminDate(subscription?.current_period_end, false))}</td>
           <td>
             <span class="status-badge ${active ? "active" : "inactive"}">
               ${active ? "활성" : "비활성"}
             </span>
           </td>
-          <td>${escapeHtml(user.created_at)}</td>
+          <td>${escapeHtml(formatAdminDate(user.created_at, false))}</td>
           <td>
             ${
               canManageUser
@@ -893,7 +982,14 @@ function renderUsers() {
                   >
                     ${active ? "정지" : "활성화"}
                   </button>`
-                : "-"
+                : `<button
+                    type="button"
+                    class="table-action"
+                    title="${escapeHtml(managementReason)}"
+                    disabled
+                  >
+                    ${active ? "정지" : "활성화"}
+                  </button>`
             }
           </td>
         </tr>
@@ -917,8 +1013,12 @@ async function changeUserPlan(userId, nextPlan, selectElement) {
 
   if (previousPlan === nextPlan) return;
 
+  const displayName = user.name || user.username;
+  const previousPlanLabel = previousPlan === "PREMIUM" ? "프리미엄" : "무료";
+  const nextPlanLabel = nextPlan === "PREMIUM" ? "프리미엄" : "무료";
+
   const confirmed = confirm(
-    `${user.name} 회원의 플랜을 ${previousPlan}에서 ${nextPlan}(으)로 변경하시겠습니까?\n이 작업은 관리자 로그에 기록되어야 합니다.`
+    `${displayName}님의 플랜을 ${previousPlanLabel}에서 ${nextPlanLabel}로 변경할까요?\n변경 내용은 바로 회원 계정에 적용됩니다.`
   );
 
   if (!confirmed) {
@@ -927,8 +1027,9 @@ async function changeUserPlan(userId, nextPlan, selectElement) {
   }
 
   try {
+    let updatedUser = user;
     if (!USE_ADMIN_MOCK) {
-      await adminApiFetch(
+      updatedUser = await adminApiFetch(
         `/api/admin/users/${user.id}/subscription`,
         {
           method: "PATCH",
@@ -939,9 +1040,19 @@ async function changeUserPlan(userId, nextPlan, selectElement) {
       );
     }
 
-    user.plan = nextPlan;
-    renderAll();
-    showToast(`${user.name} 회원의 플랜이 변경되었습니다.`);
+    if (USE_ADMIN_MOCK) {
+      user.plan = nextPlan;
+      renderAll();
+    } else {
+      const refreshed = await loadAdminData({ showError: false });
+      if (!refreshed) {
+        Object.assign(user, updatedUser);
+        renderAll();
+        showToast("플랜은 변경됐지만 최신 목록을 불러오지 못했습니다.", "error");
+        return;
+      }
+    }
+    showToast(`${displayName}님의 플랜을 ${nextPlanLabel}로 변경했습니다.`);
   } catch (error) {
     selectElement.value = previousPlan;
     showToast(error.message, "error");
@@ -960,29 +1071,50 @@ async function toggleUserStatus(userId) {
   if (!user) return;
 
   const nextActive = user.is_active === false;
+  const displayName = user.name || user.username;
+  const actionLabel = nextActive ? "활성화" : "정지";
+  const actionDescription = nextActive
+    ? "활성화하면 해당 회원이 다시 로그인할 수 있습니다."
+    : "정지하면 다시 활성화할 때까지 로그인할 수 없습니다.";
 
   const confirmed = confirm(
-    `${user.name} 회원을 ${nextActive ? "활성화" : "정지"}하시겠습니까?\n이 작업은 관리자 로그에 기록되어야 합니다.`
+    `${displayName}님의 계정을 ${actionLabel}할까요?\n${actionDescription}`
   );
 
   if (!confirmed) return;
 
   try {
+    let updatedUser = user;
     if (!USE_ADMIN_MOCK) {
-      await adminApiFetch(`/api/admin/users/${user.id}/status`, {
+      updatedUser = await adminApiFetch(`/api/admin/users/${user.id}/status`, {
         method: "PATCH",
         body: JSON.stringify({
           is_active: nextActive
         })
       });
+
+      if (Boolean(updatedUser.is_active) !== nextActive) {
+        throw new Error("서버에서 회원 상태가 변경되지 않았습니다.");
+      }
     }
 
-    user.is_active = nextActive;
-    renderAll();
+    if (USE_ADMIN_MOCK) {
+      user.is_active = nextActive;
+      renderAll();
+    } else {
+      const refreshed = await loadAdminData({ showError: false });
+      const refreshedUser = users.find(
+        (item) => String(item.id) === String(userId)
+      );
+      if (!refreshed || refreshedUser?.is_active !== nextActive) {
+        Object.assign(user, updatedUser);
+        renderAll();
+        showToast("계정 상태는 변경됐지만 최신 목록을 불러오지 못했습니다.", "error");
+        return;
+      }
+    }
 
-    showToast(
-      `${user.name} 회원이 ${nextActive ? "활성화" : "정지"}되었습니다.`
-    );
+    showToast(`${displayName}님의 계정을 ${actionLabel}했습니다.`);
   } catch (error) {
     showToast(error.message, "error");
   }
@@ -1186,7 +1318,7 @@ function renderOrderPayments(filteredPayments) {
           </td>
           <td>${escapeHtml(payment.product)}</td>
           <td>${formatCurrency(payment.amount)}</td>
-          <td>${escapeHtml(payment.paid_at)}</td>
+          <td>${escapeHtml(formatAdminDate(payment.paid_at))}</td>
           <td>
             <span class="status-badge ${escapeHtml(payment.status)}">
               ${getPaymentStatusLabel(payment.status)}
@@ -1335,10 +1467,10 @@ function renderRefundRequests(refundRequests) {
     .map(
       (payment) => `
         <tr>
-          <td>${escapeHtml(payment.refund_requested_at || "-")}</td>
+          <td>${escapeHtml(formatAdminDate(payment.refund_requested_at))}</td>
           <td>
             <div class="table-primary">${escapeHtml(payment.order_number)}</div>
-            <div class="table-secondary">결제일 ${escapeHtml(payment.paid_at)}</div>
+            <div class="table-secondary">결제일 ${escapeHtml(formatAdminDate(payment.paid_at))}</div>
           </td>
           <td>
             <div class="table-primary">${escapeHtml(payment.user_name)}</div>
@@ -1392,7 +1524,7 @@ function renderRefundHistory(items) {
   }
   tbody.innerHTML = items.map((payment) => `
     <tr>
-      <td>${escapeHtml(payment.refund_processed_at || "-")}</td>
+      <td>${escapeHtml(formatAdminDate(payment.refund_processed_at))}</td>
       <td><div class="table-primary">${escapeHtml(payment.order_number)}</div></td>
       <td><div class="table-primary">${escapeHtml(payment.user_name)}</div><div class="table-secondary">${escapeHtml(payment.email)}</div></td>
       <td>${escapeHtml(payment.product)}</td>
@@ -1415,7 +1547,7 @@ async function approveRefundRequest(paymentId) {
   if (!payment || payment.status !== "refund_pending") return;
 
   const confirmed = confirm(
-    `${payment.order_number} 주문의 환불 신청을 승인하시겠습니까?\n승인 후에는 환불 완료 상태로 변경됩니다.`
+    `${payment.order_number} 주문의 환불을 승인할까요?\n승인하면 결제가 환불 완료 상태로 변경됩니다.`
   );
 
   if (!confirmed) return;
@@ -1447,7 +1579,7 @@ async function rejectRefundRequest(paymentId) {
   if (!payment || payment.status !== "refund_pending") return;
 
   const rejectionReason = prompt(
-    "환불 신청을 거절하는 사유를 입력해주세요."
+    "환불을 거절하는 이유를 입력해 주세요. 회원에게 안내할 때 사용됩니다."
   );
 
   if (rejectionReason === null) return;
@@ -1529,7 +1661,7 @@ async function processRefund() {
   }
 
   const confirmed = confirm(
-    `${payment.order_number} 주문을 ${formatCurrency(refundAmount)} 환불하시겠습니까?\n환불 작업은 관리자 로그에 기록되어야 합니다.`
+    `${payment.order_number} 주문을 ${formatCurrency(refundAmount)} 전액 환불할까요?\n처리한 뒤에는 되돌릴 수 없습니다.`
   );
 
   if (!confirmed) return;
@@ -1589,7 +1721,7 @@ function openMemberPaymentModal(userId) {
             <td>${escapeHtml(payment.order_number)}</td>
             <td>${escapeHtml(payment.product)}</td>
             <td>${formatCurrency(payment.amount)}</td>
-            <td>${escapeHtml(payment.paid_at)}</td>
+            <td>${escapeHtml(formatAdminDate(payment.paid_at))}</td>
             <td>
               <span class="status-badge ${escapeHtml(payment.status)}">
                 ${getPaymentStatusLabel(payment.status)}
@@ -1709,7 +1841,7 @@ function renderInquiries() {
               ${escapeHtml(inquiry.title)}
             </button>
           </td>
-          <td>${escapeHtml(inquiry.created_at)}</td>
+          <td>${escapeHtml(formatAdminDate(inquiry.created_at))}</td>
           <td>
             <span class="status-badge ${escapeHtml(inquiry.status)}">
               ${getInquiryStatusLabel(inquiry.status)}
@@ -1760,7 +1892,7 @@ function openInquiryModal(inquiryId) {
       <dt>이메일</dt>
       <dd>${escapeHtml(inquiry.email)}</dd>
       <dt>접수일</dt>
-      <dd>${escapeHtml(inquiry.created_at)}</dd>
+      <dd>${escapeHtml(formatAdminDate(inquiry.created_at))}</dd>
     `;
   }
 
@@ -1919,7 +2051,7 @@ async function changeAdminAccountRole(accountId, nextRole, selectElement) {
 
   const previousRole = account.role;
   if (previousRole === nextRole) return;
-  if (!confirm(`${account.username} 관리자의 역할을 ${getAdminRoleLabel(nextRole)}(으)로 변경하시겠습니까?`)) {
+  if (!confirm(`${account.username}님의 관리자 권한을 ${getAdminRoleLabel(nextRole)}로 변경할까요?`)) {
     selectElement.value = previousRole;
     return;
   }
@@ -1944,7 +2076,7 @@ async function toggleAdminAccountStatus(accountId) {
   if (!account || !isSuperAdmin()) return;
 
   const nextActive = !account.is_active;
-  if (!confirm(`${account.username} 관리자 계정을 ${nextActive ? "활성화" : "비활성화"}하시겠습니까?`)) return;
+  if (!confirm(`${account.username}님의 관리자 계정을 ${nextActive ? "다시 활성화" : "비활성화"}할까요?`)) return;
 
   try {
     await adminApiFetch(`/api/admin/accounts/${account.id}/status`, {
@@ -1986,10 +2118,10 @@ function renderAuditLogs() {
 
   tbody.innerHTML = filteredLogs.map((log) => `
     <tr>
-      <td>${escapeHtml(log.created_at)}</td>
+      <td>${escapeHtml(formatAdminDate(log.created_at))}</td>
       <td>${escapeHtml(log.admin_username)}</td>
-      <td>${escapeHtml(log.action)}</td>
-      <td>${escapeHtml(log.target_type)}</td>
+      <td>${escapeHtml(getAuditActionLabel(log.action))}</td>
+      <td>${escapeHtml(getAuditTargetTypeLabel(log.target_type))}</td>
       <td>${escapeHtml(log.target_id)}</td>
       <td>${escapeHtml(log.detail || "-")}</td>
     </tr>
@@ -2107,6 +2239,7 @@ async function changeAdminPassword(event) {
           new_password: newPassword
         })
       });
+      await loadAdminData({ showError: false });
     }
 
     event.target.reset();
@@ -2188,8 +2321,19 @@ function bindEvents() {
   getElement("refreshAdminButton")?.addEventListener(
     "click",
     async () => {
-      await loadAdminData();
-      showToast("관리자 데이터를 새로 불러왔습니다.");
+      const button = getElement("refreshAdminButton");
+      if (button) {
+        button.disabled = true;
+        button.textContent = "불러오는 중...";
+      }
+
+      const refreshed = await loadAdminData();
+      if (refreshed) showToast("최신 관리자 데이터를 불러왔습니다.");
+
+      if (button) {
+        button.disabled = false;
+        button.textContent = "새로고침";
+      }
     }
   );
 
