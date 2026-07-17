@@ -183,7 +183,9 @@ def render(plan: "ScenePlan", seed: int = 0, accent_hue: float | None = None,
     if plan.style == "monotone":
         palette = _accent_palette(palette, accent_hue)
     angle = float(rng.uniform(-5, 5))
-    horizon = plan.surface_y - 0.04
+    # 바닥선은 배치(scene_service)의 접지선 surface_y와 단일 출처여야 한다 — 예전 -0.04
+    # 오프셋은 합성 제품이 그려진 바닥보다 위에 떠 보이게 만들었다(V4P4D-003 실측).
+    horizon = plan.surface_y
 
     if plan.archetype == "diagonal_field":
         blend_px = int(rng.integers(4, 9))
@@ -204,7 +206,7 @@ def render(plan: "ScenePlan", seed: int = 0, accent_hue: float | None = None,
     elif plan.archetype == "concept_stage":
         canvas = _floor_wall(canvas, horizon, palette[1], blend=12)
     elif plan.archetype == "split_card":
-        canvas = _floor_wall(canvas, 0.58, palette[1], blend=12)
+        canvas = _floor_wall(canvas, plan.surface_y, palette[1], blend=12)
     elif plan.archetype in {"seamless_min", "lilac_seamless", "tone_seamless"}:
         canvas = _floor_wall(canvas, horizon, palette[1], blend=12)
     elif plan.archetype == "soft_seamless":

@@ -90,10 +90,20 @@ def observe(name: str | None = None):  # noqa: ANN201
 
 @contextmanager
 def propagate_attributes(**attrs):  # noqa: ANN003, ANN201
-    """langfuse.propagate_attributes optional wrapper. 없으면 no-op context."""
+    """langfuse.propagate_attributes optional wrapper. 없으면 no-op context.
+
+    ⚠️ setup(import) 실패만 폴백으로 흡수한다. 본문에서 난 예외를 감싸면 안 된다 —
+    예전 구조(try 안에서 yield, except에서 다시 yield)는 본문 예외가 throw될 때 두 번째
+    yield를 실행해 원래 예외를 `generator didn't stop after throw()`로 덮어썼다(사용자 400
+    오류가 500으로 변질 — P4D 게이트 실행 중 문어괄사 입력 게이트 거부에서 실측)."""
+    cm = None
     try:
         from langfuse import propagate_attributes as _propagate_attributes
-        with _propagate_attributes(**attrs):
-            yield
-    except Exception:  # noqa: BLE001
+        cm = _propagate_attributes(**attrs)
+    except Exception:  # noqa: BLE001 — langfuse 미설치/초기화 실패는 무해히 no-op
+        cm = None
+    if cm is None:
+        yield
+        return
+    with cm:  # 본문 예외는 여기서 정상 전파된다(흡수 금지)
         yield

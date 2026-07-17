@@ -21,6 +21,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 _reader = None
+_reader_cpu = None
 
 # 오탐(제품 로고·질감을 글자로 착각) 방지: 신뢰도 문턱. 낮추면 과삭제 위험.
 CONF_THRESHOLD = 0.30
@@ -37,6 +38,21 @@ def _get_reader():
         logger.info("EasyOCR 로드 (ko+en)")
         _reader = easyocr.Reader(["ko", "en"], gpu=True, verbose=False)
     return _reader
+
+
+def get_reader_cpu():
+    """P6A audit 전용 CPU reader 싱글턴 — 워커 밖 배치에서 GPU 점유 금지(결정 D-7).
+
+    기존 _get_reader(gpu=True)는 수정하지 않는다(원본 함수 불변 계약). audit 배치는
+    운영 워커와 같은 VM에서 돌 수 있으므로 EasyOCR이 VRAM을 잡으면 안 된다.
+    """
+    global _reader_cpu
+    if _reader_cpu is None:
+        import easyocr
+
+        logger.info("EasyOCR 로드 (ko+en, CPU — audit 전용)")
+        _reader_cpu = easyocr.Reader(["ko", "en"], gpu=False, verbose=False)
+    return _reader_cpu
 
 
 def _region_token(cx: float, cy: float) -> str:

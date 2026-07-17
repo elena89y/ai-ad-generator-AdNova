@@ -16,10 +16,35 @@ from typing import Optional
 def generate_scene(image_path: str, style_key: str, subject_en: str,
                    output_dir: str = "backend/results/ai/style",
                    seed: int = 42, steps: Optional[int] = None,
-                   domain: Optional[str] = None) -> str:
-    """도메인별 StylePlan 또는 특수 포맷 지시로 Kontext 편집 후 경로를 반환한다."""
+                   domain: Optional[str] = None,
+                   staging: str = "preserve",
+                   container_desc: Optional[str] = None,
+                   temperature: Optional[str] = None,
+                   text_zone: Optional[str] = None) -> str:
+    """도메인별 StylePlan 또는 특수 포맷 지시로 Kontext 편집 후 경로를 반환한다.
+
+    staging="recompose"(P5 음료 재연출): 보존 편집 대신 같은 음료의 새 연출을 지시한다.
+    container_desc/temperature/text_zone은 호출부가 analyze_photo 결과에서 넘긴다 —
+    재연출 계약을 지원하지 않는 스타일이면 preserve로 자연 폴백.
+    """
     from . import kontext_service
     from .style_specs import get_spec
+
+    # P5 재연출 경로 — drink 전용 계약. 지시 생성 실패(미지원 스타일)면 아래 preserve로 폴백.
+    if staging == "recompose":
+        from .reference_style_plans import build_clip_anchor, build_recompose_instruction
+        recompose_instr = build_recompose_instruction(
+            style_key, subject_en, container_desc=container_desc,
+            temperature=temperature, text_zone=text_zone,
+        )
+        if recompose_instr:
+            kw = {} if steps is None else {"steps": steps}
+            return kontext_service.edit(
+                image_path, recompose_instr, seed=seed, output_dir=output_dir,
+                clip_prompt=build_clip_anchor(style_key, "drink", subject_en,
+                                              staging="recompose"),
+                **kw,
+            )
 
     sp = get_spec(style_key)
     scene = sp.scene_prompt.format(subject=subject_en or "product")

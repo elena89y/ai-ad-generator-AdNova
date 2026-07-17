@@ -145,9 +145,6 @@ PLANS: list[ScenePlan] = [
     _p("realism", "drink", "marble_daylight",
        "white marble countertop, airy bright kitchen bokeh, soft daylight",
        (0.52, 0.64), 0.44, 0.78, "right", "top", props=("lemon",)),
-    _p("realism", "object", "desk_daylight",
-       "light oak desk by a bright window, minimal home office bokeh, natural daylight",
-       (0.50, 0.63), 0.42, 0.78, "left", "top"),
     _p("realism", "object", "linen_daylight",
        "washed pale linen cloth on a bright table, gentle fabric folds, soft daylight",
        (0.50, 0.64), 0.42, 0.78, "right", "top"),
@@ -213,8 +210,24 @@ _FLAT_KEYS = {p.key.replace("/", "_") for p in PLANS}
 assert len(_FLAT_KEYS) == len(PLANS), "ScenePlan 파일명용 key 충돌"
 
 
+# 프로덕션 스타일 키 → ScenePlan 스타일 키. resolve_style은 "pastel_float"/"retro_paper"를
+# 내보내는데 ScenePlan은 "pastel"/"realism"을 쓴다 — 정규화 없이는 해당 스타일의 합성 플랜이
+# 영원히 매칭되지 않아 조용히 Kontext로만 폴백된다(게이트 배포 준비 중 실측 발견).
+_STYLE_ALIASES = {
+    "pastel_float": "pastel",
+    "retro_paper": "realism",
+    "warm_organic": "warm_vintage",
+}
+
+
+def normalize_style(style: str) -> str:
+    key = (style or "").strip().lower()
+    return _STYLE_ALIASES.get(key, key)
+
+
 def plans_for(style: str, domain: str, allow_recompose: bool = False) -> list[ScenePlan]:
     """스타일·도메인의 사용 가능 플랜. allow_recompose=False 면 재연출 전용 플랜 제외."""
+    style = normalize_style(style)
     out = [p for p in PLANS if p.style == style and p.domain == domain
            and (allow_recompose or not p.requires_recompose)]
     return out

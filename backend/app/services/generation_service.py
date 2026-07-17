@@ -578,6 +578,57 @@ def _resolve_style_domain(analysis, domain: str, food_mode: Optional[str],
     return "drink"
 
 
+_COMPOSE_INELIGIBLE_MATERIAL = ("transparent", "reflective")
+
+
+def _compose_eligible(analysis, style_domain: str) -> bool:  # noqa: ANN001
+    """합성(P4D) 적합성 1차 판정 = Vision. analysis에 필드가 없으면(구 경로) False —
+    합성은 opt-in 개선 경로이므로 판단 근거가 없을 때는 안전하게 기존 Kontext 경로로 둔다."""
+    if style_domain == "object":
+        material = getattr(analysis, "material", None)
+        if material is None:
+            return False
+        return material not in _COMPOSE_INELIGIBLE_MATERIAL
+    if style_domain == "drink":
+        opacity = getattr(analysis, "container_opacity", None)
+        if opacity is None:
+            return False
+        return opacity == "opaque"
+    return False
+
+
+def _container_desc(analysis) -> Optional[str]:  # noqa: ANN001
+    """P5 재연출용 용기 묘사 — analyze_photo(Vision) 산출값만 사용(이름 추정 금지, 개정 #2)."""
+    kind = getattr(analysis, "container_kind", None)
+    if not kind or str(kind).lower() == "none":
+        return None
+    color = getattr(analysis, "container_color", None)
+    color_txt = f"{color} " if color and str(color).lower() not in ("", "none") else ""
+    return f"{color_txt}{kind}"
+
+
+def _resolve_drink_staging(analysis, style_domain: str, style_key: str,
+                           seed: Optional[int]) -> tuple[str, Optional[str]]:  # noqa: ANN001
+    """P5 라우팅(결정 D-4 개정). 반환 (staging, text_zone).
+
+    recompose 조건: drink & DRINK_RECOMPOSE=1 & (합성 부적격(투명 용기 등) 또는 시드 로테이션이
+    requires_recompose 아키타입(diagonal_splash·dreamy_cloud)을 고른 경우). 그 외 전부 preserve.
+    """
+    if style_domain != "drink" or os.environ.get("DRINK_RECOMPOSE", "0") != "1":
+        return "preserve", None
+    from . import scene_plans
+
+    rotation_seed = _style_seeds(seed, 1)[0]
+    plan = scene_plans.get_plan(style_key, "drink", seed=rotation_seed, allow_recompose=True)
+    plan_wants_recompose = plan is not None and plan.requires_recompose
+    if plan_wants_recompose:
+        return "recompose", plan.text_zone
+    if not _compose_eligible(analysis, "drink"):
+        zone = plan.text_zone if plan is not None else "top"
+        return "recompose", zone
+    return "preserve", None
+
+
 def _process_ad_impl(
     image_path: str,
     name: str,
@@ -599,6 +650,7 @@ def _process_ad_impl(
     from .overlay_service import apply_food_poster
 
     t0 = time.time()
+    text_zone: Optional[str] = None
 
     # 스타일 지정 시: style_gen 씬 생성(정체성 보존 편집), 아니면 기존 이름기반 라우팅
     if style:
@@ -614,24 +666,62 @@ def _process_ad_impl(
         #   STY-003~005 이후 사물도 선택 무드를 적용하되, StylePlan이 상품은 고정하고 배경·조명만 바꾼다.
         #   여름음료 pop_split·케이크 cross_section 은 특수 조판/게이트 필요 → 당분간 명시 호출 유지.
         effective_style = style
-        # Best-of-N: N시드 생성 → 선별기로 top 선택. best_of=1 이면 기존 1샷.
-        #   ⚠️ BON-002 기각(2026-07-13): NIMA 는 이미-좋은 이미지(5~6점대)를 변별 못 해 Best-of-N 무효.
-        #   선별기는 SELECTOR env 로 교체(nima 기본|gpt=구조화 저지|both=둘 다 로깅해 클린 비교).
-        seeds = _style_seeds(seed, max(1, best_of))
-        cands = []
-        with _stage(run, "generate"):
-            for candidate_seed in seeds:
-                candidate = style_gen.generate_scene(
-                    image_path, effective_style, subject_en,
-                    output_dir=output_dir, seed=candidate_seed, steps=steps,
-                    domain=style_domain,
+        final: Optional[str] = None
+        compose_stats: Optional[dict] = None
+
+        # 합성 경로(P4D, 결정 D-11): SCENE_COMPOSE=1 + object/drink + Vision 적합성일 때만 시도.
+        #   실패(sc["ok"]=False)하면 아무 것도 건드리지 않고 기존 Kontext 경로로 자연 폴백한다.
+        if (os.environ.get("SCENE_COMPOSE", "0") == "1" and style_domain in ("object", "drink")
+                and _compose_eligible(resolved_analysis, style_domain)):
+            from . import scene_service
+
+            compose_seed = _style_seeds(seed, 1)[0]
+            with _stage(run, "compose"):
+                sc = scene_service.compose_scene(
+                    image_path, resolved_analysis, effective_style, style_domain,
+                    seed=compose_seed, output_dir=output_dir,
                 )
-                cands.append(_tag_seed_output(candidate, candidate_seed))
-        with _stage(run, "select"):
-            final = _select_best(cands, original_path=image_path)
-        selected_seed = seeds[cands.index(final)]
-        sel = os.environ.get("SELECTOR", "nima")
-        engine = f"style:{effective_style}" + (f"·bestof{len(seeds)}:{sel}" if len(seeds) > 1 else "")
+            if sc["ok"]:
+                final = sc["path"]
+                engine = f"scene:{sc['plan']}"
+                text_zone = sc["text_zone"]
+                selected_seed = compose_seed
+                compose_stats = sc.get("stats")
+
+        if final is None:
+            # P5 음료 재연출(결정 D-4 개정): drink & DRINK_RECOMPOSE=1 & (합성 부적격 또는
+            #   requires_recompose 아키타입 선택 시)만 staging="recompose". 그 외는 보존 편집.
+            staging, recompose_zone = _resolve_drink_staging(
+                resolved_analysis, style_domain, effective_style, seed)
+            recompose_kwargs = {}
+            if staging == "recompose":
+                recompose_kwargs = {
+                    "staging": "recompose",
+                    "container_desc": _container_desc(resolved_analysis),
+                    "temperature": getattr(resolved_analysis, "temperature", None),
+                    "text_zone": recompose_zone,
+                }
+                text_zone = recompose_zone
+            # Best-of-N: N시드 생성 → 선별기로 top 선택. best_of=1 이면 기존 1샷.
+            #   ⚠️ BON-002 기각(2026-07-13): NIMA 는 이미-좋은 이미지(5~6점대)를 변별 못 해 Best-of-N 무효.
+            #   선별기는 SELECTOR env 로 교체(nima 기본|gpt=구조화 저지|both=둘 다 로깅해 클린 비교).
+            seeds = _style_seeds(seed, max(1, best_of))
+            cands = []
+            with _stage(run, "generate"):
+                for candidate_seed in seeds:
+                    candidate = style_gen.generate_scene(
+                        image_path, effective_style, subject_en,
+                        output_dir=output_dir, seed=candidate_seed, steps=steps,
+                        domain=style_domain, **recompose_kwargs,
+                    )
+                    cands.append(_tag_seed_output(candidate, candidate_seed))
+            with _stage(run, "select"):
+                final = _select_best(cands, original_path=image_path)
+            selected_seed = seeds[cands.index(final)]
+            sel = os.environ.get("SELECTOR", "nima")
+            engine_head = "recompose" if staging == "recompose" else "style"
+            engine = f"{engine_head}:{effective_style}" + (
+                f"·bestof{len(seeds)}:{sel}" if len(seeds) > 1 else "")
 
         # 프롬프트만으로 약하게 표현된 무드를 CPU 색 마감으로 보강한다. 실제 상품 마스크가
         # 없는 현재 Kontext 경로는 중앙 소프트 보호를 쓰므로, 실제 이미지 게이트 전에는 기본 off.
@@ -644,6 +734,26 @@ def _process_ad_impl(
                     style_key=effective_style,
                     strength=float(os.environ.get("STYLE_FINISH_STRENGTH", "0.6")),
                 )
+
+        # P6B 인라인 게이트(결정 D-5·D-7): audit=채점만 기록, enforce=style 재마감 개입.
+        #   기본 off. enforce는 P6A 캘리브레이션(V4P6-001) 후에만 켠다. gate 결과는
+        #   runs.jsonl(add_metric)에만 — 응답 스키마 노출은 범수 조율 전 금지.
+        from . import inline_gate
+
+        _gate_mode = inline_gate.gate_mode()
+        if _gate_mode == "audit":
+            with _stage(run, "gate"):
+                gate = inline_gate.evaluate(final, effective_style, compose_stats)
+            if run is not None:
+                run.add_metric("gate", {**gate, "mode": "audit"})
+        elif _gate_mode == "enforce":
+            with _stage(run, "gate"):
+                enforced = inline_gate.enforce(final, effective_style, compose_stats)
+            final = enforced["path"]
+            if run is not None:
+                run.add_metric("gate", {**enforced["gate"], "mode": "enforce",
+                                        "gate_failed": enforced["gate_failed"],
+                                        "refinished": enforced["refinished"]})
     else:
         with _stage(run, "generate"):
             route = router.process_input(
@@ -668,7 +778,8 @@ def _process_ad_impl(
             headline, subcopy = name, ""
         # 스타일 지정 시 폰트·액센트 자동 매핑(style_specs)
         with _stage(run, "poster"):
-            final = apply_food_poster(final, headline, subcopy, layout=layout, style_key=style)
+            final = apply_food_poster(final, headline, subcopy, layout=layout, style_key=style,
+                                      text_zone=text_zone)
 
     # 심미 점수(플라이휠 라벨) — 실패 무해
     aesthetic = None

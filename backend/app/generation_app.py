@@ -16,9 +16,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import threading
 import uuid
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
@@ -45,7 +44,6 @@ init_langfuse()
 
 logger = logging.getLogger(__name__)
 _STATE = {"status": "starting", "error": None}
-_GPU_LOCK = threading.Lock()
 
 
 def _preload() -> None:
@@ -73,22 +71,11 @@ async def lifespan(_app: FastAPI):  # noqa: ANN201
         shutdown_langfuse()
 
 
-@contextmanager
-def _gpu_slot():  # noqa: ANN201
-    """L4 GPU 작업을 프로세스 내에서 직렬화한다."""
+def _require_ready() -> None:
+    """워커 준비 상태만 확인한다. GPU 직렬화 자체는 kontext_service.acquire_gpu()가 담당한다
+    (결정 D-10 — 락을 엔드포인트에서 실제 GPU 사용 지점으로 이동, 합성(CPU)이 Kontext와 병렬 가능)."""
     if _STATE["status"] != "ready":
         raise HTTPException(status_code=503, detail="GPU worker is not ready")
-    timeout = float(os.environ.get("GPU_QUEUE_TIMEOUT", "180"))
-    acquired = _GPU_LOCK.acquire(timeout=max(0.0, timeout))
-    if not acquired:
-        raise HTTPException(
-            status_code=503,
-            detail="GPU busy - 잠시 후 다시 시도해주세요",
-        )
-    try:
-        yield
-    finally:
-        _GPU_LOCK.release()
 
 
 app = FastAPI(title="AdNova Generation Service", version="0.2.0", lifespan=lifespan)
@@ -117,7 +104,7 @@ def health() -> dict[str, object]:
         "status": "ok" if _STATE["status"] == "ready" else "degraded",
         "service": "generation",
         "worker": _STATE["status"],
-        "busy": _GPU_LOCK.locked(),
+        "busy": kontext_service._GPU_LOCK.locked(),
     }
 
 
@@ -141,15 +128,17 @@ def generate(
     src.write_bytes(image.file.read())
 
     product = ProductInfo(name=product_name, description=product_description or None)
-    with _gpu_slot():
-        try:
-            out = generation_service.run_from_upload_v2(
-                str(src), product, style, seed, use_vision, poster
-            )
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"생성 실패: {e}") from e
+    _require_ready()
+    try:
+        out = generation_service.run_from_upload_v2(
+            str(src), product, style, seed, use_vision, poster
+        )
+    except kontext_service.GpuBusyError as e:
+        raise HTTPException(status_code=503, detail="GPU busy - 잠시 후 다시 시도해주세요") from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"생성 실패: {e}") from e
     return _to_response(out)
 
 
@@ -157,17 +146,19 @@ def generate(
 def regenerate(req: RegenerateAdRequest) -> GenerateAdResponse:
     """asset_id 재사용 + 새 seed 재생성 (FR-12)."""
     product = ProductInfo(name=req.product_name, description=req.product_description)
-    with _gpu_slot():
-        try:
-            out = generation_service.rerun_v2(
-                req.asset_id, product, req.style, req.prev_seed, req.use_vision, req.poster
-            )
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
-        except FileNotFoundError as e:
-            raise HTTPException(status_code=404, detail=str(e)) from e
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"재생성 실패: {e}") from e
+    _require_ready()
+    try:
+        out = generation_service.rerun_v2(
+            req.asset_id, product, req.style, req.prev_seed, req.use_vision, req.poster
+        )
+    except kontext_service.GpuBusyError as e:
+        raise HTTPException(status_code=503, detail="GPU busy - 잠시 후 다시 시도해주세요") from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"재생성 실패: {e}") from e
     return _to_response(out)
 
 
