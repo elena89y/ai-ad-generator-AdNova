@@ -4,6 +4,15 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
+try:
+    # onnxruntime-gpu(CU13) 환경에서는 `import rembg`가 첫 호출 시 모듈 레벨에서 provider를
+    # 검사해 torch가 먼저 로드되지 않으면 SystemExit(1)로 죽는다(image_service._get_rembg_session
+    # 주석과 동일 함정). 이 테스트 파일이 pytest 세션에서 rembg를 처음 임포트하는 파일일 수
+    # 있으므로 여기서도 torch를 먼저 시도해 순서를 보장한다.
+    import torch  # noqa: F401
+except Exception:
+    pass
+
 import numpy as np
 import pytest
 from PIL import Image
@@ -63,6 +72,8 @@ def test_cutout_rejects_fragmented_mask(tmp_path, monkeypatch):
     src = tmp_path / "input.png"
     Image.new("RGB", (200, 200), (5, 5, 5)).save(src)
 
+    # 실제 onnxruntime/rembg 세션 생성을 건너뛴다 — 신뢰도 판정 로직만 검증 대상이고,
+    # 운영 환경(onnxruntime-gpu)의 torch 선로드 요구사항에 테스트가 얽매이면 안 된다.
     monkeypatch.setattr(scene_service, "_get_compose_rembg_session", lambda: object())
     import rembg
     monkeypatch.setattr(rembg, "remove", lambda img, session=None: fragmented, raising=False)
