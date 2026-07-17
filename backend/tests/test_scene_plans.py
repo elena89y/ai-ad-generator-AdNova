@@ -236,3 +236,27 @@ def test_finalize_merges_manifest_without_overwrite_or_duplicate(tmp_path, monke
 
     scene_builder.cmd_finalize(args)
     assert len(manifest.read_text().splitlines()) == 2
+
+
+def test_finalize_requires_surface_y_override_for_tier2_plans(tmp_path, monkeypatch):
+    """SSOT S-0#4: sdxl-소싱(비재연출) 플랜은 이미지별 surface_y 실측이 필수다."""
+    outdir = tmp_path / "library"
+    cand_dir = outdir / "candidates"
+    cand_dir.mkdir(parents=True)
+    manifest = tmp_path / "assets" / "scene_library_manifest.jsonl"
+    manifest.parent.mkdir()
+    monkeypatch.setattr(scene_builder, "MANIFEST", manifest)
+
+    candidate_name = "realism_drink_marble_daylight__none__v3_1.png"
+    (cand_dir / candidate_name).write_bytes(b"img")
+    picks = tmp_path / "picks.txt"
+    picks.write_text(candidate_name + "\n", encoding="utf-8")
+    args = SimpleNamespace(outdir=str(outdir), picks=str(picks), curated_by="tester")
+
+    with pytest.raises(SystemExit, match="surface_y 누락"):
+        scene_builder.cmd_finalize(args)
+
+    picks.write_text(candidate_name + " surface_y=0.7\n", encoding="utf-8")
+    scene_builder.cmd_finalize(args)
+    entries = [json.loads(line) for line in manifest.read_text().splitlines()]
+    assert entries[0]["surface_y"] == 0.7

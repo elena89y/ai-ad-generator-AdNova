@@ -13,7 +13,8 @@
       --outdir /opt/adnova/models/scene_library --candidates 4
   # 필터 예: --plans "pop/drink/*" 만 먼저
   # 2) 갤러리(gallery.html)를 보고 채택 파일명을 picks.txt 에 한 줄씩 기록 (사람 큐레이션)
-  # 3) 확정 — 매니페스트(sha256·version) 작성
+  #    한 줄 형식: "파일명.png" 또는 "파일명.png surface_y=0.73" (Tier2/sdxl 판은 실측 필수)
+  # 3) 확정 — 매니페스트(sha256·version·surface_y 오버라이드) 작성
   ../.venv/bin/python scripts/v4_build_scene_library.py finalize \
       --outdir /opt/adnova/models/scene_library --picks picks.txt --curated-by 의정
 
@@ -363,16 +364,31 @@ def cmd_build(args) -> None:
     print(f"완료 → {outdir}/gallery.html 를 열어 큐레이션 후 finalize 실행")
 
 
+def _parse_picks_line(line: str) -> tuple[str, float | None]:
+    """`파일명.png [surface_y=0.73]` 형식. surface_y 생략 시 플랜 기본값 사용."""
+    parts = line.split()
+    name = parts[0]
+    surface_y = None
+    for tok in parts[1:]:
+        if tok.startswith("surface_y="):
+            surface_y = float(tok.removeprefix("surface_y="))
+    if surface_y is not None and not (0.0 <= surface_y <= 1.0):
+        sys.exit(f"surface_y 범위 오류(0~1): {line}")
+    return name, surface_y
+
+
 def cmd_finalize(args) -> None:
     outdir = Path(args.outdir)
     cand_dir = outdir / "candidates"
-    picks = [line.strip() for line in Path(args.picks).read_text().splitlines()
+    picks = [_parse_picks_line(line.strip())
+             for line in Path(args.picks).read_text().splitlines()
              if line.strip() and not line.startswith("#")]
     if not picks:
         sys.exit("picks 비어있음")
     MANIFEST.parent.mkdir(parents=True, exist_ok=True)
+    by_key = {p.key: p for p in scene_plans.PLANS}
     validated = []
-    for name in picks:
+    for name, surface_y in picks:
         src = cand_dir / name
         if not src.exists():
             sys.exit(f"후보 없음: {name}")
@@ -380,15 +396,20 @@ def cmd_finalize(args) -> None:
             plan_key = _plan_key_from_candidate(name)
         except ValueError as exc:
             sys.exit(str(exc))
+        plan = by_key[plan_key]
+        if surface_y is None and plan.render_mode != "code" and not plan.requires_recompose:
+            sys.exit(
+                f"surface_y 누락(Tier2 이미지는 실측 오버라이드 필수, SSOT S-0#4): {name}"
+            )
         props = [] if "__none__" in name else name.split("__")[1].split("-")
-        validated.append((name, src, plan_key, props, _sha256(src)))
+        validated.append((name, src, plan_key, props, surface_y, _sha256(src)))
 
     try:
         entries = _load_manifest_entries()
     except ValueError as exc:
         sys.exit(str(exc))
     seen = _manifest_plan_indices(entries)
-    for name, src, plan_key, props, source_hash in validated:
+    for name, src, plan_key, props, surface_y, source_hash in validated:
         duplicate = next(
             (
                 entry for entry in entries
@@ -404,11 +425,14 @@ def cmd_finalize(args) -> None:
         seen[plan_key] = seen.get(plan_key, 0) + 1
         dst = outdir / f"{plan_key.replace('/', '_')}__{seen[plan_key]}.png"
         shutil.copy(src, dst)
-        entries.append({
+        entry = {
             "plan": plan_key, "file": dst.name, "sha256": _sha256(dst),
             "version": 1, "props": props, "curated_by": args.curated_by,
-        })
-        print(f"채택 {plan_key} ← {name}")
+        }
+        if surface_y is not None:
+            entry["surface_y"] = round(surface_y, 3)
+        entries.append(entry)
+        print(f"채택 {plan_key} ← {name}" + (f" (surface_y={surface_y})" if surface_y else ""))
     _write_manifest_entries(entries)
     missing = {p.key for p in scene_plans.PLANS
                if not p.requires_recompose} - {str(entry["plan"]) for entry in entries}
