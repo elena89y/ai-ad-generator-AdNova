@@ -37,6 +37,28 @@ class Subscription(Base):
     )
 
 
+class PremiumCreditBalance(Base):
+    __tablename__ = "premium_credit_balances"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+    credits_remaining = Column(Integer, default=30, nullable=False)
+    next_reset_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
+
+
 class PaymentMethod(Base):
     __tablename__ = "payment_methods"
 

@@ -829,19 +829,32 @@ def approve_admin_refund(
     refund, purchase, user = row
     if refund.status != "pending":
         raise HTTPException(status_code=409, detail="이미 처리된 환불 신청입니다.")
-    refund.status = "approved"
-    refund.processed_at = utc_now()
-    refund.processed_by_admin_id = current_admin.user_id
-    purchase.status = "refunded"
-    create_admin_audit_log(
-        db,
-        admin_user_id=current_admin.user_id,
-        action="refund.approved",
-        target_type="refund",
-        target_id=refund.id,
-        detail=f"purchase_id={purchase.id}; amount={refund.amount}",
-    )
-    db.commit()
+    if purchase.provider != "demo":
+        raise HTTPException(status_code=400, detail="데모 결제 내역만 환불할 수 있습니다.")
+    if purchase.item_type != "subscription":
+        raise HTTPException(status_code=400, detail="현재는 구독 결제만 환불할 수 있습니다.")
+    if purchase.status != "paid":
+        raise HTTPException(status_code=409, detail="환불할 수 있는 결제 내역이 아닙니다.")
+
+    try:
+        subscription_revoked = refund_demo_purchase_for_admin(db, purchase)
+        refund.status = "approved"
+        refund.processed_at = utc_now()
+        refund.processed_by_admin_id = current_admin.user_id
+        create_admin_audit_log(
+            db,
+            admin_user_id=current_admin.user_id,
+            action="refund.approved",
+            target_type="refund",
+            target_id=refund.id,
+            detail=(
+                f"purchase_id={purchase.id}; amount={refund.amount}; "
+                f"subscription_revoked={subscription_revoked}"
+            ),
+        )
+    except Exception:
+        db.rollback()
+        raise
     return _build_refund_response(refund, purchase, user)
 
 

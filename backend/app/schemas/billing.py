@@ -48,6 +48,9 @@ class BillingSummaryResponse(BaseModel):
     free_credits_remaining: int = Field(ge=0)
     free_credit_limit: int = Field(ge=1)
     next_free_credit_at: datetime | None = None
+    premium_credits_remaining: int | None = Field(default=None, ge=0)
+    premium_credit_limit: int = Field(default=30, ge=1)
+    next_premium_credit_at: datetime | None = None
     subscription: SubscriptionResponse | None = None
     payment_method: PaymentMethodResponse | None = None
 

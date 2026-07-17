@@ -18,7 +18,12 @@ from app.core.security import (
     verify_password,
 )
 from app.database.admin_models import AdminAccount
-from app.database.billing_models import PaymentMethod, PurchaseHistory, Subscription
+from app.database.billing_models import (
+    PaymentMethod,
+    PremiumCreditBalance,
+    PurchaseHistory,
+    Subscription,
+)
 from app.database.connection import Base
 from app.database.models import (
     Advertisement,
@@ -163,6 +168,11 @@ class AccountApiTestCase(unittest.TestCase):
                         user_id=self.user.id,
                         next_refill_at=datetime.now(timezone.utc) + timedelta(days=1),
                     ),
+                    PremiumCreditBalance(
+                        user_id=self.user.id,
+                        credits_remaining=29,
+                        next_reset_at=datetime.now(timezone.utc) + timedelta(days=30),
+                    ),
                 ]
             )
             self.session.commit()
@@ -188,6 +198,7 @@ class AccountApiTestCase(unittest.TestCase):
             self.assertEqual(self.session.query(SupportInquiry).count(), 0)
             self.assertEqual(self.session.query(CreditBalance).count(), 0)
             self.assertEqual(self.session.query(CreditRefillState).count(), 0)
+            self.assertEqual(self.session.query(PremiumCreditBalance).count(), 0)
             self.assertFalse(input_path.exists())
             self.assertFalse(output_path.exists())
 

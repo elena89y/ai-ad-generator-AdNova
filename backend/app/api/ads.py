@@ -26,7 +26,12 @@ from ..core.observability import propagate_attributes
 from ..core.security import get_current_user
 from ..crud.advertisement import create_advertisement
 from ..crud.billing import get_subscription_by_user
-from ..crud.credits import consume_free_credit, restore_free_credit
+from ..crud.credits import (
+    consume_free_credit,
+    consume_premium_credit,
+    restore_free_credit,
+    restore_premium_credit,
+)
 from ..crud.history import create_history
 from ..crud.image import create_image, get_image_by_id
 from ..database.connection import get_db
@@ -54,25 +59,45 @@ router = APIRouter(prefix="/ads", tags=["ads"])
 UPLOAD_DIR = Path(__file__).resolve().parents[2] / "uploads"
 
 
-def _has_active_premium_subscription(db: Session, user_id: int) -> bool:
+def _consume_generation_credit(db: Session, user_id: int) -> str:
     subscription = get_subscription_by_user(db, user_id)
-    return bool(
+    is_premium = bool(
         subscription
         and subscription.plan == "premium"
         and subscription.status == "active"
     )
-
-
-def _consume_generation_credit(db: Session, user_id: int) -> bool:
-    if _has_active_premium_subscription(db, user_id):
-        return False
+    if is_premium:
+        if consume_premium_credit(
+            db,
+            user_id,
+            next_reset_at=subscription.current_period_end,
+        ) is None:
+            raise HTTPException(
+                status_code=403,
+                detail="이번 달 프리미엄 크레딧을 모두 사용했습니다.",
+            )
+        return "premium"
 
     if consume_free_credit(db, user_id) is None:
         raise HTTPException(
             status_code=403,
             detail="무료 체험 횟수를 모두 사용했습니다. 프리미엄 플랜을 이용해 주세요.",
         )
-    return True
+    return "free"
+
+
+def _restore_generation_credit(db: Session, user_id: int, credit_type: str) -> None:
+    if credit_type == "premium":
+        subscription = get_subscription_by_user(db, user_id)
+        restore_premium_credit(
+            db,
+            user_id,
+            next_reset_at=(
+                subscription.current_period_end if subscription is not None else None
+            ),
+        )
+        return
+    restore_free_credit(db, user_id)
 
 
 def _to_response(out: generation_service.GenerationOutput) -> GenerateAdResponse:
@@ -243,7 +268,7 @@ def generate_ad(
         {"positive": prompt.positive, "negative": prompt.negative},
         ensure_ascii=False,
     )
-    credit_consumed = _consume_generation_credit(db, current_user_id)
+    credit_type = _consume_generation_credit(db, current_user_id)
 
     try:
         # user_id/tags 를 트레이스에 태그 — 사용자별 비용·품질을 Langfuse 에서 필터링할 수 있게.
@@ -274,8 +299,7 @@ def generate_ad(
         )
         return result
     except ValueError as e:
-        if credit_consumed:
-            restore_free_credit(db, current_user_id)
+        _restore_generation_credit(db, current_user_id, credit_type)
         create_history(
             db,
             user_id=current_user_id,
@@ -287,8 +311,7 @@ def generate_ad(
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         db.rollback()
-        if credit_consumed:
-            restore_free_credit(db, current_user_id)
+        _restore_generation_credit(db, current_user_id, credit_type)
         create_history(
             db,
             user_id=current_user_id,
@@ -339,7 +362,7 @@ def regenerate_ad(
         {"positive": prompt.positive, "negative": prompt.negative},
         ensure_ascii=False,
     )
-    credit_consumed = _consume_generation_credit(db, current_user_id)
+    credit_type = _consume_generation_credit(db, current_user_id)
     try:
         with propagate_attributes(user_id=str(current_user_id), tags=["ads.regenerate"]):
             if generation_client.is_remote():
@@ -364,8 +387,7 @@ def regenerate_ad(
         )
         return result
     except ValueError as e:
-        if credit_consumed:
-            restore_free_credit(db, current_user_id)
+        _restore_generation_credit(db, current_user_id, credit_type)
         create_history(
             db,
             user_id=current_user_id,
@@ -376,8 +398,7 @@ def regenerate_ad(
         )
         raise HTTPException(status_code=400, detail=str(e)) from e
     except FileNotFoundError as e:
-        if credit_consumed:
-            restore_free_credit(db, current_user_id)
+        _restore_generation_credit(db, current_user_id, credit_type)
         create_history(
             db,
             user_id=current_user_id,
@@ -389,8 +410,7 @@ def regenerate_ad(
         raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
         db.rollback()
-        if credit_consumed:
-            restore_free_credit(db, current_user_id)
+        _restore_generation_credit(db, current_user_id, credit_type)
         create_history(
             db,
             user_id=current_user_id,
