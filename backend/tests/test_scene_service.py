@@ -150,6 +150,22 @@ def test_place_product_bottom_touches_surface_y():
     assert resized.width == int(1024 * plan.subject_scale)
 
 
+def test_contact_shadow_fades_to_zero_at_borders():
+    """접지 그림자 사각형 버그 회귀(V4P4D-EXP-001 재검증 발견 ③).
+
+    트림된 누끼는 실루엣이 항상 캔버스 가장자리에 닿는다 — 알파가 가득 찬 최악 케이스에서
+    블러 여백이 없으면 그림자 네 변이 직선으로 잘려 회색 사각형이 된다. 수정 후에는
+    가장자리 알파가 0으로 페이드해야 한다."""
+    plan = next(p for p in scene_plans.PLANS if p.render_mode == "code")
+    product = Image.new("RGBA", (200, 300), (255, 255, 255, 255))  # 알파 100% = 최악 케이스
+    shadow = scene_service._contact_shadow(product, plan)
+    assert shadow.width > product.width  # 블러 여백(pad)이 실제로 확보됨
+    a = np.asarray(shadow.split()[-1])
+    assert a.max() > 0  # 그림자 자체는 존재
+    border = np.concatenate([a[0, :], a[-1, :], a[:, 0], a[:, -1]])
+    assert border.max() <= 2  # 네 변 모두 사실상 0으로 페이드 (하드엣지 없음)
+
+
 def test_trim_to_alpha_bbox_removes_rembg_padding():
     """rembg 결과는 원본 사진 크기 그대로라 전경 아래에 투명 여백이 남는다 — 잘라내지
     않으면 배치 시 상품이 접지선 위로 '뜬다'(2026-07-17 VM 실측 재현: 아이스 라떼가 공중부양)."""

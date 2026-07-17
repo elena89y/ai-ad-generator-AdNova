@@ -229,14 +229,22 @@ def _place_product(bg_size: tuple[int, int], product_rgba: Image.Image,
 
 
 def _contact_shadow(product_rgba: Image.Image, plan: scene_plans.ScenePlan) -> Image.Image:
-    """⑤ 접지 그림자: 실루엣 세로 12% 압축 + GaussianBlur(r=폭*0.05), 불투명도 shadow_strength."""
+    """⑤ 접지 그림자: 실루엣 세로 12% 압축 + GaussianBlur(r=폭*0.05), 불투명도 shadow_strength.
+
+    블러가 퍼질 여백(pad=2r)을 캔버스에 먼저 확보한다 — 여백 없이 캔버스 크기 그대로 블러하면
+    실루엣이 가장자리에 닿는 입력(트림된 누끼는 항상 닿음)에서 그림자 경계가 직선으로 잘려
+    '회색 사각형'으로 렌더된다(V4P4D-EXP-001 재검증 발견 ③, 라떼 marble에서 육안 확인).
+    반환 이미지는 제품보다 2*pad 크므로 호출부가 중심 정렬로 보정한다."""
     w, h = product_rgba.size
     squashed_h = max(1, int(h * 0.12))
     alpha = product_rgba.split()[-1].resize((w, squashed_h), Image.LANCZOS)
     blur_radius = max(1, int(w * 0.05))
-    alpha = alpha.filter(ImageFilter.GaussianBlur(blur_radius))
-    arr = (np.asarray(alpha, dtype=np.float32) * plan.shadow_strength).clip(0, 255).astype(np.uint8)
-    shadow = Image.new("RGBA", (w, squashed_h), (12, 10, 8, 0))
+    pad = blur_radius * 2
+    padded = Image.new("L", (w + 2 * pad, squashed_h + 2 * pad), 0)
+    padded.paste(alpha, (pad, pad))
+    padded = padded.filter(ImageFilter.GaussianBlur(blur_radius))
+    arr = (np.asarray(padded, dtype=np.float32) * plan.shadow_strength).clip(0, 255).astype(np.uint8)
+    shadow = Image.new("RGBA", padded.size, (12, 10, 8, 0))
     shadow.putalpha(Image.fromarray(arr))
     return shadow
 
@@ -399,9 +407,13 @@ def compose_scene(image_path: str, analysis, style_key: str, style_domain: str,
     canvas = bg.convert("RGBA")
     shadow = _contact_shadow(product, plan)
     offset_dir = 1 if plan.light_dir == "left" else -1  # 그림자는 광원 반대쪽(D-1' 계승)
-    shadow_x = place_xy[0] + offset_dir * int(product.width * 0.06)
+    # 그림자 캔버스는 블러 여백(pad)만큼 제품보다 크다 — 중심 정렬로 보정. 광원 오프셋으로
+    # 좌표가 음수가 될 수 있는데 alpha_composite는 음수 dest에서 ValueError라 paste 경유.
+    shadow_x = place_xy[0] - (shadow.width - product.width) // 2 + offset_dir * int(product.width * 0.06)
     shadow_y = place_xy[1] + product.height - shadow.height // 2
-    canvas.alpha_composite(shadow, (shadow_x, shadow_y))
+    shadow_layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    shadow_layer.paste(shadow, (shadow_x, shadow_y))
+    canvas = Image.alpha_composite(canvas, shadow_layer)
 
     harmonized, applied_delta_e = _harmonize_color(product, bg, place_xy)
     canvas.alpha_composite(harmonized, place_xy)
