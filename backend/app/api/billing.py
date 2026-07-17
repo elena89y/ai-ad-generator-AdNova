@@ -11,7 +11,12 @@ from app.crud.billing import (
     schedule_subscription_cancellation,
     update_demo_payment_method,
 )
-from app.crud.credits import DEFAULT_FREE_CREDITS, get_credit_status
+from app.crud.credits import (
+    DEFAULT_FREE_CREDITS,
+    PREMIUM_MONTHLY_CREDITS,
+    get_credit_status,
+    get_premium_credit_status,
+)
 from app.database.billing_models import PurchaseHistory, RefundRequest, Subscription
 from app.database.connection import get_db
 from app.database.models import User
@@ -39,11 +44,24 @@ def _build_summary(db: Session, user_id: int) -> BillingSummaryResponse:
     subscription = get_subscription_by_user(db, user_id)
     payment_method = get_payment_method_by_user(db, user_id)
     credit_balance, next_refill_at = get_credit_status(db, user_id)
+    premium_balance = None
+    next_premium_credit_at = None
+    if _is_premium(subscription):
+        premium_balance, next_premium_credit_at = get_premium_credit_status(
+            db,
+            user_id,
+            next_reset_at=subscription.current_period_end,
+        )
     return BillingSummaryResponse(
         is_premium=_is_premium(subscription),
         free_credits_remaining=credit_balance.free_credits_remaining,
         free_credit_limit=DEFAULT_FREE_CREDITS,
         next_free_credit_at=next_refill_at,
+        premium_credits_remaining=(
+            premium_balance.credits_remaining if premium_balance else None
+        ),
+        premium_credit_limit=PREMIUM_MONTHLY_CREDITS,
+        next_premium_credit_at=next_premium_credit_at,
         subscription=subscription,
         payment_method=payment_method,
     )

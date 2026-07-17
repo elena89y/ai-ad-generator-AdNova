@@ -3,6 +3,7 @@ from datetime import timedelta
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
+from app.crud.credits import grant_premium_credits
 from app.database.admin_models import AdminAccount, AdminAuditLog
 from app.database.billing_models import PurchaseHistory, Subscription, utc_now
 from app.database.models import Advertisement, SupportInquiry, User
@@ -16,6 +17,15 @@ def get_admin_summary(db: Session) -> dict[str, int]:
         )
         .filter(PurchaseHistory.status == "paid")
         .one()
+    )
+    month_start = utc_now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    monthly_paid_purchase_amount = (
+        db.query(func.coalesce(func.sum(PurchaseHistory.amount), 0))
+        .filter(
+            PurchaseHistory.status == "paid",
+            PurchaseHistory.purchased_at >= month_start,
+        )
+        .scalar()
     )
 
     return {
@@ -34,6 +44,7 @@ def get_admin_summary(db: Session) -> dict[str, int]:
         ),
         "paid_purchase_count": int(paid_purchase_count or 0),
         "paid_purchase_amount": int(paid_purchase_amount or 0),
+        "monthly_paid_purchase_amount": int(monthly_paid_purchase_amount or 0),
     }
 
 
@@ -272,6 +283,13 @@ def update_user_premium_access(
         subscription.current_period_end = now + timedelta(days=30)
         subscription.cancel_at_period_end = False
         subscription.cancel_requested_at = None
+        grant_premium_credits(
+            db,
+            user_id,
+            next_reset_at=subscription.current_period_end,
+            now=now,
+            commit=False,
+        )
     elif subscription is not None:
         subscription.plan = "free"
         subscription.status = "inactive"

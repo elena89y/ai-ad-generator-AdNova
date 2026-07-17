@@ -213,6 +213,7 @@ button:disabled {
 }
 
 .field input,
+.field select,
 .field textarea {
   width: 100%;
   padding: 12px 14px;
@@ -238,9 +239,17 @@ button:disabled {
 }
 
 .field input:focus,
+.field select:focus,
 .field textarea:focus {
   border-color: var(--gold);
   box-shadow: 0 0 0 4px rgba(242, 169, 59, 0.13);
+}
+
+.field input[readonly],
+.table-select:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.75;
 }
 
 .field small {
@@ -917,12 +926,14 @@ tbody tr:hover {
 }
 
 .status-badge.pending,
+.status-badge.in_progress,
 .status-badge.refund_pending {
   color: var(--blue);
   background: var(--blue-soft);
 }
 
 .status-badge.inactive,
+.status-badge.closed,
 .status-badge.failed,
 .status-badge.refunded {
   color: var(--red);

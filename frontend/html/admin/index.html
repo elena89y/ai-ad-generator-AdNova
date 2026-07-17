@@ -130,6 +130,25 @@
         </button>
 
         <button
+          class="nav-item super-admin-only"
+          data-section="accounts"
+          type="button"
+          hidden
+        >
+          <span>⚿</span>
+          관리자 계정
+        </button>
+
+        <button
+          class="nav-item"
+          data-section="audit"
+          type="button"
+        >
+          <span>≡</span>
+          감사 로그
+        </button>
+
+        <button
           class="nav-item"
           data-section="password"
           type="button"
@@ -170,7 +189,7 @@
         </div>
 
         <div class="header-actions">
-          <span class="admin-role-badge">ADMIN</span>
+          <span id="adminRoleBadge" class="admin-role-badge">ADMIN</span>
 
           <button
             id="refreshAdminButton"
@@ -238,6 +257,7 @@
                     <th>회원</th>
                     <th>금액</th>
                     <th>상태</th>
+                    <th>결제일</th>
                   </tr>
                 </thead>
 
@@ -311,11 +331,14 @@
             <table>
               <thead>
                 <tr>
+                  <th>ID</th>
                   <th>회원</th>
-                  <th>상호명</th>
-                  <th>구독 플랜</th>
-                  <th>가입일</th>
+                  <th>이메일·상호명</th>
+                  <th>플랜 변경</th>
+                  <th>현재 플랜</th>
+                  <th>구독 종료일</th>
                   <th>상태</th>
+                  <th>가입일</th>
                   <th>관리</th>
                 </tr>
               </thead>
@@ -542,7 +565,9 @@
           <select id="inquiryStatusFilter">
             <option value="all">전체 상태</option>
             <option value="pending">답변 대기</option>
+            <option value="in_progress">처리 중</option>
             <option value="answered">답변 완료</option>
+            <option value="closed">종료</option>
           </select>
 
           <span
@@ -563,11 +588,84 @@
                   <th>제목</th>
                   <th>등록일</th>
                   <th>상태</th>
+                  <th>답변</th>
                   <th>관리</th>
                 </tr>
               </thead>
 
               <tbody id="inquiryTableRows"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <!-- 관리자 계정 관리 -->
+      <section
+        id="section-accounts"
+        class="admin-section super-admin-only"
+        hidden
+      >
+        <div class="section-heading">
+          <div>
+            <h2>관리자 계정 관리</h2>
+            <p>최고 관리자가 운영자 권한과 계정 상태를 관리합니다.</p>
+          </div>
+        </div>
+
+        <article class="panel table-panel">
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>관리자</th>
+                  <th>이메일</th>
+                  <th>역할</th>
+                  <th>상태</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+              <tbody id="adminAccountRows"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <!-- 감사 로그 -->
+      <section
+        id="section-audit"
+        class="admin-section"
+      >
+        <div class="section-heading">
+          <div>
+            <h2>감사 로그</h2>
+            <p>관리자가 수행한 주요 변경 기록을 확인합니다.</p>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <input
+            id="auditSearchInput"
+            class="search-input"
+            type="search"
+            placeholder="관리자, 작업, 대상 검색"
+          >
+          <span id="auditResultCount" class="result-count">총 0건</span>
+        </div>
+
+        <article class="panel table-panel">
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>일시</th>
+                  <th>관리자</th>
+                  <th>작업</th>
+                  <th>대상</th>
+                  <th>대상 ID</th>
+                  <th>상세</th>
+                </tr>
+              </thead>
+              <tbody id="auditLogRows"></tbody>
             </table>
           </div>
         </article>
@@ -708,11 +806,12 @@
       <dl id="refundOrderSummary" class="detail-list"></dl>
 
       <label class="field">
-        <span>환불 금액</span>
+        <span>전액 환불 금액</span>
         <input
           id="refundAmountInput"
           type="number"
           min="0"
+          readonly
         >
       </label>
 
@@ -824,6 +923,16 @@
       ></div>
 
       <label class="field">
+        <span>처리 상태</span>
+        <select id="inquiryStatusSelect">
+          <option value="pending">답변 대기</option>
+          <option value="in_progress">처리 중</option>
+          <option value="answered">답변 완료</option>
+          <option value="closed">종료</option>
+        </select>
+      </label>
+
+      <label class="field">
         <span>관리자 답변</span>
         <textarea
           id="inquiryReplyInput"
@@ -839,6 +948,14 @@
           type="button"
         >
           닫기
+        </button>
+
+        <button
+          id="saveInquiryStatusButton"
+          class="secondary-button"
+          type="button"
+        >
+          상태 저장
         </button>
 
         <button

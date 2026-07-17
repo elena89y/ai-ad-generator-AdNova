@@ -3,6 +3,7 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
+from app.crud.credits import grant_premium_credits
 from app.database.billing_models import (
     PaymentMethod,
     PurchaseHistory,
@@ -78,6 +79,13 @@ def activate_demo_subscription(
             status="paid",
             purchased_at=now,
         )
+    )
+    grant_premium_credits(
+        db,
+        user_id,
+        next_reset_at=subscription.current_period_end,
+        now=now,
+        commit=False,
     )
     db.commit()
     db.refresh(subscription)

@@ -1,6 +1,11 @@
 from sqlalchemy.orm import Session
 
-from app.database.billing_models import PaymentMethod, PurchaseHistory, Subscription
+from app.database.billing_models import (
+    PaymentMethod,
+    PremiumCreditBalance,
+    PurchaseHistory,
+    Subscription,
+)
 from app.database.models import (
     Advertisement,
     CreditBalance,
@@ -53,6 +58,9 @@ def delete_user_account(db: Session, user: User) -> list[str]:
         db.query(PurchaseHistory).filter(PurchaseHistory.user_id == user_id).delete(
             synchronize_session=False
         )
+        db.query(PremiumCreditBalance).filter(
+            PremiumCreditBalance.user_id == user_id
+        ).delete(synchronize_session=False)
         db.query(PaymentMethod).filter(PaymentMethod.user_id == user_id).delete(
             synchronize_session=False
         )

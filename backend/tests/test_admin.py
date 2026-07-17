@@ -6,6 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.api.admin import (
+    approve_admin_refund,
     read_admin_accounts,
     read_admin_audit_logs,
     read_admin_summary,
@@ -24,7 +25,12 @@ from app.api.admin import (
 )
 from app.core.admin_security import get_current_admin, get_current_super_admin
 from app.database.admin_models import AdminAccount, AdminAuditLog
-from app.database.billing_models import PurchaseHistory, Subscription
+from app.database.billing_models import (
+    PremiumCreditBalance,
+    PurchaseHistory,
+    RefundRequest,
+    Subscription,
+)
 from app.database.connection import Base
 from app.database.models import Advertisement, User
 from app.schemas.admin import (
@@ -33,6 +39,7 @@ from app.schemas.admin import (
     AdminUserStatusUpdateRequest,
     AdminUserSubscriptionUpdateRequest,
     AdminDemoRefundRequest,
+    AdminPasswordChangeRequest,
 )
 
 
@@ -350,6 +357,7 @@ class AdminApiTestCase(unittest.TestCase):
         self.assertEqual(response.unresolved_inquiries, 0)
         self.assertEqual(response.paid_purchase_count, 1)
         self.assertEqual(response.paid_purchase_amount, 9900)
+        self.assertEqual(response.monthly_paid_purchase_amount, 9900)
 
     def test_admin_can_read_user_detail(self) -> None:
         response = read_admin_user_detail(
@@ -647,6 +655,50 @@ class AdminApiTestCase(unittest.TestCase):
             .count(),
             0,
         )
+        premium_balance = (
+            self.session.query(PremiumCreditBalance)
+            .filter(PremiumCreditBalance.user_id == free_user.id)
+            .one()
+        )
+        self.assertEqual(premium_balance.credits_remaining, 30)
+
+    def test_refund_request_approval_revokes_demo_premium(self) -> None:
+        purchase = self.session.query(PurchaseHistory).one()
+        refund = RefundRequest(
+            purchase_id=purchase.id,
+            user_id=self.user.id,
+            amount=purchase.amount,
+            reason="서비스 미사용",
+        )
+        self.session.add(refund)
+        self.session.commit()
+
+        response = approve_admin_refund(
+            refund_id=refund.id,
+            db=self.session,
+            current_admin=self.admin_account,
+        )
+
+        self.assertEqual(response.status, "approved")
+        subscription = self.session.query(Subscription).one()
+        self.session.refresh(purchase)
+        self.session.refresh(subscription)
+        self.assertEqual(purchase.status, "refunded")
+        self.assertEqual(subscription.plan, "free")
+        self.assertEqual(subscription.status, "inactive")
+
+    def test_admin_password_schema_enforces_account_password_rule(self) -> None:
+        with self.assertRaises(ValueError):
+            AdminPasswordChangeRequest(
+                current_password="Password1!",
+                new_password="onlylowercase",
+            )
+
+        request = AdminPasswordChangeRequest(
+            current_password="Password1!",
+            new_password="NewPassword2!",
+        )
+        self.assertEqual(request.new_password, "NewPassword2!")
 
     def test_admin_can_revoke_premium_access(self) -> None:
         response = update_admin_user_subscription(

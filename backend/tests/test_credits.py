@@ -6,9 +6,13 @@ from sqlalchemy.orm import sessionmaker
 
 from app.crud.credits import (
     consume_free_credit,
+    consume_premium_credit,
     get_credit_balance,
     get_credit_status,
+    get_premium_credit_status,
+    grant_premium_credits,
     restore_free_credit,
+    restore_premium_credit,
 )
 from app.database.connection import Base
 from app.database.models import User
@@ -81,6 +85,72 @@ class CreditBalanceCrudTestCase(unittest.TestCase):
         )
         self.assertEqual(balance.free_credits_remaining, 3)
         self.assertIsNone(next_refill_at)
+
+    def test_premium_credits_are_renewed_every_30_days(self) -> None:
+        now = datetime(2026, 7, 15, 12, 0, tzinfo=timezone.utc)
+        next_reset_at = now + timedelta(days=30)
+        balance = grant_premium_credits(
+            self.session,
+            self.user.id,
+            next_reset_at=next_reset_at,
+            now=now,
+        )
+
+        self.assertEqual(balance.credits_remaining, 30)
+        self.assertEqual(
+            consume_premium_credit(
+                self.session,
+                self.user.id,
+                next_reset_at=next_reset_at,
+                now=now,
+            ),
+            29,
+        )
+
+        balance, reset_at = get_premium_credit_status(
+            self.session,
+            self.user.id,
+            now=next_reset_at,
+        )
+        self.assertEqual(balance.credits_remaining, 30)
+        self.assertEqual(reset_at, next_reset_at + timedelta(days=30))
+
+    def test_premium_credit_cannot_drop_below_zero_and_can_be_restored(self) -> None:
+        now = datetime(2026, 7, 15, 12, 0, tzinfo=timezone.utc)
+        next_reset_at = now + timedelta(days=30)
+        grant_premium_credits(
+            self.session,
+            self.user.id,
+            next_reset_at=next_reset_at,
+            now=now,
+        )
+
+        for expected in range(29, -1, -1):
+            self.assertEqual(
+                consume_premium_credit(
+                    self.session,
+                    self.user.id,
+                    next_reset_at=next_reset_at,
+                    now=now,
+                ),
+                expected,
+            )
+        self.assertIsNone(
+            consume_premium_credit(
+                self.session,
+                self.user.id,
+                next_reset_at=next_reset_at,
+                now=now,
+            )
+        )
+        self.assertEqual(
+            restore_premium_credit(
+                self.session,
+                self.user.id,
+                next_reset_at=next_reset_at,
+            ),
+            1,
+        )
 
 
 if __name__ == "__main__":

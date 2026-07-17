@@ -19,6 +19,11 @@ let users = [];
 let payments = [];
 let inquiries = [];
 let refundRecords = [];
+let subscriptions = [];
+let adminAccounts = [];
+let auditLogs = [];
+let adminSummary = null;
+let currentAdmin = null;
 
 let currentSection = "dashboard";
 let currentPaymentView = "orders";
@@ -291,6 +296,31 @@ function normalizeList(response, possibleKeys = []) {
   return [];
 }
 
+function isSuperAdmin() {
+  return currentAdmin?.role === "super_admin";
+}
+
+async function fetchAllAdminItems(path) {
+  const items = [];
+  let skip = 0;
+  let total = 0;
+
+  do {
+    const separator = path.includes("?") ? "&" : "?";
+    const response = await adminApiFetch(
+      `${path}${separator}skip=${skip}&limit=100`
+    );
+    const pageItems = normalizeList(response);
+    total = Number(response?.total ?? pageItems.length);
+    items.push(...pageItems);
+    skip += pageItems.length;
+
+    if (pageItems.length === 0) break;
+  } while (items.length < total);
+
+  return { total, items };
+}
+
 async function adminApiFetch(path, options = {}) {
   const token = localStorage.getItem(ACCESS_TOKEN_KEY);
 
@@ -303,7 +333,7 @@ async function adminApiFetch(path, options = {}) {
     }
   });
 
-  if (response.status === 401 || response.status === 403) {
+  if (response.status === 401) {
     clearAuth();
     showLoginScreen();
     throw new Error("관리자 인증이 필요합니다.");
@@ -456,6 +486,25 @@ function handleLogout() {
   window.location.href = "../";
 }
 
+function applyAdminIdentity() {
+  if (!currentAdmin) return;
+
+  if (getElement("adminProfileName")) {
+    getElement("adminProfileName").textContent = currentAdmin.username;
+  }
+  if (getElement("adminProfileEmail")) {
+    getElement("adminProfileEmail").textContent = currentAdmin.email;
+  }
+  if (getElement("adminRoleBadge")) {
+    getElement("adminRoleBadge").textContent = isSuperAdmin()
+      ? "SUPER ADMIN"
+      : "OPERATOR";
+  }
+  document.querySelectorAll(".super-admin-only").forEach((element) => {
+    element.hidden = !isSuperAdmin();
+  });
+}
+
 /* =========================================
    데이터 불러오기
 ========================================= */
@@ -463,18 +512,46 @@ function handleLogout() {
 async function loadAdminData() {
   try {
     if (USE_ADMIN_MOCK) {
+      currentAdmin = {
+        id: 0,
+        username: "admin",
+        email: "admin@adnova.com",
+        role: "super_admin"
+      };
       users = cloneData(MOCK_USERS);
       payments = cloneData(MOCK_PAYMENTS);
       inquiries = cloneData(MOCK_INQUIRIES);
+      adminSummary = null;
+      subscriptions = [];
+      adminAccounts = [];
+      auditLogs = [];
     } else {
-      const [userResponse, paymentResponse, inquiryResponse, refundResponse] =
+      currentAdmin = await adminApiFetch("/api/admin/me");
+      const accountRequest = isSuperAdmin()
+        ? fetchAllAdminItems("/api/admin/accounts")
+        : Promise.resolve({ total: 0, items: [] });
+      const [
+        summaryResponse,
+        userResponse,
+        paymentResponse,
+        inquiryResponse,
+        refundResponse,
+        subscriptionResponse,
+        auditResponse,
+        accountResponse
+      ] =
         await Promise.all([
-          adminApiFetch("/api/admin/users"),
-          adminApiFetch("/api/admin/purchases"),
-          adminApiFetch("/api/admin/inquiries"),
-          adminApiFetch("/api/admin/refunds")
+          adminApiFetch("/api/admin/summary"),
+          fetchAllAdminItems("/api/admin/users"),
+          fetchAllAdminItems("/api/admin/purchases"),
+          fetchAllAdminItems("/api/admin/inquiries"),
+          adminApiFetch("/api/admin/refunds"),
+          fetchAllAdminItems("/api/admin/subscriptions"),
+          fetchAllAdminItems("/api/admin/audit-logs"),
+          accountRequest
         ]);
 
+      adminSummary = summaryResponse;
       users = normalizeList(userResponse, ["users"]);
       payments = normalizeList(paymentResponse, ["payments"]).map((item) => ({
         ...item,
@@ -489,6 +566,9 @@ async function loadAdminData() {
         reply: item.reply ?? item.answer
       }));
       refundRecords = normalizeList(refundResponse, ["refunds"]);
+      subscriptions = normalizeList(subscriptionResponse, ["subscriptions"]);
+      auditLogs = normalizeList(auditResponse, ["audit_logs"]);
+      adminAccounts = normalizeList(accountResponse, ["accounts"]);
 
       refundRecords.forEach((refund) => {
         const payment = payments.find(
@@ -507,6 +587,7 @@ async function loadAdminData() {
       });
     }
 
+    applyAdminIdentity();
     renderAll();
   } catch (error) {
     showToast(error.message, "error");
@@ -518,6 +599,8 @@ function renderAll() {
   renderUsers();
   renderPayments();
   renderInquiries();
+  renderAdminAccounts();
+  renderAuditLogs();
 }
 
 /* =========================================
@@ -529,10 +612,15 @@ const SECTION_TITLES = {
   users: "회원 관리",
   payments: "결제 및 환불 관리",
   inquiries: "1:1 문의 관리",
+  accounts: "관리자 계정 관리",
+  audit: "감사 로그",
   password: "관리자 비밀번호 변경"
 };
 
 function showSection(sectionName) {
+  if (sectionName === "accounts" && !isSuperAdmin()) {
+    sectionName = "dashboard";
+  }
   currentSection = sectionName;
 
   document.querySelectorAll(".admin-section").forEach((section) => {
@@ -557,6 +645,8 @@ function showSection(sectionName) {
   if (sectionName === "users") renderUsers();
   if (sectionName === "payments") renderPayments();
   if (sectionName === "inquiries") renderInquiries();
+  if (sectionName === "accounts") renderAdminAccounts();
+  if (sectionName === "audit") renderAuditLogs();
 }
 
 /* =========================================
@@ -564,33 +654,23 @@ function showSection(sectionName) {
 ========================================= */
 
 function renderDashboard() {
-  const activeUsers = users.filter((user) => user.is_active !== false);
-  const premiumUsers = users.filter(
+  const totalUsers = adminSummary?.total_users ?? users.length;
+  const premiumUsers = adminSummary?.premium_users ?? users.filter(
     (user) => String(user.plan).toUpperCase() === "PREMIUM"
-  );
-
-  const monthlyRevenue = payments
-    .filter((payment) => {
-      const currentMonth = new Date().toISOString().slice(0, 7);
-      return (
-        payment.status === "paid" &&
-        String(payment.paid_at).slice(0, 7) === currentMonth
-      );
-    })
-    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-
-  const pendingInquiries = inquiries.filter(
-    (inquiry) => inquiry.status === "pending"
-  );
+  ).length;
+  const monthlyRevenue = adminSummary?.monthly_paid_purchase_amount ?? 0;
+  const pendingInquiries = adminSummary?.unresolved_inquiries ?? inquiries.filter(
+    (inquiry) => ["pending", "in_progress"].includes(inquiry.status)
+  ).length;
 
   if (getElement("statTotalUsers")) {
     getElement("statTotalUsers").textContent =
-      activeUsers.length.toLocaleString("ko-KR");
+      totalUsers.toLocaleString("ko-KR");
   }
 
   if (getElement("statPremiumUsers")) {
     getElement("statPremiumUsers").textContent =
-      premiumUsers.length.toLocaleString("ko-KR");
+      premiumUsers.toLocaleString("ko-KR");
   }
 
   if (getElement("statMonthlyRevenue")) {
@@ -600,7 +680,7 @@ function renderDashboard() {
 
   if (getElement("statPendingInquiries")) {
     getElement("statPendingInquiries").textContent =
-      pendingInquiries.length.toLocaleString("ko-KR");
+      pendingInquiries.toLocaleString("ko-KR");
   }
 
   renderRecentPayments();
@@ -739,7 +819,7 @@ function renderUsers() {
   if (filteredUsers.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="8" class="empty-cell">
+        <td colspan="9" class="empty-cell">
           조건에 맞는 회원이 없습니다.
         </td>
       </tr>
@@ -751,6 +831,13 @@ function renderUsers() {
     .map((user) => {
       const active = user.is_active !== false;
       const plan = String(user.plan || "FREE").toUpperCase();
+      const subscription = subscriptions.find(
+        (item) => String(item.user_id) === String(user.id)
+      );
+      const isAdminAccount = adminAccounts.some(
+        (item) => String(item.user_id) === String(user.id)
+      );
+      const canManageUser = isSuperAdmin() && !isAdminAccount;
 
       return `
         <tr>
@@ -771,6 +858,7 @@ function renderUsers() {
             <select
               class="table-select"
               data-user-plan="${escapeHtml(user.id)}"
+              ${canManageUser ? "" : "disabled"}
             >
               <option value="FREE" ${plan === "FREE" ? "selected" : ""}>
                 FREE
@@ -788,6 +876,7 @@ function renderUsers() {
               ${plan}
             </span>
           </td>
+          <td>${escapeHtml(subscription?.current_period_end || "-")}</td>
           <td>
             <span class="status-badge ${active ? "active" : "inactive"}">
               ${active ? "활성" : "비활성"}
@@ -795,13 +884,17 @@ function renderUsers() {
           </td>
           <td>${escapeHtml(user.created_at)}</td>
           <td>
-            <button
-              type="button"
-              class="table-action ${active ? "danger" : ""}"
-              data-toggle-user="${escapeHtml(user.id)}"
-            >
-              ${active ? "정지" : "활성화"}
-            </button>
+            ${
+              canManageUser
+                ? `<button
+                    type="button"
+                    class="table-action ${active ? "danger" : ""}"
+                    data-toggle-user="${escapeHtml(user.id)}"
+                  >
+                    ${active ? "정지" : "활성화"}
+                  </button>`
+                : "-"
+            }
           </td>
         </tr>
       `;
@@ -810,6 +903,10 @@ function renderUsers() {
 }
 
 async function changeUserPlan(userId, nextPlan, selectElement) {
+  if (!isSuperAdmin()) {
+    showToast("최고 관리자만 회원 플랜을 변경할 수 있습니다.", "error");
+    return;
+  }
   const user = users.find(
     (item) => String(item.id) === String(userId)
   );
@@ -852,6 +949,10 @@ async function changeUserPlan(userId, nextPlan, selectElement) {
 }
 
 async function toggleUserStatus(userId) {
+  if (!isSuperAdmin()) {
+    showToast("최고 관리자만 회원 상태를 변경할 수 있습니다.", "error");
+    return;
+  }
   const user = users.find(
     (item) => String(item.id) === String(userId)
   );
@@ -1068,7 +1169,7 @@ function renderOrderPayments(filteredPayments) {
 
   tbody.innerHTML = filteredPayments
     .map((payment) => {
-      const canRefund = payment.status === "paid";
+      const canRefund = isSuperAdmin() && payment.status === "paid";
 
       return `
         <tr>
@@ -1255,22 +1356,26 @@ function renderRefundRequests(refundRequests) {
             </div>
           </td>
           <td>
-            <div class="refund-actions">
-              <button
-                type="button"
-                class="table-action approve"
-                data-approve-refund="${escapeHtml(payment.id)}"
-              >
-                승인
-              </button>
-              <button
-                type="button"
-                class="table-action danger"
-                data-reject-refund="${escapeHtml(payment.id)}"
-              >
-                거절
-              </button>
-            </div>
+            ${
+              isSuperAdmin()
+                ? `<div class="refund-actions">
+                    <button
+                      type="button"
+                      class="table-action approve"
+                      data-approve-refund="${escapeHtml(payment.id)}"
+                    >
+                      승인
+                    </button>
+                    <button
+                      type="button"
+                      class="table-action danger"
+                      data-reject-refund="${escapeHtml(payment.id)}"
+                    >
+                      거절
+                    </button>
+                  </div>`
+                : "조회 전용"
+            }
           </td>
         </tr>
       `
@@ -1299,6 +1404,10 @@ function renderRefundHistory(items) {
 }
 
 async function approveRefundRequest(paymentId) {
+  if (!isSuperAdmin()) {
+    showToast("최고 관리자만 환불을 승인할 수 있습니다.", "error");
+    return;
+  }
   const payment = payments.find(
     (item) => String(item.id) === String(paymentId)
   );
@@ -1327,6 +1436,10 @@ async function approveRefundRequest(paymentId) {
 }
 
 async function rejectRefundRequest(paymentId) {
+  if (!isSuperAdmin()) {
+    showToast("최고 관리자만 환불을 거절할 수 있습니다.", "error");
+    return;
+  }
   const payment = payments.find(
     (item) => String(item.id) === String(paymentId)
   );
@@ -1362,6 +1475,10 @@ async function rejectRefundRequest(paymentId) {
 }
 
 function openRefundModal(paymentId) {
+  if (!isSuperAdmin()) {
+    showToast("최고 관리자만 환불을 처리할 수 있습니다.", "error");
+    return;
+  }
   const payment = payments.find(
     (item) => String(item.id) === String(paymentId)
   );
@@ -1398,15 +1515,11 @@ async function processRefund() {
 
   if (!payment) return;
 
-  const refundAmount = Number(getElement("refundAmountInput")?.value);
+  const refundAmount = Number(payment.amount);
   const reason = getElement("refundReasonInput")?.value.trim();
 
-  if (
-    !refundAmount ||
-    refundAmount <= 0 ||
-    refundAmount > Number(payment.amount)
-  ) {
-    showToast("올바른 환불 금액을 입력해주세요.", "error");
+  if (!isSuperAdmin()) {
+    showToast("최고 관리자만 환불을 처리할 수 있습니다.", "error");
     return;
   }
 
@@ -1484,7 +1597,7 @@ function openMemberPaymentModal(userId) {
             </td>
             <td>
               ${
-                payment.status === "paid"
+                isSuperAdmin() && payment.status === "paid"
                   ? `
                     <button
                       type="button"
@@ -1513,7 +1626,9 @@ function openMemberPaymentModal(userId) {
 function getInquiryStatusLabel(status) {
   const labels = {
     pending: "답변 대기",
-    answered: "답변 완료"
+    in_progress: "처리 중",
+    answered: "답변 완료",
+    closed: "종료"
   };
 
   return labels[status] || status || "-";
@@ -1656,8 +1771,37 @@ function openInquiryModal(inquiryId) {
   if (getElement("inquiryReplyInput")) {
     getElement("inquiryReplyInput").value = inquiry.reply || "";
   }
+  if (getElement("inquiryStatusSelect")) {
+    getElement("inquiryStatusSelect").value = inquiry.status;
+  }
 
   openModal("inquiryModal");
+}
+
+async function saveInquiryStatus() {
+  const inquiry = inquiries.find(
+    (item) => String(item.id) === String(selectedInquiryId)
+  );
+  const nextStatus = getElement("inquiryStatusSelect")?.value;
+
+  if (!inquiry || !nextStatus || inquiry.status === nextStatus) return;
+
+  try {
+    if (!USE_ADMIN_MOCK) {
+      await adminApiFetch(`/api/admin/inquiries/${inquiry.id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: nextStatus })
+      });
+      await loadAdminData();
+    } else {
+      inquiry.status = nextStatus;
+      renderAll();
+    }
+    closeModal("inquiryModal");
+    showToast("문의 처리 상태를 변경했습니다.");
+  } catch (error) {
+    showToast(error.message, "error");
+  }
 }
 
 async function saveInquiryReply() {
@@ -1687,16 +1831,169 @@ async function saveInquiryReply() {
       );
     }
 
-    inquiry.reply = reply;
-    inquiry.status = "answered";
-    inquiry.answered_at = new Date().toISOString();
+    if (!USE_ADMIN_MOCK) {
+      await loadAdminData();
+    } else {
+      inquiry.reply = reply;
+      inquiry.status = "answered";
+      inquiry.answered_at = new Date().toISOString();
+      renderAll();
+    }
 
     closeModal("inquiryModal");
-    renderAll();
     showToast("문의 답변이 저장되었습니다.");
   } catch (error) {
     showToast(error.message, "error");
   }
+}
+
+/* =========================================
+   관리자 계정 및 감사 로그
+========================================= */
+
+function getAdminRoleLabel(role) {
+  return role === "super_admin" ? "최고 관리자" : "운영자";
+}
+
+function renderAdminAccounts() {
+  const tbody = getElement("adminAccountRows");
+  if (!tbody) return;
+
+  if (!isSuperAdmin()) {
+    tbody.innerHTML = `
+      <tr><td colspan="5" class="empty-cell">최고 관리자만 확인할 수 있습니다.</td></tr>
+    `;
+    return;
+  }
+  if (adminAccounts.length === 0) {
+    tbody.innerHTML = `
+      <tr><td colspan="5" class="empty-cell">관리자 계정이 없습니다.</td></tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = adminAccounts.map((account) => {
+    const isCurrentAdmin = String(account.user_id) === String(currentAdmin.id);
+    return `
+      <tr>
+        <td><div class="table-primary">${escapeHtml(account.username)}</div></td>
+        <td>${escapeHtml(account.email)}</td>
+        <td>
+          <select
+            class="table-select"
+            data-admin-role="${escapeHtml(account.id)}"
+            ${isCurrentAdmin ? "disabled" : ""}
+          >
+            <option value="operator" ${account.role === "operator" ? "selected" : ""}>운영자</option>
+            <option value="super_admin" ${account.role === "super_admin" ? "selected" : ""}>최고 관리자</option>
+          </select>
+        </td>
+        <td>
+          <span class="status-badge ${account.is_active ? "active" : "inactive"}">
+            ${account.is_active ? "활성" : "비활성"}
+          </span>
+        </td>
+        <td>
+          ${
+            isCurrentAdmin
+              ? "현재 계정"
+              : `<button
+                  type="button"
+                  class="table-action ${account.is_active ? "danger" : ""}"
+                  data-toggle-admin="${escapeHtml(account.id)}"
+                >
+                  ${account.is_active ? "비활성화" : "활성화"}
+                </button>`
+          }
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+async function changeAdminAccountRole(accountId, nextRole, selectElement) {
+  const account = adminAccounts.find(
+    (item) => String(item.id) === String(accountId)
+  );
+  if (!account || !isSuperAdmin()) return;
+
+  const previousRole = account.role;
+  if (previousRole === nextRole) return;
+  if (!confirm(`${account.username} 관리자의 역할을 ${getAdminRoleLabel(nextRole)}(으)로 변경하시겠습니까?`)) {
+    selectElement.value = previousRole;
+    return;
+  }
+
+  try {
+    await adminApiFetch(`/api/admin/accounts/${account.id}/role`, {
+      method: "PATCH",
+      body: JSON.stringify({ role: nextRole })
+    });
+    await loadAdminData();
+    showToast("관리자 역할을 변경했습니다.");
+  } catch (error) {
+    selectElement.value = previousRole;
+    showToast(error.message, "error");
+  }
+}
+
+async function toggleAdminAccountStatus(accountId) {
+  const account = adminAccounts.find(
+    (item) => String(item.id) === String(accountId)
+  );
+  if (!account || !isSuperAdmin()) return;
+
+  const nextActive = !account.is_active;
+  if (!confirm(`${account.username} 관리자 계정을 ${nextActive ? "활성화" : "비활성화"}하시겠습니까?`)) return;
+
+  try {
+    await adminApiFetch(`/api/admin/accounts/${account.id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ is_active: nextActive })
+    });
+    await loadAdminData();
+    showToast("관리자 계정 상태를 변경했습니다.");
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+function renderAuditLogs() {
+  const tbody = getElement("auditLogRows");
+  if (!tbody) return;
+
+  const keyword = getElement("auditSearchInput")?.value.trim().toLowerCase() || "";
+  const filteredLogs = auditLogs.filter((log) => {
+    const searchableText = [
+      log.admin_username,
+      log.action,
+      log.target_type,
+      log.target_id,
+      log.detail
+    ].join(" ").toLowerCase();
+    return !keyword || searchableText.includes(keyword);
+  });
+
+  if (getElement("auditResultCount")) {
+    getElement("auditResultCount").textContent = `총 ${filteredLogs.length.toLocaleString("ko-KR")}건`;
+  }
+  if (filteredLogs.length === 0) {
+    tbody.innerHTML = `
+      <tr><td colspan="6" class="empty-cell">감사 로그가 없습니다.</td></tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = filteredLogs.map((log) => `
+    <tr>
+      <td>${escapeHtml(log.created_at)}</td>
+      <td>${escapeHtml(log.admin_username)}</td>
+      <td>${escapeHtml(log.action)}</td>
+      <td>${escapeHtml(log.target_type)}</td>
+      <td>${escapeHtml(log.target_id)}</td>
+      <td>${escapeHtml(log.detail || "-")}</td>
+    </tr>
+  `).join("");
 }
 
 /* =========================================
@@ -1705,7 +2002,7 @@ async function saveInquiryReply() {
 
 function isValidPassword(password) {
   const passwordPattern =
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+=])[A-Za-z\d!@#$%^&*()_\-+=]{8,20}$/;
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&^#()_\-+=])[A-Za-z\d@$!%*?&^#()_\-+=]{8,20}$/;
 
   return passwordPattern.test(password);
 }
@@ -2044,6 +2341,40 @@ function bindEvents() {
   getElement("saveInquiryReplyButton")?.addEventListener(
     "click",
     saveInquiryReply
+  );
+
+  getElement("saveInquiryStatusButton")?.addEventListener(
+    "click",
+    saveInquiryStatus
+  );
+
+  getElement("adminAccountRows")?.addEventListener(
+    "change",
+    (event) => {
+      const select = event.target.closest("[data-admin-role]");
+      if (select) {
+        changeAdminAccountRole(
+          select.dataset.adminRole,
+          select.value,
+          select
+        );
+      }
+    }
+  );
+
+  getElement("adminAccountRows")?.addEventListener(
+    "click",
+    (event) => {
+      const button = event.target.closest("[data-toggle-admin]");
+      if (button) {
+        toggleAdminAccountStatus(button.dataset.toggleAdmin);
+      }
+    }
+  );
+
+  getElement("auditSearchInput")?.addEventListener(
+    "input",
+    renderAuditLogs
   );
 
   document

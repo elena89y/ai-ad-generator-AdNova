@@ -13,7 +13,12 @@ from app.api.billing import (
     read_purchase_histories,
     resume_canceled_subscription,
 )
-from app.database.billing_models import PaymentMethod, PurchaseHistory, Subscription
+from app.database.billing_models import (
+    PaymentMethod,
+    PremiumCreditBalance,
+    PurchaseHistory,
+    Subscription,
+)
 from app.database.connection import Base
 from app.database.models import User
 from app.schemas.billing import DemoCardRequest
@@ -93,6 +98,12 @@ class BillingApiTestCase(unittest.TestCase):
         self.assertEqual(summary.free_credits_remaining, 3)
         self.assertEqual(summary.free_credit_limit, 3)
         self.assertIsNone(summary.next_free_credit_at)
+        self.assertEqual(summary.premium_credits_remaining, 30)
+        self.assertEqual(summary.premium_credit_limit, 30)
+        self.assertEqual(
+            summary.next_premium_credit_at,
+            self.subscription.current_period_end.replace(tzinfo=timezone.utc),
+        )
         self.assertEqual(summary.subscription.id, self.subscription.id)
         self.assertEqual(summary.payment_method.card_last4, "1234")
 
@@ -147,6 +158,16 @@ class BillingApiTestCase(unittest.TestCase):
         self.assertEqual(summary.subscription.provider, "demo")
         self.assertEqual(summary.payment_method.card_brand, "Visa")
         self.assertEqual(summary.payment_method.card_last4, "4242")
+        premium_balance = (
+            self.session.query(PremiumCreditBalance)
+            .filter(PremiumCreditBalance.user_id == self.other_user.id)
+            .one()
+        )
+        self.assertEqual(premium_balance.credits_remaining, 30)
+        self.assertEqual(
+            premium_balance.next_reset_at,
+            summary.subscription.current_period_end,
+        )
 
         purchases = read_purchase_histories(
             limit=50,

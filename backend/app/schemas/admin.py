@@ -1,7 +1,10 @@
+import re
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.schemas.auth import PASSWORD_PATTERN
 
 
 class AdminMeResponse(BaseModel):
@@ -43,6 +46,7 @@ class AdminSummaryResponse(BaseModel):
     unresolved_inquiries: int
     paid_purchase_count: int
     paid_purchase_amount: int
+    monthly_paid_purchase_amount: int
 
 
 class AdminAuditLogResponse(BaseModel):
@@ -166,6 +170,15 @@ class AdminRefundRejectRequest(BaseModel):
 class AdminPasswordChangeRequest(BaseModel):
     current_password: str = Field(min_length=1, max_length=128)
     new_password: str = Field(min_length=8, max_length=20)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, value: str) -> str:
+        if not re.match(PASSWORD_PATTERN, value):
+            raise ValueError(
+                "비밀번호는 8~20자이며 영문 대문자, 영문 소문자, 숫자, 특수문자를 각각 최소 1개 이상 포함해야 합니다."
+            )
+        return value
 
 
 class AdminMessageResponse(BaseModel):
