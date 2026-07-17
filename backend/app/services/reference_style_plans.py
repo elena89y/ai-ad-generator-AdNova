@@ -231,10 +231,61 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
     )
 
 
-def build_clip_anchor(style_key: str, domain: str | None, subject_en: str) -> str | None:
-    """CLIP 77토큰용 짧은 스타일 앵커. 전체 편집 명령은 T5 prompt_2가 담당한다."""
+def build_clip_anchor(style_key: str, domain: str | None, subject_en: str,
+                      staging: str = "preserve") -> str | None:
+    """CLIP 77토큰용 짧은 스타일 앵커. 전체 편집 명령은 T5 prompt_2가 담당한다.
+
+    staging="recompose"(P5 음료 재연출): "original drink unchanged" 류 보존 문구가 재연출
+    지시(앵글·구도 자유)와 CLIP 층위에서 충돌하므로 제거하고 짧은 광고 앵커만 쓴다(개정 #5).
+    """
     plan = get_reference_plan(style_key, domain)
     if plan is None:
         return None
     subject = (subject_en or "product").strip()
+    if staging == "recompose":
+        return f"{subject} beverage advertisement, {_CLIP_STYLE_ANCHORS[plan.style_key]}, no text"
     return f"{subject}, {_CLIP_STYLE_ANCHORS[plan.style_key]}, original {plan.domain} unchanged, no text"
+
+
+# 온도별 물리 효과(P5) — 그 음료에 물리적으로 참인 효과만(정직성). 이름 추정 금지, Vision이 원천.
+_RECOMPOSE_EFFECTS = {
+    "iced": "fresh condensation droplets on the outside of the container",
+    "hot": "gentle natural steam rising from the drink",
+}
+
+
+def build_recompose_instruction(style_key: str, subject_en: str,
+                                container_desc: str | None = None,
+                                temperature: str | None = None,
+                                text_zone: str | None = None) -> str | None:
+    """P5 음료 재연출 지시 — 보존 편집이 아니라 같은 음료의 '새 연출'을 만든다.
+
+    재연출 계약(원본 승계): 같은 용기 종류·색 / 같은 음료·토핑 / 앵글·구도 자유 /
+    외래 재료·손·글자 금지 / text_zone 카피 여백. container_desc·temperature는
+    analyze_photo(Vision) 산출값만 사용한다(개정 #2 — 이름 추정 함수 만들지 말 것).
+    """
+    plan = get_reference_plan(style_key, "drink")
+    if plan is None:
+        return None
+    subject = (subject_en or "beverage").strip()
+    container = (container_desc or "container").strip()
+    zone = (text_zone or "top").replace("_", " ")
+    effect = _RECOMPOSE_EFFECTS.get((temperature or "").strip().lower())
+    effect_txt = f" You may add only {effect}." if effect else ""
+    # direction 말미의 소품 금지문("No fruit, ... ice, splash ...")은 보존 편집용 —
+    # 재연출 계약의 "identical ice/toppings as photographed"와 충돌한다(그 음료의 진짜 얼음까지
+    # 지우라는 뜻으로 읽힘). 씬 묘사만 취하고 금지는 아래 계약 문장이 일원화해서 담당한다.
+    scene_direction = ". ".join(
+        s.rstrip(".") for s in plan.direction.split(". ") if not s.strip().startswith("No ")
+    ) + "."
+    return (
+        f"Restage this {subject} into a new advertisement composition. "
+        f"Keep the exact same {container} and the exact same drink inside: identical liquid color, "
+        f"foam, ice and toppings as photographed. "
+        "You may freely change the camera angle, composition, scale and placement for a more "
+        f"dynamic advertising shot.{effect_txt} "
+        f"{scene_direction} "
+        f"Leave clean empty copy space in the {zone} area. "
+        "Do not add any new ingredients, fruit, garnish, props, hands or people. "
+        "Do not generate any new logo, label, lettering, watermark or advertising copy."
+    )

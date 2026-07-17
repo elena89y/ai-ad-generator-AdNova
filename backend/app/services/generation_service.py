@@ -597,6 +597,38 @@ def _compose_eligible(analysis, style_domain: str) -> bool:  # noqa: ANN001
     return False
 
 
+def _container_desc(analysis) -> Optional[str]:  # noqa: ANN001
+    """P5 재연출용 용기 묘사 — analyze_photo(Vision) 산출값만 사용(이름 추정 금지, 개정 #2)."""
+    kind = getattr(analysis, "container_kind", None)
+    if not kind or str(kind).lower() == "none":
+        return None
+    color = getattr(analysis, "container_color", None)
+    color_txt = f"{color} " if color and str(color).lower() not in ("", "none") else ""
+    return f"{color_txt}{kind}"
+
+
+def _resolve_drink_staging(analysis, style_domain: str, style_key: str,
+                           seed: Optional[int]) -> tuple[str, Optional[str]]:  # noqa: ANN001
+    """P5 라우팅(결정 D-4 개정). 반환 (staging, text_zone).
+
+    recompose 조건: drink & DRINK_RECOMPOSE=1 & (합성 부적격(투명 용기 등) 또는 시드 로테이션이
+    requires_recompose 아키타입(diagonal_splash·dreamy_cloud)을 고른 경우). 그 외 전부 preserve.
+    """
+    if style_domain != "drink" or os.environ.get("DRINK_RECOMPOSE", "0") != "1":
+        return "preserve", None
+    from . import scene_plans
+
+    rotation_seed = _style_seeds(seed, 1)[0]
+    plan = scene_plans.get_plan(style_key, "drink", seed=rotation_seed, allow_recompose=True)
+    plan_wants_recompose = plan is not None and plan.requires_recompose
+    if plan_wants_recompose:
+        return "recompose", plan.text_zone
+    if not _compose_eligible(analysis, "drink"):
+        zone = plan.text_zone if plan is not None else "top"
+        return "recompose", zone
+    return "preserve", None
+
+
 def _process_ad_impl(
     image_path: str,
     name: str,
@@ -655,6 +687,19 @@ def _process_ad_impl(
                 selected_seed = compose_seed
 
         if final is None:
+            # P5 음료 재연출(결정 D-4 개정): drink & DRINK_RECOMPOSE=1 & (합성 부적격 또는
+            #   requires_recompose 아키타입 선택 시)만 staging="recompose". 그 외는 보존 편집.
+            staging, recompose_zone = _resolve_drink_staging(
+                resolved_analysis, style_domain, effective_style, seed)
+            recompose_kwargs = {}
+            if staging == "recompose":
+                recompose_kwargs = {
+                    "staging": "recompose",
+                    "container_desc": _container_desc(resolved_analysis),
+                    "temperature": getattr(resolved_analysis, "temperature", None),
+                    "text_zone": recompose_zone,
+                }
+                text_zone = recompose_zone
             # Best-of-N: N시드 생성 → 선별기로 top 선택. best_of=1 이면 기존 1샷.
             #   ⚠️ BON-002 기각(2026-07-13): NIMA 는 이미-좋은 이미지(5~6점대)를 변별 못 해 Best-of-N 무효.
             #   선별기는 SELECTOR env 로 교체(nima 기본|gpt=구조화 저지|both=둘 다 로깅해 클린 비교).
@@ -665,14 +710,16 @@ def _process_ad_impl(
                     candidate = style_gen.generate_scene(
                         image_path, effective_style, subject_en,
                         output_dir=output_dir, seed=candidate_seed, steps=steps,
-                        domain=style_domain,
+                        domain=style_domain, **recompose_kwargs,
                     )
                     cands.append(_tag_seed_output(candidate, candidate_seed))
             with _stage(run, "select"):
                 final = _select_best(cands, original_path=image_path)
             selected_seed = seeds[cands.index(final)]
             sel = os.environ.get("SELECTOR", "nima")
-            engine = f"style:{effective_style}" + (f"·bestof{len(seeds)}:{sel}" if len(seeds) > 1 else "")
+            engine_head = "recompose" if staging == "recompose" else "style"
+            engine = f"{engine_head}:{effective_style}" + (
+                f"·bestof{len(seeds)}:{sel}" if len(seeds) > 1 else "")
 
         # 프롬프트만으로 약하게 표현된 무드를 CPU 색 마감으로 보강한다. 실제 상품 마스크가
         # 없는 현재 Kontext 경로는 중앙 소프트 보호를 쓰므로, 실제 이미지 게이트 전에는 기본 off.
