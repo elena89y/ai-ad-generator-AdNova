@@ -206,6 +206,13 @@ def acquire_background(plan: scene_plans.ScenePlan, allowed_props: set[str], see
 
 
 # --- 합성 알고리즘 ④~⑦ ----------------------------------------------------------
+def _trim_to_alpha_bbox(rgba: Image.Image) -> Image.Image:
+    """rembg 결과는 원본 사진과 같은 크기(전경 주변에 투명 여백 포함)다. 여백을 포함해
+    배치하면 '바닥에서 뜬' 것처럼 보인다 — 실제 전경 bbox로 잘라야 ④의 접지 정렬이 맞다."""
+    bbox = rgba.split()[-1].getbbox()
+    return rgba.crop(bbox) if bbox else rgba
+
+
 def _place_product(bg_size: tuple[int, int], product_rgba: Image.Image,
                    plan: scene_plans.ScenePlan, surface_y: float) -> tuple[Image.Image, tuple[int, int]]:
     """④ 배치: 폭→subject_scale, bbox 하단→surface_y."""
@@ -382,7 +389,8 @@ def compose_scene(image_path: str, analysis, style_key: str, style_domain: str,
         return {"ok": False, "reason": acquired.get("reason", "no_bg")}
 
     bg = acquired["image"].convert("RGB")
-    product, place_xy = _place_product(bg.size, cut["rgba"], plan, acquired["surface_y"])
+    trimmed = _trim_to_alpha_bbox(cut["rgba"])
+    product, place_xy = _place_product(bg.size, trimmed, plan, acquired["surface_y"])
 
     canvas = bg.convert("RGBA")
     shadow = _contact_shadow(product, plan)

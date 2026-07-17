@@ -139,6 +139,23 @@ def test_place_product_bottom_touches_surface_y():
     assert resized.width == int(1024 * plan.subject_scale)
 
 
+def test_trim_to_alpha_bbox_removes_rembg_padding():
+    """rembg 결과는 원본 사진 크기 그대로라 전경 아래에 투명 여백이 남는다 — 잘라내지
+    않으면 배치 시 상품이 접지선 위로 '뜬다'(2026-07-17 VM 실측 재현: 아이스 라떼가 공중부양)."""
+    padded = Image.new("RGBA", (300, 300), (0, 0, 0, 0))
+    arr = np.asarray(padded).copy()
+    arr[40:120, 100:200] = (0, 200, 0, 255)  # 전경은 위쪽에만, 아래 180px는 투명 여백
+    padded = Image.fromarray(arr, "RGBA")
+
+    trimmed = scene_service._trim_to_alpha_bbox(padded)
+    assert trimmed.size == (100, 80)  # (200-100, 120-40)
+
+    plan = next(p for p in scene_plans.PLANS if p.render_mode == "code")
+    _, (_, top_padded) = scene_service._place_product((1024, 1024), padded, plan, surface_y=0.7)
+    _, (_, top_trimmed) = scene_service._place_product((1024, 1024), trimmed, plan, surface_y=0.7)
+    assert top_trimmed > top_padded  # 트림 후에는 상품이 접지선에 더 가깝게(아래로) 내려온다
+
+
 def test_harmonize_color_preserves_alpha_and_caps_delta_e():
     product = Image.new("RGBA", (40, 40), (220, 40, 40, 255))
     bg = Image.new("RGB", (200, 200), (20, 60, 120))  # 강한 색온도 차이
