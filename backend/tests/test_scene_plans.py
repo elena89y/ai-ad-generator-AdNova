@@ -260,3 +260,14 @@ def test_finalize_requires_surface_y_override_for_tier2_plans(tmp_path, monkeypa
     scene_builder.cmd_finalize(args)
     entries = [json.loads(line) for line in manifest.read_text().splitlines()]
     assert entries[0]["surface_y"] == 0.7
+
+
+def test_production_style_keys_reach_scene_plans():
+    """resolve_style 산출 키(pastel_float/retro_paper 포함) 전부가 합성 플랜에 닿아야 한다.
+
+    정규화 누락 시 해당 스타일은 조용히 Kontext 폴백만 타는 통합 갭(게이트 배포 준비 중 발견)."""
+    from app.services.style_specs import BUTTON_STYLE_MAP
+
+    for style_key in set(BUTTON_STYLE_MAP.values()):
+        for domain in ("drink", "object"):
+            assert scene_plans.plans_for(style_key, domain), (style_key, domain)
