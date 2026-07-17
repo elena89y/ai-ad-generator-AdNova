@@ -9,6 +9,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.api.admin import (
     approve_admin_refund,
+    create_admin_account_by_super_admin,
     read_admin_accounts,
     read_admin_audit_logs,
     read_admin_summary,
@@ -38,6 +39,7 @@ from app.database.billing_models import (
 from app.database.connection import Base
 from app.database.models import Advertisement, User
 from app.schemas.admin import (
+    AdminAccountCreateRequest,
     AdminAccountRoleUpdateRequest,
     AdminAccountStatusUpdateRequest,
     AdminUserStatusUpdateRequest,
@@ -218,6 +220,84 @@ class AdminApiTestCase(unittest.TestCase):
             .filter(AdminAuditLog.action.in_(["admin.role_updated", "admin.status_updated"]))
             .count(),
             2,
+        )
+
+    def test_super_admin_can_register_existing_user_as_operator(self) -> None:
+        response = create_admin_account_by_super_admin(
+            request=AdminAccountCreateRequest(
+                user_id=self.user.id,
+                role="operator",
+            ),
+            db=self.session,
+            current_admin=self.admin_account,
+        )
+
+        self.assertEqual(response.user_id, self.user.id)
+        self.assertEqual(response.role, "operator")
+        self.assertTrue(response.is_active)
+        self.assertEqual(
+            self.session.query(AdminAuditLog)
+            .filter(AdminAuditLog.action == "admin.account_created")
+            .count(),
+            1,
+        )
+
+    def test_existing_admin_account_cannot_be_registered_again(self) -> None:
+        with self.assertRaises(HTTPException) as context:
+            create_admin_account_by_super_admin(
+                request=AdminAccountCreateRequest(
+                    user_id=self.admin_user.id,
+                    role="operator",
+                ),
+                db=self.session,
+                current_admin=self.admin_account,
+            )
+
+        self.assertEqual(context.exception.status_code, 409)
+        self.assertEqual(
+            context.exception.detail,
+            "이미 관리자 계정으로 등록된 회원입니다.",
+        )
+
+    def test_inactive_user_cannot_be_registered_as_admin(self) -> None:
+        self.user.is_active = False
+        self.session.commit()
+
+        with self.assertRaises(HTTPException) as context:
+            create_admin_account_by_super_admin(
+                request=AdminAccountCreateRequest(
+                    user_id=self.user.id,
+                    role="operator",
+                ),
+                db=self.session,
+                current_admin=self.admin_account,
+            )
+
+        self.assertEqual(context.exception.status_code, 409)
+        self.assertEqual(
+            context.exception.detail,
+            "비활성 회원은 관리자로 지정할 수 없습니다.",
+        )
+
+    def test_admin_registration_rolls_back_when_audit_log_fails(self) -> None:
+        with patch(
+            "app.api.admin.create_admin_audit_log",
+            side_effect=RuntimeError("audit log failed"),
+        ):
+            with self.assertRaises(RuntimeError):
+                create_admin_account_by_super_admin(
+                    request=AdminAccountCreateRequest(
+                        user_id=self.user.id,
+                        role="operator",
+                    ),
+                    db=self.session,
+                    current_admin=self.admin_account,
+                )
+
+        self.assertIsNone(
+            self.session.query(AdminAccount)
+            .filter(AdminAccount.user_id == self.user.id)
+            .first()
         )
 
     def test_super_admin_cannot_modify_own_admin_account(self) -> None:

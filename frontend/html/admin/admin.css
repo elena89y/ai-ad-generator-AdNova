@@ -1021,6 +1021,12 @@ tbody tr:hover {
   border-color: var(--berry-dark);
 }
 
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 /* 최근 문의 목록 */
 
 .recent-list {

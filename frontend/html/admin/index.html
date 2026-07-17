@@ -10,7 +10,7 @@
   <title>AdNova 관리자</title>
 
   <!-- 같은 admin 폴더에 있는 CSS 불러오기 -->
-  <link rel="stylesheet" href="./admin.css?v=20260717-2">
+  <link rel="stylesheet" href="./admin.css?v=20260717-3">
 </head>
 
 <body>
@@ -817,6 +817,66 @@
     </main>
   </div>
 
+  <!-- 관리자 지정 모달 -->
+  <div id="adminCreateModal" class="modal-overlay" hidden>
+    <div
+      class="modal-card"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="adminCreateModalTitle"
+    >
+      <button
+        class="modal-close"
+        data-close-modal="adminCreateModal"
+        type="button"
+      >
+        ✕
+      </button>
+
+      <h2 id="adminCreateModalTitle">관리자 지정</h2>
+      <p class="modal-description">
+        선택한 회원에게 관리자 페이지 접근 권한을 부여합니다.
+      </p>
+
+      <dl class="detail-list">
+        <dt>회원</dt>
+        <dd id="adminCreateUserName">-</dd>
+        <dt>계정</dt>
+        <dd id="adminCreateUserAccount">-</dd>
+      </dl>
+
+      <label class="field">
+        <span>관리자 역할</span>
+        <select id="adminCreateRoleSelect">
+          <option value="operator">운영자</option>
+          <option value="super_admin">최고 관리자</option>
+        </select>
+      </label>
+
+      <p class="warning-message">
+        아이디·비밀번호로 가입한 활성 회원만 지정하세요. 작업 내용은 감사 로그에 기록됩니다.
+      </p>
+
+      <div class="modal-actions">
+        <button
+          class="secondary-button"
+          data-close-modal="adminCreateModal"
+          type="button"
+        >
+          취소
+        </button>
+
+        <button
+          id="confirmAdminCreateButton"
+          class="primary-button"
+          type="button"
+        >
+          관리자로 지정
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- 환불 확인 모달 -->
   <div id="refundModal" class="modal-overlay" hidden>
     <div
@@ -1013,6 +1073,6 @@
   ></div>
 
   <script src="../runtime-config.js?v=20260717-1"></script>
-  <script src="./admin.js?v=20260717-3"></script>
+  <script src="./admin.js?v=20260717-4"></script>
 </body>
 </html>

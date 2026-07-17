@@ -29,6 +29,7 @@ let currentSection = "dashboard";
 let currentPaymentView = "orders";
 let selectedRefundPaymentId = null;
 let selectedInquiryId = null;
+let selectedAdminCandidateUserId = null;
 
 /* =========================================
    임시 데이터
@@ -240,6 +241,7 @@ function formatAdminDate(value, includeTime = true) {
 
 function getAuditActionLabel(action) {
   const labels = {
+    "admin.account_created": "관리자 계정 지정",
     "admin.role_updated": "관리자 권한 변경",
     "admin.status_updated": "관리자 계정 상태 변경",
     "admin.password_changed": "관리자 비밀번호 변경",
@@ -950,9 +952,15 @@ function renderUsers() {
         (item) => String(item.user_id) === String(user.id)
       );
       const canManageUser = isSuperAdmin() && !isAdminAccount;
+      const canAssignAdmin = canManageUser && active;
       const managementReason = isAdminAccount
         ? "관리자 계정 관리 메뉴에서 변경할 수 있습니다."
         : "최고 관리자만 변경할 수 있습니다.";
+      const adminAssignmentReason = isAdminAccount
+        ? "이미 관리자 계정으로 등록된 회원입니다."
+        : active
+          ? "최고 관리자만 관리자를 지정할 수 있습니다."
+          : "비활성 회원은 관리자로 지정할 수 없습니다.";
 
       return `
         <tr>
@@ -1000,24 +1008,44 @@ function renderUsers() {
           </td>
           <td>${escapeHtml(formatAdminDate(user.created_at, false))}</td>
           <td>
-            ${
-              canManageUser
-                ? `<button
-                    type="button"
-                    class="table-action ${active ? "danger" : ""}"
-                    data-toggle-user="${escapeHtml(user.id)}"
-                  >
-                    ${active ? "정지" : "활성화"}
-                  </button>`
-                : `<button
-                    type="button"
-                    class="table-action"
-                    title="${escapeHtml(managementReason)}"
-                    disabled
-                  >
-                    ${active ? "정지" : "활성화"}
-                  </button>`
-            }
+            <div class="table-actions">
+              ${
+                canManageUser
+                  ? `<button
+                      type="button"
+                      class="table-action ${active ? "danger" : ""}"
+                      data-toggle-user="${escapeHtml(user.id)}"
+                    >
+                      ${active ? "정지" : "활성화"}
+                    </button>`
+                  : `<button
+                      type="button"
+                      class="table-action"
+                      title="${escapeHtml(managementReason)}"
+                      disabled
+                    >
+                      ${active ? "정지" : "활성화"}
+                    </button>`
+              }
+              ${
+                canAssignAdmin
+                  ? `<button
+                      type="button"
+                      class="table-action"
+                      data-create-admin="${escapeHtml(user.id)}"
+                    >
+                      관리자 지정
+                    </button>`
+                  : `<button
+                      type="button"
+                      class="table-action"
+                      title="${escapeHtml(adminAssignmentReason)}"
+                      disabled
+                    >
+                      관리자 지정
+                    </button>`
+              }
+            </div>
           </td>
         </tr>
       `;
@@ -1144,6 +1172,88 @@ async function toggleUserStatus(userId) {
     showToast(`${displayName}님의 계정을 ${actionLabel}했습니다.`);
   } catch (error) {
     showToast(error.message, "error");
+  }
+}
+
+function openAdminCreateModal(userId) {
+  if (!isSuperAdmin()) {
+    showToast("최고 관리자만 관리자를 지정할 수 있습니다.", "error");
+    return;
+  }
+
+  const user = users.find((item) => String(item.id) === String(userId));
+  if (!user) return;
+  if (user.is_active === false) {
+    showToast("비활성 회원은 관리자로 지정할 수 없습니다.", "error");
+    return;
+  }
+  if (adminAccounts.some((item) => String(item.user_id) === String(user.id))) {
+    showToast("이미 관리자 계정으로 등록된 회원입니다.", "error");
+    return;
+  }
+
+  selectedAdminCandidateUserId = user.id;
+  getElement("adminCreateUserName").textContent =
+    user.name || user.username;
+  getElement("adminCreateUserAccount").textContent =
+    `${user.username} · ${user.email}`;
+  getElement("adminCreateRoleSelect").value = "operator";
+  openModal("adminCreateModal");
+}
+
+async function createAdminAccountFromSelectedUser() {
+  const user = users.find(
+    (item) => String(item.id) === String(selectedAdminCandidateUserId)
+  );
+  const role = getElement("adminCreateRoleSelect")?.value;
+  const button = getElement("confirmAdminCreateButton");
+
+  if (!user || !["operator", "super_admin"].includes(role)) {
+    showToast("관리자로 지정할 회원과 역할을 다시 확인해주세요.", "error");
+    return;
+  }
+
+  if (!confirm(`${user.username}님을 ${getAdminRoleLabel(role)}로 지정할까요?`)) {
+    return;
+  }
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = "지정 중...";
+  }
+
+  try {
+    if (USE_ADMIN_MOCK) {
+      adminAccounts.unshift({
+        id: Date.now(),
+        user_id: user.id,
+        username: user.username,
+        email: user.email,
+        role,
+        is_active: true
+      });
+      renderAll();
+    } else {
+      await adminApiFetch("/api/admin/accounts", {
+        method: "POST",
+        body: JSON.stringify({
+          user_id: Number(user.id),
+          role
+        })
+      });
+      await loadAdminData();
+    }
+
+    closeModal("adminCreateModal");
+    selectedAdminCandidateUserId = null;
+    showToast(`${user.username}님을 ${getAdminRoleLabel(role)}로 지정했습니다.`);
+  } catch (error) {
+    showToast(error.message, "error");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "관리자로 지정";
+    }
   }
 }
 
@@ -2399,11 +2509,21 @@ function bindEvents() {
 
   getElement("userTableRows")?.addEventListener("click", (event) => {
     const statusButton = event.target.closest("[data-toggle-user]");
+    const adminButton = event.target.closest("[data-create-admin]");
 
     if (statusButton) {
       toggleUserStatus(statusButton.dataset.toggleUser);
+      return;
+    }
+    if (adminButton) {
+      openAdminCreateModal(adminButton.dataset.createAdmin);
     }
   });
+
+  getElement("confirmAdminCreateButton")?.addEventListener(
+    "click",
+    createAdminAccountFromSelectedUser
+  );
 
   document
     .querySelectorAll(".view-switch-button[data-payment-view]")
