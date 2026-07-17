@@ -12,7 +12,8 @@ from app.services import generation_client
 
 @pytest.fixture(autouse=True)
 def reset_worker_state(monkeypatch):
-    monkeypatch.setattr(generation_app, "_GPU_LOCK", threading.Lock())
+    # GPU 락은 P4D(결정 D-10)로 kontext_service에 이동했다 — generation_app은 더 이상 소유하지 않는다.
+    monkeypatch.setattr(generation_app.kontext_service, "_GPU_LOCK", threading.Lock())
     generation_app._STATE.update(status="starting", error=None)
 
 
@@ -49,29 +50,14 @@ def test_lifespan_can_skip_preload(monkeypatch):
     asyncio.run(exercise())
 
 
-def test_gpu_slot_rejects_unready_worker():
+def test_require_ready_rejects_unready_worker():
+    """P4D: 락 재설계 후 준비 상태 확인은 _require_ready()가 담당(GPU 직렬화는 kontext_service)."""
     generation_app._STATE["status"] = "loading"
 
     with pytest.raises(HTTPException) as exc_info:
-        with generation_app._gpu_slot():
-            pass
+        generation_app._require_ready()
 
     assert exc_info.value.status_code == 503
-
-
-def test_gpu_slot_times_out_when_busy(monkeypatch):
-    generation_app._STATE["status"] = "ready"
-    monkeypatch.setenv("GPU_QUEUE_TIMEOUT", "0")
-    generation_app._GPU_LOCK.acquire()
-    try:
-        with pytest.raises(HTTPException) as exc_info:
-            with generation_app._gpu_slot():
-                pass
-    finally:
-        generation_app._GPU_LOCK.release()
-
-    assert exc_info.value.status_code == 503
-    assert "GPU busy" in exc_info.value.detail
 
 
 def test_generate_releases_gpu_lock_after_failure(tmp_path, monkeypatch):
@@ -90,16 +76,16 @@ def test_generate_releases_gpu_lock_after_failure(tmp_path, monkeypatch):
         )
 
     assert exc_info.value.status_code == 500
-    assert generation_app._GPU_LOCK.locked() is False
+    assert generation_app.kontext_service._GPU_LOCK.locked() is False
 
 
 def test_health_reports_ready_and_busy():
     generation_app._STATE["status"] = "ready"
-    generation_app._GPU_LOCK.acquire()
+    generation_app.kontext_service._GPU_LOCK.acquire()
     try:
         body = generation_app.health()
     finally:
-        generation_app._GPU_LOCK.release()
+        generation_app.kontext_service._GPU_LOCK.release()
 
     assert body["status"] == "ok"
     assert body["worker"] == "ready"

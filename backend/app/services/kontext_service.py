@@ -15,12 +15,36 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
 
 from PIL import Image
 
 logger = logging.getLogger(__name__)
+
+# GPU 락(결정 D-10): 락을 generation_app.py 엔드포인트에서 여기(실제 GPU 사용 지점)로 내렸다.
+#   합성(scene_service, CPU)은 Kontext 실행 중에도 이 락과 무관하게 즉시 진행된다.
+_GPU_LOCK = threading.Lock()
+
+
+class GpuBusyError(RuntimeError):
+    """GPU 락 획득 타임아웃 — 호출부(generation_app)는 HTTP 503으로 매핑한다."""
+
+
+@contextmanager
+def acquire_gpu(timeout: Optional[float] = None):  # noqa: ANN201
+    """GPU 작업(로드·추론) 직렬화. 타임아웃 시 GpuBusyError."""
+    wait = timeout if timeout is not None else float(os.environ.get("GPU_QUEUE_TIMEOUT", "180"))
+    acquired = _GPU_LOCK.acquire(timeout=max(0.0, wait))
+    if not acquired:
+        raise GpuBusyError("GPU busy")
+    try:
+        yield
+    finally:
+        _GPU_LOCK.release()
+
 
 KONTEXT_REPO = "black-forest-labs/FLUX.1-Kontext-dev"
 GGUF_REPO = "QuantStack/FLUX.1-Kontext-dev-GGUF"
@@ -106,46 +130,50 @@ def _load_kontext():  # noqa: ANN202
     if _kontext_pipeline is not None:
         return _kontext_pipeline
 
-    import torch
-    from diffusers import (AutoencoderKL, FluxKontextPipeline,
-                           FluxTransformer2DModel, GGUFQuantizationConfig)
-    from huggingface_hub import hf_hub_download
-    from transformers import (BitsAndBytesConfig, CLIPTextModel, CLIPTokenizer,
-                              T5EncoderModel, T5TokenizerFast)
+    with acquire_gpu():
+        if _kontext_pipeline is not None:  # 락 대기 중 다른 스레드가 이미 로드 완료
+            return _kontext_pipeline
 
-    hf_token = _read_hf_token()
-    logger.info("Kontext 로드: Fill 컴포넌트 개별 로드(T5 NF4) + 트랜스포머 GGUF")
-    # T5 는 NF4 양자화(기존 flux_service 와 동일 설정 — 로드 시 GPU 상주, ~5GB)
-    te2 = T5EncoderModel.from_pretrained(
-        FILL_REPO, subfolder="text_encoder_2",
-        quantization_config=BitsAndBytesConfig(
-            load_in_4bit=True, bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.bfloat16),
-        torch_dtype=torch.bfloat16, token=hf_token)
-    te = CLIPTextModel.from_pretrained(
-        FILL_REPO, subfolder="text_encoder", torch_dtype=torch.bfloat16,
-        token=hf_token).to("cuda")
-    tok = CLIPTokenizer.from_pretrained(
-        FILL_REPO, subfolder="tokenizer", token=hf_token)
-    tok2 = T5TokenizerFast.from_pretrained(
-        FILL_REPO, subfolder="tokenizer_2", token=hf_token)
-    vae = AutoencoderKL.from_pretrained(
-        FILL_REPO, subfolder="vae", torch_dtype=torch.bfloat16,
-        token=hf_token).to("cuda")
+        import torch
+        from diffusers import (AutoencoderKL, FluxKontextPipeline,
+                               FluxTransformer2DModel, GGUFQuantizationConfig)
+        from huggingface_hub import hf_hub_download
+        from transformers import (BitsAndBytesConfig, CLIPTextModel, CLIPTokenizer,
+                                  T5EncoderModel, T5TokenizerFast)
 
-    gguf = hf_hub_download(GGUF_REPO, GGUF_FILE, token=hf_token)
-    transformer = FluxTransformer2DModel.from_single_file(
-        gguf, quantization_config=GGUFQuantizationConfig(compute_dtype=torch.bfloat16),
-        config=KONTEXT_REPO, subfolder="transformer", torch_dtype=torch.bfloat16,
-        token=hf_token,
-    ).to("cuda")
-    _kontext_pipeline = FluxKontextPipeline.from_pretrained(
-        KONTEXT_REPO, transformer=transformer, text_encoder=te, text_encoder_2=te2,
-        tokenizer=tok, tokenizer_2=tok2, vae=vae, torch_dtype=torch.bfloat16,
-        token=hf_token,
-    )
-    logger.info("Kontext 로드 완료 (VRAM peak ~13GB 실측)")
-    return _kontext_pipeline
+        hf_token = _read_hf_token()
+        logger.info("Kontext 로드: Fill 컴포넌트 개별 로드(T5 NF4) + 트랜스포머 GGUF")
+        # T5 는 NF4 양자화(기존 flux_service 와 동일 설정 — 로드 시 GPU 상주, ~5GB)
+        te2 = T5EncoderModel.from_pretrained(
+            FILL_REPO, subfolder="text_encoder_2",
+            quantization_config=BitsAndBytesConfig(
+                load_in_4bit=True, bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch.bfloat16),
+            torch_dtype=torch.bfloat16, token=hf_token)
+        te = CLIPTextModel.from_pretrained(
+            FILL_REPO, subfolder="text_encoder", torch_dtype=torch.bfloat16,
+            token=hf_token).to("cuda")
+        tok = CLIPTokenizer.from_pretrained(
+            FILL_REPO, subfolder="tokenizer", token=hf_token)
+        tok2 = T5TokenizerFast.from_pretrained(
+            FILL_REPO, subfolder="tokenizer_2", token=hf_token)
+        vae = AutoencoderKL.from_pretrained(
+            FILL_REPO, subfolder="vae", torch_dtype=torch.bfloat16,
+            token=hf_token).to("cuda")
+
+        gguf = hf_hub_download(GGUF_REPO, GGUF_FILE, token=hf_token)
+        transformer = FluxTransformer2DModel.from_single_file(
+            gguf, quantization_config=GGUFQuantizationConfig(compute_dtype=torch.bfloat16),
+            config=KONTEXT_REPO, subfolder="transformer", torch_dtype=torch.bfloat16,
+            token=hf_token,
+        ).to("cuda")
+        _kontext_pipeline = FluxKontextPipeline.from_pretrained(
+            KONTEXT_REPO, transformer=transformer, text_encoder=te, text_encoder_2=te2,
+            tokenizer=tok, tokenizer_2=tok2, vae=vae, torch_dtype=torch.bfloat16,
+            token=hf_token,
+        )
+        logger.info("Kontext 로드 완료 (VRAM peak ~13GB 실측)")
+        return _kontext_pipeline
 
 
 def preload() -> None:
@@ -192,9 +220,10 @@ def edit(
     # StylePlan의 긴 정체성 잠금을 CLIP에 그대로 넣으면 핵심 무드가 잘리므로 역할을 분리한다.
     prompt = clip_prompt or instruction
     prompt_2 = instruction if clip_prompt else None
-    out = pipe(image=img, prompt=prompt, prompt_2=prompt_2, guidance_scale=guidance,
-               num_inference_steps=steps,
-               generator=torch.Generator("cuda").manual_seed(seed)).images[0]
+    with acquire_gpu():
+        out = pipe(image=img, prompt=prompt, prompt_2=prompt_2, guidance_scale=guidance,
+                   num_inference_steps=steps,
+                   generator=torch.Generator("cuda").manual_seed(seed)).images[0]
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{Path(image_path).stem}_kontext.png"

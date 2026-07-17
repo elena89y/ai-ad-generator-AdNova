@@ -669,6 +669,7 @@ def apply_food_poster(
     layout: str = "overlay",
     head_kind: Optional[str] = None,
     style_key: Optional[str] = None,
+    text_zone: Optional[str] = None,
 ) -> str:
     """A모드(리터치형) 프리미엄 음식 포스터 — 누끼 없음, 사진 위/아래 조판.
 
@@ -680,6 +681,8 @@ def apply_food_poster(
       - panel   : 사진 상단 + 하단 솔리드 딥톤 패널(에디토리얼 카드), 중앙 정렬
       - minimal : 배경 블록 없이 하단 좌측 텍스트
       - style   : P4T 스타일 토큰 기반 상단 조판(기존 레이아웃에 영향 없는 opt-in)
+    text_zone: ScenePlan.text_zone("top"|"top_left"|"top_right", P4D 합성 경로 전용) —
+      layout="style"일 때만 정렬을 오버라이드한다. None이면 기존 동작 그대로(하위호환).
     """
     # 스타일 키 주면 디자인시스템 스펙에서 폰트·액센트 자동 매핑(명시 인자가 우선)
     if style_key:
@@ -695,6 +698,11 @@ def apply_food_poster(
 
     if layout == "style":
         token = get_typography_token(style_key)
+        if text_zone:
+            zone_align = {"top_left": "left", "top_right": "left", "top": "center"}.get(text_zone)
+            if zone_align and zone_align != token.align:
+                import dataclasses
+                token = dataclasses.replace(token, align=zone_align)
         img = _apply_style_typography(img, headline, subcopy, kicker, token)
         out = Path(output_path) if output_path else Path(image_path).with_name(
             Path(image_path).stem + "_poster_style.png"
