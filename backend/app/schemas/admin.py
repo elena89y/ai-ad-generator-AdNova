@@ -30,6 +30,11 @@ class AdminAccountListResponse(BaseModel):
     items: list[AdminAccountResponse]
 
 
+class AdminAccountCreateRequest(BaseModel):
+    user_id: int = Field(gt=0)
+    role: Literal["operator", "super_admin"] = "operator"
+
+
 class AdminAccountRoleUpdateRequest(BaseModel):
     role: Literal["operator", "super_admin"]
 

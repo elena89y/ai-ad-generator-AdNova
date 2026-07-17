@@ -919,6 +919,18 @@ tbody tr:hover {
   font-size: 10.5px;
 }
 
+.table-title-button {
+  padding: 0;
+  color: var(--text-soft);
+  background: transparent;
+  text-align: left;
+  font-weight: 600;
+}
+
+.table-title-button:hover {
+  color: var(--gold);
+}
+
 .empty-cell {
   padding: 45px;
   color: var(--text-muted);
@@ -1007,6 +1019,12 @@ tbody tr:hover {
   color: #ffffff;
   background: var(--berry-dark);
   border-color: var(--berry-dark);
+}
+
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 /* 최근 문의 목록 */

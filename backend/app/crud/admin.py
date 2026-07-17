@@ -138,6 +138,38 @@ def get_admin_account_by_id(
     )
 
 
+def get_admin_account_by_user_id(
+    db: Session,
+    user_id: int,
+) -> AdminAccount | None:
+    return (
+        db.query(AdminAccount)
+        .filter(AdminAccount.user_id == user_id)
+        .first()
+    )
+
+
+def create_admin_account(
+    db: Session,
+    *,
+    user_id: int,
+    role: str,
+    commit: bool = True,
+) -> AdminAccount:
+    admin_account = AdminAccount(
+        user_id=user_id,
+        role=role,
+        is_active=True,
+    )
+    db.add(admin_account)
+    if commit:
+        db.commit()
+    else:
+        db.flush()
+    db.refresh(admin_account)
+    return admin_account
+
+
 def count_active_super_admins(db: Session) -> int:
     return (
         db.query(AdminAccount)

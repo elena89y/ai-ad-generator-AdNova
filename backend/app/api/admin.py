@@ -1,6 +1,7 @@
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.admin_security import get_current_admin, get_current_super_admin
@@ -8,8 +9,10 @@ from app.core.security import get_current_user, hash_password, verify_password
 from app.crud.admin import (
     count_active_super_admins,
     count_advertisements_by_user,
+    create_admin_account,
     create_admin_audit_log,
     get_admin_account_by_id,
+    get_admin_account_by_user_id,
     get_purchase_history_for_admin,
     get_admin_summary,
     get_subscription_for_admin,
@@ -36,6 +39,7 @@ from app.database.billing_models import PurchaseHistory, RefundRequest, Subscrip
 from app.database.connection import get_db
 from app.database.models import User
 from app.schemas.admin import (
+    AdminAccountCreateRequest,
     AdminAccountListResponse,
     AdminAccountResponse,
     AdminAccountRoleUpdateRequest,
@@ -116,6 +120,63 @@ def _build_admin_account_response(
         created_at=admin_account.created_at,
         updated_at=admin_account.updated_at,
     )
+
+
+@router.post(
+    "/accounts",
+    response_model=AdminAccountResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_admin_account_by_super_admin(
+    request: AdminAccountCreateRequest,
+    db: Session = Depends(get_db),
+    current_admin: AdminAccount = Depends(get_current_super_admin),
+) -> AdminAccountResponse:
+    user_row = get_user_for_admin(db, request.user_id)
+    if user_row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="회원을 찾을 수 없습니다.",
+        )
+
+    user, _ = user_row
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="비활성 회원은 관리자로 지정할 수 없습니다.",
+        )
+    if get_admin_account_by_user_id(db, user.id) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="이미 관리자 계정으로 등록된 회원입니다.",
+        )
+
+    try:
+        admin_account = create_admin_account(
+            db,
+            user_id=user.id,
+            role=request.role,
+            commit=False,
+        )
+        create_admin_audit_log(
+            db,
+            admin_user_id=current_admin.user_id,
+            action="admin.account_created",
+            target_type="admin_account",
+            target_id=admin_account.id,
+            detail=f"user_id={user.id}, role={request.role}",
+        )
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="이미 관리자 계정으로 등록된 회원입니다.",
+        ) from exc
+    except Exception:
+        db.rollback()
+        raise
+
+    return _build_admin_account_response(admin_account, user)
 
 
 @router.get("/accounts", response_model=AdminAccountListResponse)
