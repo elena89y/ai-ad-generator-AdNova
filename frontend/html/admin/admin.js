@@ -329,6 +329,7 @@ function setLoginError(message = "") {
   if (!errorElement) return;
 
   errorElement.textContent = message;
+  errorElement.hidden = !message;
   errorElement.style.display = message ? "block" : "none";
 }
 
@@ -512,7 +513,16 @@ async function handleAdminLogin(event) {
     });
 
     if (!response.ok) {
-      throw new Error("관리자 아이디 또는 비밀번호가 올바르지 않습니다.");
+      let message = "관리자 아이디 또는 비밀번호가 올바르지 않습니다.";
+      try {
+        const errorBody = await response.json();
+        if (typeof errorBody.detail === "string" && errorBody.detail) {
+          message = errorBody.detail;
+        }
+      } catch {
+        // 응답 본문이 없는 경우 기본 로그인 오류 메시지를 사용한다.
+      }
+      throw new Error(message);
     }
 
     const result = await response.json();
