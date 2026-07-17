@@ -106,9 +106,12 @@ def _dominant_component_ratio(alpha: np.ndarray, threshold: int = 16, max_dim: i
 
 def cutout(image_path: str) -> dict:
     """CPU(또는 게이트 통과 CUDA) rembg 누끼. 신뢰도 미달이면 ok=False(호출부 폴백)."""
+    # ⚠️ 순서 고정: 세션 초기화(내부에서 torch 선로드)가 `from rembg import remove`보다
+    #   먼저여야 한다 — 반대 순서면 onnxruntime이 CUDA 런타임 RPATH 없이 먼저 임포트되어
+    #   libcudart.so.13 로드 실패로 CPU 백엔드까지 통째로 사라진다(image_service와 동일 함정).
+    session = _get_compose_rembg_session()
     from rembg import remove
 
-    session = _get_compose_rembg_session()
     img = Image.open(image_path).convert("RGB")
     try:
         rgba = remove(img, session=session)
