@@ -18,6 +18,7 @@ def create_image(
     file_size: Optional[int] = None,
     width: Optional[int] = None,
     height: Optional[int] = None,
+    commit: bool = True,
 ) -> Image:
     image = Image(
         user_id=user_id,
@@ -32,7 +33,10 @@ def create_image(
         height=height,
     )
     db.add(image)
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     db.refresh(image)
     return image
 

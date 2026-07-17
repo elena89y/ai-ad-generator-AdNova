@@ -3,6 +3,7 @@ from datetime import timedelta
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
+from app.crud.billing import expire_ended_subscriptions
 from app.crud.credits import grant_premium_credits
 from app.database.admin_models import AdminAccount, AdminAuditLog
 from app.database.billing_models import PurchaseHistory, Subscription, utc_now
@@ -10,6 +11,7 @@ from app.database.models import Advertisement, SupportInquiry, User
 
 
 def get_admin_summary(db: Session) -> dict[str, int]:
+    expire_ended_subscriptions(db)
     paid_purchase_count, paid_purchase_amount = (
         db.query(
             func.count(PurchaseHistory.id),
@@ -188,6 +190,7 @@ def list_users_for_admin(
     is_active: bool | None = None,
     plan: str | None = None,
 ) -> tuple[int, list[tuple[User, Subscription | None]]]:
+    expire_ended_subscriptions(db)
     query = db.query(User, Subscription).outerjoin(
         Subscription,
         Subscription.user_id == User.id,
@@ -231,6 +234,7 @@ def get_user_for_admin(
     db: Session,
     user_id: int,
 ) -> tuple[User, Subscription | None] | None:
+    expire_ended_subscriptions(db)
     return (
         db.query(User, Subscription)
         .outerjoin(Subscription, Subscription.user_id == User.id)
@@ -315,6 +319,7 @@ def list_subscriptions_for_admin(
     subscription_status: str | None = None,
     search: str | None = None,
 ) -> tuple[int, list[tuple[Subscription, User]]]:
+    expire_ended_subscriptions(db)
     query = db.query(Subscription, User).join(
         User,
         User.id == Subscription.user_id,
@@ -348,6 +353,7 @@ def get_subscription_for_admin(
     db: Session,
     subscription_id: int,
 ) -> tuple[Subscription, User] | None:
+    expire_ended_subscriptions(db)
     return (
         db.query(Subscription, User)
         .join(User, User.id == Subscription.user_id)

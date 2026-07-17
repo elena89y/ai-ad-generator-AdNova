@@ -35,7 +35,7 @@ from ..crud.credits import (
 from ..crud.history import create_history
 from ..crud.image import create_image, get_image_by_id
 from ..database.connection import get_db
-from ..database.models import History, User
+from ..database.models import History, Image, User
 from ..schemas.ads import (
     GenerateAdResponse,
     ProductInfo,
@@ -130,39 +130,47 @@ def _record_generated_result(
 ) -> None:
     output_filename = Path(result.image_url).name
     output_path = image_service.RESULTS_DIR / output_filename
-    output_image = create_image(
-        db,
-        user_id=user_id,
-        image_type="generated",
-        original_filename=output_filename,
-        stored_filename=output_filename,
-        file_path=str(output_path),
-        image_url=result.image_url,
-        content_type="image/png",
-        file_size=output_path.stat().st_size if output_path.exists() else None,
-    )
+    try:
+        output_image = create_image(
+            db,
+            user_id=user_id,
+            image_type="generated",
+            original_filename=output_filename,
+            stored_filename=output_filename,
+            file_path=str(output_path),
+            image_url=result.image_url,
+            content_type="image/png",
+            file_size=output_path.stat().st_size if output_path.exists() else None,
+            commit=False,
+        )
 
-    advertisement = create_advertisement(
-        db,
-        user_id=user_id,
-        input_image_id=input_image_id,
-        output_image_id=output_image.id,
-        title=product_name,
-        ad_type="poster" if poster else "image",
-        prompt=prompt_for_db,
-        generated_text=result.copy_text,
-        style=style.value,
-        status="completed",
-    )
-    create_history(
-        db,
-        user_id=user_id,
-        advertisement_id=advertisement.id,
-        action_type=action_type,
-        status="completed",
-        request_data=request_data,
-        response_data=json.dumps(result.model_dump(mode="json"), ensure_ascii=False),
-    )
+        advertisement = create_advertisement(
+            db,
+            user_id=user_id,
+            input_image_id=input_image_id,
+            output_image_id=output_image.id,
+            title=product_name,
+            ad_type="poster" if poster else "image",
+            prompt=prompt_for_db,
+            generated_text=result.copy_text,
+            style=style.value,
+            status="completed",
+            commit=False,
+        )
+        create_history(
+            db,
+            user_id=user_id,
+            advertisement_id=advertisement.id,
+            action_type=action_type,
+            status="completed",
+            request_data=request_data,
+            response_data=json.dumps(result.model_dump(mode="json"), ensure_ascii=False),
+            commit=False,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
 
 def _find_source_history_by_asset_id(
@@ -423,11 +431,34 @@ def regenerate_ad(
 
 
 @router.get("/image/{filename}")
-def get_result_image(filename: str) -> FileResponse:
-    """생성 결과 이미지 서빙 (backend/results/ai/ 한정, 경로 탈출 차단)."""
+def get_result_image(
+    filename: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> FileResponse:
+    """현재 사용자가 소유한 생성 결과 이미지만 반환한다."""
     if "/" in filename or "\\" in filename or ".." in filename:
         raise HTTPException(status_code=400, detail="잘못된 파일명")
-    path = image_service.RESULTS_DIR / filename
-    if not path.is_file():
+
+    image = (
+        db.query(Image)
+        .filter(
+            Image.user_id == current_user.id,
+            Image.image_type == "generated",
+            Image.stored_filename == filename,
+        )
+        .order_by(Image.id.desc())
+        .first()
+    )
+    if image is None or not image.file_path:
         raise HTTPException(status_code=404, detail="이미지 없음")
-    return FileResponse(path, media_type="image/png")
+
+    results_dir = image_service.RESULTS_DIR.resolve()
+    path = Path(image.file_path).resolve()
+    try:
+        path.relative_to(results_dir)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="이미지 없음") from exc
+    if path.name != filename or not path.is_file():
+        raise HTTPException(status_code=404, detail="이미지 없음")
+    return FileResponse(path, media_type=image.content_type or "image/png")

@@ -346,6 +346,14 @@ function normalizeList(response, possibleKeys = []) {
   return [];
 }
 
+function normalizeAdminInquiries(response) {
+  return normalizeList(response, ["inquiries"]).map((item) => ({
+    ...item,
+    user_name: item.user_name || item.username,
+    reply: item.reply ?? item.answer
+  }));
+}
+
 function isSuperAdmin() {
   return currentAdmin?.role === "super_admin";
 }
@@ -610,11 +618,7 @@ async function loadAdminData({ showError = true } = {}) {
         product: item.product || item.description,
         paid_at: item.paid_at || item.purchased_at
       }));
-      inquiries = normalizeList(inquiryResponse, ["inquiries"]).map((item) => ({
-        ...item,
-        user_name: item.user_name || item.username,
-        reply: item.reply ?? item.answer
-      }));
+      inquiries = normalizeAdminInquiries(inquiryResponse);
       refundRecords = normalizeList(refundResponse, ["refunds"]);
       subscriptions = normalizeList(subscriptionResponse, ["subscriptions"]);
       auditLogs = normalizeList(auditResponse, ["audit_logs"]);
@@ -650,6 +654,26 @@ async function loadAdminData({ showError = true } = {}) {
     return true;
   } catch (error) {
     if (showError) showToast(error.message, "error");
+    return false;
+  }
+}
+
+async function refreshAdminInquiries({ showError = true } = {}) {
+  if (USE_ADMIN_MOCK) {
+    renderInquiries();
+    return true;
+  }
+
+  try {
+    const response = await fetchAllAdminItems("/api/admin/inquiries");
+    inquiries = normalizeAdminInquiries(response);
+    renderDashboard();
+    renderInquiries();
+    return true;
+  } catch (error) {
+    if (showError) {
+      showToast(`문의 목록을 불러오지 못했습니다: ${error.message}`, "error");
+    }
     return false;
   }
 }
@@ -704,7 +728,10 @@ function showSection(sectionName) {
   if (sectionName === "dashboard") renderDashboard();
   if (sectionName === "users") renderUsers();
   if (sectionName === "payments") renderPayments();
-  if (sectionName === "inquiries") renderInquiries();
+  if (sectionName === "inquiries") {
+    renderInquiries();
+    void refreshAdminInquiries();
+  }
   if (sectionName === "accounts") renderAdminAccounts();
   if (sectionName === "audit") renderAuditLogs();
 }
@@ -2632,7 +2659,7 @@ async function initializeAdminPage() {
     return;
   }
 
-  window.location.replace("../");
+  showLoginScreen();
 }
 
 document.addEventListener("DOMContentLoaded", initializeAdminPage);

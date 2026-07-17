@@ -107,6 +107,31 @@ class BillingApiTestCase(unittest.TestCase):
         self.assertEqual(summary.subscription.id, self.subscription.id)
         self.assertEqual(summary.payment_method.card_last4, "1234")
 
+    def test_expired_subscription_loses_premium_access(self) -> None:
+        self.subscription.current_period_end = datetime.now(timezone.utc) - timedelta(
+            minutes=1
+        )
+        self.session.commit()
+
+        summary = read_billing_summary(db=self.session, current_user=self.user)
+
+        self.assertFalse(summary.is_premium)
+        self.assertEqual(summary.subscription.status, "expired")
+        self.assertIsNone(summary.premium_credits_remaining)
+
+    def test_canceled_subscription_ends_after_current_period(self) -> None:
+        self.subscription.current_period_end = datetime.now(timezone.utc) - timedelta(
+            minutes=1
+        )
+        self.subscription.cancel_at_period_end = True
+        self.session.commit()
+
+        summary = read_billing_summary(db=self.session, current_user=self.user)
+
+        self.assertFalse(summary.is_premium)
+        self.assertEqual(summary.subscription.status, "canceled")
+        self.assertFalse(summary.subscription.cancel_at_period_end)
+
     def test_purchase_history_does_not_include_other_user(self) -> None:
         histories = read_purchase_histories(
             limit=50,

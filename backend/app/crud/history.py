@@ -16,6 +16,7 @@ def create_history(
     response_data: Optional[str] = None,
     error_message: Optional[str] = None,
     duration_ms: Optional[int] = None,
+    commit: bool = True,
 ) -> History:
     history = History(
         user_id=user_id,
@@ -28,7 +29,10 @@ def create_history(
         duration_ms=duration_ms,
     )
     db.add(history)
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     db.refresh(history)
     return history
 
