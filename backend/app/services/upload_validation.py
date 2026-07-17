@@ -1,12 +1,25 @@
+from io import BytesIO
 from pathlib import Path
 
 from fastapi import HTTPException, UploadFile, status
+from PIL import Image, UnidentifiedImageError
 
 from app.core.config import settings
 
 
 ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
+IMAGE_FORMAT_BY_EXTENSION = {
+    ".jpg": "JPEG",
+    ".jpeg": "JPEG",
+    ".png": "PNG",
+    ".webp": "WEBP",
+}
+IMAGE_FORMAT_BY_CONTENT_TYPE = {
+    "image/jpeg": "JPEG",
+    "image/png": "PNG",
+    "image/webp": "WEBP",
+}
 MAX_IMAGE_SIZE_MB = settings.MAX_IMAGE_SIZE_MB
 MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024
 
@@ -37,7 +50,12 @@ def validate_image_metadata(filename: str, content_type: str | None) -> str:
     return suffix
 
 
-def validate_image_content(content: bytes) -> None:
+def validate_image_content(
+    content: bytes,
+    *,
+    suffix: str,
+    content_type: str,
+) -> None:
     if not content:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -50,12 +68,35 @@ def validate_image_content(content: bytes) -> None:
             detail=f"이미지 파일은 {MAX_IMAGE_SIZE_MB}MB 이하만 업로드할 수 있습니다.",
         )
 
+    try:
+        with Image.open(BytesIO(content)) as image:
+            image.verify()
+            detected_format = (image.format or "").upper()
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="올바른 이미지 파일이 아닙니다.",
+        ) from exc
+
+    if (
+        detected_format != IMAGE_FORMAT_BY_EXTENSION[suffix]
+        or detected_format != IMAGE_FORMAT_BY_CONTENT_TYPE[content_type]
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="파일 확장자와 실제 이미지 형식이 일치하지 않습니다.",
+        )
+
 
 async def read_image_upload_file(file: UploadFile) -> tuple[str, str, bytes]:
     original_filename = get_safe_filename(file.filename)
     suffix = validate_image_metadata(original_filename, file.content_type)
     content = await file.read(MAX_IMAGE_SIZE_BYTES + 1)
-    validate_image_content(content)
+    validate_image_content(
+        content,
+        suffix=suffix,
+        content_type=file.content_type or "",
+    )
     return original_filename, suffix, content
 
 
@@ -63,5 +104,9 @@ def read_image_upload_file_sync(file: UploadFile) -> tuple[str, str, bytes]:
     original_filename = get_safe_filename(file.filename)
     suffix = validate_image_metadata(original_filename, file.content_type)
     content = file.file.read(MAX_IMAGE_SIZE_BYTES + 1)
-    validate_image_content(content)
+    validate_image_content(
+        content,
+        suffix=suffix,
+        content_type=file.content_type or "",
+    )
     return original_filename, suffix, content

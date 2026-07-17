@@ -1,4 +1,5 @@
 import unittest
+from datetime import timedelta
 from unittest.mock import patch
 
 from fastapi import HTTPException
@@ -32,6 +33,7 @@ from app.database.billing_models import (
     PurchaseHistory,
     RefundRequest,
     Subscription,
+    utc_now,
 )
 from app.database.connection import Base
 from app.database.models import Advertisement, User
@@ -311,6 +313,25 @@ class AdminApiTestCase(unittest.TestCase):
         listed_user = next(item for item in response.items if item.id == self.user.id)
         self.assertEqual(listed_user.plan, "free")
         self.assertEqual(listed_user.subscription_status, "inactive")
+
+    def test_expired_premium_subscription_is_shown_as_free(self) -> None:
+        subscription = self.session.query(Subscription).one()
+        subscription.current_period_end = utc_now() - timedelta(minutes=1)
+        self.session.commit()
+
+        response = read_admin_users(
+            skip=0,
+            limit=50,
+            search=None,
+            is_active=None,
+            plan=None,
+            db=self.session,
+            current_admin=self.admin_account,
+        )
+
+        listed_user = next(item for item in response.items if item.id == self.user.id)
+        self.assertEqual(listed_user.plan, "free")
+        self.assertEqual(listed_user.subscription_status, "expired")
 
     def test_admin_can_filter_users_by_status_and_plan(self) -> None:
         inactive_user = User(

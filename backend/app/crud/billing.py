@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from sqlalchemy.orm import Session
@@ -12,8 +12,59 @@ from app.database.billing_models import (
 )
 
 
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _expire_subscription(subscription: Subscription, now: datetime) -> bool:
+    if (
+        subscription.plan != "premium"
+        or subscription.status != "active"
+        or subscription.current_period_end is None
+        or _as_utc(subscription.current_period_end) > now
+    ):
+        return False
+
+    subscription.status = (
+        "canceled" if subscription.cancel_at_period_end else "expired"
+    )
+    subscription.cancel_at_period_end = False
+    return True
+
+
+def expire_ended_subscriptions(db: Session, *, now: datetime | None = None) -> int:
+    current_time = _as_utc(now or utc_now())
+    subscriptions = (
+        db.query(Subscription)
+        .filter(
+            Subscription.plan == "premium",
+            Subscription.status == "active",
+            Subscription.current_period_end.is_not(None),
+        )
+        .all()
+    )
+    expired = [
+        subscription
+        for subscription in subscriptions
+        if _expire_subscription(subscription, current_time)
+    ]
+    if expired:
+        db.commit()
+        for subscription in expired:
+            db.refresh(subscription)
+    return len(expired)
+
+
 def get_subscription_by_user(db: Session, user_id: int) -> Subscription | None:
-    return db.query(Subscription).filter(Subscription.user_id == user_id).first()
+    subscription = (
+        db.query(Subscription).filter(Subscription.user_id == user_id).first()
+    )
+    if subscription is not None and _expire_subscription(subscription, _as_utc(utc_now())):
+        db.commit()
+        db.refresh(subscription)
+    return subscription
 
 
 def get_payment_method_by_user(db: Session, user_id: int) -> PaymentMethod | None:

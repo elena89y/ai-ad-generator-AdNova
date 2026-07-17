@@ -22,6 +22,7 @@ from app.database.billing_models import (
     PaymentMethod,
     PremiumCreditBalance,
     PurchaseHistory,
+    RefundRequest,
     Subscription,
 )
 from app.database.connection import Base
@@ -140,6 +141,15 @@ class AccountApiTestCase(unittest.TestCase):
             )
             self.session.add(advertisement)
             self.session.flush()
+            purchase = PurchaseHistory(
+                user_id=self.user.id,
+                item_type="subscription",
+                description="test",
+                amount=9900,
+                status="paid",
+            )
+            self.session.add(purchase)
+            self.session.flush()
             self.session.add_all(
                 [
                     History(
@@ -150,12 +160,11 @@ class AccountApiTestCase(unittest.TestCase):
                     ),
                     Subscription(user_id=self.user.id),
                     PaymentMethod(user_id=self.user.id, provider="demo"),
-                    PurchaseHistory(
+                    RefundRequest(
                         user_id=self.user.id,
-                        item_type="subscription",
-                        description="test",
+                        purchase_id=purchase.id,
                         amount=9900,
-                        status="paid",
+                        reason="test refund",
                     ),
                     SupportInquiry(
                         user_id=self.user.id,
@@ -195,6 +204,7 @@ class AccountApiTestCase(unittest.TestCase):
             self.assertEqual(self.session.query(Subscription).count(), 0)
             self.assertEqual(self.session.query(PaymentMethod).count(), 0)
             self.assertEqual(self.session.query(PurchaseHistory).count(), 0)
+            self.assertEqual(self.session.query(RefundRequest).count(), 0)
             self.assertEqual(self.session.query(SupportInquiry).count(), 0)
             self.assertEqual(self.session.query(CreditBalance).count(), 0)
             self.assertEqual(self.session.query(CreditRefillState).count(), 0)

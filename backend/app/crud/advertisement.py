@@ -20,6 +20,7 @@ def create_advertisement(
     target_audience: Optional[str] = None,
     status: str = "pending",
     error_message: Optional[str] = None,
+    commit: bool = True,
 ) -> Advertisement:
     advertisement = Advertisement(
         user_id=user_id,
@@ -36,7 +37,10 @@ def create_advertisement(
         error_message=error_message,
     )
     db.add(advertisement)
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     db.refresh(advertisement)
     return advertisement
 

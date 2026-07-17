@@ -4,6 +4,7 @@ from app.database.billing_models import (
     PaymentMethod,
     PremiumCreditBalance,
     PurchaseHistory,
+    RefundRequest,
     Subscription,
 )
 from app.database.models import (
@@ -53,6 +54,9 @@ def delete_user_account(db: Session, user: User) -> list[str]:
             synchronize_session=False
         )
         db.query(Image).filter(Image.user_id == user_id).delete(
+            synchronize_session=False
+        )
+        db.query(RefundRequest).filter(RefundRequest.user_id == user_id).delete(
             synchronize_session=False
         )
         db.query(PurchaseHistory).filter(PurchaseHistory.user_id == user_id).delete(
