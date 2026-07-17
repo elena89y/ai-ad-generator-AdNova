@@ -751,6 +751,31 @@ http://scripts.sil.org/OFL
   .faq .a{margin:10px 0 0;font-size:12.5px;line-height:1.65;color:var(--ink-soft);display:none}
   .faq.open .a{display:block}.faq.open{border-color:rgba(242,169,59,.3)}
   .faq .pm::after{content:'＋';color:var(--gold)}.faq.open .pm::after{content:'－'}
+  .inquiry-area{margin-top:22px;padding-top:22px;border-top:1px solid var(--line)}
+  .inquiry-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:14px}
+  .inquiry-heading h3{font-size:16px;font-weight:800;margin-bottom:3px}
+  .inquiry-heading p{font-size:12.5px;color:var(--ink-soft)}
+  .inquiry-form{display:grid;grid-template-columns:160px 1fr;gap:10px;padding:18px;background:var(--card);border:1px solid var(--line);border-radius:14px}
+  .inquiry-form select,.inquiry-form input,.inquiry-form textarea{width:100%;padding:12px 14px;color:var(--ink);background:#26242D;border:1px solid rgba(255,255,255,.1);border-radius:10px;outline:none;font:inherit}
+  .inquiry-form select:focus,.inquiry-form input:focus,.inquiry-form textarea:focus{border-color:var(--gold)}
+  .inquiry-form input{grid-column:2}
+  .inquiry-form textarea{grid-column:1/-1;min-height:120px;resize:vertical}
+  .inquiry-form-actions{grid-column:1/-1;display:flex;justify-content:flex-end;align-items:center;gap:12px}
+  .inquiry-form-actions span{margin-right:auto;color:var(--ink-mute);font-size:11.5px}
+  .inquiry-submit{padding:11px 18px;border:0;border-radius:10px;background:var(--gold);color:#16151A;font-size:13px;font-weight:800}
+  .inquiry-submit:disabled{cursor:wait;opacity:.65}
+  .inquiry-list{display:grid;gap:10px;margin-top:18px}
+  .inquiry-item{padding:16px 18px;background:var(--card);border:1px solid var(--line);border-radius:12px}
+  .inquiry-item-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .inquiry-item-head strong{font-size:13.5px}
+  .inquiry-meta{margin-top:4px;color:var(--ink-mute);font-size:11px}
+  .inquiry-content{margin-top:11px;color:var(--ink-soft);font-size:12.5px;line-height:1.65;white-space:pre-wrap}
+  .inquiry-answer{margin-top:12px;padding:12px 14px;background:rgba(242,169,59,.08);border-left:3px solid var(--gold);border-radius:0 9px 9px 0;color:var(--ink-soft);font-size:12.5px;line-height:1.65;white-space:pre-wrap}
+  .inquiry-answer strong{display:block;margin-bottom:4px;color:var(--gold);font-size:11.5px}
+  .inquiry-status{flex:none;padding:4px 8px;border-radius:999px;background:rgba(118,184,255,.12);color:#76b8ff;font-size:10.5px;font-weight:800}
+  .inquiry-status.answered,.inquiry-status.closed{background:rgba(91,227,160,.12);color:#5be3a0}
+  .inquiry-empty{padding:24px;text-align:center;color:var(--ink-mute);font-size:12.5px}
+  @media(max-width:640px){.inquiry-form{grid-template-columns:1fr}.inquiry-form input{grid-column:1}.inquiry-form-actions{align-items:stretch;flex-direction:column}.inquiry-form-actions span{margin-right:0}.inquiry-submit{width:100%}}
   .onb-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 20px}
 </style>
 </head>
@@ -1201,7 +1226,27 @@ http://scripts.sil.org/OFL
     <div class="faq" onclick="this.classList.toggle('open')"><div class="q">생성한 광고는 어디에 저장되나요?<span class="pm"></span></div><p class="a">모든 생성 결과는 '내 광고' 이력에 자동 저장돼요. 언제든 다시 보고 공유할 수 있어요.</p></div>
     <div class="faq" onclick="this.classList.toggle('open')"><div class="q">상품 사진은 어떻게 찍으면 좋나요?<span class="pm"></span></div><p class="a">제품이 화면 중앙에 크게, 밝은 곳에서 단색 배경으로 찍으면 배경 제거와 합성 품질이 좋아져요.</p></div>
     <div id="faqEmpty" style="display:none;text-align:center;padding:24px;color:var(--ink-mute);font-size:13px">검색 결과가 없습니다.</div>
-    <div style="margin-top:20px;background:linear-gradient(135deg,rgba(242,169,59,.1),rgba(196,46,92,.1));border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;align-items:center;gap:16px"><div style="flex:1"><div style="font-size:14px;font-weight:700;margin-bottom:3px">원하는 답을 못 찾으셨나요?</div><div style="font-size:12.5px;color:var(--ink-soft)">1:1 문의 기능은 준비 중이에요.</div></div><button style="padding:11px 18px;border:none;border-radius:11px;background:var(--gold);color:#16151A;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap" onclick="toast('1:1 문의 기능은 준비 중입니다')">문의하기</button></div>
+    <div class="inquiry-area">
+      <div class="inquiry-heading">
+        <div><h3>1:1 문의</h3><p>문의 내용을 남기면 관리자 답변을 여기에서 확인할 수 있어요.</p></div>
+      </div>
+      <form id="inquiryForm" class="inquiry-form" onsubmit="submitInquiry(event)">
+        <select id="inquiryCategory" aria-label="문의 유형">
+          <option value="general">일반 문의</option>
+          <option value="generation">광고 생성 문의</option>
+          <option value="billing">결제·구독 문의</option>
+          <option value="account">계정 문의</option>
+        </select>
+        <input id="inquiryTitle" type="text" maxlength="255" placeholder="문의 제목" required>
+        <textarea id="inquiryContent" maxlength="5000" placeholder="궁금한 내용을 자세히 적어 주세요." required></textarea>
+        <div class="inquiry-form-actions">
+          <span>답변이 등록되면 문의 상태가 답변 완료로 변경됩니다.</span>
+          <button id="inquirySubmitButton" class="inquiry-submit" type="submit">문의 등록</button>
+        </div>
+      </form>
+      <div class="inquiry-heading" style="margin-top:24px"><div><h3>내 문의</h3><p>최근 문의부터 확인할 수 있어요.</p></div></div>
+      <div id="myInquiryList" class="inquiry-list"><div class="inquiry-empty">로그인하면 문의 내역을 확인할 수 있어요.</div></div>
+    </div>
   </div>
 </section>
 
@@ -1412,6 +1457,7 @@ let activeShareItem = null;
 let activeSharePlatform = 'instagram';
 let shareFrom = 'dashboard';
 let recoveryMode = 'password';
+let userInquiries = [];
 
 function getToken(){
   return localStorage.getItem(ACCESS_TOKEN_KEY);
@@ -1464,8 +1510,10 @@ function clearAuth(){
   freeTotal=3;
   freeLeft=3;
   freeNextRefillAt=null;
+  userInquiries=[];
   syncUserUI();
   renderBilling();
+  renderMyInquiries();
 }
 async function apiFetch(path,options={}){
   const token=getToken();
@@ -1482,6 +1530,14 @@ function readApiError(data,fallback){
   if(typeof data.detail==='string') return data.detail;
   if(Array.isArray(data.detail)) return data.detail.map(formatValidationError).join('\n');
   return fallback;
+}
+function escapeMarkup(value){
+  return String(value??'')
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'",'&#039;');
 }
 function fieldNameFromError(item){
   const loc=Array.isArray(item.loc)?item.loc:[];
@@ -2012,6 +2068,7 @@ function go(id){
   if(id==='dashboard'||id==='mypage') loadDashboardSummary(false);
   if(id==='mypage') loadHistory(false);
   if(id==='billing') loadBilling(false);
+  if(id==='support') loadMyInquiries(false);
   window.scrollTo(0,0);
 }
 
@@ -2834,6 +2891,92 @@ function renderMembershipUI(){
 }
 function setSet(el,id){document.querySelectorAll('#settings .set-nav-item').forEach(function(x){x.classList.remove('on');});el.classList.add('on');var t=document.getElementById(id);if(t)window.scrollTo({top:t.getBoundingClientRect().top+window.scrollY-90,behavior:'smooth'});}
 function shareTab(el,platform){document.querySelectorAll('#share .shtab').forEach(tab=>tab.classList.remove('on'));el.classList.add('on');renderSharePlatform(platform);}
+function getInquiryStatusLabel(status){
+  return {pending:'접수 완료',in_progress:'확인 중',answered:'답변 완료',closed:'처리 종료'}[status]||status;
+}
+function getInquiryCategoryLabel(category){
+  return {general:'일반 문의',generation:'광고 생성 문의',billing:'결제·구독 문의',account:'계정 문의'}[category]||category;
+}
+function formatInquiryDate(value){
+  if(!value)return '';
+  const date=new Date(value);
+  if(Number.isNaN(date.getTime()))return String(value);
+  return new Intl.DateTimeFormat('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).format(date);
+}
+function renderMyInquiries(){
+  const container=document.getElementById('myInquiryList');
+  if(!container)return;
+  if(!getToken()){
+    container.innerHTML='<div class="inquiry-empty">로그인하면 문의 내역을 확인할 수 있어요.</div>';
+    return;
+  }
+  if(userInquiries.length===0){
+    container.innerHTML='<div class="inquiry-empty">아직 등록한 문의가 없습니다.</div>';
+    return;
+  }
+  container.innerHTML=userInquiries.map(item=>`
+    <article class="inquiry-item">
+      <div class="inquiry-item-head">
+        <div>
+          <strong>${escapeMarkup(item.title)}</strong>
+          <div class="inquiry-meta">${escapeMarkup(getInquiryCategoryLabel(item.category))} · ${escapeMarkup(formatInquiryDate(item.created_at))}</div>
+        </div>
+        <span class="inquiry-status ${escapeMarkup(item.status)}">${escapeMarkup(getInquiryStatusLabel(item.status))}</span>
+      </div>
+      <div class="inquiry-content">${escapeMarkup(item.content)}</div>
+      ${item.answer?`<div class="inquiry-answer"><strong>관리자 답변</strong>${escapeMarkup(item.answer)}</div>`:''}
+    </article>
+  `).join('');
+}
+async function loadMyInquiries(showMessage=false){
+  if(!getToken()){
+    userInquiries=[];
+    renderMyInquiries();
+    return;
+  }
+  try{
+    const res=await apiFetch('/api/inquiries?limit=50');
+    let data=null;try{data=await res.json();}catch(_){ }
+    if(!res.ok)throw new Error(readApiError(data,'문의 내역을 불러오지 못했습니다.'));
+    userInquiries=Array.isArray(data?.items)?data.items:[];
+    renderMyInquiries();
+  }catch(err){
+    if(showMessage)toast(err.message||'문의 내역을 불러오지 못했습니다.');
+  }
+}
+async function submitInquiry(event){
+  event.preventDefault();
+  if(!getToken()){
+    toast('로그인 후 문의를 등록해 주세요.');
+    go('login');
+    return;
+  }
+  const category=document.getElementById('inquiryCategory').value;
+  const title=document.getElementById('inquiryTitle').value.trim();
+  const content=document.getElementById('inquiryContent').value.trim();
+  const button=document.getElementById('inquirySubmitButton');
+  if(!title){toast('문의 제목을 입력해 주세요.');return;}
+  if(!content){toast('문의 내용을 입력해 주세요.');return;}
+  button.disabled=true;
+  button.textContent='등록 중...';
+  try{
+    const res=await apiFetch('/api/inquiries',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({category,title,content})
+    });
+    let data=null;try{data=await res.json();}catch(_){ }
+    if(!res.ok)throw new Error(readApiError(data,'문의를 등록하지 못했습니다.'));
+    event.target.reset();
+    await loadMyInquiries(false);
+    toast('문의가 등록되었습니다.');
+  }catch(err){
+    toast(err.message||'문의를 등록하지 못했습니다.');
+  }finally{
+    button.disabled=false;
+    button.textContent='문의 등록';
+  }
+}
 function filterFaqs(value){
   const query=(value||'').trim().toLowerCase();
   let visible=0;

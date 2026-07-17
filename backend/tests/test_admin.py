@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch
 
 from fastapi import HTTPException
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -24,6 +25,7 @@ from app.api.admin import (
     update_admin_user_subscription,
 )
 from app.core.admin_security import get_current_admin, get_current_super_admin
+from app.core.security import create_access_token, get_current_user
 from app.database.admin_models import AdminAccount, AdminAuditLog
 from app.database.billing_models import (
     PremiumCreditBalance,
@@ -565,6 +567,10 @@ class AdminApiTestCase(unittest.TestCase):
         self.assertEqual(context.exception.status_code, 404)
 
     def test_admin_can_deactivate_and_reactivate_normal_user(self) -> None:
+        credentials = HTTPAuthorizationCredentials(
+            scheme="Bearer",
+            credentials=create_access_token({"sub": str(self.user.id)}),
+        )
         deactivated = update_admin_user_status(
             user_id=self.user.id,
             request=AdminUserStatusUpdateRequest(is_active=False),
@@ -572,6 +578,9 @@ class AdminApiTestCase(unittest.TestCase):
             current_admin=self.admin_account,
         )
         self.assertFalse(deactivated.is_active)
+        with self.assertRaises(HTTPException) as inactive_context:
+            get_current_user(credentials=credentials, db=self.session)
+        self.assertEqual(inactive_context.exception.status_code, 403)
 
         reactivated = update_admin_user_status(
             user_id=self.user.id,
@@ -580,6 +589,10 @@ class AdminApiTestCase(unittest.TestCase):
             current_admin=self.admin_account,
         )
         self.assertTrue(reactivated.is_active)
+        self.assertEqual(
+            get_current_user(credentials=credentials, db=self.session).id,
+            self.user.id,
+        )
 
         audit_logs = read_admin_audit_logs(
             skip=0,

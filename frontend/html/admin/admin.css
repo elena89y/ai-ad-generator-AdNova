@@ -554,6 +554,12 @@ button:disabled {
   gap: 10px;
 }
 
+.refresh-status {
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 .admin-role-badge {
   padding: 5px 9px;
   color: var(--green);
@@ -746,6 +752,29 @@ button:disabled {
   border-color: var(--gold);
 }
 
+.table-select {
+  min-width: 108px;
+  min-height: 36px;
+  padding: 0 30px 0 10px;
+  color: var(--text);
+  background-color: var(--surface-input);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  outline: none;
+}
+
+.table-select:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(242, 169, 59, 0.12);
+}
+
+.table-select:disabled {
+  color: var(--text-soft);
+  background-color: var(--surface);
+  border-color: var(--line);
+  opacity: 1;
+}
+
 .result-count {
   margin-left: auto;
   color: var(--text-muted);
@@ -896,6 +925,10 @@ tbody tr:hover {
   text-align: center;
 }
 
+.recent-activity-panel {
+  margin-top: 18px;
+}
+
 /* 상태 표시 */
 
 .status-badge {
@@ -956,6 +989,13 @@ tbody tr:hover {
 .table-action:hover {
   color: var(--gold);
   border-color: var(--gold);
+}
+
+.table-action:disabled {
+  color: var(--text-muted);
+  border-color: var(--line);
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 .table-action.danger {
