@@ -498,7 +498,7 @@ async function handleAdminLogin(event) {
       return;
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    const response = await fetch(`${API_BASE_URL}/api/auth/admin-login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"

@@ -25,6 +25,56 @@ router = APIRouter(
 )
 
 
+def _authenticate_credentials(user_data: UserLogin, db: Session) -> User:
+    user = db.query(User).filter(User.username == user_data.username).first()
+
+    if not user or not verify_password(user_data.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="아이디 또는 비밀번호가 올바르지 않습니다.",
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="비활성화된 계정입니다.",
+        )
+
+    return user
+
+
+def _get_admin_account(db: Session, user_id: int) -> AdminAccount | None:
+    return db.query(AdminAccount).filter(AdminAccount.user_id == user_id).first()
+
+
+def _create_login_response(db: Session, user: User) -> dict:
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": str(user.id), "email": user.email, "auth_provider": "local"},
+        expires_delta=access_token_expires,
+    )
+    admin_account = _get_admin_account(db, user.id)
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "username": user.username,
+            "name": user.name,
+            "business_name": user.business_name,
+            "business_type": user.business_type,
+            "is_active": user.is_active,
+            "created_at": user.created_at,
+            "updated_at": user.updated_at,
+            "auth_provider": "local",
+            "is_admin": admin_account is not None and admin_account.is_active,
+            "role": admin_account.role if admin_account else "user",
+        },
+    }
+
+
 @router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     existing_user = db.query(User).filter(User.email == user_data.email).first()
@@ -70,60 +120,35 @@ def signup(user_data: UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login")
 def login(user_data: UserLogin, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == user_data.username).first()
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="아이디 또는 비밀번호가 올바르지 않습니다.",
+    user = _authenticate_credentials(user_data, db)
+    admin_account = _get_admin_account(db, user.id)
+    if admin_account is not None:
+        detail = (
+            "비활성화된 관리자 계정입니다."
+            if not admin_account.is_active
+            else "관리자 계정은 관리자 페이지에서 로그인해 주세요."
         )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
-    if not verify_password(user_data.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="아이디 또는 비밀번호가 올바르지 않습니다.",
-        )
+    return _create_login_response(db, user)
 
-    if not user.is_active:
+
+@router.post("/admin-login")
+def admin_login(user_data: UserLogin, db: Session = Depends(get_db)):
+    user = _authenticate_credentials(user_data, db)
+    admin_account = _get_admin_account(db, user.id)
+    if admin_account is None or not admin_account.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="비활성화된 계정입니다.",
+            detail="활성화된 관리자 계정만 로그인할 수 있습니다.",
+        )
+    if admin_account.role not in {"operator", "super_admin"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="유효한 관리자 역할이 없습니다.",
         )
 
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-
-    access_token = create_access_token(
-        data={"sub": str(user.id), "email": user.email, "auth_provider": "local"},
-        expires_delta=access_token_expires,
-    )
-
-    admin_account = (
-        db.query(AdminAccount)
-        .filter(
-            AdminAccount.user_id == user.id,
-            AdminAccount.is_active.is_(True),
-        )
-        .first()
-    )
-
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": {
-            "id": user.id,
-            "email": user.email,
-            "username": user.username,
-            "name": user.name,
-            "business_name": user.business_name,
-            "business_type": user.business_type,
-            "is_active": user.is_active,
-            "created_at": user.created_at,
-            "updated_at": user.updated_at,
-            "auth_provider": "local",
-            "is_admin": admin_account is not None,
-            "role": admin_account.role if admin_account else "user",
-        },
-    }
+    return _create_login_response(db, user)
 
 
 @router.post("/find-username", response_model=UsernameFindResponse)
