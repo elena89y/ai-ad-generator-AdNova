@@ -166,21 +166,57 @@ def test_contact_shadow_fades_to_zero_at_borders():
     assert border.max() <= 2  # 네 변 모두 사실상 0으로 페이드 (하드엣지 없음)
 
 
+def _solid_bottom_abs(placed, top):
+    """배치된 제품의 '실한 알파(≥96)' 최하단 절대 y."""
+    pa = np.asarray(placed.split()[-1])
+    rows = np.where((pa >= 96).sum(axis=1) >= max(2, pa.shape[1] // 40))[0]
+    return top + int(rows.max())
+
+
 def test_trim_to_alpha_bbox_removes_rembg_padding():
-    """rembg 결과는 원본 사진 크기 그대로라 전경 아래에 투명 여백이 남는다 — 잘라내지
-    않으면 배치 시 상품이 접지선 위로 '뜬다'(2026-07-17 VM 실측 재현: 아이스 라떼가 공중부양)."""
     padded = Image.new("RGBA", (300, 300), (0, 0, 0, 0))
     arr = np.asarray(padded).copy()
-    arr[40:120, 100:200] = (0, 200, 0, 255)  # 전경은 위쪽에만, 아래 180px는 투명 여백
+    arr[40:120, 100:200] = (0, 200, 0, 255)
     padded = Image.fromarray(arr, "RGBA")
-
     trimmed = scene_service._trim_to_alpha_bbox(padded)
     assert trimmed.size == (100, 80)  # (200-100, 120-40)
 
+
+def test_solid_contact_lands_on_surface_regardless_of_padding():
+    """접지 정렬은 트림 여부·투명 여백과 무관하게 '실한 알파 하단'을 surface_y에 맞춘다
+    (2026-07-17 VM 게이트: 반투명 하단·미트림 여백으로 제품 공중부양 → 접지오프셋으로 해소)."""
+    padded = Image.new("RGBA", (300, 300), (0, 0, 0, 0))
+    arr = np.asarray(padded).copy()
+    arr[40:120, 100:200] = (0, 200, 0, 255)  # 전경 위쪽, 아래 180px 투명 여백
+    padded = Image.fromarray(arr, "RGBA")
+    trimmed = scene_service._trim_to_alpha_bbox(padded)
+
     plan = next(p for p in scene_plans.PLANS if p.render_mode == "code")
-    _, (_, top_padded) = scene_service._place_product((1024, 1024), padded, plan, surface_y=0.7)
-    _, (_, top_trimmed) = scene_service._place_product((1024, 1024), trimmed, plan, surface_y=0.7)
-    assert top_trimmed > top_padded  # 트림 후에는 상품이 접지선에 더 가깝게(아래로) 내려온다
+    surface_px = int(1024 * 0.7)
+    for img in (padded, trimmed):
+        placed, (_, top) = scene_service._place_product((1024, 1024), img, plan, surface_y=0.7)
+        assert abs(_solid_bottom_abs(placed, top) - surface_px) <= 3  # 접지점이 surface_y에 정렬
+
+
+def test_translucent_tail_does_not_float_solid_body():
+    """반투명 꼬리(괄사 다리·유리 그림자)는 접지로 안 친다 — 실한 몸통이 surface_y에 앉아야."""
+    arr = np.zeros((500, 300, 4), dtype=np.uint8)
+    arr[20:250, 60:240] = (220, 150, 150, 255)   # 실한 몸통
+    arr[250:480, 90:210] = (200, 130, 130, 40)   # 반투명 꼬리(alpha 40 < 96)
+    prod = Image.fromarray(arr, "RGBA")
+    plan = next(p for p in scene_plans.PLANS if p.render_mode == "code")
+    surface_px = int(1024 * 0.72)
+    placed, (_, top) = scene_service._place_product((1024, 1024), prod, plan, surface_y=0.72)
+    # 실한 몸통 하단이 접지선에 앉는다(꼬리 끝 bbox가 아니라)
+    assert abs(_solid_bottom_abs(placed, top) - surface_px) <= 3
+
+
+def test_tall_product_scaled_to_fit_canvas_height():
+    """세로로 긴 제품은 폭 스케일만 쓰면 캔버스를 넘는다 → 높이 상한 보정."""
+    tall = Image.new("RGBA", (100, 900), (255, 0, 0, 255))
+    plan = next(p for p in scene_plans.PLANS if p.render_mode == "code")
+    placed, _ = scene_service._place_product((1024, 1024), tall, plan, surface_y=0.75)
+    assert placed.height <= int(1024 * 0.82) + 1
 
 
 def test_harmonize_color_preserves_alpha_and_caps_delta_e():

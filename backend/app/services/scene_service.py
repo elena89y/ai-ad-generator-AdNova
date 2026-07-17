@@ -213,18 +213,42 @@ def _trim_to_alpha_bbox(rgba: Image.Image) -> Image.Image:
     return rgba.crop(bbox) if bbox else rgba
 
 
+_MAX_SUBJECT_HEIGHT_FRAC = 0.82  # 세로로 긴 제품이 캔버스를 넘지 않도록 상한(폭 스케일 보정)
+_CONTACT_ALPHA = 96              # 접지행 판정 알파 문턱 — 반투명 꼬리(다리·연기)는 접지로 안 침
+
+
+def _contact_offset(rgba: Image.Image) -> int:
+    """실루엣 하단에서 '시각적 접지점'까지의 픽셀 거리.
+
+    반투명 하단(괄사 다리·유리 그림자·연기)은 alpha>0라도 접지가 아니다 — bbox 하단을
+    접지선에 맞추면 실한 몸통이 공중에 뜬다(V4P4D-003 실측). alpha가 충분히 진한(≥_CONTACT_ALPHA)
+    마지막 행을 실접지로 보고, 그보다 아래의 희미한 꼬리 높이를 오프셋으로 돌려준다."""
+    alpha = np.asarray(rgba.split()[-1])
+    h = alpha.shape[0]
+    solid_rows = np.where((alpha >= _CONTACT_ALPHA).sum(axis=1) >= max(2, alpha.shape[1] // 40))[0]
+    if solid_rows.size == 0:
+        return 0
+    return int(h - 1 - solid_rows.max())
+
+
 def _place_product(bg_size: tuple[int, int], product_rgba: Image.Image,
                    plan: scene_plans.ScenePlan, surface_y: float) -> tuple[Image.Image, tuple[int, int]]:
-    """④ 배치: 폭→subject_scale, bbox 하단→surface_y."""
+    """④ 배치: 폭→subject_scale(단, 높이 상한으로 보정), 시각적 접지점→surface_y."""
     canvas_w, canvas_h = bg_size
     target_w = max(1, int(canvas_w * plan.subject_scale))
     scale = target_w / product_rgba.width
+    # 세로로 긴 제품은 폭 스케일만 쓰면 캔버스를 넘는다 → 높이 상한으로 스케일 재보정.
+    if product_rgba.height * scale > canvas_h * _MAX_SUBJECT_HEIGHT_FRAC:
+        scale = canvas_h * _MAX_SUBJECT_HEIGHT_FRAC / product_rgba.height
+        target_w = max(1, int(round(product_rgba.width * scale)))
     target_h = max(1, int(round(product_rgba.height * scale)))
     resized = product_rgba.resize((target_w, target_h), Image.LANCZOS)
+    # 접지 오프셋: bbox 하단이 아니라 '실한 알파 하단'을 surface_y에 정렬한다.
+    contact_offset = _contact_offset(resized)
     cx = int(canvas_w * plan.subject_pos[0])
     surface_y_px = int(canvas_h * surface_y)
     left = cx - target_w // 2
-    top = surface_y_px - target_h
+    top = surface_y_px - (target_h - contact_offset)
     return resized, (left, top)
 
 
@@ -404,13 +428,15 @@ def compose_scene(image_path: str, analysis, style_key: str, style_domain: str,
     trimmed = _trim_to_alpha_bbox(cut["rgba"])
     product, place_xy = _place_product(bg.size, trimmed, plan, acquired["surface_y"])
 
+    # 접지선(surface_y)은 제품 bbox 하단이 아니라 시각적 접지점 — 그림자도 여기 정렬한다.
+    surface_y_px = int(bg.size[1] * acquired["surface_y"])
     canvas = bg.convert("RGBA")
     shadow = _contact_shadow(product, plan)
     offset_dir = 1 if plan.light_dir == "left" else -1  # 그림자는 광원 반대쪽(D-1' 계승)
     # 그림자 캔버스는 블러 여백(pad)만큼 제품보다 크다 — 중심 정렬로 보정. 광원 오프셋으로
     # 좌표가 음수가 될 수 있는데 alpha_composite는 음수 dest에서 ValueError라 paste 경유.
     shadow_x = place_xy[0] - (shadow.width - product.width) // 2 + offset_dir * int(product.width * 0.06)
-    shadow_y = place_xy[1] + product.height - shadow.height // 2
+    shadow_y = surface_y_px - shadow.height // 2
     shadow_layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
     shadow_layer.paste(shadow, (shadow_x, shadow_y))
     canvas = Image.alpha_composite(canvas, shadow_layer)
@@ -420,7 +446,7 @@ def compose_scene(image_path: str, analysis, style_key: str, style_domain: str,
 
     if plan.reflection_strength > 0:
         reflection = _reflection(harmonized, plan.reflection_strength)
-        canvas.alpha_composite(reflection, (place_xy[0], place_xy[1] + product.height))
+        canvas.alpha_composite(reflection, (place_xy[0], surface_y_px))
 
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
