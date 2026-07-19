@@ -700,6 +700,8 @@ def _process_ad_impl(
                     "container_desc": _container_desc(resolved_analysis),
                     "temperature": getattr(resolved_analysis, "temperature", None),
                     "text_zone": recompose_zone,
+                    # 제품 이해(PU-001): 용기가 flexible이면 무드 팔레트로 리컬러 허용
+                    "flexible_parts": getattr(resolved_analysis, "flexible_parts", None),
                 }
                 text_zone = recompose_zone
             # Best-of-N: N시드 생성 → 선별기로 top 선택. best_of=1 이면 기존 1샷.

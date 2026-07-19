@@ -254,15 +254,23 @@ _RECOMPOSE_EFFECTS = {
 }
 
 
+_VESSEL_WORDS = ("cup", "glass", "mug", "saucer", "container", "bowl", "plate", "tumbler")
+
+
 def build_recompose_instruction(style_key: str, subject_en: str,
                                 container_desc: str | None = None,
                                 temperature: str | None = None,
-                                text_zone: str | None = None) -> str | None:
+                                text_zone: str | None = None,
+                                flexible_parts: list[str] | None = None) -> str | None:
     """P5 음료 재연출 지시 — 보존 편집이 아니라 같은 음료의 '새 연출'을 만든다.
 
-    재연출 계약(원본 승계): 같은 용기 종류·색 / 같은 음료·토핑 / 앵글·구도 자유 /
-    외래 재료·손·글자 금지 / text_zone 카피 여백. container_desc·temperature는
-    analyze_photo(Vision) 산출값만 사용한다(개정 #2 — 이름 추정 함수 만들지 말 것).
+    재연출 계약(원본 승계): 같은 음료·토핑 / 앵글·구도 자유 / 외래 재료·손·글자 금지 /
+    text_zone 카피 여백. container_desc·temperature·flexible_parts는 analyze_photo(Vision)
+    산출값만 사용한다(개정 #2 — 이름 추정 함수 만들지 말 것).
+
+    제품 이해(PU-001): flexible_parts에 용기(컵·잔·받침)가 있으면 "그 용기는 상품이 아니라
+    담는 그릇"이므로 색·재질을 장면 팔레트에 맞게 리스타일 허용(형태는 유지). 음료 자체와
+    라떼아트·토핑은 언제나 보존. flexible이 비면 기존처럼 용기까지 그대로 승계(안전 폴백).
     """
     plan = get_reference_plan(style_key, "drink")
     if plan is None:
@@ -270,6 +278,19 @@ def build_recompose_instruction(style_key: str, subject_en: str,
     subject = (subject_en or "beverage").strip()
     container = (container_desc or "container").strip()
     zone = (text_zone or "top").replace("_", " ")
+    flex_text = " ".join(flexible_parts or []).lower()
+    vessel_is_flexible = any(word in flex_text for word in _VESSEL_WORDS)
+    if vessel_is_flexible:
+        vessel_clause = (
+            f"You may restyle the {container}'s color and finish to harmonize with the scene's "
+            "palette, but keep its shape and proportions unchanged. Keep the drink itself exactly "
+            "as photographed: identical liquid color, foam, latte art, ice and toppings. "
+        )
+    else:
+        vessel_clause = (
+            f"Keep the exact same {container} and the exact same drink inside: identical liquid "
+            "color, foam, ice and toppings as photographed. "
+        )
     effect = _RECOMPOSE_EFFECTS.get((temperature or "").strip().lower())
     effect_txt = f" You may add only {effect}." if effect else ""
     # direction 말미의 소품 금지문("No fruit, ... ice, splash ...")은 보존 편집용 —
@@ -280,8 +301,7 @@ def build_recompose_instruction(style_key: str, subject_en: str,
     ) + "."
     return (
         f"Restage this {subject} into a new advertisement composition. "
-        f"Keep the exact same {container} and the exact same drink inside: identical liquid color, "
-        f"foam, ice and toppings as photographed. "
+        f"{vessel_clause}"
         "You may freely change the camera angle, composition, scale and placement for a more "
         f"dynamic advertising shot.{effect_txt} "
         f"{scene_direction} "
