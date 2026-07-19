@@ -4,9 +4,10 @@ import numpy as np
 import pytest
 from PIL import Image
 
+from app.services import overlay_service
 from app.services.commercial_typography import (
     CommercialCopy, commercial_copy_from_text, render_commercial_poster,
-    render_typography_variants,
+    render_typography_variants, select_typography_layout,
 )
 from app.services.generation_service import ProcessedAd, build_typography_variants
 
@@ -43,19 +44,37 @@ def test_commercial_typography_removes_decorative_top_hairline(tmp_path, monkeyp
     src, out = tmp_path / "src.png", tmp_path / "on.png"
     _image(src)
     captured = {}
-    original = __import__(
-        "app.services.overlay_service", fromlist=["_apply_style_typography"]
-    )._apply_style_typography
-
-    def capture_token(image, headline, subcopy, kicker, token):
+    def capture_token(image, copy, token, layout_key):
         captured["accent_element"] = token.accent_element
-        return original(image, headline, subcopy, kicker, token)
+        return image
 
-    monkeypatch.setattr("app.services.overlay_service._apply_style_typography", capture_token)
+    monkeypatch.setattr("app.services.commercial_typography._draw_reference_hierarchy", capture_token)
     render_commercial_poster(
         str(src), str(out), CommercialCopy("ICE 라떼의 정점"), style_key="warm_vintage",
     )
     assert captured["accent_element"] == "none"
+
+
+def test_layout_selector_chooses_quiet_top_left_region() -> None:
+    arr = np.full((800, 640, 3), 220, dtype=np.uint8)
+    rng = np.random.default_rng(42)
+    arr[:260, 180:] = rng.integers(0, 255, arr[:260, 180:].shape, dtype=np.uint8)
+    arr[540:] = rng.integers(0, 255, arr[540:].shape, dtype=np.uint8)
+    assert select_typography_layout(Image.fromarray(arr)) == "kr_hero_top_left"
+
+
+def test_reference_typography_blends_with_background_instead_of_opaque_ink(tmp_path) -> None:
+    src, out = tmp_path / "src.png", tmp_path / "on.png"
+    Image.new("RGB", (640, 800), (240, 220, 180)).save(src)
+    render_commercial_poster(
+        str(src), str(out), CommercialCopy("라떼"),
+        layout_key="kr_hero_top_center", style_key="warm_vintage",
+    )
+    arr = np.asarray(Image.open(out))
+    # 완전 불투명 DARK(27,24,21)이 아니라 배경과 혼합된 중간색 픽셀이 생긴다.
+    changed = arr[np.any(arr != np.array([240, 220, 180]), axis=2)]
+    assert changed.size
+    assert not np.any(np.all(changed == np.array(overlay_service.DARK), axis=1))
 
 
 def test_lineup_layout_does_not_silently_render_single_product(tmp_path) -> None:
@@ -66,6 +85,17 @@ def test_lineup_layout_does_not_silently_render_single_product(tmp_path) -> None
             str(src), str(tmp_path / "out.png"), CommercialCopy("여름 신메뉴"),
             layout_key="kr_multi_product_lineup",
         )
+
+
+def test_diagonal_band_layout_renders_reference_hierarchy(tmp_path) -> None:
+    src, out = tmp_path / "src.png", tmp_path / "diagonal.png"
+    _image(src)
+    render_commercial_poster(
+        str(src), str(out), CommercialCopy("LATTE MOMENT", "오늘의 부드러운 한 잔"),
+        layout_key="kr_diagonal_band", style_key="editorial",
+    )
+    assert out.exists()
+    assert not np.array_equal(np.asarray(Image.open(src)), np.asarray(Image.open(out)))
 
 
 def test_commercial_copy_requires_headline() -> None:
@@ -119,6 +149,9 @@ def test_variant_result_selects_without_gpu_regeneration(tmp_path, enabled) -> N
     assert result.selected_image_path == (
         result.with_typography_path if enabled else result.without_typography_path
     )
+    assert result.layout_key in {
+        "kr_hero_top_left", "kr_hero_top_center", "kr_hero_bottom_left",
+    }
     assert Image.open(result.with_typography_path).size == (640, 800)
     assert np.array_equal(
         np.asarray(Image.open(src)), np.asarray(Image.open(result.without_typography_path)),

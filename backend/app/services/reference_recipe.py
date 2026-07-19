@@ -32,13 +32,13 @@ PROP_DENSITIES = ("none", "low", "medium", "high")
 EDIBLE_MODES = ("none", "source_only")  # source_only = core_ingredients + 원본 Vision 근거 있을 때만
 COMMERCIAL_PATTERNS = (
     "single_hero_headline", "multi_product_lineup", "product_launch",
-    "campaign_teaser", "split_campaign_collage",
+    "campaign_teaser", "split_campaign_collage", "diagonal_color_band",
 )
 PRODUCT_COUNT_CLASSES = ("single", "dual", "triple", "lineup_4_plus")
 CONDITIONING_SUBJECTS = ("latte", "transparent_tea")
 TEXT_HIERARCHIES = (
     "headline_product_brand", "campaign_item_labels", "headline_date",
-    "headline_cta", "panel_headlines",
+    "headline_cta", "panel_headlines", "headline_product",
 )
 
 

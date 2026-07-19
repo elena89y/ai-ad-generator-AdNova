@@ -138,6 +138,26 @@ COMMERCIAL_LAYOUTS: dict[str, CommercialLayout] = {
         "campaign_item_labels", ("top", "bottom"),
         ("KR-AD-002", "KR-AD-009", "KR-AD-016"), label_each_product=True,
     ),
+    "kr_hero_top_left": CommercialLayout(
+        "kr_hero_top_left", "single_hero_headline", "single",
+        "headline_product_brand", ("top_left", "bottom"),
+        ("KR-AD-001", "KR-AD-011"), cta_zone="bottom_right",
+    ),
+    "kr_hero_top_center": CommercialLayout(
+        "kr_hero_top_center", "product_launch", "single",
+        "headline_product_brand", ("top", "bottom"),
+        ("KR-AD-006", "KR-AD-014"), cta_zone="bottom_right",
+    ),
+    "kr_hero_bottom_left": CommercialLayout(
+        "kr_hero_bottom_left", "campaign_teaser", "single",
+        "headline_cta", ("bottom_left", "top"),
+        ("KR-AD-003", "KR-AD-018"), cta_zone="bottom_right",
+    ),
+    "kr_diagonal_band": CommercialLayout(
+        "kr_diagonal_band", "diagonal_color_band", "single",
+        "headline_product", ("bottom_right",),
+        ("PICKBITE-4880", "PICKBITE-4884", "PICKBITE-4887"),
+    ),
 }
 
 # 직접 모델 입력과 구도 참고를 분리한 상품군별 근거. 2026-07-19 육안 감사 결과:
