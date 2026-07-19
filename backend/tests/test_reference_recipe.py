@@ -92,6 +92,24 @@ def test_recipe_rejects_duplicate_refs():
 def test_recipe_id_stable():
     r = _recipe()
     assert r.recipe_id == "drink/tabletop_lifestyle/warm_organic"
+    assert r.is_cross_domain is False
+
+
+def test_cross_domain_bootstrap_requires_metadata():
+    arch = _arch(domains=("drink", "food"))  # 아키타입은 두 도메인 호환 유지(전면 agnostic 아님)
+    # cross-domain인데 transfer_reason/evidence_scope 없으면 거부
+    with pytest.raises(ValueError):
+        _recipe(archetype=arch, source_domains=("food",))
+    # target이 source에 포함되면 전이가 아니므로 거부
+    with pytest.raises(ValueError):
+        _recipe(archetype=arch, source_domains=("drink", "food"),
+                transfer_reason="x", evidence_scope="y")
+    # 정상 부트스트랩: 메타 완비 + approved=False
+    r = _recipe(archetype=arch, source_domains=("food",),
+                transfer_reason="카메라·구도는 도메인 불변",
+                evidence_scope="camera+composition only, not palette/props")
+    assert r.is_cross_domain is True
+    assert r.usable() is False  # 시각 게이트 전엔 미승인
 
 
 def test_recipe_requires_two_or_three_refs():

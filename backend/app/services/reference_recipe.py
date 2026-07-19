@@ -120,7 +120,7 @@ class ReferenceRecipe:
     대표 레퍼런스 2~3장의 공통 특징에서 추출하고, **사람(아트디렉터) 승인 전에는 approved=False**라
     조립부가 사용하지 않는다(오늘 교훈: 머릿속 staging 금지 → 실측 + 사람 승인).
     """
-    domain: str
+    domain: str                          # target domain (이 recipe가 적용될 상품 도메인)
     archetype: SceneArchetype
     mood: MoodToken
     prop_policy: PropPolicy
@@ -128,6 +128,12 @@ class ReferenceRecipe:
     composition_note: str                 # 공통 구도 요약 (사람이 읽고 승인, 비면 안 됨)
     approved_by: str = ""                 # 승인 아트디렉터
     approved: bool = False                # 사람 승인 게이트
+    # cross-domain 부트스트랩(결정 B, B-1 제한적 허용): drink 코퍼스가 빈약(4장)해
+    #   food/object 근거로 연출을 빌릴 때만 사용. 전면 domain-agnostic 금지 — 반드시 아래 메타
+    #   기록 + approved=False로 생성하고, 라떼·투명홍차 시각 게이트 통과분만 사람이 승인한다.
+    source_domains: tuple[str, ...] = ()  # 근거 출처 도메인들(target과 달라야). 비면 = 동일도메인 recipe
+    transfer_reason: str = ""             # 전이 사유 (예: "카메라·구도는 도메인 불변")
+    evidence_scope: str = ""              # 근거 범위 (예: "camera+composition only, NOT palette/props")
 
     def __post_init__(self) -> None:
         if self.domain not in DOMAINS:
@@ -142,11 +148,22 @@ class ReferenceRecipe:
             raise ValueError("composition_note 비어있음")
         if bool(self.approved) != bool(self.approved_by):
             raise ValueError("approved와 approved_by는 함께 설정되어야 함(대칭)")
+        if self.source_domains:  # cross-domain 부트스트랩
+            _require_subset(self.source_domains, DOMAINS, "source_domains")
+            if self.domain in self.source_domains:
+                raise ValueError("cross-domain인데 target domain이 source에 포함됨(전이 아님)")
+            if not self.transfer_reason.strip() or not self.evidence_scope.strip():
+                raise ValueError("cross-domain recipe는 transfer_reason·evidence_scope 필수")
 
     @property
     def recipe_id(self) -> str:
         """selector·원장용 안정적 식별자. 동일 조합이면 동일 id."""
         return f"{self.domain}/{self.archetype.key}/{self.mood.key}"
+
+    @property
+    def is_cross_domain(self) -> bool:
+        """근거를 다른 도메인에서 빌린 부트스트랩 recipe인가(결정 B). 시각 게이트 통과 전엔 미승인 상태여야."""
+        return bool(self.source_domains)
 
     def is_compatible(self, domain: str, opacity: str) -> bool:
         """상품 traits와 호환되는지 — 조립부가 후보에서 부적합 아키타입을 처음부터 제외한다."""
