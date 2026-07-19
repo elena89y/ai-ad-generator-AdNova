@@ -39,13 +39,13 @@ def _require_subset(values: tuple[str, ...], allowed: tuple[str, ...], field: st
 
 @dataclass(frozen=True)
 class MoodToken:
-    """스타일 = 분위기. 색·조명·재질·소품 밀도만 소유한다.
+    """스타일 = 분위기. 조명·재질·소품 밀도만 소유한다.
 
-    ⚠️ 카메라 앵글·제품 배치·구체 소품명을 소유하지 않는다(그건 SceneArchetype·PropPolicy 몫).
-    이 경계가 '웜이면 무조건 top-down' 같은 오류를 막는다.
+    ⚠️ palette는 소유하지 않는다 — 같은 무드도 domain/archetype별 복수 변형이 있어(P4BR pop:
+    drink=코발트, object=틸/코랄) PaletteVariant 레지스트리로 분리하고 ReferenceRecipe가 고른다.
+    ⚠️ 카메라 앵글·제품 배치·구체 소품명도 소유하지 않는다(SceneArchetype·PropPolicy 몫).
     """
     key: str                       # MOODS 중
-    palette: tuple[str, ...]       # hex 색들 (비면 안 됨)
     lighting: str                  # 서술 (비면 안 됨)
     materials: tuple[str, ...]     # wood, linen, stone... (비면 안 됨)
     prop_density: str              # PROP_DENSITIES 중
@@ -55,8 +55,35 @@ class MoodToken:
             raise ValueError(f"mood key 잘못됨: {self.key!r} (허용: {MOODS})")
         if self.prop_density not in PROP_DENSITIES:
             raise ValueError(f"prop_density 잘못됨: {self.prop_density!r}")
-        if not self.palette or not self.lighting.strip() or not self.materials:
-            raise ValueError("MoodToken palette/lighting/materials는 비어있을 수 없음")
+        if not self.lighting.strip() or not self.materials:
+            raise ValueError("MoodToken lighting/materials는 비어있을 수 없음")
+
+
+@dataclass(frozen=True)
+class PaletteVariant:
+    """무드별 palette 후보 하나. 같은 무드도 domain/archetype별로 여러 variant가 있다.
+
+    ReferenceRecipe가 domain/archetype에 맞는 variant를 고르고, 최종 palette 승인은 recipe
+    시각 몽타주에서 사람이 한다(여기서 approved=True 적재 금지 — 후보일 뿐).
+    """
+    mood: str                          # MOODS 중
+    palette: tuple[str, ...]           # hex (비면 안 됨, 각 #RRGGBB)
+    source: str                        # 출처 (예: "P4BR pop/drink", "style_specs editorial")
+    domain_scope: tuple[str, ...] = () # 이 variant가 유래·적합한 domain (비면 = 무드 공통)
+    archetype_hint: str = ""           # 유래 아키타입(선택 힌트)
+
+    def __post_init__(self) -> None:
+        if self.mood not in MOODS:
+            raise ValueError(f"palette variant mood 잘못됨: {self.mood!r}")
+        if not self.palette:
+            raise ValueError("PaletteVariant.palette 비어있음")
+        for hx in self.palette:
+            if not (isinstance(hx, str) and hx.startswith("#") and len(hx) == 7):
+                raise ValueError(f"palette hex 형식 오류: {hx!r}")
+        if self.domain_scope:
+            _require_subset(self.domain_scope, DOMAINS, "domain_scope")
+        if not self.source.strip():
+            raise ValueError("PaletteVariant.source 비어있음(출처 필수)")
 
 
 @dataclass(frozen=True)
@@ -123,6 +150,7 @@ class ReferenceRecipe:
     domain: str                          # target domain (이 recipe가 적용될 상품 도메인)
     archetype: SceneArchetype
     mood: MoodToken
+    palette_variant: PaletteVariant      # recipe가 고른 palette 후보 (최종 승인은 시각 몽타주)
     prop_policy: PropPolicy
     reference_ids: tuple[str, ...]        # 근거 대표 2~3장 (manifest id, 중복 불가)
     composition_note: str                 # 공통 구도 요약 (사람이 읽고 승인, 비면 안 됨)
@@ -146,6 +174,9 @@ class ReferenceRecipe:
             raise ValueError(f"reference_ids 중복: {self.reference_ids}")
         if not self.composition_note.strip():
             raise ValueError("composition_note 비어있음")
+        if self.palette_variant.mood != self.mood.key:
+            raise ValueError(
+                f"palette_variant mood({self.palette_variant.mood})가 recipe mood({self.mood.key})와 불일치")
         if bool(self.approved) != bool(self.approved_by):
             raise ValueError("approved와 approved_by는 함께 설정되어야 함(대칭)")
         if self.source_domains:  # cross-domain 부트스트랩
