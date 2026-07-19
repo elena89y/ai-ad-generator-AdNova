@@ -43,6 +43,11 @@ _IDENTITY_LOCKS = {
     "food": (
         "Edit this exact food photograph. Keep every food item, plate, sauce and garnish exactly as "
         "photographed: the same count, shape, doneness, texture, colors, camera angle, crop and arrangement. "
+        # BUG-KTX-001(2026-07-20): top-down 원형 접시 샌드위치가 4/4 시드에서 테이크아웃 컵으로
+        #   정규화됨(접시의 원형·방사형 골이 컵 뚜껑 시각신호와 겹침). 객체 변환 부정문으로 차단
+        #   — seed42 단독 검증에서 정체성·구도 복원 확인.
+        "Never convert the food, its plate or bowl into a cup, mug, takeaway container or any different "
+        "kind of object. "
         "Do not add, remove, redraw, resize, move, merge or recolor any food item. Change only the background, "
         "table surface and environmental lighting. "
     ),
