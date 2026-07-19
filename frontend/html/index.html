@@ -505,6 +505,10 @@ http://scripts.sil.org/OFL
   .compare .after .pr{position:absolute;top:14px;left:14px;background:var(--gold);color:var(--ink);font-weight:800;font-size:13px;padding:5px 11px;border-radius:8px;transform:rotate(-3deg)}
   .compare .lbltag{position:absolute;bottom:12px;font-size:11px;font-weight:800;color:#fff;background:rgba(0,0,0,.4);padding:4px 9px;border-radius:7px;backdrop-filter:blur(3px)}
   .compare .lbltag.l{left:12px}.compare .lbltag.r{right:12px}
+  .type-option{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.035)}
+  .type-option label{display:flex;align-items:center;gap:9px;font-size:12.5px;font-weight:700;color:var(--ink);cursor:pointer}
+  .type-option input{width:17px;height:17px;accent-color:var(--gold);cursor:pointer}
+  .type-option small{font-size:10.5px;color:var(--ink-mute);text-align:right;line-height:1.35}
   .handle{position:absolute;top:0;bottom:0;left:50%;width:3px;background:#fff;transform:translateX(-50%);cursor:ew-resize;box-shadow:0 0 12px rgba(0,0,0,.3);z-index:3}
   .handle::after{content:"⇄";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:34px;height:34px;background:#fff;border-radius:50%;display:grid;place-items:center;font-size:15px;color:var(--ink);box-shadow:var(--shadow)}
   .range{position:absolute;inset:0;width:100%;opacity:0;cursor:ew-resize;z-index:4;margin:0}
@@ -1010,7 +1014,7 @@ http://scripts.sil.org/OFL
           <button class="use on" data-u="sns" onclick="pickUse(this)">SNS</button>
           <button class="use" data-u="card" onclick="pickUse(this)">카드뉴스</button>
           <button class="use" data-u="banner" onclick="pickUse(this)">배너</button>
-          <button class="use" data-u="flyer" onclick="pickUse(this)">전단지</button>
+          <button class="use" data-u="detail" onclick="pickUse(this)">상세페이지</button>
         </div>
       </div>
       <button class="btn-gen" id="genBtn" onclick="generate()" style="margin-top:auto">✦ 광고 생성</button>
@@ -1035,10 +1039,15 @@ http://scripts.sil.org/OFL
       </div>
 
       <div class="output" id="rOut" style="padding:0">
+        <div class="type-option" id="resultTypeOption" style="margin-bottom:12px;display:none">
+          <label for="typographyToggle"><input id="typographyToggle" type="checkbox" checked onchange="changeTypography()">타이포 포함</label>
+          <small id="typeOptionHint">같은 이미지의 무타이포 버전도 함께 제공</small>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" data-role="compare">
           <div style="position:relative;border-radius:14px;overflow:hidden;min-height:360px;background:#0d0d10"><img src="assets/demo-product.jpg" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" id="beforeImg" alt="원본"><span style="position:absolute;left:12px;top:12px;background:rgba(0,0,0,.55);color:var(--ink-soft);font-size:10px;font-weight:800;letter-spacing:.05em;padding:4px 9px;border-radius:6px">BEFORE</span></div>
           <div style="position:relative;border-radius:14px;overflow:hidden;min-height:360px;background:#0d0d10"><img src="assets/demo-ad.jpg" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" id="afterImg" alt="AI 광고"><span style="position:absolute;left:12px;top:12px;background:var(--gold);color:#16151A;font-size:10px;font-weight:800;letter-spacing:.05em;padding:4px 9px;border-radius:6px">AFTER</span><span style="position:absolute;right:12px;bottom:12px;background:rgba(0,0,0,.6);color:var(--ink-soft);font-size:9px;font-weight:700;padding:4px 8px;border-radius:6px">🔖 워터마크</span></div>
         </div>
+        <div id="formatGallery" style="display:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px"></div>
         <div class="copy-block" style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-top:16px">
           <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">
             <span style="font-size:12px;font-weight:800;color:var(--gold-deep)">✦ 매체별 카피</span>
@@ -1778,15 +1787,52 @@ function applyGeneratedCopy(copyText,style,platformCopies={}){
 }
 function applyGeneratedResult(data){
   currentResult=data;
+  const typeOption=document.getElementById('resultTypeOption');
+  const toggle=document.getElementById('typographyToggle');
+  const hasPair=Boolean(data.image_with_typography_url&&data.image_without_typography_url);
+  if(typeOption)typeOption.style.display=hasPair?'flex':'none';
+  if(toggle){toggle.disabled=!hasPair;toggle.checked=true;}
   const beforeImg=document.getElementById('beforeImg');
   const afterImg=document.getElementById('afterImg');
   if(beforeImg&&selectedImageUrl) setImageSource(beforeImg,toAbsoluteUrl(selectedImageUrl),'입력 이미지를 불러올 수 없습니다');
-  if(afterImg) setImageSource(afterImg,toAbsoluteUrl(data.image_url),'생성 이미지를 불러올 수 없습니다');
+  if(afterImg) setImageSource(afterImg,toAbsoluteUrl(getResultImageUrl(data)),'생성 이미지를 불러올 수 없습니다');
+  renderFormatGallery(data.format_outputs||[]);
   applyGeneratedCopy(data.copy_text,data.style,data.platform_copies);
   document.getElementById('rEmpty').style.display='none';
   document.getElementById('rLoad').classList.remove('on');
   document.getElementById('rOut').classList.add('on');
   applyPremiumUI();
+}
+function typographyEnabled(){return document.getElementById('typographyToggle')?.checked!==false;}
+function getResultImageUrl(data=currentResult){
+  if(!data)return '';
+  return typographyEnabled()
+    ?(data.image_with_typography_url||data.image_url)
+    :(data.image_without_typography_url||data.image_url);
+}
+function changeTypography(){
+  const image=document.getElementById('afterImg');
+  if(currentResult&&image)setImageSource(image,toAbsoluteUrl(getResultImageUrl()),'생성 이미지를 불러올 수 없습니다');
+}
+function renderFormatGallery(outputs){
+  const gallery=document.getElementById('formatGallery');
+  if(!gallery)return;
+  gallery.innerHTML='';
+  if(!outputs.length){gallery.style.display='none';return;}
+  outputs.forEach((value,index)=>{
+    const url=toAbsoluteUrl(value);
+    const item=document.createElement('div');
+    item.style.cssText='position:relative;overflow:hidden;border:1px solid var(--line);border-radius:12px;background:#0d0d10;min-height:180px';
+    const img=document.createElement('img');
+    img.src=url;img.alt=`배너 규격 ${index+1}`;
+    img.style.cssText='display:block;width:100%;height:100%;min-height:180px;object-fit:contain';
+    const button=document.createElement('button');
+    button.className='oa download';button.textContent='다운로드';
+    button.style.cssText='position:absolute;right:10px;bottom:10px;background:rgba(22,21,26,.88)';
+    button.onclick=()=>downloadImageFile(url,`adnova-banner-${index+1}.jpg`);
+    item.append(img,button);gallery.appendChild(item);
+  });
+  gallery.style.display='grid';
 }
 function getActivePlatform(){
   return document.querySelector('.ptab.on')?.dataset.p||'instagram';
@@ -2236,7 +2282,8 @@ async function generate(){
   formData.append('product_description',productDescription);
   formData.append('style',getSelectedStyleValue());
   formData.append('use_vision','false');
-  formData.append('poster','false');
+  formData.append('poster',String(getSelectedPurpose()==='sns'));
+  formData.append('purpose',getSelectedPurpose());
 
   try{
     const res=await apiFetch('/api/ads/generate',{
@@ -2299,7 +2346,8 @@ async function regenerate(){
     product_description:productDescription,
     prev_seed:currentResult.seed,
     use_vision:false,
-    poster:false
+    poster:getSelectedPurpose()==='sns',
+    purpose:getSelectedPurpose()
   };
 
   try{
@@ -2648,7 +2696,14 @@ document.addEventListener('click',()=>{
 
 /* ---------- new pages / UI ---------- */
 var isPremium=false, billingFrom='dashboard', billingSummary=null, billingPurchases=[], demoCheckoutMode='subscribe';
-function pickUse(el){document.querySelectorAll('#uses .use').forEach(function(s){s.classList.remove('on');});el.classList.add('on');}
+function getSelectedPurpose(){
+  const value=document.querySelector('#uses .use.on')?.dataset.u||'sns';
+  return value==='banner'?'banner':value==='card'?'card_news':value==='detail'?'detail_page':'sns';
+}
+function pickUse(el){
+  document.querySelectorAll('#uses .use').forEach(function(s){s.classList.remove('on');});
+  el.classList.add('on');
+}
 function goBilling(from){billingFrom=from||'dashboard';go('billing');}
 function formatBillingDate(value){
   if(!value)return '일정 미정';
@@ -2869,7 +2924,8 @@ async function downloadHistoryResult(historyId){
 }
 function downloadResult(){
   if(!isPremium){goBilling('dashboard');return;}
-  downloadImageFile(toAbsoluteUrl(currentResult?.image_url),'adnova-ad.png');
+  const suffix=typographyEnabled()?'with-type':'image-only';
+  downloadImageFile(toAbsoluteUrl(getResultImageUrl()),`adnova-${suffix}.png`);
 }
 function downloadDetailResult(){
   if(!isPremium){goBilling('detail');return;}

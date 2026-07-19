@@ -101,19 +101,19 @@ def test_staging_preserve_when_flag_off(monkeypatch):
     assert staging == "preserve"
 
 
-def test_staging_recompose_for_compose_ineligible_transparent(monkeypatch):
+def test_staging_preserves_transparent_vessel_even_with_legacy_flag(monkeypatch):
     monkeypatch.setenv("DRINK_RECOMPOSE", "1")
     staging, zone = generation_service._resolve_drink_staging(
         _analysis(container_opacity="transparent"), "drink", "editorial", seed=1)
-    assert staging == "recompose"
-    assert zone  # text_zone이 함께 전달된다
+    assert staging == "preserve"
+    assert zone is None
 
 
 def test_staging_preserve_for_opaque_when_plan_is_normal(monkeypatch):
     """불투명 용기(합성 적격) + 일반 플랜 → 보존 편집 유지(재연출은 opt-in 조건에서만)."""
     from app.services import scene_plans
 
-    monkeypatch.setenv("DRINK_RECOMPOSE", "1")
+    monkeypatch.setenv("DRINK_RECOMPOSE_EXPERIMENT", "1")
     normal = next(p for p in scene_plans.PLANS
                   if p.domain == "drink" and not p.requires_recompose)
     monkeypatch.setattr(scene_plans, "get_plan", lambda *a, **kw: normal)
@@ -125,7 +125,7 @@ def test_staging_preserve_for_opaque_when_plan_is_normal(monkeypatch):
 def test_staging_recompose_when_rotation_picks_recompose_plan(monkeypatch):
     from app.services import scene_plans
 
-    monkeypatch.setenv("DRINK_RECOMPOSE", "1")
+    monkeypatch.setenv("DRINK_RECOMPOSE_EXPERIMENT", "1")
     splash = next(p for p in scene_plans.PLANS if p.requires_recompose)
     monkeypatch.setattr(scene_plans, "get_plan", lambda *a, **kw: splash)
     staging, zone = generation_service._resolve_drink_staging(
@@ -142,7 +142,7 @@ def test_staging_never_recompose_for_non_drink(monkeypatch):
 
 
 # --- 통합: process_ad 경로 -----------------------------------------------------------
-def test_process_ad_routes_transparent_drink_to_recompose(tmp_path, monkeypatch):
+def test_process_ad_preserves_transparent_drink_by_default(tmp_path, monkeypatch):
     monkeypatch.setenv("DRINK_RECOMPOSE", "1")
     monkeypatch.delenv("SCENE_COMPOSE", raising=False)
     monkeypatch.setattr(
@@ -166,10 +166,10 @@ def test_process_ad_routes_transparent_drink_to_recompose(tmp_path, monkeypatch)
         output_dir=str(tmp_path), seed=1,
         analysis=_analysis(container_opacity="transparent"),
     )
-    assert captured.get("staging") == "recompose"
-    assert captured.get("container_desc") == "pink glass"
-    assert captured.get("temperature") == "iced"
-    assert result.engine.startswith("recompose:pop")
+    assert captured.get("staging") is None
+    assert captured.get("container_desc") is None
+    assert captured.get("temperature") is None
+    assert result.engine.startswith("style:pop")
 
 
 def test_process_ad_keeps_preserve_when_flag_off(tmp_path, monkeypatch):

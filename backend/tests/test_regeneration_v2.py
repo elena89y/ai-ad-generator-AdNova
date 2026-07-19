@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from PIL import Image
+
 from app.schemas.ads import ProductInfo, StylePreset
 from app.services import generation_service, image_service
 
@@ -53,7 +55,7 @@ def test_rerun_uses_new_seed_and_unique_output(monkeypatch, tmp_path) -> None:
         captured["input"] = image_path
         captured["seed"] = kwargs["seed"]
         output = results_dir / f"{generation_service.Path(image_path).stem}_kontext.png"
-        output.write_bytes(b"rerun")
+        Image.new("RGB", (64, 64), "white").save(output)
         return SimpleNamespace(
             final_image_path=str(output), seed=kwargs["seed"], copy_text="copy", seconds=1.0
         )
@@ -97,7 +99,7 @@ def test_initial_v2_generation_reports_seed_used_by_pipeline(monkeypatch, tmp_pa
     def fake_process_ad(image_path, _name, **kwargs):
         captured["seed"] = kwargs["seed"]
         output = results_dir / "initial.png"
-        output.write_bytes(b"generated")
+        Image.new("RGB", (64, 64), "white").save(output)
         return SimpleNamespace(
             final_image_path=str(output), seed=kwargs["seed"], copy_text="copy", seconds=1.0
         )

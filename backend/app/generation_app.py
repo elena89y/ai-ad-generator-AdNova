@@ -32,12 +32,20 @@ from fastapi.responses import FileResponse  # noqa: E402
 
 from .core.observability import init_langfuse, shutdown_langfuse  # noqa: E402
 from .schemas.ads import (  # noqa: E402
+    AdPurpose,
     GenerateAdResponse,
     ProductInfo,
     RegenerateAdRequest,
     StylePreset,
 )
 from .services import generation_service, image_service, kontext_service  # noqa: E402
+from .services import pipeline_v5  # noqa: E402
+from .services.pipeline_v5.hero import (  # noqa: E402
+    DetailCut,
+    DetailCutRole,
+    hero_from_existing,
+)
+from scripts.detail_multishot_generate import ROLE_PROMPTS  # noqa: E402
 
 # 위 load_dotenv() 다음, 서비스 임포트로 인한 첫 OpenAI 호출보다 앞서 초기화.
 init_langfuse()
@@ -85,6 +93,9 @@ ALLOWED_SUFFIX = {".png", ".jpg", ".jpeg", ".webp"}
 
 
 def _to_response(out: generation_service.GenerationOutput) -> GenerateAdResponse:
+    def result_url(path: str | None) -> str | None:
+        return f"/result/{Path(path).name}" if path else None
+
     return GenerateAdResponse(
         asset_id=out.asset_id,
         seed=out.seed,
@@ -93,9 +104,53 @@ def _to_response(out: generation_service.GenerationOutput) -> GenerateAdResponse
         platform_copies=out.platform_copies,
         image_url=f"/result/{Path(out.final_image_path).name}",
         poster=out.poster,
+        image_without_typography_url=result_url(getattr(out, "image_without_typography_path", None)),
+        image_with_typography_url=result_url(getattr(out, "image_with_typography_path", None)),
+        typography_enabled=out.poster,
+        typography_layout=getattr(out, "typography_layout", None),
         generate_seconds=out.generate_seconds,
         harmonize_seconds=out.harmonize_seconds,
     )
+
+
+def _render_multiformat(
+    out: generation_service.GenerationOutput,
+    product_name: str,
+    purpose: AdPurpose,
+) -> GenerateAdResponse:
+    """히어로 1장과 독립 생성한 4구도를 카드뉴스/상세페이지로 조판한다."""
+    source = getattr(out, "image_without_typography_path", None) or out.final_image_path
+    work_dir = image_service.RESULTS_DIR / f"{out.asset_id}_{purpose.value}"
+    work_dir.mkdir(parents=True, exist_ok=True)
+    cuts = [DetailCut(source, DetailCutRole.HERO)]
+    for role, prompt in ROLE_PROMPTS.items():
+        generated = kontext_service.edit(source, prompt, steps=12, output_dir=str(work_dir))
+        target = work_dir / f"{role}.png"
+        Path(generated).replace(target)
+        cuts.append(DetailCut(str(target), DetailCutRole(role)))
+
+    headline, _, subcopy = out.copy_text.partition("\n")
+    hero = hero_from_existing(
+        source,
+        product_name=product_name,
+        headline=headline.strip() or product_name,
+        subcopy=subcopy.strip(),
+        detail_cuts=tuple(cuts),
+    )
+    rendered = pipeline_v5.generate_v5(
+        source,
+        product_name,
+        purpose=purpose,
+        hero_asset=hero,
+        output_dir=str(work_dir),
+    )
+    urls = []
+    for index, value in enumerate(rendered.outputs, start=1):
+        path = Path(value)
+        served = image_service.RESULTS_DIR / f"{out.asset_id}_{purpose.value}_{index:02d}{path.suffix}"
+        served.write_bytes(path.read_bytes())
+        urls.append(f"/result/{served.name}")
+    return _to_response(out).model_copy(update={"purpose": purpose, "format_outputs": urls})
 
 
 @app.get("/health", tags=["Health"])
@@ -117,6 +172,7 @@ def generate(
     use_vision: bool = Form(False),
     poster: bool = Form(False),
     seed: Optional[int] = Form(None),
+    purpose: AdPurpose = Form(AdPurpose.SNS),
 ) -> GenerateAdResponse:
     """이미지 파일 → 전처리 → 생성 → 문구 (→ 포스터). GPU 필요."""
     suffix = Path(image.filename or "upload.png").suffix.lower() or ".png"
@@ -130,16 +186,19 @@ def generate(
     product = ProductInfo(name=product_name, description=product_description or None)
     _require_ready()
     try:
+        multiformat = purpose in (AdPurpose.CARD_NEWS, AdPurpose.DETAIL_PAGE)
         out = generation_service.run_from_upload_v2(
-            str(src), product, style, seed, use_vision, poster
+            str(src), product, style, seed, use_vision, False if multiformat else poster
         )
+        if multiformat:
+            return _render_multiformat(out, product_name, purpose)
     except kontext_service.GpuBusyError as e:
         raise HTTPException(status_code=503, detail="GPU busy - 잠시 후 다시 시도해주세요") from e
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"생성 실패: {e}") from e
-    return _to_response(out)
+    return _to_response(out).model_copy(update={"purpose": purpose})
 
 
 @app.post("/regenerate", response_model=GenerateAdResponse, tags=["Generation"])

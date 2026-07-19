@@ -4,8 +4,119 @@ from __future__ import annotations
 import pytest
 
 from app.services.reference_recipe import (
-    MoodToken, PaletteVariant, PropPolicy, ReferenceRecipe, SceneArchetype,
+    CommercialLayout, ConditioningReferenceSet, MoodToken, PaletteVariant,
+    PropPolicy, ReferenceRecipe, SceneArchetype,
 )
+
+
+def test_conditioning_references_separate_identity_from_composition() -> None:
+    refs = ConditioningReferenceSet(
+        "latte_clean", "latte", "drink", "opaque",
+        ("EXT-DRINK-002", "EXT-DRINK-014"), ("EXT-DRINK-005",),
+    )
+    assert refs.usable() is False
+    assert set(refs.identity_reference_ids).isdisjoint(refs.composition_reference_ids)
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"subject": "coffee"},
+    {"opacity": "milky"},
+    {"identity_reference_ids": ()},
+    {"identity_reference_ids": ("same", "same")},
+    {"composition_reference_ids": ("a", "b", "c", "d")},
+])
+def test_conditioning_references_reject_unsafe_contract(kwargs) -> None:
+    base = dict(
+        key="latte_clean", subject="latte", domain="drink", opacity="opaque",
+        identity_reference_ids=("EXT-DRINK-002",),
+    )
+    base.update(kwargs)
+    with pytest.raises(ValueError):
+        ConditioningReferenceSet(**base)
+
+
+def test_conditioning_references_reject_role_overlap_and_false_approval() -> None:
+    with pytest.raises(ValueError, match="역할 중복"):
+        ConditioningReferenceSet(
+            "latte_clean", "latte", "drink", "opaque",
+            ("EXT-DRINK-002",), ("EXT-DRINK-002",),
+        )
+
+
+def test_unapproved_conditioning_never_reaches_production_selector() -> None:
+    from app.services.reference_recipe_data import get_conditioning_reference_set
+
+    assert get_conditioning_reference_set("latte") is None
+    candidate = get_conditioning_reference_set("latte", allow_unapproved=True)
+    assert candidate is not None
+    assert candidate.identity_reference_ids == ("EXT-DRINK-002", "EXT-DRINK-014")
+    assert get_conditioning_reference_set("transparent_tea") is None
+    assert get_conditioning_reference_set("unknown") is None
+    with pytest.raises(ValueError, match="함께 설정"):
+        ConditioningReferenceSet(
+            "latte_clean", "latte", "drink", "opaque",
+            ("EXT-DRINK-002",), approved=True,
+        )
+
+
+def test_commercial_layout_domestic_ad_grammar() -> None:
+    hero = CommercialLayout(
+        "kr_single_hero", "single_hero_headline", "single",
+        "headline_product_brand", ("top", "bottom"), ("KR-AD-001", "KR-AD-011"),
+        cta_zone="bottom_right",
+    )
+    lineup = CommercialLayout(
+        "kr_lineup", "multi_product_lineup", "lineup_4_plus",
+        "campaign_item_labels", ("top", "bottom"),
+        ("KR-AD-002", "KR-AD-009", "KR-AD-016"), label_each_product=True,
+    )
+    assert hero.product_count == "single"
+    assert lineup.label_each_product is True
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"pattern": "catalog"},
+    {"product_count": "many"},
+    {"text_hierarchy": "huge_title"},
+    {"text_zones": ("middle",)},
+    {"cta_zone": "center_right"},
+])
+def test_commercial_layout_rejects_free_vocabulary(kwargs) -> None:
+    base = dict(
+        key="kr_layout", pattern="single_hero_headline", product_count="single",
+        text_hierarchy="headline_product_brand", text_zones=("top", "bottom"),
+        reference_ids=("KR-AD-001", "KR-AD-011"),
+    )
+    base.update(kwargs)
+    with pytest.raises(ValueError):
+        CommercialLayout(**base)
+
+
+def test_commercial_layout_rejects_product_count_contradictions() -> None:
+    with pytest.raises(ValueError, match="2개 이상"):
+        CommercialLayout(
+            "bad_lineup", "multi_product_lineup", "single",
+            "campaign_item_labels", ("top",), ("KR-AD-001", "KR-AD-011"),
+        )
+    with pytest.raises(ValueError, match="단일 상품"):
+        CommercialLayout(
+            "bad_label", "single_hero_headline", "single",
+            "headline_product_brand", ("top",), ("KR-AD-001", "KR-AD-011"),
+            label_each_product=True,
+        )
+
+
+def test_commercial_layout_requires_unique_reference_evidence() -> None:
+    with pytest.raises(ValueError, match="대표 2~3장"):
+        CommercialLayout(
+            "few_refs", "single_hero_headline", "single",
+            "headline_product_brand", ("top",), ("KR-AD-001",),
+        )
+    with pytest.raises(ValueError, match="중복"):
+        CommercialLayout(
+            "dupe_refs", "single_hero_headline", "single",
+            "headline_product_brand", ("top",), ("KR-AD-001", "KR-AD-001"),
+        )
 
 
 def _mood() -> MoodToken:
@@ -179,7 +290,7 @@ def test_compatibility_filter():
 
 def test_data_module_loads():
     from app.services.reference_recipe_data import (
-        MOOD_TOKENS, PALETTE_VARIANTS, PALETTE_VARIANTS_BY_ID,
+        CONDITIONING_REFERENCE_SETS, MOOD_TOKENS, PALETTE_VARIANTS, PALETTE_VARIANTS_BY_ID,
         REFERENCE_RECIPES, SCENE_ARCHETYPES,
     )
     from app.services.reference_recipe import MOODS
@@ -198,6 +309,8 @@ def test_data_module_loads():
     assert len(REFERENCE_RECIPES) == 6
     assert {recipe.mood.key for recipe in REFERENCE_RECIPES.values()} == set(MOODS)
     assert all(not recipe.usable() for recipe in REFERENCE_RECIPES.values())
+    assert set(CONDITIONING_REFERENCE_SETS) == {"latte_clean", "transparent_tea_clean"}
+    assert all(not refs.usable() for refs in CONDITIONING_REFERENCE_SETS.values())
 
 
 def test_reference_ids_are_unicode_canonicalized():

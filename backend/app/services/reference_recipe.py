@@ -30,6 +30,16 @@ TEXT_ZONES = ("top", "top_left", "top_right", "left", "right", "bottom", "bottom
 PROP_CATEGORIES = ("tableware", "textile", "botanical", "surface", "stationery")
 PROP_DENSITIES = ("none", "low", "medium", "high")
 EDIBLE_MODES = ("none", "source_only")  # source_only = core_ingredients + 원본 Vision 근거 있을 때만
+COMMERCIAL_PATTERNS = (
+    "single_hero_headline", "multi_product_lineup", "product_launch",
+    "campaign_teaser", "split_campaign_collage",
+)
+PRODUCT_COUNT_CLASSES = ("single", "dual", "triple", "lineup_4_plus")
+CONDITIONING_SUBJECTS = ("latte", "transparent_tea")
+TEXT_HIERARCHIES = (
+    "headline_product_brand", "campaign_item_labels", "headline_date",
+    "headline_cta", "panel_headlines",
+)
 
 
 def _require_subset(values: tuple[str, ...], allowed: tuple[str, ...], field: str) -> None:
@@ -155,6 +165,92 @@ class PropPolicy:
 
 
 @dataclass(frozen=True)
+class CommercialLayout:
+    """국내 광고의 상품 수·카피 위계 계약.
+
+    SceneArchetype은 이미지 장면의 카메라·배치만 소유하고, 이 축은 최종 광고 조판에서
+    단일 히어로/제품군 라인업/티저 같은 상업 레이아웃을 소유한다. 국내 카페 광고 20장
+    실측(PU-DATA-004)에서 4종 이상 라인업 10/20, 상단 카피 17/20이 확인돼 분리했다.
+    """
+    key: str
+    pattern: str
+    product_count: str
+    text_hierarchy: str
+    text_zones: tuple[str, ...]
+    reference_ids: tuple[str, ...]
+    label_each_product: bool = False
+    cta_zone: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.key.strip() or "/" in self.key:
+            raise ValueError(f"CommercialLayout.key 형식 오류: {self.key!r}")
+        if self.pattern not in COMMERCIAL_PATTERNS:
+            raise ValueError(f"commercial pattern 잘못됨: {self.pattern!r}")
+        if self.product_count not in PRODUCT_COUNT_CLASSES:
+            raise ValueError(f"product_count 잘못됨: {self.product_count!r}")
+        if self.text_hierarchy not in TEXT_HIERARCHIES:
+            raise ValueError(f"text_hierarchy 잘못됨: {self.text_hierarchy!r}")
+        _require_subset(self.text_zones, TEXT_ZONES, "commercial text_zones")
+        if not self.text_zones:
+            raise ValueError("CommercialLayout.text_zones 비어있음")
+        if not (2 <= len(self.reference_ids) <= 3):
+            raise ValueError("CommercialLayout.reference_ids는 대표 2~3장이어야 함")
+        if len(set(self.reference_ids)) != len(self.reference_ids):
+            raise ValueError(f"CommercialLayout.reference_ids 중복: {self.reference_ids}")
+        if self.cta_zone and self.cta_zone not in TEXT_ZONES:
+            raise ValueError(f"cta_zone 잘못됨: {self.cta_zone!r}")
+        is_lineup = self.product_count in ("dual", "triple", "lineup_4_plus")
+        if self.label_each_product and not is_lineup:
+            raise ValueError("단일 상품 layout은 label_each_product=True일 수 없음")
+        if self.pattern == "multi_product_lineup" and not is_lineup:
+            raise ValueError("multi_product_lineup은 2개 이상 product_count가 필요")
+
+
+@dataclass(frozen=True)
+class ConditioningReferenceSet:
+    """모델 입력용 동일 상품군 레퍼런스 계약.
+
+    ``ReferenceRecipe.reference_ids``는 장면·구도 근거이고, 이 레지스트리는 모델에 실제로
+    넣어도 되는 정체성/질감 근거만 소유한다. 구도만 좋은 사진을 조건 이미지로 오인하지 않도록
+    두 근거를 의도적으로 분리한다.
+    """
+    key: str
+    subject: str
+    domain: str
+    opacity: str
+    identity_reference_ids: tuple[str, ...]
+    composition_reference_ids: tuple[str, ...] = ()
+    approved_by: str = ""
+    approved: bool = False
+
+    def __post_init__(self) -> None:
+        if not self.key.strip() or "/" in self.key:
+            raise ValueError(f"ConditioningReferenceSet.key 형식 오류: {self.key!r}")
+        if self.subject not in CONDITIONING_SUBJECTS:
+            raise ValueError(f"conditioning subject 잘못됨: {self.subject!r}")
+        if self.domain not in DOMAINS:
+            raise ValueError(f"conditioning domain 잘못됨: {self.domain!r}")
+        if self.opacity not in OPACITIES:
+            raise ValueError(f"conditioning opacity 잘못됨: {self.opacity!r}")
+        if not (1 <= len(self.identity_reference_ids) <= 2):
+            raise ValueError("identity_reference_ids는 직접 조건용 1~2장이어야 함")
+        if len(set(self.identity_reference_ids)) != len(self.identity_reference_ids):
+            raise ValueError("identity_reference_ids 중복")
+        if len(self.composition_reference_ids) > 3:
+            raise ValueError("composition_reference_ids는 최대 3장")
+        if len(set(self.composition_reference_ids)) != len(self.composition_reference_ids):
+            raise ValueError("composition_reference_ids 중복")
+        overlap = set(self.identity_reference_ids) & set(self.composition_reference_ids)
+        if overlap:
+            raise ValueError(f"identity/composition 근거 역할 중복: {sorted(overlap)}")
+        if bool(self.approved) != bool(self.approved_by):
+            raise ValueError("approved와 approved_by는 함께 설정되어야 함(대칭)")
+
+    def usable(self) -> bool:
+        return self.approved
+
+
+@dataclass(frozen=True)
 class ReferenceRecipe:
     """특정 (domain, archetype, mood) 조합의 조립 계약.
 
@@ -168,6 +264,7 @@ class ReferenceRecipe:
     prop_policy: PropPolicy
     reference_ids: tuple[str, ...]        # 근거 대표 2~3장 (manifest id, 중복 불가)
     composition_note: str                 # 공통 구도 요약 (사람이 읽고 승인, 비면 안 됨)
+    commercial_layout: CommercialLayout | None = None  # 광고 조판 선택. 이미지 생성 전용이면 None
     approved_by: str = ""                 # 승인 아트디렉터
     approved: bool = False                # 사람 승인 게이트
     # cross-domain 부트스트랩(결정 B, B-1 제한적 허용): drink 코퍼스가 빈약(4장)해

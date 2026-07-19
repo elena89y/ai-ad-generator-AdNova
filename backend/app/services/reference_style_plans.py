@@ -47,9 +47,11 @@ _IDENTITY_LOCKS = {
         "table surface and environmental lighting. "
     ),
     "drink": (
-        "Edit this exact drink photograph. Keep the drink, cup or glass, foam, ice, toppings, handle and saucer "
-        "exactly as photographed: identical shapes, liquid level, colors, camera angle, crop and arrangement. "
-        "Do not add, remove, redraw, move, rotate, recolor or cover the drink or its container. Change only the "
+        "Edit this exact drink photograph. Preserve every source pixel belonging to the drink and its vessel. "
+        "Keep the exact vessel silhouette, rim, base, wall shape, material, transparency and proportions, including "
+        "whether a handle or saucer is present or absent. Keep identical foam, ice, toppings, liquid level, colors, "
+        "camera angle, crop and arrangement. Do not add any vessel part absent from the source. Do not redraw, move, "
+        "rotate, recolor or cover the drink or its vessel. Change only the "
         "background, table surface and environmental lighting. "
     ),
     "object": (

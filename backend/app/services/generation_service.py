@@ -94,6 +94,9 @@ class GenerationOutput:
     poster: bool
     generate_seconds: float
     harmonize_seconds: float
+    image_without_typography_path: Optional[str] = None
+    image_with_typography_path: Optional[str] = None
+    typography_layout: Optional[str] = None
 
 
 def run_generation(
@@ -312,7 +315,7 @@ def run_from_upload_v2(
 
             # 결과는 서빙 디렉토리 절대경로에 저장하고 asset_id stem으로 URL 충돌을 막는다.
             r = process_ad(
-                str(saved), product.name, poster=poster,
+                str(saved), product.name, poster=False,
                 style=resolve_style(style.value), output_dir=str(image_service.RESULTS_DIR),
                 use_vision=use_vision, seed=actual_seed, best_of=_bon, steps=_steps,
                 log=False, analysis=analysis, _run=run,
@@ -326,10 +329,20 @@ def run_from_upload_v2(
             run.set_output(r.final_image_path)
             with run.stage("platform_copy"):
                 platform_copies = _platform_copies_safe(product, style, analysis)
+            with run.stage("typography_variants"):
+                variants = build_typography_variants(
+                    r, product.name or r.subject_en, typography_enabled=poster,
+                    output_dir=str(image_service.RESULTS_DIR),
+                )
             return GenerationOutput(
-                final_image_path=r.final_image_path, asset_id=asset_id, seed=r.seed, style=style,
+                final_image_path=variants.selected_image_path,
+                asset_id=asset_id, seed=r.seed, style=style,
                 copy_text=r.copy_text, platform_copies=platform_copies,
-                poster=poster, generate_seconds=round(r.seconds, 2), harmonize_seconds=0.0)
+                poster=poster, generate_seconds=round(r.seconds, 2), harmonize_seconds=0.0,
+                image_without_typography_path=variants.without_typography_path,
+                image_with_typography_path=variants.with_typography_path,
+                typography_layout=variants.layout_key,
+            )
 
 
 @observe(name="generation.rerun_v2")
@@ -386,7 +399,7 @@ def rerun_v2(
                     _save_photo_analysis(asset_id, analysis)
             try:
                 r = process_ad(
-                    str(rerun_input), product.name, poster=poster,
+                    str(rerun_input), product.name, poster=False,
                     style=resolve_style(style.value), output_dir=str(image_service.RESULTS_DIR),
                     use_vision=use_vision, seed=new_seed, log=False,
                     analysis=analysis, _run=run,
@@ -402,10 +415,20 @@ def rerun_v2(
             run.set_output(r.final_image_path)
             with run.stage("platform_copy"):
                 platform_copies = _platform_copies_safe(product, style, analysis)
+            with run.stage("typography_variants"):
+                variants = build_typography_variants(
+                    r, product.name or r.subject_en, typography_enabled=poster,
+                    output_dir=str(image_service.RESULTS_DIR),
+                )
             return GenerationOutput(
-                final_image_path=r.final_image_path, asset_id=asset_id, seed=r.seed, style=style,
+                final_image_path=variants.selected_image_path,
+                asset_id=asset_id, seed=r.seed, style=style,
                 copy_text=r.copy_text, platform_copies=platform_copies,
-                poster=poster, generate_seconds=round(r.seconds, 2), harmonize_seconds=0.0)
+                poster=poster, generate_seconds=round(r.seconds, 2), harmonize_seconds=0.0,
+                image_without_typography_path=variants.without_typography_path,
+                image_with_typography_path=variants.with_typography_path,
+                typography_layout=variants.layout_key,
+            )
 
 
 # =============================================================================
@@ -425,6 +448,38 @@ class ProcessedAd:
     seed: int
     style: Optional[str] = None       # 디자인시스템 스타일 키(있으면 style_gen 경로)
     aesthetic: Optional[float] = None # NIMA 심미 점수(플라이휠 라벨)
+
+
+def build_typography_variants(
+    result: ProcessedAd,
+    product_name: str,
+    *,
+    typography_enabled: bool,
+    output_dir: str,
+    layout_key: str = "kr_single_hero",
+    brand_label: str = "",
+    kicker: str = "",
+    cta: str = "",
+):
+    """기생성 ProcessedAd에서 타이포 OFF/ON 두 파일을 만든다(CPU, GPU 재호출 없음).
+
+    공유 API 계약을 바꾸지 않는 내부 연결점이다. 프론트·원격 응답은 팀 조율 후 이 결과의
+    selected/with/without 경로를 URL로 성형하면 된다.
+    """
+    from .commercial_typography import render_typography_variants
+
+    return render_typography_variants(
+        result.final_image_path,
+        output_dir,
+        result.copy_text,
+        product_name,
+        typography_enabled=typography_enabled,
+        layout_key=layout_key,
+        style_key=getattr(result, "style", None) or "editorial",
+        brand_label=brand_label,
+        kicker=kicker,
+        cta=cta,
+    )
 
 
 def _nima_best(cands: list[str]) -> str:
@@ -614,7 +669,9 @@ def _resolve_drink_staging(analysis, style_domain: str, style_key: str,
     recompose 조건: drink & DRINK_RECOMPOSE=1 & (합성 부적격(투명 용기 등) 또는 시드 로테이션이
     requires_recompose 아키타입(diagonal_splash·dreamy_cloud)을 고른 경우). 그 외 전부 preserve.
     """
-    if style_domain != "drink" or os.environ.get("DRINK_RECOMPOSE", "0") != "1":
+    # 투명 손잡이 없는 잔이 머그로 재생성된 실측(2026-07-20): recompose는 용기 구조를
+    # 보존하지 못한다. 운영 플래그와 분리한 명시적 실험에서만 허용한다.
+    if style_domain != "drink" or os.environ.get("DRINK_RECOMPOSE_EXPERIMENT", "0") != "1":
         return "preserve", None
     from . import scene_plans
 
@@ -623,9 +680,6 @@ def _resolve_drink_staging(analysis, style_domain: str, style_key: str,
     plan_wants_recompose = plan is not None and plan.requires_recompose
     if plan_wants_recompose:
         return "recompose", plan.text_zone
-    if not _compose_eligible(analysis, "drink"):
-        zone = plan.text_zone if plan is not None else "top"
-        return "recompose", zone
     return "preserve", None
 
 

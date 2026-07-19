@@ -12,10 +12,10 @@ from pathlib import Path
 from typing import Optional
 
 from ..core.config import settings
-from ..schemas.ads import GenerateAdResponse, ProductInfo, StylePreset
+from ..schemas.ads import AdPurpose, GenerateAdResponse, ProductInfo, StylePreset
 from . import image_service
 
-_MIN_TIMEOUT_S = 300
+_MIN_TIMEOUT_S = 420
 
 
 def _request_timeout() -> int:
@@ -34,16 +34,32 @@ def _fetch_and_localize(body: dict) -> GenerateAdResponse:
     """
     import requests
 
-    name = Path(body["image_url"]).name
     base = settings.GENERATION_SERVICE_URL.rstrip("/")
-    resp = requests.get(
-        f"{base}{body['image_url']}", timeout=_request_timeout()
-    )
-    resp.raise_for_status()
     image_service.RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    (image_service.RESULTS_DIR / name).write_bytes(resp.content)
-    # 웹 백엔드 서빙 경로(프리픽스 포함)로 통일
-    body["image_url"] = f"{settings.API_PREFIX}/ads/image/{name}"
+    localized: dict[str, str] = {}
+    for field in (
+        "image_url", "image_without_typography_url", "image_with_typography_url",
+    ):
+        remote_url = body.get(field)
+        if not remote_url:
+            continue
+        if remote_url not in localized:
+            name = Path(remote_url).name
+            resp = requests.get(f"{base}{remote_url}", timeout=_request_timeout())
+            resp.raise_for_status()
+            (image_service.RESULTS_DIR / name).write_bytes(resp.content)
+            localized[remote_url] = f"{settings.API_PREFIX}/ads/image/{name}"
+        body[field] = localized[remote_url]
+    format_outputs = []
+    for remote_url in body.get("format_outputs", []):
+        if remote_url not in localized:
+            name = Path(remote_url).name
+            resp = requests.get(f"{base}{remote_url}", timeout=_request_timeout())
+            resp.raise_for_status()
+            (image_service.RESULTS_DIR / name).write_bytes(resp.content)
+            localized[remote_url] = f"{settings.API_PREFIX}/ads/image/{name}"
+        format_outputs.append(localized[remote_url])
+    body["format_outputs"] = format_outputs
     return GenerateAdResponse(**body)
 
 
@@ -54,6 +70,7 @@ def generate_remote(
     seed: Optional[int],
     use_vision: bool,
     poster: bool,
+    purpose: AdPurpose = AdPurpose.SNS,
 ) -> GenerateAdResponse:
     """GPU 생성 서비스에 파일 업로드 → 결과 메타 + 이미지 다운로드."""
     import requests
@@ -67,6 +84,7 @@ def generate_remote(
             "style": style.value,
             "use_vision": str(use_vision).lower(),
             "poster": str(poster).lower(),
+            "purpose": purpose.value,
         }
         if seed is not None:
             data["seed"] = str(seed)

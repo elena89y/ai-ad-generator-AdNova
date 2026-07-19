@@ -126,8 +126,14 @@ class GenerateAdResponse(BaseModel):
     platform_copies: dict[str, PlatformCopy] = Field(default_factory=dict)
     image_url: str                   # GET /ads/image/{filename} 상대 경로
     poster: bool                     # 타이포 오버레이 적용 여부
+    image_without_typography_url: Optional[str] = None
+    image_with_typography_url: Optional[str] = None
+    typography_enabled: bool = False
+    typography_layout: Optional[str] = None
     generate_seconds: float
     harmonize_seconds: float
+    purpose: AdPurpose = AdPurpose.SNS
+    format_outputs: list[str] = Field(default_factory=list)
 
 
 class RegenerateAdRequest(BaseModel):
@@ -139,3 +145,5 @@ class RegenerateAdRequest(BaseModel):
     prev_seed: Optional[int] = None
     use_vision: bool = False
     poster: bool = False
+    purpose: AdPurpose = AdPurpose.SNS
+    sizes: list[str] = Field(default_factory=list)

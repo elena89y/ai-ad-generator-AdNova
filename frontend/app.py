@@ -13,6 +13,18 @@ st.set_page_config(
 # 백엔드 API 서버 주소
 API_URL = "http://localhost:8000"
 
+
+def _api_image_url(path):
+    """API 상대 이미지 경로를 프론트 표시용 절대 URL로 변환한다."""
+    return f"{API_URL}{path}" if path else None
+
+
+@st.cache_data(show_spinner=False, ttl=300)
+def _download_image(url):
+    response = requests.get(url, timeout=30)
+    response.raise_for_status()
+    return response.content
+
 # 2. 세션 상태(Session State) 초기화
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -185,7 +197,7 @@ else:
             with col_opt2:
                 st.subheader("⚙️ 옵션 및 제어 설정")
                 use_vision_mode = st.checkbox("GPT-5.4-mini Vision 직접 분석 옵션 켜기 (비용 증가)", value=False)
-                use_poster_overlay = st.checkbox("텍스트 디자인 레이아웃 오버레이(포스터화) 적용", value=False)
+                use_poster_overlay = st.checkbox("초기 결과에 광고 타이포 적용", value=False)
                 
             st.markdown("---")
             
@@ -209,7 +221,7 @@ else:
                                     "product_description": product_desc,
                                     "style": ad_style,
                                     "use_vision": str(use_vision_mode).lower(),
-                                    "poster": str(use_poster_overlay).lower()
+                                    "poster": str(use_poster_overlay).lower(),
                                 }
                                 
                                 gen_resp = requests.post(f"{API_URL}/ads/generate", data=gen_payload)
@@ -223,17 +235,27 @@ else:
                                         "style": res_data.get("style", ad_style),
                                         "desc": product_desc,
                                         "seed": res_data.get("seed", 12345),
-                                        "img_url": f"{API_URL}{res_data['image_url']}",
+                                        "img_url": _api_image_url(res_data["image_url"]),
+                                        "image_without_typography_url": _api_image_url(
+                                            res_data.get("image_without_typography_url")
+                                        ),
+                                        "image_with_typography_url": _api_image_url(
+                                            res_data.get("image_with_typography_url")
+                                        ),
                                         "copy_text": res_data.get("copy_text", ""),
                                         "use_vision": use_vision_mode,
-                                        "poster": use_poster_overlay
+                                        "poster": res_data.get("poster", use_poster_overlay),
+                                        "typography_enabled": res_data.get(
+                                            "typography_enabled", use_poster_overlay
+                                        ),
+                                        "typography_layout": res_data.get("typography_layout"),
                                     }
                                     
                                     st.session_state.history.append({
                                         "id": len(st.session_state.history) + 1,
                                         "title": product_name,
                                         "style": res_data.get("style", ad_style),
-                                        "img": f"{API_URL}{res_data['image_url']}",
+                                        "img": _api_image_url(res_data["image_url"]),
                                         "seed": res_data.get("seed", 12345),
                                         "copy": res_data.get("copy_text", "")
                                     })
@@ -277,6 +299,18 @@ else:
                 if "seed" in ad_data:
                     st.caption(f"자산 ID: {ad_data.get('asset_id', 'demo')} | 시드값: {ad_data['seed']}")
                 
+                off_url = ad_data.get("image_without_typography_url")
+                on_url = ad_data.get("image_with_typography_url")
+                if off_url and on_url:
+                    typography_enabled = st.toggle(
+                        "광고 타이포 적용",
+                        value=ad_data.get("typography_enabled", False),
+                        key=f"typography_{ad_data.get('asset_id', 'demo')}_{ad_data.get('seed', 0)}",
+                    )
+                    ad_data["typography_enabled"] = typography_enabled
+                    ad_data["poster"] = typography_enabled
+                    ad_data["img_url"] = on_url if typography_enabled else off_url
+
                 st.image(ad_data["img_url"], use_container_width=True)
                 
                 st.success("📝 GPT 추천 매장 광고 문구")
@@ -310,7 +344,7 @@ else:
                         with st.spinner("동일 전처리 산출물을 재사용하여 새 seed로 고속 추론 중..."):
                             try:
                                 regen_payload = {
-                                    "asset_id": ad_data.get("demo_asset", "demo_asset"),
+                                    "asset_id": ad_data.get("asset_id", "demo_asset"),
                                     "product_name": ad_data["title"],
                                     "product_description": ad_data["desc"],
                                     "style": ad_data["style"],
@@ -323,7 +357,19 @@ else:
                                 if regen_resp.status_code == 200:
                                     res_data = regen_resp.json()
                                     st.session_state.generated_ad["seed"] = res_data["seed"]
-                                    st.session_state.generated_ad["img_url"] = f"{API_URL}{res_data['image_url']}"
+                                    st.session_state.generated_ad["img_url"] = _api_image_url(
+                                        res_data["image_url"]
+                                    )
+                                    st.session_state.generated_ad["image_without_typography_url"] = \
+                                        _api_image_url(res_data.get("image_without_typography_url"))
+                                    st.session_state.generated_ad["image_with_typography_url"] = \
+                                        _api_image_url(res_data.get("image_with_typography_url"))
+                                    st.session_state.generated_ad["typography_enabled"] = res_data.get(
+                                        "typography_enabled", ad_data.get("poster", False)
+                                    )
+                                    st.session_state.generated_ad["typography_layout"] = res_data.get(
+                                        "typography_layout"
+                                    )
                                     st.session_state.generated_ad["copy_text"] = res_data["copy_text"]
                                     st.success("새로운 고정 시드로 재생성 연동이 완료되었습니다!")
                                     st.rerun()
@@ -336,12 +382,17 @@ else:
                                 st.rerun()
                             
                 with btn_col2:
+                    try:
+                        download_data = _download_image(ad_data["img_url"])
+                    except Exception:
+                        download_data = b""
                     st.download_button(
-                        label="📥 마케팅용 원본 이미지 다운로드",
-                        data=b"mock_image_bytes",
-                        file_name=f"AdNova_Product.png",
+                        label="📥 선택 이미지 다운로드",
+                        data=download_data,
+                        file_name="AdNova_Product.png",
                         mime="image/png",
-                        use_container_width=True
+                        use_container_width=True,
+                        disabled=not bool(download_data),
                     )
         else:
             st.error("불러올 수 있는 최신 광고 생성 이력이 없습니다.")
