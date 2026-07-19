@@ -47,6 +47,8 @@ _COPY_ERROR_MARKERS = ("제공되지 않", "이미지 정보", "이미지 설명
 _COPY_LIMITS = {"headline": 16, "subcopy": 22, "brand_label": 24, "kicker": 12, "cta": 12}
 _AD_PUNCTUATION = str.maketrans("", "", ".,!?:;。．，！？?…")
 _EXPLANATORY_SUBCOPY = ("테이블 위", "이미지 속", "한 잔의", "완성합니다", "선사합니다")
+_AUTO_LAYOUT = "kr_single_hero"
+_SINGLE_LAYOUTS = ("kr_hero_top_left", "kr_hero_top_center", "kr_hero_bottom_left")
 
 
 def _safe_line(value: str, limit: int) -> str:
@@ -128,6 +130,90 @@ def _draw_footer(image: Image.Image, copy: CommercialCopy,
     return image
 
 
+def _region_clutter(gray: np.ndarray, box: tuple[float, float, float, float]) -> float:
+    """카피 후보 영역의 질감·에지 양. 낮을수록 글자를 놓기 좋은 여백이다."""
+    h, w = gray.shape
+    x0, y0, x1, y1 = box
+    crop = gray[int(h * y0):int(h * y1), int(w * x0):int(w * x1)]
+    if crop.size == 0:
+        return float("inf")
+    gx = np.abs(np.diff(crop, axis=1)).mean() if crop.shape[1] > 1 else 0.0
+    gy = np.abs(np.diff(crop, axis=0)).mean() if crop.shape[0] > 1 else 0.0
+    return float(crop.std() * 0.35 + gx + gy)
+
+
+def select_typography_layout(image: Image.Image) -> str:
+    """국내 단일 히어로 레퍼런스의 3개 카피존 중 가장 조용한 영역을 고른다."""
+    gray = np.asarray(image.convert("L"), dtype=np.float32)
+    candidates = {
+        "kr_hero_top_left": (0.05, 0.05, 0.62, 0.34),
+        "kr_hero_top_center": (0.16, 0.04, 0.84, 0.30),
+        "kr_hero_bottom_left": (0.05, 0.68, 0.68, 0.91),
+    }
+    return min(candidates, key=lambda key: _region_clutter(gray, candidates[key]))
+
+
+def _commercial_token(style_key: str) -> overlay_service.TypographyToken:
+    """레퍼런스 공통값: 굵은 산세리프, 정상 자간, 장식요소 없음."""
+    import dataclasses
+
+    return dataclasses.replace(
+        overlay_service.get_typography_token(style_key),
+        head_latin="anton", head_korean="pretendard_black",
+        body_font="pretendard_bold", letter_spacing=0.0, body_spacing=0.0,
+        head_weight=900, body_weight=700, accent_element="none",
+    )
+
+
+def _draw_reference_hierarchy(image: Image.Image, copy: CommercialCopy,
+                              token: overlay_service.TypographyToken,
+                              layout_key: str) -> Image.Image:
+    """국내 카페 광고 실측의 상단 좌측·상단 중앙·하단 좌측 위계를 렌더한다."""
+    w, h = image.size
+    base = image.convert("RGBA")
+    text_layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(text_layer)
+    center = layout_key == "kr_hero_top_center"
+    bottom = layout_key == "kr_hero_bottom_left"
+    x = int(w * 0.067)
+    y = int(h * (0.70 if bottom else 0.075))
+    max_w = w * (0.86 if center else 0.70)
+    center_x = w / 2 if center else None
+    color = overlay_service.DARK if overlay_service._bg_is_bright(
+        image, y_frac=0.78 if bottom else 0.20,
+    ) else overlay_service.IVORY
+
+    if copy.kicker:
+        kicker_font = overlay_service._fit_spaced_font(
+            draw, copy.kicker, token.body_font, max(15, int(h * 0.020)), max_w, 0.0,
+        )
+        overlay_service._spaced_text(
+            draw, (x, y), copy.kicker, kicker_font, (*color, 160),
+            spacing_frac=0.0, anchor_center_x=center_x,
+        )
+        y += int(h * 0.040)
+
+    headline = copy.headline.upper() if copy.headline.isascii() else copy.headline
+    kind = token.head_latin if headline.isascii() else token.head_korean
+    target = int(h * (0.078 if center else 0.070))
+    font = overlay_service._fit_spaced_font(draw, headline, kind, target, max_w, 0.0)
+    overlay_service._spaced_text(
+        draw, (x, y), headline, font, (*color, 220),
+        spacing_frac=0.0, anchor_center_x=center_x,
+    )
+    y += int(font.size * 1.18)
+
+    if copy.subcopy:
+        sub_font = overlay_service._fit_spaced_font(
+            draw, copy.subcopy, token.body_font, max(15, int(h * 0.024)), max_w, 0.0,
+        )
+        overlay_service._spaced_text(
+            draw, (x, y), copy.subcopy, sub_font, (*color, 178),
+            spacing_frac=0.0, anchor_center_x=center_x,
+        )
+    return Image.alpha_composite(base, text_layer).convert("RGB")
+
+
 def render_commercial_poster(
     image_path: str,
     output_path: str,
@@ -151,18 +237,9 @@ def render_commercial_poster(
 
     image = Image.open(image_path).convert("RGB")
     if enabled:
-        import dataclasses
-        token = overlay_service.get_typography_token(style_key)
-        # 국내 카페 레퍼런스의 굵은 산세리프 헤드라인. 무드별 얇은 명조와 넓은 자간은
-        # 상품 포스터가 아니라 에디토리얼 본문처럼 보여 commercial 경로에서는 사용하지 않는다.
-        token = dataclasses.replace(
-            token, head_latin="anton", head_korean="pretendard_black",
-            body_font="pretendard_bold", letter_spacing=0.0, body_spacing=0.0,
-            head_weight=900, body_weight=700, accent_element="none",
-        )
-        image = overlay_service._apply_style_typography(
-            image, copy.headline.strip(), copy.subcopy.strip(), copy.kicker.strip(), token,
-        )
+        resolved_layout = select_typography_layout(image) if layout_key == _AUTO_LAYOUT else layout_key
+        token = _commercial_token(style_key)
+        image = _draw_reference_hierarchy(image, copy, token, resolved_layout)
         image = _draw_footer(image, copy, token)
 
     out = Path(output_path)
@@ -191,6 +268,8 @@ def render_typography_variants(
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     stem = Path(image_path).stem
+    source = Image.open(image_path).convert("RGB")
+    resolved_layout = select_typography_layout(source) if layout_key == _AUTO_LAYOUT else layout_key
     off_path = out_dir / f"{stem}_typography_off.png"
     on_path = out_dir / f"{stem}_typography_on.png"
     render_commercial_poster(
@@ -199,7 +278,7 @@ def render_typography_variants(
     )
     render_commercial_poster(
         image_path, str(on_path), copy, enabled=True,
-        layout_key=layout_key, style_key=style_key,
+        layout_key=resolved_layout, style_key=style_key,
     )
     selected = on_path if typography_enabled else off_path
     return TypographyRenderResult(
@@ -207,5 +286,5 @@ def render_typography_variants(
         with_typography_path=str(on_path),
         selected_image_path=str(selected),
         typography_enabled=typography_enabled,
-        layout_key=layout_key,
+        layout_key=resolved_layout,
     )
