@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 
 
 @dataclass(frozen=True)
@@ -297,6 +298,41 @@ _RECOMPOSE_STAGING = {
                      "lived-in morning composition."),
 }
 
+_ANGLE_INSTRUCTIONS = {
+    "eye": "eye level",
+    "slightly_high": "a slightly elevated angle",
+    "high": "a high angle",
+    "low": "a low angle",
+    "three_quarter": "a relaxed three-quarter angle",
+    "top_down": "a top-down angle",
+}
+_PLACEMENT_INSTRUCTIONS = {
+    "center": "centered",
+    "left_third": "on the left third",
+    "right_third": "on the right third",
+    "upper_third": "on the upper third",
+    "lower_third": "on the lower third",
+}
+
+
+def _recipe_staging(style_key: str) -> str | None:
+    """승인 대기 SceneArchetype을 실험용 영문 재연출 지시로 변환한다."""
+    if os.environ.get("REFERENCE_RECIPE_EXPERIMENT", "0") != "1":
+        return None
+    from .reference_recipe_data import get_reference_recipe
+
+    recipe = get_reference_recipe("drink", style_key, allow_unapproved=True)
+    if recipe is None:
+        return None
+    archetype = recipe.archetype
+    angle = _ANGLE_INSTRUCTIONS[archetype.camera_angles[0]]
+    placement = _PLACEMENT_INSTRUCTIONS[archetype.placements[0]]
+    scale = round(sum(archetype.subject_scale) * 50)
+    return (
+        f"Shoot at {angle}. Place the drink {placement}, occupying about {scale}% of the "
+        "canvas width. Follow the reference archetype's product scale and negative-space balance."
+    )
+
 
 _VESSEL_WORDS = ("cup", "glass", "mug", "saucer", "container", "bowl", "plate", "tumbler")
 
@@ -337,7 +373,7 @@ def build_recompose_instruction(style_key: str, subject_en: str,
         )
     effect = _RECOMPOSE_EFFECTS.get((temperature or "").strip().lower())
     effect_txt = f" You may add only {effect}." if effect else ""
-    staging_txt = _RECOMPOSE_STAGING.get(plan.style_key, "")
+    staging_txt = _recipe_staging(plan.style_key) or _RECOMPOSE_STAGING.get(plan.style_key, "")
     # direction 말미의 소품 금지문("No fruit, ... ice, splash ...")은 보존 편집용 —
     # 재연출 계약의 "identical ice/toppings as photographed"와 충돌한다(그 음료의 진짜 얼음까지
     # 지우라는 뜻으로 읽힘). 씬 묘사만 취하고 금지는 아래 계약 문장이 일원화해서 담당한다.

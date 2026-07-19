@@ -215,3 +215,16 @@ def test_production_drink_plans_follow_recipe_references():
         plan = get_reference_plan(recipe.mood.key, recipe.domain)
         assert tuple(canonical_reference_id(value) for value in plan.reference_ids) == \
             recipe.canonical_reference_ids
+
+
+def test_unapproved_recipe_requires_explicit_experiment_gate(monkeypatch):
+    from app.services.reference_recipe_data import get_reference_recipe
+    from app.services.reference_style_plans import _recipe_staging
+
+    assert get_reference_recipe("drink", "editorial") is None
+    assert get_reference_recipe("drink", "editorial", allow_unapproved=True) is not None
+    monkeypatch.delenv("REFERENCE_RECIPE_EXPERIMENT", raising=False)
+    assert _recipe_staging("editorial") is None
+    monkeypatch.setenv("REFERENCE_RECIPE_EXPERIMENT", "1")
+    staging = _recipe_staging("editorial")
+    assert "eye level" in staging and "right third" in staging

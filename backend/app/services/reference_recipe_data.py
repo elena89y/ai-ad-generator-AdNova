@@ -89,7 +89,7 @@ SCENE_ARCHETYPES: dict[str, SceneArchetype] = {
     "asymmetric_copyspace": SceneArchetype(
         "asymmetric_copyspace", frozenset({"drink", "food", "object"}),
         frozenset({"opaque", "transparent", "translucent"}),
-        ("eye", "slightly_high"), (0.38, 0.58), ("center", "right_third"),
+        ("eye", "slightly_high"), (0.38, 0.58), ("right_third", "center"),
         ("top_left", "left"),
     ),
     "saturated_color_block": SceneArchetype(
@@ -195,3 +195,16 @@ _register(ReferenceRecipe(
     source_domains=("food", "object"), transfer_reason="자연 재질·측면광·정물 깊이 전이",
     evidence_scope="materials+lighting+composition only, not edible props",
 ))
+
+
+def get_reference_recipe(domain: str, mood: str,
+                         allow_unapproved: bool = False) -> ReferenceRecipe | None:
+    """도메인·무드 recipe 선택. 미승인 후보는 명시적인 실험에서만 반환한다."""
+    matches = [recipe for recipe in REFERENCE_RECIPES.values()
+               if recipe.domain == domain and recipe.mood.key == mood]
+    if len(matches) > 1:
+        raise ValueError(f"ReferenceRecipe 후보 중복: {domain}/{mood}")
+    if not matches:
+        return None
+    recipe = matches[0]
+    return recipe if allow_unapproved or recipe.usable() else None
