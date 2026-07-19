@@ -37,6 +37,7 @@ from ..crud.image import create_image, get_image_by_id
 from ..database.connection import get_db
 from ..database.models import History, Image, User
 from ..schemas.ads import (
+    AdPurpose,
     GenerateAdResponse,
     ProductInfo,
     RegenerateAdRequest,
@@ -102,6 +103,9 @@ def _restore_generation_credit(db: Session, user_id: int, credit_type: str) -> N
 
 def _to_response(out: generation_service.GenerationOutput) -> GenerateAdResponse:
     """순수 생성 결과 → API 응답. image_url 은 프리픽스 포함 서빙 경로로 통일."""
+    def image_url(path: str | None) -> str | None:
+        return f"{settings.API_PREFIX}/ads/image/{Path(path).name}" if path else None
+
     return GenerateAdResponse(
         asset_id=out.asset_id,
         seed=out.seed,
@@ -110,9 +114,46 @@ def _to_response(out: generation_service.GenerationOutput) -> GenerateAdResponse
         platform_copies=out.platform_copies,
         image_url=f"{settings.API_PREFIX}/ads/image/{Path(out.final_image_path).name}",
         poster=out.poster,
+        image_without_typography_url=image_url(out.image_without_typography_path),
+        image_with_typography_url=image_url(out.image_with_typography_path),
+        typography_enabled=out.poster,
+        typography_layout=out.typography_layout,
         generate_seconds=out.generate_seconds,
         harmonize_seconds=out.harmonize_seconds,
     )
+
+
+def _compose_banner_response(
+    result: GenerateAdResponse,
+    product_name: str,
+    sizes: list[str] | None = None,
+) -> GenerateAdResponse:
+    """기존 히어로를 재생성하지 않고 v5 배너 팩으로 확장한다."""
+    from ..services import pipeline_v5
+    from ..services.pipeline_v5.hero import hero_from_existing
+
+    source_url = result.image_without_typography_url or result.image_url
+    source = image_service.RESULTS_DIR / Path(source_url).name
+    if not source.is_file():
+        raise ValueError(f"배너 원본 이미지를 찾을 수 없습니다: {source.name}")
+    headline, _, subcopy = result.copy_text.partition("\n")
+    hero = hero_from_existing(
+        str(source), product_name=product_name,
+        headline=headline.strip() or product_name, subcopy=subcopy.strip(),
+    )
+    output_dir = image_service.RESULTS_DIR / f"{result.asset_id}_banner"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    rendered = pipeline_v5.generate_v5(
+        str(source), product_name, purpose=AdPurpose.BANNER,
+        hero_asset=hero, sizes=sizes, output_dir=str(output_dir),
+    )
+    urls = []
+    for path in rendered.outputs:
+        source_path = Path(path)
+        served = image_service.RESULTS_DIR / f"{result.asset_id}_{source_path.name}"
+        served.write_bytes(source_path.read_bytes())
+        urls.append(f"{settings.API_PREFIX}/ads/image/{served.name}")
+    return result.model_copy(update={"purpose": AdPurpose.BANNER, "format_outputs": urls})
 
 
 def _record_generated_result(
@@ -227,6 +268,8 @@ def generate_ad(
     use_vision: bool = Form(False),
     poster: bool = Form(False),
     seed: Optional[int] = Form(None),
+    purpose: AdPurpose = Form(AdPurpose.SNS),
+    sizes: str = Form(""),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> GenerateAdResponse:
@@ -250,6 +293,8 @@ def generate_ad(
             "use_vision": use_vision,
             "poster": poster,
             "seed": seed,
+            "purpose": purpose.value,
+            "sizes": sizes,
         },
         ensure_ascii=False,
     )
@@ -285,13 +330,20 @@ def generate_ad(
         with propagate_attributes(user_id=str(current_user_id), tags=["ads.generate"]):
             if generation_client.is_remote():
                 result = generation_client.generate_remote(
-                    str(src_path), product, style, seed, use_vision, poster
+                    str(src_path), product, style, seed, use_vision, poster, purpose
                 )
             else:
                 out = generation_service.run_from_upload_v2(
                     str(src_path), product, style, seed, use_vision, poster
                 )
                 result = _to_response(out)
+
+        if purpose == AdPurpose.BANNER:
+            requested_sizes = [value.strip() for value in sizes.split(",") if value.strip()]
+            result = _compose_banner_response(result, product_name, requested_sizes or None)
+        elif purpose in (AdPurpose.CARD_NEWS, AdPurpose.DETAIL_PAGE):
+            if not generation_client.is_remote():
+                raise ValueError("카드뉴스·상세페이지는 GPU 생성 서비스 연결이 필요합니다")
 
         _record_generated_result(
             user_id=current_user_id,
@@ -380,6 +432,13 @@ def regenerate_ad(
                     req.asset_id, product, req.style, req.prev_seed, req.use_vision, req.poster
                 )
                 result = _to_response(out)
+
+        if req.purpose == AdPurpose.BANNER:
+            result = _compose_banner_response(
+                result, req.product_name or "상품", req.sizes or None
+            )
+        elif req.purpose != AdPurpose.SNS:
+            raise ValueError("상세페이지·카드뉴스는 5구도 생성 API 연결 후 사용할 수 있습니다")
 
         _record_generated_result(
             db=db,

@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 
 
 @dataclass(frozen=True)
@@ -46,9 +47,11 @@ _IDENTITY_LOCKS = {
         "table surface and environmental lighting. "
     ),
     "drink": (
-        "Edit this exact drink photograph. Keep the drink, cup or glass, foam, ice, toppings, handle and saucer "
-        "exactly as photographed: identical shapes, liquid level, colors, camera angle, crop and arrangement. "
-        "Do not add, remove, redraw, move, rotate, recolor or cover the drink or its container. Change only the "
+        "Edit this exact drink photograph. Preserve every source pixel belonging to the drink and its vessel. "
+        "Keep the exact vessel silhouette, rim, base, wall shape, material, transparency and proportions, including "
+        "whether a handle or saucer is present or absent. Keep identical foam, ice, toppings, liquid level, colors, "
+        "camera angle, crop and arrangement. Do not add any vessel part absent from the source. Do not redraw, move, "
+        "rotate, recolor or cover the drink or its vessel. Change only the "
         "background, table surface and environmental lighting. "
     ),
     "object": (
@@ -131,14 +134,14 @@ _PLANS: dict[tuple[str, str], ReferenceStylePlan] = {
     ),
     ("drink", "pastel"): _plan(
         "pastel", "drink", "pastel_tabletop + drink_hero",
-        ("04_파스텔__IMG_4670", "04_파스텔__IMG_4710", "04_파스텔__IMG_4712"),
+        ("04_파스텔__IMG_4674", "04_파스텔__IMG_4710", "04_파스텔__IMG_4712"),
         "Create a soft pastel cafe set with a pale blush background and a muted lavender table plane, ethereal "
         "high-key diffused light and soft contact shadows. Keep the drink and container grounded and true to their "
         "original colors. No shapes, flowers, props, food, hands or text.",
     ),
     ("drink", "monotone"): _plan(
         "monotone", "drink", "brand_color_lock + drink_hero",
-        ("05_모노톤__IMG_4705", "05_모노톤__IMG_4713", "02_팝_pop__IMG_4698"),
+        ("05_모노톤__IMG_4705", "05_모노톤__IMG_4713"),
         "Create a strict espresso-brown monochrome environment using coffee brown, dark cocoa and warm cream only "
         "in the background and table. Add clean even lighting and one bold diagonal shadow. Preserve the drink and "
         "container's real colors exactly. No props, beans, food, hands or text.",
@@ -173,7 +176,7 @@ _PLANS: dict[tuple[str, str], ReferenceStylePlan] = {
     ),
     ("object", "pastel"): _plan(
         "pastel", "object", "soft_pedestal + pastel_product_hero",
-        ("04_파스텔__IMG_4670", "04_파스텔__IMG_4710", "IMG_4808"),
+        ("04_파스텔__IMG_4674", "04_파스텔__IMG_4710", "IMG_4808"),
         "Create a soft pastel product set with a pale blush background and one low matte lavender pedestal behind "
         "the product. Use ethereal high-key diffused light and soft contact shadows. Keep the product grounded. No "
         "mist, ribbons, flowers or text outside the unchanged product label.",
@@ -193,6 +196,32 @@ _PLANS: dict[tuple[str, str], ReferenceStylePlan] = {
         "light. No wood grain, plants, wrapping, flowers or text outside the unchanged product label.",
     ),
 }
+
+
+def _validate_drink_recipe_alignment() -> None:
+    """프로덕션 StylePlan이 승인 대기 recipe와 다른 레퍼런스로 회귀하지 않게 한다."""
+    from .reference_recipe import canonical_reference_id
+    from .reference_recipe_data import REFERENCE_RECIPES
+
+    for (domain, style), plan in _PLANS.items():
+        if domain != "drink":
+            continue
+        recipe = REFERENCE_RECIPES.get(f"drink/{plan.archetype.split(' + ')[0]}/{style}")
+        if recipe is None:
+            # 기존 plan의 표시용 archetype과 recipe key가 다른 경우 mood로 유일하게 대조한다.
+            matches = [item for item in REFERENCE_RECIPES.values()
+                       if item.domain == "drink" and item.mood.key == style]
+            if len(matches) != 1:
+                raise ValueError(f"drink recipe 누락/중복: {style}")
+            recipe = matches[0]
+        plan_ids = tuple(canonical_reference_id(value) for value in plan.reference_ids)
+        if plan_ids != recipe.canonical_reference_ids:
+            raise ValueError(
+                f"drink StylePlan/reference recipe 근거 불일치: {style} "
+                f"{plan_ids!r} != {recipe.canonical_reference_ids!r}")
+
+
+_validate_drink_recipe_alignment()
 
 
 def normalize_style(style_key: str) -> str | None:
@@ -253,16 +282,77 @@ _RECOMPOSE_EFFECTS = {
     "hot": "gentle natural steam rising from the drink",
 }
 
+# 무드별 연출 분화(PU-001 3단계) — 배경색만 다르고 앵글·크기·구도가 6무드 동일하던 문제 해결.
+#   음료 재연출은 이미 앵글·스케일·배치 자유(정직성 경계는 음료·용기 종류/색/토핑 보존이 담당)라
+#   여기서 "화면 내 스케일·카메라 앵글·구도"만 무드별로 규정한다. 팀장 §7 연출 프리셋 기반.
+_RECOMPOSE_STAGING = {
+    "editorial": ("Shoot at eye level and place the drink smaller and off to one side, leaving "
+                  "generous negative space for an asymmetric high-end magazine layout."),
+    "pop": ("Shoot from a bold low angle and make the drink large and dominant in frame, with a "
+            "tilted dynamic diagonal composition and strong energetic movement."),
+    "realism": ("Shoot at natural eye level with the drink medium-large and grounded, centered like "
+                "a candid modern cafe photograph with shallow depth of field."),
+    "pastel": ("Shoot from a slightly high angle with a soft, airy, balanced composition at medium "
+               "size and gentle breathing space around the drink."),
+    "monotone": ("Shoot from a dramatic low side angle with a strong single graphic diagonal shadow, "
+                 "bold minimal composition, medium-large scale."),
+    "warm_organic": ("Shoot at a relaxed three-quarter angle at medium size for a warm, inviting, "
+                     "lived-in morning composition."),
+}
+
+_ANGLE_INSTRUCTIONS = {
+    "eye": "eye level",
+    "slightly_high": "a slightly elevated angle",
+    "high": "a high angle",
+    "low": "a low angle",
+    "three_quarter": "a relaxed three-quarter angle",
+    "top_down": "a top-down angle",
+}
+_PLACEMENT_INSTRUCTIONS = {
+    "center": "centered",
+    "left_third": "on the left third",
+    "right_third": "on the right third",
+    "upper_third": "on the upper third",
+    "lower_third": "on the lower third",
+}
+
+
+def _recipe_staging(style_key: str) -> str | None:
+    """승인 대기 SceneArchetype을 실험용 영문 재연출 지시로 변환한다."""
+    if os.environ.get("REFERENCE_RECIPE_EXPERIMENT", "0") != "1":
+        return None
+    from .reference_recipe_data import get_reference_recipe
+
+    recipe = get_reference_recipe("drink", style_key, allow_unapproved=True)
+    if recipe is None:
+        return None
+    archetype = recipe.archetype
+    angle = _ANGLE_INSTRUCTIONS[archetype.camera_angles[0]]
+    placement = _PLACEMENT_INSTRUCTIONS[archetype.placements[0]]
+    scale = round(sum(archetype.subject_scale) * 50)
+    return (
+        f"Shoot at {angle}. Place the drink {placement}, occupying about {scale}% of the "
+        "canvas width. Follow the reference archetype's product scale and negative-space balance."
+    )
+
+
+_VESSEL_WORDS = ("cup", "glass", "mug", "saucer", "container", "bowl", "plate", "tumbler")
+
 
 def build_recompose_instruction(style_key: str, subject_en: str,
                                 container_desc: str | None = None,
                                 temperature: str | None = None,
-                                text_zone: str | None = None) -> str | None:
+                                text_zone: str | None = None,
+                                flexible_parts: list[str] | None = None) -> str | None:
     """P5 음료 재연출 지시 — 보존 편집이 아니라 같은 음료의 '새 연출'을 만든다.
 
-    재연출 계약(원본 승계): 같은 용기 종류·색 / 같은 음료·토핑 / 앵글·구도 자유 /
-    외래 재료·손·글자 금지 / text_zone 카피 여백. container_desc·temperature는
-    analyze_photo(Vision) 산출값만 사용한다(개정 #2 — 이름 추정 함수 만들지 말 것).
+    재연출 계약(원본 승계): 같은 음료·토핑 / 앵글·구도 자유 / 외래 재료·손·글자 금지 /
+    text_zone 카피 여백. container_desc·temperature·flexible_parts는 analyze_photo(Vision)
+    산출값만 사용한다(개정 #2 — 이름 추정 함수 만들지 말 것).
+
+    제품 이해(PU-001): flexible_parts에 용기(컵·잔·받침)가 있으면 "그 용기는 상품이 아니라
+    담는 그릇"이므로 색·재질을 장면 팔레트에 맞게 리스타일 허용(형태는 유지). 음료 자체와
+    라떼아트·토핑은 언제나 보존. flexible이 비면 기존처럼 용기까지 그대로 승계(안전 폴백).
     """
     plan = get_reference_plan(style_key, "drink")
     if plan is None:
@@ -270,8 +360,22 @@ def build_recompose_instruction(style_key: str, subject_en: str,
     subject = (subject_en or "beverage").strip()
     container = (container_desc or "container").strip()
     zone = (text_zone or "top").replace("_", " ")
+    flex_text = " ".join(flexible_parts or []).lower()
+    vessel_is_flexible = any(word in flex_text for word in _VESSEL_WORDS)
+    if vessel_is_flexible:
+        vessel_clause = (
+            f"You may restyle the {container}'s color and finish to harmonize with the scene's "
+            "palette, but keep its shape and proportions unchanged. Keep the drink itself exactly "
+            "as photographed: identical liquid color, foam, latte art, ice and toppings. "
+        )
+    else:
+        vessel_clause = (
+            f"Keep the exact same {container} and the exact same drink inside: identical liquid "
+            "color, foam, ice and toppings as photographed. "
+        )
     effect = _RECOMPOSE_EFFECTS.get((temperature or "").strip().lower())
     effect_txt = f" You may add only {effect}." if effect else ""
+    staging_txt = _recipe_staging(plan.style_key) or _RECOMPOSE_STAGING.get(plan.style_key, "")
     # direction 말미의 소품 금지문("No fruit, ... ice, splash ...")은 보존 편집용 —
     # 재연출 계약의 "identical ice/toppings as photographed"와 충돌한다(그 음료의 진짜 얼음까지
     # 지우라는 뜻으로 읽힘). 씬 묘사만 취하고 금지는 아래 계약 문장이 일원화해서 담당한다.
@@ -280,10 +384,9 @@ def build_recompose_instruction(style_key: str, subject_en: str,
     ) + "."
     return (
         f"Restage this {subject} into a new advertisement composition. "
-        f"Keep the exact same {container} and the exact same drink inside: identical liquid color, "
-        f"foam, ice and toppings as photographed. "
+        f"{vessel_clause}"
         "You may freely change the camera angle, composition, scale and placement for a more "
-        f"dynamic advertising shot.{effect_txt} "
+        f"dynamic advertising shot. {staging_txt}{effect_txt} "
         f"{scene_direction} "
         f"Leave clean empty copy space in the {zone} area. "
         "Do not add any new ingredients, fruit, garnish, props, hands or people. "

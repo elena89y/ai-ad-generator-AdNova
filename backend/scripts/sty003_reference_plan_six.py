@@ -76,7 +76,7 @@ PLANS = (
     ExperimentPlan(
         mood="pastel",
         archetype="soft_pedestal + pastel_product_hero",
-        reference_ids=("04_파스텔__IMG_4670", "04_파스텔__IMG_4710", "IMG_4808"),
+        reference_ids=("04_파스텔__IMG_4674", "04_파스텔__IMG_4710", "IMG_4808"),
         direction=(
             "Create a soft pastel beauty set with a pale blush-pink background, one low matte lavender pedestal "
             "behind the product and two broad translucent circular shapes far in the background. Ethereal high-key "
@@ -153,7 +153,7 @@ MOUSE_PLANS = (
     ExperimentPlan(
         mood="pastel",
         archetype="soft_pedestal + pastel_product_hero",
-        reference_ids=("04_파스텔__IMG_4670", "04_파스텔__IMG_4710", "04_파스텔__IMG_4712"),
+        reference_ids=("04_파스텔__IMG_4674", "04_파스텔__IMG_4710", "04_파스텔__IMG_4712"),
         direction=(
             "Create a soft pastel technology set with a pale lavender background and one low matte mint pedestal "
             "behind the mouse. Add two broad flat pastel geometric shapes far in the background, ethereal high-key "
@@ -289,7 +289,7 @@ LATTE_PLANS = (
     ),
     ExperimentPlan(
         mood="pastel", archetype="soft_pedestal + pastel_product_hero",
-        reference_ids=("04_파스텔__IMG_4670", "04_파스텔__IMG_4710", "04_파스텔__IMG_4712"),
+        reference_ids=("04_파스텔__IMG_4674", "04_파스텔__IMG_4710", "04_파스텔__IMG_4712"),
         direction=(
             "Create a soft pastel cafe set with a pale blush background and a muted lavender table plane, ethereal "
             "high-key diffused light and soft contact shadows. Keep the cup grounded and the coffee, foam and zest true "

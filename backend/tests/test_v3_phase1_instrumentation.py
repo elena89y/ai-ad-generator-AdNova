@@ -2,6 +2,8 @@ import json
 from contextlib import contextmanager
 from types import SimpleNamespace
 
+from PIL import Image
+
 from app.harness.run_logger import RunLogger
 from app.services import generation_service, gpt_service
 
@@ -172,7 +174,7 @@ def test_v2_request_ledger_includes_gate_generation_and_platform_copy(tmp_path, 
             add_usage("analyze_menu")
             add_usage("generate_copy/blip")
             output = results_dir / "result.png"
-            output.write_bytes(b"result")
+            Image.new("RGB", (64, 64), "white").save(output)
         return SimpleNamespace(
             final_image_path=str(output), seed=42, copy_text="copy", seconds=1.0,
             domain="food", engine="style:monotone", subject_en="cafe latte",

@@ -6,6 +6,7 @@ import json
 from types import SimpleNamespace
 
 import pytest
+from PIL import Image
 
 from app.harness.run_logger import RunLogger
 from app.schemas.ads import ProductInfo, StylePreset
@@ -58,7 +59,7 @@ def _fake_process(results_dir, labels: tuple[str, ...] = ("generate_copy/blip",)
         for label in labels:
             _add_usage(label)
         output = results_dir / "result.png"
-        output.write_bytes(b"result")
+        Image.new("RGB", (64, 64), "white").save(output)
         analysis = kwargs.get("analysis")
         return SimpleNamespace(
             final_image_path=str(output), seed=kwargs["seed"], copy_text="copy", seconds=1.0,

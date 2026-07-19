@@ -15,7 +15,7 @@ def test_all_six_moods_exist_for_each_domain() -> None:
             plan = get_reference_plan(style, domain)
             assert plan is not None
             assert plan.domain == domain
-            assert len(plan.reference_ids) == 3
+            assert 2 <= len(plan.reference_ids) <= 3
             assert "No " in plan.direction
 
 

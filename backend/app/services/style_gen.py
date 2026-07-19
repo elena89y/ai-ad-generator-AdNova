@@ -20,7 +20,8 @@ def generate_scene(image_path: str, style_key: str, subject_en: str,
                    staging: str = "preserve",
                    container_desc: Optional[str] = None,
                    temperature: Optional[str] = None,
-                   text_zone: Optional[str] = None) -> str:
+                   text_zone: Optional[str] = None,
+                   flexible_parts: Optional[list[str]] = None) -> str:
     """도메인별 StylePlan 또는 특수 포맷 지시로 Kontext 편집 후 경로를 반환한다.
 
     staging="recompose"(P5 음료 재연출): 보존 편집 대신 같은 음료의 새 연출을 지시한다.
@@ -36,6 +37,7 @@ def generate_scene(image_path: str, style_key: str, subject_en: str,
         recompose_instr = build_recompose_instruction(
             style_key, subject_en, container_desc=container_desc,
             temperature=temperature, text_zone=text_zone,
+            flexible_parts=flexible_parts,
         )
         if recompose_instr:
             kw = {} if steps is None else {"steps": steps}
