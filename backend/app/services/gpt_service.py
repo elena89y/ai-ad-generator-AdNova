@@ -797,6 +797,13 @@ def analyze_photo(image_path: str, name: str) -> Optional[PhotoAnalysis]:
                     parts.append(text.lower())
             return parts[:5]
 
+        flexible = _part_list("flexible_parts") if domain == "food" else []
+        # 투명/반투명 용기는 리컬러 시 유리를 색칠해 붕괴 위험 → 용기 본체만 flexible 제외.
+        #   받침류(saucer·coaster·plate)는 불투명이라 유지(홍차 콜드런 발견, 2026-07-19).
+        if opacity != "opaque":
+            _vessel_body = ("cup", "glass", "mug", "tumbler", "bottle", "jar", "container", "bowl")
+            flexible = [p for p in flexible if not any(w in p for w in _vessel_body)]
+
         return PhotoAnalysis(
             match=_json_bool(result["match"], "match"),
             seen=str(result.get("seen", ""))[:80],
@@ -820,7 +827,7 @@ def analyze_photo(image_path: str, name: str) -> Optional[PhotoAnalysis]:
             visible_text=str(result.get("visible_text", ""))[:200],
             # 사물(로고 SKU)은 flexible을 무시하고 전체 보존 — object 정직성 경계(형태·색 왜곡 금지).
             identity_parts=_part_list("identity_parts"),
-            flexible_parts=_part_list("flexible_parts") if domain == "food" else [],
+            flexible_parts=flexible,
         )
     except Exception as exc:  # 기존 verify_photo_subject+analyze_menu 경로로 폴백
         logger.warning("analyze_photo 실패 → 기존 분석 경로 폴백: %s", exc)
