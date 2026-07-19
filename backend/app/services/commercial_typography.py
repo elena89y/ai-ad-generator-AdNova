@@ -49,6 +49,7 @@ _AD_PUNCTUATION = str.maketrans("", "", ".,!?:;。．，！？?…")
 _EXPLANATORY_SUBCOPY = ("테이블 위", "이미지 속", "한 잔의", "완성합니다", "선사합니다")
 _AUTO_LAYOUT = "kr_single_hero"
 _SINGLE_LAYOUTS = ("kr_hero_top_left", "kr_hero_top_center", "kr_hero_bottom_left")
+_DIAGONAL_LAYOUT = "kr_diagonal_band"
 
 
 def _safe_line(value: str, limit: int) -> str:
@@ -214,6 +215,30 @@ def _draw_reference_hierarchy(image: Image.Image, copy: CommercialCopy,
     return Image.alpha_composite(base, text_layer).convert("RGB")
 
 
+def _draw_diagonal_hierarchy(image: Image.Image, copy: CommercialCopy) -> Image.Image:
+    """사선 컬러띠 레퍼런스의 우하단 세리프 위계. 장식선과 긴 설명은 쓰지 않는다."""
+    w, h = image.size
+    base = image.convert("RGBA")
+    layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(layer)
+    headline = copy.headline.upper() if copy.headline.isascii() else copy.headline
+    kind = "didone" if headline.isascii() else "maru_bold"
+    font = overlay_service._fit_spaced_font(draw, headline, kind, int(h * 0.055), w * 0.46, 0.0)
+    x, y = int(w * 0.50), int(h * 0.72)
+    overlay_service._spaced_text(
+        draw, (x, y), headline, font, (*overlay_service.DARK, 224), spacing_frac=0.0,
+    )
+    if copy.subcopy:
+        body = overlay_service._fit_spaced_font(
+            draw, copy.subcopy, "maru_regular", int(h * 0.022), w * 0.44, 0.0,
+        )
+        overlay_service._spaced_text(
+            draw, (x, y + int(font.size * 1.18)), copy.subcopy, body,
+            (*overlay_service.DARK, 170), spacing_frac=0.0,
+        )
+    return Image.alpha_composite(base, layer).convert("RGB")
+
+
 def render_commercial_poster(
     image_path: str,
     output_path: str,
@@ -238,9 +263,12 @@ def render_commercial_poster(
     image = Image.open(image_path).convert("RGB")
     if enabled:
         resolved_layout = select_typography_layout(image) if layout_key == _AUTO_LAYOUT else layout_key
-        token = _commercial_token(style_key)
-        image = _draw_reference_hierarchy(image, copy, token, resolved_layout)
-        image = _draw_footer(image, copy, token)
+        if resolved_layout == _DIAGONAL_LAYOUT:
+            image = _draw_diagonal_hierarchy(image, copy)
+        else:
+            token = _commercial_token(style_key)
+            image = _draw_reference_hierarchy(image, copy, token, resolved_layout)
+            image = _draw_footer(image, copy, token)
 
     out = Path(output_path)
     out.parent.mkdir(parents=True, exist_ok=True)

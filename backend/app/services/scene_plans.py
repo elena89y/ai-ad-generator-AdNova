@@ -94,6 +94,11 @@ def _p(style, domain, archetype, scene, pos, scale, sy, light, tz,
 
 
 PLANS: list[ScenePlan] = [
+    # 명시적 인스타그램 실험 키. 상품은 좌상단, 카피는 후단 조판에서 우하단에 둔다.
+    _p("instagram", "drink", "diagonal_color_band",
+       "warm cream poster with one muted peach diagonal color band",
+       (0.34, 0.50), 0.32, 0.66, "left", "top_right",
+       render_mode="code", palette=("#F6E7D5", "#D98C68"), shadow=0.20),
     # ── pop ─────────────────────────────────────────────────────────────────
     _p("pop", "drink", "diagonal_field",
        "curated klein-blue and cream diagonal fields with one hard shadow stripe",

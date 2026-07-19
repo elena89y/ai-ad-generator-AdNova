@@ -187,7 +187,9 @@ def render(plan: "ScenePlan", seed: int = 0, accent_hue: float | None = None,
     # 오프셋은 합성 제품이 그려진 바닥보다 위에 떠 보이게 만들었다(V4P4D-003 실측).
     horizon = plan.surface_y
 
-    if plan.archetype == "diagonal_field":
+    if plan.archetype == "diagonal_color_band":
+        canvas = np.full((size, size, 3), palette[0], dtype=np.uint8)
+    elif plan.archetype == "diagonal_field":
         blend_px = int(rng.integers(4, 9))
         canvas = _dgrad(size, palette[0], palette[1], 82 + angle,
                         blend_px=blend_px, split_at=0.74)
@@ -211,13 +213,21 @@ def render(plan: "ScenePlan", seed: int = 0, accent_hue: float | None = None,
         canvas = _floor_wall(canvas, horizon, palette[1], blend=12)
     elif plan.archetype == "soft_seamless":
         canvas = _floor_wall(canvas, horizon, palette[-1], blend=12)
-    elif plan.archetype not in {"diagonal_field", "cloud_gradient"}:
+    elif plan.archetype not in {"diagonal_field", "diagonal_color_band", "cloud_gradient"}:
         canvas = _floor_wall(canvas, horizon, floor_color)
     base = _grain(_vignette(Image.fromarray(canvas, "RGB")), rng)
     image = base.copy()
     protected = _protected_mask(plan, size)
 
-    if plan.archetype == "diagonal_field":
+    if plan.archetype == "diagonal_color_band":
+        draw = ImageDraw.Draw(image)
+        draw.polygon(
+            ((0, round(size * 0.07)), (round(size * 0.15), 0),
+             (round(size * 0.48), round(size * 0.43)),
+             (round(size * 0.30), round(size * 0.57))),
+            fill=palette[1],
+        )
+    elif plan.archetype == "diagonal_field":
         draw = ImageDraw.Draw(image)
         draw.polygon(
             ((round(size * 0.84), 0), (size, 0), (size, round(size * 0.40))),

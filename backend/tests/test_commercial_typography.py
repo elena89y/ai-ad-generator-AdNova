@@ -87,6 +87,17 @@ def test_lineup_layout_does_not_silently_render_single_product(tmp_path) -> None
         )
 
 
+def test_diagonal_band_layout_renders_reference_hierarchy(tmp_path) -> None:
+    src, out = tmp_path / "src.png", tmp_path / "diagonal.png"
+    _image(src)
+    render_commercial_poster(
+        str(src), str(out), CommercialCopy("LATTE MOMENT", "오늘의 부드러운 한 잔"),
+        layout_key="kr_diagonal_band", style_key="editorial",
+    )
+    assert out.exists()
+    assert not np.array_equal(np.asarray(Image.open(src)), np.asarray(Image.open(out)))
+
+
 def test_commercial_copy_requires_headline() -> None:
     with pytest.raises(ValueError, match="headline"):
         CommercialCopy("  ")

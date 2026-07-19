@@ -12,6 +12,7 @@ from app.services.scene_plans import PLANS, plans_for
 
 
 TIER1_CONTRACT = {
+    "instagram/drink/diagonal_color_band": ("#F6E7D5", "#D98C68"),
     "pop/drink/diagonal_field": ("#2B3FBB", "#F2ECE3"),
     "pop/drink/color_block_duo": ("#2B3FBB", "#F2ECE3"),
     "pop/object/color_block": ("#2D6A6F", "#F2ECE3"),
@@ -48,9 +49,11 @@ def _local_variation(arr: np.ndarray) -> float:
 
 def test_tier1_contract_and_p5_recompose_split():
     code_plans = _code_plans()
-    assert len(code_plans) == 16
+    assert len(code_plans) == 17
     assert {plan.key for plan in code_plans} == set(TIER1_CONTRACT)
-    assert {plan.style for plan in code_plans} == {"pop", "editorial", "pastel", "monotone"}
+    assert {plan.style for plan in code_plans} == {
+        "instagram", "pop", "editorial", "pastel", "monotone",
+    }
     for plan in code_plans:
         assert plan.palette == TIER1_CONTRACT[plan.key]
         assert plan.prop_slots == ()

@@ -153,6 +153,11 @@ COMMERCIAL_LAYOUTS: dict[str, CommercialLayout] = {
         "headline_cta", ("bottom_left", "top"),
         ("KR-AD-003", "KR-AD-018"), cta_zone="bottom_right",
     ),
+    "kr_diagonal_band": CommercialLayout(
+        "kr_diagonal_band", "diagonal_color_band", "single",
+        "headline_product", ("bottom_right",),
+        ("PICKBITE-4880", "PICKBITE-4884", "PICKBITE-4887"),
+    ),
 }
 
 # 직접 모델 입력과 구도 참고를 분리한 상품군별 근거. 2026-07-19 육안 감사 결과:
