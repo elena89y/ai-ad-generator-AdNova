@@ -22,7 +22,7 @@ import logging
 import mimetypes
 import os
 from functools import lru_cache
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 from ..schemas.ads import AdPurpose, ProductInfo, StyleCandidate, StylePreset
@@ -548,6 +548,12 @@ class PhotoAnalysis:
     temperature: str
     view_angle: str
     visible_text: str
+    # 제품 이해(2026-07-17): 파트별 보존 등급 — 미적 재연출과 정직성을 양립시킨다.
+    #   identity_parts = 상품 정체성이라 반드시 보존(상품 본체·로고·라벨). 라떼면 coffee·latte art.
+    #   flexible_parts = 상품이 아니라 담는 용기·그릇 → 무드에 맞게 색·재질 리컬러 허용. 라떼면 cup·saucer.
+    #   하위호환: default 빈 리스트라 기존 호출부·캐시 무해. 비면 "전체 보존"으로 안전 폴백.
+    identity_parts: list[str] = field(default_factory=list)
+    flexible_parts: list[str] = field(default_factory=list)
 
     @property
     def food_en(self) -> str:
@@ -578,6 +584,10 @@ class PhotoAnalysis:
         _require_ascii_prompt_text(self.container_color, "container_color")
         for ingredient in self.core_ingredients:
             _require_ascii_prompt_text(ingredient, "core_ingredients")
+        for part in self.identity_parts:
+            _require_ascii_prompt_text(part, "identity_parts")
+        for part in self.flexible_parts:
+            _require_ascii_prompt_text(part, "flexible_parts")
 
 
 _MENU_CATEGORIES = "fried, soup, bakery, grill, beef, pork, default"
@@ -718,11 +728,20 @@ def analyze_photo(image_path: str, name: str) -> Optional[PhotoAnalysis]:
         "10. temperature는 사진의 김·성에·얼음 근거를 우선하고 상품명을 보조해 hot|iced|ambient 중 하나.\n"
         "11. view_angle은 eye|high|top 중 하나. visible_text는 제품 표면에 실제 보이는 글자 원문이며 "
         "없거나 판독 불가하면 빈 문자열. seen은 사진에 실제 보이는 것을 한국어 한 줄로 써.\n"
+        "12. 제품 이해 — 광고 재연출 시 무엇을 보존하고 무엇을 바꿔도 되는지 파트를 나눠. "
+        "identity_parts는 상품의 정체성이라 반드시 원본대로 보존할 부분(상품 본체·로고·라벨·브랜드 각인), "
+        "flexible_parts는 상품이 아니라 담는 용기·그릇·받침처럼 무드에 맞게 색·재질을 바꿔도 되는 부분. "
+        "둘 다 English words only 배열(최대 5개).\n"
+        "  - 음료: 음료 자체와 라떼아트·거품은 identity, 컵·잔·머그·받침은 flexible.\n"
+        "  - 로고·라벨 있는 사물(향수·전자제품·화장품): 상품 전체가 identity(형태·로고·색 보존), flexible=[].\n"
+        "  - 그릇 요리: 음식 자체가 identity, 담는 접시·볼은 flexible.\n"
+        "  판단 불가하면 identity=[], flexible=[] (호출부가 전체 보존으로 안전 폴백).\n"
         'JSON 키: {"match":true,"seen":"","domain":"food","display_name":"",'
         '"subject_en":"cafe latte","category":"default","core_ingredients":["espresso","milk"],'
         '"texture_hero":false,"material":"default","food_mode":"cafe","lang":"ko",'
         '"container_kind":"cup","container_color":"white","container_opacity":"opaque",'
-        '"temperature":"hot","view_angle":"eye","visible_text":""}'
+        '"temperature":"hot","view_angle":"eye","visible_text":"",'
+        '"identity_parts":["coffee","latte art"],"flexible_parts":["cup","saucer"]}'
     )
     try:
         content = [
@@ -766,6 +785,18 @@ def analyze_photo(image_path: str, name: str) -> Optional[PhotoAnalysis]:
             if str(item).strip()
         ][:4]
 
+        def _part_list(key: str) -> list[str]:
+            """파트 등급은 개선 정보라 관대하게 — 비ASCII·비배열은 조용히 버리고 빈 리스트 폴백."""
+            raw = result.get(key)
+            if not isinstance(raw, list):
+                return []
+            parts: list[str] = []
+            for item in raw:
+                text = str(item).strip()
+                if text and text.isascii():
+                    parts.append(text.lower())
+            return parts[:5]
+
         return PhotoAnalysis(
             match=_json_bool(result["match"], "match"),
             seen=str(result.get("seen", ""))[:80],
@@ -787,6 +818,9 @@ def analyze_photo(image_path: str, name: str) -> Optional[PhotoAnalysis]:
             temperature=temperature,
             view_angle=view_angle,
             visible_text=str(result.get("visible_text", ""))[:200],
+            # 사물(로고 SKU)은 flexible을 무시하고 전체 보존 — object 정직성 경계(형태·색 왜곡 금지).
+            identity_parts=_part_list("identity_parts"),
+            flexible_parts=_part_list("flexible_parts") if domain == "food" else [],
         )
     except Exception as exc:  # 기존 verify_photo_subject+analyze_menu 경로로 폴백
         logger.warning("analyze_photo 실패 → 기존 분석 경로 폴백: %s", exc)
