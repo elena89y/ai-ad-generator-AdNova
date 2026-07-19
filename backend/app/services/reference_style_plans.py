@@ -131,14 +131,14 @@ _PLANS: dict[tuple[str, str], ReferenceStylePlan] = {
     ),
     ("drink", "pastel"): _plan(
         "pastel", "drink", "pastel_tabletop + drink_hero",
-        ("04_파스텔__IMG_4670", "04_파스텔__IMG_4710", "04_파스텔__IMG_4712"),
+        ("04_파스텔__IMG_4674", "04_파스텔__IMG_4710", "04_파스텔__IMG_4712"),
         "Create a soft pastel cafe set with a pale blush background and a muted lavender table plane, ethereal "
         "high-key diffused light and soft contact shadows. Keep the drink and container grounded and true to their "
         "original colors. No shapes, flowers, props, food, hands or text.",
     ),
     ("drink", "monotone"): _plan(
         "monotone", "drink", "brand_color_lock + drink_hero",
-        ("05_모노톤__IMG_4705", "05_모노톤__IMG_4713", "02_팝_pop__IMG_4698"),
+        ("05_모노톤__IMG_4705", "05_모노톤__IMG_4713"),
         "Create a strict espresso-brown monochrome environment using coffee brown, dark cocoa and warm cream only "
         "in the background and table. Add clean even lighting and one bold diagonal shadow. Preserve the drink and "
         "container's real colors exactly. No props, beans, food, hands or text.",
@@ -173,7 +173,7 @@ _PLANS: dict[tuple[str, str], ReferenceStylePlan] = {
     ),
     ("object", "pastel"): _plan(
         "pastel", "object", "soft_pedestal + pastel_product_hero",
-        ("04_파스텔__IMG_4670", "04_파스텔__IMG_4710", "IMG_4808"),
+        ("04_파스텔__IMG_4674", "04_파스텔__IMG_4710", "IMG_4808"),
         "Create a soft pastel product set with a pale blush background and one low matte lavender pedestal behind "
         "the product. Use ethereal high-key diffused light and soft contact shadows. Keep the product grounded. No "
         "mist, ribbons, flowers or text outside the unchanged product label.",
@@ -193,6 +193,32 @@ _PLANS: dict[tuple[str, str], ReferenceStylePlan] = {
         "light. No wood grain, plants, wrapping, flowers or text outside the unchanged product label.",
     ),
 }
+
+
+def _validate_drink_recipe_alignment() -> None:
+    """프로덕션 StylePlan이 승인 대기 recipe와 다른 레퍼런스로 회귀하지 않게 한다."""
+    from .reference_recipe import canonical_reference_id
+    from .reference_recipe_data import REFERENCE_RECIPES
+
+    for (domain, style), plan in _PLANS.items():
+        if domain != "drink":
+            continue
+        recipe = REFERENCE_RECIPES.get(f"drink/{plan.archetype.split(' + ')[0]}/{style}")
+        if recipe is None:
+            # 기존 plan의 표시용 archetype과 recipe key가 다른 경우 mood로 유일하게 대조한다.
+            matches = [item for item in REFERENCE_RECIPES.values()
+                       if item.domain == "drink" and item.mood.key == style]
+            if len(matches) != 1:
+                raise ValueError(f"drink recipe 누락/중복: {style}")
+            recipe = matches[0]
+        plan_ids = tuple(canonical_reference_id(value) for value in plan.reference_ids)
+        if plan_ids != recipe.canonical_reference_ids:
+            raise ValueError(
+                f"drink StylePlan/reference recipe 근거 불일치: {style} "
+                f"{plan_ids!r} != {recipe.canonical_reference_ids!r}")
+
+
+_validate_drink_recipe_alignment()
 
 
 def normalize_style(style_key: str) -> str | None:

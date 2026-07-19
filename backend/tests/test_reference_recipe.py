@@ -14,7 +14,8 @@ def _mood() -> MoodToken:
 
 
 def _pv(mood="warm_organic") -> PaletteVariant:
-    return PaletteVariant(mood, ("#E8E0D4", "#D8CDBC"), "P4BR warm/travertine")
+    return PaletteVariant("travertine", mood, ("#E8E0D4", "#D8CDBC"),
+                          "P4BR warm/travertine")
 
 
 def _arch(domains=("drink",), opacity=("opaque",)) -> SceneArchetype:
@@ -39,20 +40,31 @@ def test_mood_rejects_bad_density():
 
 
 def test_palette_variant_validation():
-    PaletteVariant("pop", ("#2B3FBB", "#F2ECE3"), "P4BR pop/drink", ("drink",))
+    variant = PaletteVariant("cobalt_duo", "pop", ("#2B3FBB", "#F2ECE3"),
+                             "P4BR pop/drink", ("drink",))
+    assert variant.variant_id == "pop/cobalt_duo"
     with pytest.raises(ValueError):
-        PaletteVariant("pop", ("2B3FBB",), "src")          # # 없음
+        PaletteVariant("bad", "pop", ("2B3FBB",), "src")          # # 없음
     with pytest.raises(ValueError):
-        PaletteVariant("popp", ("#2B3FBB",), "src")        # mood 오타
+        PaletteVariant("bad", "popp", ("#2B3FBB",), "src")        # mood 오타
     with pytest.raises(ValueError):
-        PaletteVariant("pop", ("#2B3FBB",), "")            # source 비어있음
+        PaletteVariant("bad", "pop", ("#2B3FBB",), "")            # source 비어있음
     with pytest.raises(ValueError):
-        PaletteVariant("pop", ("#2B3FBB",), "s", ("beverage",))  # domain_scope 오타
+        PaletteVariant("bad", "pop", ("#2B3FBB",), "s", ("beverage",))  # domain_scope 오타
+    with pytest.raises(ValueError):
+        PaletteVariant("bad/key", "pop", ("#2B3FBB",), "src")
 
 
 def test_recipe_palette_variant_mood_must_match():
     with pytest.raises(ValueError):
         _recipe(palette_variant=_pv("pop"))  # recipe mood=warm_organic인데 variant=pop
+
+
+def test_recipe_palette_variant_domain_scope_must_match():
+    object_only = PaletteVariant("teal_duo", "warm_organic", ("#2D6A6F",),
+                                 "test", ("object",))
+    with pytest.raises(ValueError):
+        _recipe(palette_variant=object_only)
 
 
 def test_archetype_rejects_bad_scale_and_angle():
@@ -101,7 +113,7 @@ def test_empty_fields_rejected():
     with pytest.raises(ValueError):
         MoodToken(key="pop", lighting="x", materials=(), prop_density="low")  # materials 빈
     with pytest.raises(ValueError):
-        PaletteVariant("pop", (), "src")  # palette 빈
+        PaletteVariant("bad", "pop", (), "src")  # palette 빈
     with pytest.raises(ValueError):
         _recipe(composition_note="   ")
 
@@ -122,16 +134,19 @@ def test_cross_domain_bootstrap_requires_metadata():
     # cross-domain인데 transfer_reason/evidence_scope 없으면 거부
     with pytest.raises(ValueError):
         _recipe(archetype=arch, source_domains=("food",))
-    # target이 source에 포함되면 전이가 아니므로 거부
-    with pytest.raises(ValueError):
-        _recipe(archetype=arch, source_domains=("drink", "food"),
-                transfer_reason="x", evidence_scope="y")
+    # 직접 target 근거와 타 domain 근거가 섞인 부트스트랩도 추적 가능
+    mixed = _recipe(archetype=arch, source_domains=("drink", "food"),
+                    transfer_reason="직접 근거 보강", evidence_scope="camera only")
+    assert mixed.is_cross_domain is True
     # 정상 부트스트랩: 메타 완비 + approved=False
     r = _recipe(archetype=arch, source_domains=("food",),
                 transfer_reason="카메라·구도는 도메인 불변",
                 evidence_scope="camera+composition only, not palette/props")
     assert r.is_cross_domain is True
     assert r.usable() is False  # 시각 게이트 전엔 미승인
+    # 동일 domain 근거뿐인데 전이 메타를 붙이면 거부
+    with pytest.raises(ValueError):
+        _recipe(source_domains=("drink",), transfer_reason="x", evidence_scope="y")
 
 
 def test_recipe_requires_two_or_three_refs():
@@ -163,7 +178,10 @@ def test_compatibility_filter():
 
 
 def test_data_module_loads():
-    from app.services.reference_recipe_data import MOOD_TOKENS, PALETTE_VARIANTS
+    from app.services.reference_recipe_data import (
+        MOOD_TOKENS, PALETTE_VARIANTS, PALETTE_VARIANTS_BY_ID,
+        REFERENCE_RECIPES, SCENE_ARCHETYPES,
+    )
     from app.services.reference_recipe import MOODS
     assert set(MOOD_TOKENS) == set(MOODS)              # MoodToken 6무드
     assert set(PALETTE_VARIANTS) == set(MOODS)         # palette 후보도 6무드
@@ -175,3 +193,25 @@ def test_data_module_loads():
     for mood, variants in PALETTE_VARIANTS.items():
         for v in variants:
             assert v.mood == mood and v.palette[0].startswith("#")
+            assert PALETTE_VARIANTS_BY_ID[v.variant_id] is v
+    assert len(SCENE_ARCHETYPES) == 6
+    assert len(REFERENCE_RECIPES) == 6
+    assert {recipe.mood.key for recipe in REFERENCE_RECIPES.values()} == set(MOODS)
+    assert all(not recipe.usable() for recipe in REFERENCE_RECIPES.values())
+
+
+def test_reference_ids_are_unicode_canonicalized():
+    r = _recipe(reference_ids=("03_리얼리즘__IMG_4602", "04_파스텔__IMG_4710"))
+    decomposed = tuple(__import__("unicodedata").normalize("NFD", x) for x in r.reference_ids)
+    assert tuple(__import__("unicodedata").normalize("NFC", x) for x in decomposed) == r.canonical_reference_ids
+
+
+def test_production_drink_plans_follow_recipe_references():
+    from app.services.reference_recipe import canonical_reference_id
+    from app.services.reference_recipe_data import REFERENCE_RECIPES
+    from app.services.reference_style_plans import get_reference_plan
+
+    for recipe in REFERENCE_RECIPES.values():
+        plan = get_reference_plan(recipe.mood.key, recipe.domain)
+        assert tuple(canonical_reference_id(value) for value in plan.reference_ids) == \
+            recipe.canonical_reference_ids

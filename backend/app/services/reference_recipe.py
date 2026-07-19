@@ -17,6 +17,7 @@ vocabulary는 전부 enum(허용 집합)으로 고정한다 — 자유 문자열
 from __future__ import annotations
 
 from dataclasses import dataclass
+import unicodedata
 
 # ── 고정 vocabulary (자유 문자열 금지 — 침묵 오타·구체명사 차단) ──────────────────
 MOODS = ("editorial", "pop", "realism", "pastel", "monotone", "warm_organic")
@@ -35,6 +36,11 @@ def _require_subset(values: tuple[str, ...], allowed: tuple[str, ...], field: st
     bad = [v for v in values if v not in allowed]
     if bad:
         raise ValueError(f"{field}에 허용되지 않은 값: {bad} (허용: {allowed})")
+
+
+def canonical_reference_id(value: str) -> str:
+    """macOS 파일명(NFD)과 코드 리터럴(NFC)을 같은 manifest ID로 비교한다."""
+    return unicodedata.normalize("NFC", value.strip())
 
 
 @dataclass(frozen=True)
@@ -66,6 +72,7 @@ class PaletteVariant:
     ReferenceRecipe가 domain/archetype에 맞는 variant를 고르고, 최종 palette 승인은 recipe
     시각 몽타주에서 사람이 한다(여기서 approved=True 적재 금지 — 후보일 뿐).
     """
+    key: str                           # 무드 내 안정 식별자 (예: cobalt_duo)
     mood: str                          # MOODS 중
     palette: tuple[str, ...]           # hex (비면 안 됨, 각 #RRGGBB)
     source: str                        # 출처 (예: "P4BR pop/drink", "style_specs editorial")
@@ -73,6 +80,8 @@ class PaletteVariant:
     archetype_hint: str = ""           # 유래 아키타입(선택 힌트)
 
     def __post_init__(self) -> None:
+        if not self.key.strip() or "/" in self.key:
+            raise ValueError(f"PaletteVariant.key 형식 오류: {self.key!r}")
         if self.mood not in MOODS:
             raise ValueError(f"palette variant mood 잘못됨: {self.mood!r}")
         if not self.palette:
@@ -84,6 +93,11 @@ class PaletteVariant:
             _require_subset(self.domain_scope, DOMAINS, "domain_scope")
         if not self.source.strip():
             raise ValueError("PaletteVariant.source 비어있음(출처 필수)")
+
+    @property
+    def variant_id(self) -> str:
+        """원장·selector에서 사용하는 안정 식별자."""
+        return f"{self.mood}/{self.key}"
 
 
 @dataclass(frozen=True)
@@ -177,14 +191,19 @@ class ReferenceRecipe:
         if self.palette_variant.mood != self.mood.key:
             raise ValueError(
                 f"palette_variant mood({self.palette_variant.mood})가 recipe mood({self.mood.key})와 불일치")
+        if (self.palette_variant.domain_scope
+                and self.domain not in self.palette_variant.domain_scope):
+            raise ValueError(
+                f"palette_variant {self.palette_variant.variant_id}가 domain {self.domain!r} 범위 밖")
         if bool(self.approved) != bool(self.approved_by):
             raise ValueError("approved와 approved_by는 함께 설정되어야 함(대칭)")
-        if self.source_domains:  # cross-domain 부트스트랩
+        if self.source_domains:
             _require_subset(self.source_domains, DOMAINS, "source_domains")
-            if self.domain in self.source_domains:
-                raise ValueError("cross-domain인데 target domain이 source에 포함됨(전이 아님)")
-            if not self.transfer_reason.strip() or not self.evidence_scope.strip():
+            cross_domain = any(source != self.domain for source in self.source_domains)
+            if cross_domain and (not self.transfer_reason.strip() or not self.evidence_scope.strip()):
                 raise ValueError("cross-domain recipe는 transfer_reason·evidence_scope 필수")
+            if not cross_domain and (self.transfer_reason.strip() or self.evidence_scope.strip()):
+                raise ValueError("동일 domain recipe에 cross-domain 전이 메타가 설정됨")
 
     @property
     def recipe_id(self) -> str:
@@ -194,7 +213,12 @@ class ReferenceRecipe:
     @property
     def is_cross_domain(self) -> bool:
         """근거를 다른 도메인에서 빌린 부트스트랩 recipe인가(결정 B). 시각 게이트 통과 전엔 미승인 상태여야."""
-        return bool(self.source_domains)
+        return any(source != self.domain for source in self.source_domains)
+
+    @property
+    def canonical_reference_ids(self) -> tuple[str, ...]:
+        """manifest/file-system 대조용 NFC ID."""
+        return tuple(canonical_reference_id(value) for value in self.reference_ids)
 
     def is_compatible(self, domain: str, opacity: str) -> bool:
         """상품 traits와 호환되는지 — 조립부가 후보에서 부적합 아키타입을 처음부터 제외한다."""
