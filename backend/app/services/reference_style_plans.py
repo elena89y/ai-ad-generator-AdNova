@@ -253,6 +253,24 @@ _RECOMPOSE_EFFECTS = {
     "hot": "gentle natural steam rising from the drink",
 }
 
+# 무드별 연출 분화(PU-001 3단계) — 배경색만 다르고 앵글·크기·구도가 6무드 동일하던 문제 해결.
+#   음료 재연출은 이미 앵글·스케일·배치 자유(정직성 경계는 음료·용기 종류/색/토핑 보존이 담당)라
+#   여기서 "화면 내 스케일·카메라 앵글·구도"만 무드별로 규정한다. 팀장 §7 연출 프리셋 기반.
+_RECOMPOSE_STAGING = {
+    "editorial": ("Shoot at eye level and place the drink smaller and off to one side, leaving "
+                  "generous negative space for an asymmetric high-end magazine layout."),
+    "pop": ("Shoot from a bold low angle and make the drink large and dominant in frame, with a "
+            "tilted dynamic diagonal composition and strong energetic movement."),
+    "realism": ("Shoot at natural eye level with the drink medium-large and grounded, centered like "
+                "a candid modern cafe photograph with shallow depth of field."),
+    "pastel": ("Shoot from a slightly high angle with a soft, airy, balanced composition at medium "
+               "size and gentle breathing space around the drink."),
+    "monotone": ("Shoot from a dramatic low side angle with a strong single graphic diagonal shadow, "
+                 "bold minimal composition, medium-large scale."),
+    "warm_organic": ("Shoot at a relaxed three-quarter angle at medium size for a warm, inviting, "
+                     "lived-in morning composition."),
+}
+
 
 _VESSEL_WORDS = ("cup", "glass", "mug", "saucer", "container", "bowl", "plate", "tumbler")
 
@@ -293,6 +311,7 @@ def build_recompose_instruction(style_key: str, subject_en: str,
         )
     effect = _RECOMPOSE_EFFECTS.get((temperature or "").strip().lower())
     effect_txt = f" You may add only {effect}." if effect else ""
+    staging_txt = _RECOMPOSE_STAGING.get(plan.style_key, "")
     # direction 말미의 소품 금지문("No fruit, ... ice, splash ...")은 보존 편집용 —
     # 재연출 계약의 "identical ice/toppings as photographed"와 충돌한다(그 음료의 진짜 얼음까지
     # 지우라는 뜻으로 읽힘). 씬 묘사만 취하고 금지는 아래 계약 문장이 일원화해서 담당한다.
@@ -303,7 +322,7 @@ def build_recompose_instruction(style_key: str, subject_en: str,
         f"Restage this {subject} into a new advertisement composition. "
         f"{vessel_clause}"
         "You may freely change the camera angle, composition, scale and placement for a more "
-        f"dynamic advertising shot.{effect_txt} "
+        f"dynamic advertising shot. {staging_txt}{effect_txt} "
         f"{scene_direction} "
         f"Leave clean empty copy space in the {zone} area. "
         "Do not add any new ingredients, fruit, garnish, props, hands or people. "
