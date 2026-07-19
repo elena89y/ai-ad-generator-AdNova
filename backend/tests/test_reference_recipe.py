@@ -47,7 +47,51 @@ def test_archetype_rejects_bad_scale_and_angle():
 def test_prop_policy_edible_enum():
     PropPolicy(categories=("botanical",), edible="source_only")
     with pytest.raises(ValueError):
-        PropPolicy(categories=(), edible="always")
+        PropPolicy(categories=("botanical",), edible="always")
+
+
+def test_prop_policy_rejects_concrete_noun_categories():
+    # P1: 'coffee beans'·'salt shaker' 같은 구체명사는 category enum이 아니라 거부돼야 한다.
+    with pytest.raises(ValueError):
+        PropPolicy(categories=("coffee beans", "salt shaker"))
+    PropPolicy(categories=("tableware", "botanical"))  # 정상
+
+
+def test_prop_policy_maxcount_requires_categories():
+    with pytest.raises(ValueError):
+        PropPolicy(categories=(), max_count=2)  # 소품 허용인데 category 비면 모순
+    PropPolicy(categories=(), max_count=0)  # 소품 없음은 OK
+
+
+def test_vocabulary_typos_rejected():
+    # P1: mood/domain/opacity/placement/text_zone 오타는 침묵 통과하면 안 된다.
+    with pytest.raises(ValueError):
+        MoodToken(key="warm-organic", palette=("#fff",), lighting="x", materials=("wood",),
+                  prop_density="medium")  # 하이픈 오타
+    with pytest.raises(ValueError):
+        _arch(opacity=("transparant",))  # opacity 오타
+    with pytest.raises(ValueError):
+        SceneArchetype("k", frozenset({"drink"}), frozenset({"opaque"}),
+                       ("eye",), (0.4, 0.5), ("right-third",), ("top",))  # placement 오타
+    with pytest.raises(ValueError):
+        _recipe(domain="beverage")  # domain 오타
+
+
+def test_empty_fields_rejected():
+    with pytest.raises(ValueError):
+        MoodToken(key="pop", palette=(), lighting="x", materials=("wood",), prop_density="low")
+    with pytest.raises(ValueError):
+        _recipe(composition_note="   ")
+
+
+def test_recipe_rejects_duplicate_refs():
+    with pytest.raises(ValueError):
+        _recipe(reference_ids=("same", "same"))
+
+
+def test_recipe_id_stable():
+    r = _recipe()
+    assert r.recipe_id == "drink/tabletop_lifestyle/warm_organic"
 
 
 def test_recipe_requires_two_or_three_refs():
