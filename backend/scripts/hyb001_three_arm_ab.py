@@ -39,6 +39,11 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+# 키는 backend/.env 에만 있다(VM) — 호출자 env 의존으로 12행 전멸한 실측 사고(2026-07-20) 재발 방지.
+from dotenv import load_dotenv  # noqa: E402
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+
 from app.harness.run_logger import RunLogger  # noqa: E402
 
 logger = logging.getLogger("hyb001")
@@ -166,9 +171,13 @@ def cmd_summary(args: argparse.Namespace) -> None:
         if arm in rows:
             rows[arm].append(rec)
 
+    # error 행은 KPI 평균에서 제외(0비용·0시간이 평균을 왜곡) — 실패 수는 표에 별도 보고.
+    failures = {a: sum(1 for r in rows[a] if r.get("error")) for a in ARMS}
+    rows = {a: [r for r in rows[a] if not r.get("error")] for a in ARMS}
+
     lines = ["# HYB-001 — 3암 KPI 비교 (자동 생성: hyb001_three_arm_ab.py summary)", "",
-             "| 암 | n | 장당 비용 $ (mean) | p50 시간 s | gate 통과율 | judge (mean) | identity (mean) |",
-             "|---|---|---|---|---|---|---|"]
+             "| 암 | n | 실패 | 장당 비용 $ (mean) | p50 시간 s | gate 통과율 | judge (mean) | identity (mean) |",
+             "|---|---|---|---|---|---|---|---|"]
     for arm in ARMS:
         recs = rows[arm]
         kpis = [r["kpi"] for r in recs]
@@ -180,8 +189,8 @@ def cmd_summary(args: argparse.Namespace) -> None:
                   if k["quality"].get("judge_score") is not None]
         idents = [k["quality"].get("identity") for k in kpis
                   if k["quality"].get("identity") is not None]
-        lines.append("| {} | {} | {} | {} | {} | {} | {} |".format(
-            arm, len(recs),
+        lines.append("| {} | {} | {} | {} | {} | {} | {} | {} |".format(
+            arm, len(recs), failures[arm],
             round(sum(costs) / len(costs), 4) if costs else "—",
             _p50(times) if times else "—",
             f"{sum(1 for g in gates if g)}/{len(gates)}" if gates else "—",
