@@ -33,6 +33,10 @@ _NS = "api_image"
 DEFAULT_MODEL = os.environ.get("API_IMAGE_MODEL", "gpt-image-2")
 _MAX_SIDE = 1024  # 입력 토큰 절감(실측 근거) — 업로드 전 다운스케일 상한
 
+# cwd 무관 절대 기본 출력 경로 — 상대경로 기본값은 실행 위치에 따라 backend/backend/ 를
+# 만드는 사고 유형(2026-07-20 G2 실측 재현)이라 금지.
+_DEFAULT_OUT_DIR = Path(__file__).resolve().parents[2] / "results" / "ai" / "api_edit"
+
 # --- 세션 예산 가드 ---------------------------------------------------------------
 _spend_lock = threading.Lock()
 _session_spend_usd = 0.0
@@ -103,7 +107,7 @@ def build_edit_instruction(subject_en: str, style_hint: str = "",
 
 
 def edit_image(image_path: str, instruction: str,
-               out_dir: str = "backend/results/ai/api_edit",
+               out_dir: str = str(_DEFAULT_OUT_DIR),
                model: str = DEFAULT_MODEL, quality: str = "low",
                size: str = "1024x1024", run=None) -> str:  # noqa: ANN001 — RunLogger optional
     """gpt-image edit 1회 호출 → 결과 PNG 경로. 예산 선점 실패 시 ApiBudgetExceeded.
