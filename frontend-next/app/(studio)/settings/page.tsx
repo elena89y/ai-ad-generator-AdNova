@@ -5,15 +5,14 @@ import { useEffect, useRef, useState } from "react";
 import {
   PASSWORD_PATTERN,
   NotificationSettings,
+  ProfileImageResponse,
   apiFetch,
   avatarHue,
-  clearAvatarPhoto,
   getDisplayName,
-  getStoredAvatarPhoto,
   isSocialAuthUser,
   readApiError,
   readJsonSafely,
-  storeAvatarPhoto,
+  toAbsoluteUrl,
 } from "@/lib/api";
 import { useHydrated, useStudio } from "@/components/studio/StudioProvider";
 import { SubBar } from "@/components/studio/chrome";
@@ -28,7 +27,6 @@ export default function SettingsPage() {
   const [deletePassword, setDeletePassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [notiState, setNotiState] = useState([true, true, false]);
-  const [avatarOverride, setAvatarOverride] = useState<string | null>(null);
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const pwRef = useRef<HTMLDivElement>(null);
@@ -37,7 +35,7 @@ export default function SettingsPage() {
   const [activeNav, setActiveNav] = useState("setProfile");
 
   const social = hydrated ? isSocialAuthUser() : false;
-  const avatarPhoto = avatarOverride ?? (hydrated ? getStoredAvatarPhoto() : "");
+  const avatarPhoto = hydrated ? s.profileImageUrl || "" : "";
 
   useEffect(() => {
     if (s.ready && !s.token) router.replace("/login");
@@ -88,17 +86,29 @@ export default function SettingsPage() {
       });
   }
 
-  function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      storeAvatarPhoto(reader.result as string);
-      setAvatarOverride(reader.result as string);
-      s.bumpUser();
+
+    setBusy(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await apiFetch("/api/account/profile-image", {
+        method: "POST",
+        body: formData,
+      });
+      const data = (await readJsonSafely(res)) as ProfileImageResponse | null;
+      if (!res.ok || !data?.image_url)
+        throw new Error(readApiError(data, "프로필 사진을 저장하지 못했습니다"));
+      s.setProfileImageUrl(toAbsoluteUrl(data.image_url));
       s.toast("프로필 사진이 변경되었습니다");
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      s.toast(err instanceof Error ? err.message : "프로필 사진을 저장하지 못했습니다");
+    } finally {
+      e.target.value = "";
+      setBusy(false);
+    }
   }
 
   async function handlePasswordChange() {
@@ -152,7 +162,6 @@ export default function SettingsPage() {
         throw new Error(readApiError(data, "회원 탈퇴에 실패했습니다"));
       }
       s.clearAuth();
-      clearAvatarPhoto();
       router.push("/login");
       s.toast("회원 탈퇴가 완료되었습니다");
     } catch (err) {
@@ -284,6 +293,7 @@ export default function SettingsPage() {
                     fontWeight: 600,
                     cursor: "pointer",
                   }}
+                  disabled={busy}
                   onClick={() => avatarFileRef.current?.click()}
                 >
                   사진 변경
@@ -291,7 +301,7 @@ export default function SettingsPage() {
                 <input
                   ref={avatarFileRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
                   style={{ display: "none" }}
                   onChange={handleAvatarUpload}
                 />

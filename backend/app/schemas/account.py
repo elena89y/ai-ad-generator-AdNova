@@ -28,6 +28,10 @@ class AccountMessageResponse(BaseModel):
     message: str
 
 
+class ProfileImageResponse(BaseModel):
+    image_url: str | None = None
+
+
 class NotificationSettingsResponse(BaseModel):
     ad_generation_complete_email: bool
     credit_depletion_alert: bool

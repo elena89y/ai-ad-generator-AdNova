@@ -134,6 +134,16 @@ class AdsPersistenceTestCase(unittest.TestCase):
 
             self.assertEqual(context.exception.status_code, 404)
 
+    def test_generated_image_path_traversal_is_rejected(self) -> None:
+        with self.assertRaises(HTTPException) as context:
+            get_result_image(
+                filename="../private.png",
+                db=self.session,
+                current_user=self.user,
+            )
+
+        self.assertEqual(context.exception.status_code, 400)
+
 
 if __name__ == "__main__":
     unittest.main()

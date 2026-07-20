@@ -6,7 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { avatarHue, getDisplayName, getStoredAvatarPhoto } from "@/lib/api";
+import { avatarHue, getDisplayName } from "@/lib/api";
 import { useHydrated, useStudio } from "./StudioProvider";
 
 export function Brand({ large }: { large?: boolean }) {
@@ -26,8 +26,8 @@ export function Brand({ large }: { large?: boolean }) {
 
 function AvatarCircle({ className, name }: { className: string; name: string }) {
   const hydrated = useHydrated();
-  useStudio(); // userVersion 변경 시 리렌더 유도 (사진 변경 반영)
-  const photo = hydrated ? getStoredAvatarPhoto() : "";
+  const { profileImageUrl } = useStudio();
+  const photo = hydrated ? profileImageUrl || "" : "";
   const initial = (name || "A").trim().charAt(0).toUpperCase();
   const hue = avatarHue(name);
   const style = photo

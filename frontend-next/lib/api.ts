@@ -9,7 +9,6 @@ export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? "/api").replace(
 
 const ACCESS_TOKEN_KEY = "access_token";
 const USER_KEY = "user";
-const AVATAR_KEY = "adnova_avatar_photo";
 
 function buildApiUrl(path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -147,24 +146,6 @@ export function clearStoredAuth() {
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
 }
-export function getStoredAvatarPhoto(): string {
-  if (typeof window === "undefined") return "";
-  try {
-    return localStorage.getItem(AVATAR_KEY) || "";
-  } catch {
-    return "";
-  }
-}
-export function storeAvatarPhoto(dataUrl: string) {
-  try {
-    localStorage.setItem(AVATAR_KEY, dataUrl);
-  } catch {
-    /* quota — ignore */
-  }
-}
-export function clearAvatarPhoto() {
-  localStorage.removeItem(AVATAR_KEY);
-}
 
 export function getAuthProvider(): string {
   const stored = getStoredUser()?.auth_provider;
@@ -244,6 +225,10 @@ export interface NotificationSettings {
   ad_generation_complete_email: boolean;
   credit_depletion_alert: boolean;
   marketing_updates: boolean;
+}
+
+export interface ProfileImageResponse {
+  image_url: string | null;
 }
 export function splitCopyText(text?: string | null): { head: string; body: string } {
   const lines = (text || "").split("\n").map((v) => v.trim()).filter(Boolean);
