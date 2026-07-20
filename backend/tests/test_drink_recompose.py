@@ -167,7 +167,9 @@ def test_process_ad_preserves_transparent_drink_by_default(tmp_path, monkeypatch
         analysis=_analysis(container_opacity="transparent"),
     )
     assert captured.get("staging") is None
-    assert captured.get("container_desc") is None
+    # CONTAINER-001: 용기 묘사는 보존 경로에도 항상 전달된다(장식 용기 프리앰블 분기용).
+    #   재연출 전용 kwargs(staging·temperature)가 안 넘어가는 것이 preserve 보장의 본질.
+    assert captured.get("container_desc") == "pink glass"
     assert captured.get("temperature") is None
     assert result.engine.startswith("style:pop")
 

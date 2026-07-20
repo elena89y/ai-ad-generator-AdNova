@@ -19,6 +19,7 @@ def generate_scene(image_path: str, style_key: str, subject_en: str,
                    domain: Optional[str] = None,
                    staging: str = "preserve",
                    container_desc: Optional[str] = None,
+                   container_opacity: Optional[str] = None,
                    temperature: Optional[str] = None,
                    text_zone: Optional[str] = None,
                    flexible_parts: Optional[list[str]] = None) -> str:
@@ -53,8 +54,12 @@ def generate_scene(image_path: str, style_key: str, subject_en: str,
 
     # STY-003~005: 범용 프롬프트 한 개로는 6무드가 비슷해지고 도메인에 맞지 않는 소품이 생겼다.
     # 레퍼런스에서 추출한 무드 규칙을 food/drink/object별로 분리하고, 원본 정체성 잠금을 앞에 둔다.
+    # CONTAINER-001: container_desc는 보존 경로에서도 쓴다 — 장식 용기(굽 유리볼 등)면
+    # food 프리앰블·용기 문구를 원본 용기 유지 긍정 단언으로 치환. None이면 기존 문구 그대로.
     from .reference_style_plans import build_clip_anchor, build_reference_instruction
-    reference_instr = build_reference_instruction(style_key, domain, subject_en)
+    reference_instr = build_reference_instruction(style_key, domain, subject_en,
+                                                  container_desc=container_desc,
+                                                  container_opacity=container_opacity)
     clip_prompt = build_clip_anchor(style_key, domain, subject_en)
 
     # 구성(composition) 유지 절 — 무드 씬 전용 (2026-07-11 콜드런 실측: editorial 이 브런치

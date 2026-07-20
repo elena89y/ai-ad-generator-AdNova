@@ -10,6 +10,10 @@ import hashlib
 from dataclasses import dataclass
 import os
 
+from . import prompt_registry as _prompts
+
+_NS = "reference_style_plans"
+
 
 @dataclass(frozen=True)
 class ReferenceStylePlan:
@@ -117,6 +121,38 @@ def _style_palette_clause(style_key: str, domain: str, subject_en: str) -> str:
         return ""
     return _palette_clause(palettes, domain, subject_en)
 
+
+# CONTAINER-001(2026-07-21): food 프리앰블의 "no cup/tumbler"(BUG-KTX-001·PLATING-001 대응)와
+#   (food,realism)의 "plate resting flat on dark charcoal"(BUG-KTX-001-2 대응)이 굽 유리볼
+#   빙수 같은 장식 용기를 밋밋한 식당 접시로 강제 변환(운영 historyId=107). 실측 버그 대응
+#   문구라 삭제 불가 — analyze_photo(Vision)가 본 용기 묘사로 분기해 장식 용기(vessel)일 때만
+#   긍정 단언 프리앰블로 치환한다. 문구·분류 키워드는 prompts/reference_style_plans.yaml(T1).
+def classify_container(container_desc: str | None,
+                       container_opacity: str | None = None) -> str:
+    """Vision 용기 묘사 → 'vessel'(내용물 보이는 유리 디저트 용기) | 'default'(접시 경로).
+
+    실측(2026-07-21): analyze_photo가 굽·스템을 단어로 안 주고 kind는 'glass'/'plate' 수준.
+    대신 opacity가 유리 용기(transparent)와 불투명 접시(opaque)를 확실히 가른다. 판정 3층위:
+      1) vessel_keywords(고블릿·파르페 등 명시 형태) → opacity 무관 vessel.
+      2) flat_kinds(plate·board 등) → 투명이어도 default(PLATING-001 가드).
+      3) glass_vessel_kinds(glass·bowl·cup 등 깊은 용기) + opacity∈{transparent,translucent}
+         → 내용물 비치는 쇼피스 vessel.
+    근거 없음(None·빈값)·미분류는 전부 'default' — 컵 변환·프로핑 대응 문구 유지 안전측 폴백.
+    이름 추정 금지(개정 #2): 입력은 analyze_photo 산출만.
+    """
+    desc = (container_desc or "").strip().lower()
+    if not desc or desc == "none":
+        return "default"
+    if any(kw in desc for kw in _prompts.get(_NS, "container.vessel_keywords")):
+        return "vessel"
+    if any(fw in desc for fw in _prompts.get(_NS, "container.flat_kinds")):
+        return "default"
+    opacity = (container_opacity or "").strip().lower()
+    if opacity in ("transparent", "translucent") and any(
+            dk in desc for dk in _prompts.get(_NS, "container.glass_vessel_kinds")):
+        return "vessel"
+    return "default"
+
 _IDENTITY_LOCKS = {
     "food": (
         # BUG-KTX-001-2(2026-07-20): "realism" 스타일에서 컵 변환이 재발(negative 문구만으로는
@@ -183,8 +219,10 @@ _PLANS: dict[tuple[str, str], ReferenceStylePlan] = {
     ("food", "editorial"): _plan(
         "editorial", "food", "asymmetric_copyspace + food_hero",
         ("01_에디토리얼__IMG_4597", "03_리얼리즘__IMG_4604", "03_리얼리즘__IMG_4675"),
+        # CONTAINER-001: {hero}는 용기 분류에 따라 "the plate"(기본) 또는 실제 용기 묘사로
+        # 치환되는 자리표시자 — build_reference_instruction()이 채운다.
         "Create a premium culinary editorial environment with a muted cream stone table and a pale warm-gray "
-        "background, soft directional window light and generous quiet copy space above the plate. Restrained "
+        "background, soft directional window light and generous quiet copy space above {hero}. Restrained "
         "high-end restaurant campaign. No added cutlery, napkin, ingredients, garnish, hands or text.",
     ),
     ("food", "pop"): _plan(
@@ -193,7 +231,7 @@ _PLANS: dict[tuple[str, str], ReferenceStylePlan] = {
         # PALETTE-001(2026-07-20): {palette}는 상품명(subject_en) 기준 결정론적으로 선택되는
         # 자리표시자 — build_reference_instruction()이 채운다. _POP_PALETTES 참고.
         "Create a bold contemporary food campaign with {palette}, crisp hard side light and one strong graphic "
-        "diagonal shadow behind the plate. Keep the food's true appetizing colors. No extra food, props, hands, "
+        "diagonal shadow behind {hero}. Keep the food's true appetizing colors. No extra food, props, hands, "
         "splashes, floating objects or text.",
     ),
     ("food", "realism"): _plan(
@@ -202,7 +240,9 @@ _PLANS: dict[tuple[str, str], ReferenceStylePlan] = {
         # BUG-KTX-001-2(2026-07-20): 이 스타일만 컵 변환이 재발했다. 다른 스타일과 달리 접시가
         #   "테이블 위에 평평히 놓임"을 명시하지 않고 흐린 배경만 지시해, 근접 제품샷(컵) 구도로
         #   미끄러지기 쉬웠던 것으로 추정 — 접시·테이블 접지를 명시적으로 보강.
-        "Create a true-to-life premium restaurant photograph with the plate resting flat on a dark charcoal stone "
+        # CONTAINER-001: {container_clause}는 기본 "the plate resting flat", 장식 용기(vessel)면
+        #   "the <용기> standing upright on its own base" — 굽 용기에 물리적으로 참인 접지만 지시.
+        "Create a true-to-life premium restaurant photograph with {container_clause} on a dark charcoal stone "
         "table and a softly blurred neutral dining background behind it. Use realistic directional light that "
         "reveals the exact natural food texture without exaggeration. No smoke, fire, utensils, ingredients, "
         "garnish, hands or text.",
@@ -362,18 +402,46 @@ def get_reference_plan(style_key: str, domain: str | None) -> ReferenceStylePlan
     return _PLANS[(normalize_domain(domain), style)]
 
 
-def build_reference_instruction(style_key: str, domain: str | None, subject_en: str) -> str | None:
-    """StylePlan을 Kontext용 정체성 보존 편집 지시로 변환한다."""
+def build_reference_instruction(style_key: str, domain: str | None, subject_en: str,
+                                container_desc: str | None = None,
+                                container_opacity: str | None = None) -> str | None:
+    """StylePlan을 Kontext용 정체성 보존 편집 지시로 변환한다.
+
+    container_desc·container_opacity(analyze_photo Vision 산출)가 유리 디저트 용기(vessel)로
+    분류되면 food 프리앰블과 플랜의 용기 문구를 "원본 용기 유지+프리미엄 연출" 긍정 단언으로
+    치환한다(CONTAINER-001). 미지정·접시류·분류 실패는 전부 기존 문구와 바이트 동일 —
+    컵 변환(BUG-KTX-001)·프로핑(PLATING-001) 회귀 가드.
+    """
     plan = get_reference_plan(style_key, domain)
     if plan is None:
         return None
     subject = (subject_en or "product").strip()
+    identity_lock = _IDENTITY_LOCKS[plan.domain]
+    if plan.domain == "food" and classify_container(container_desc, container_opacity) == "vessel":
+        container = container_desc.strip().lower()  # analyze_photo 계약상 ASCII 보장
+        identity_lock = _prompts.fmt(_NS, "container.identity_lock_vessel",
+                                     container=container).strip() + " "
+        hero = f"the {container}"
+        container_clause = _prompts.fmt(_NS, "container.realism_clause_vessel",
+                                        container=container)
+    else:
+        hero = _prompts.get(_NS, "container.hero_default")
+        container_clause = _prompts.get(_NS, "container.realism_clause_default")
     direction = plan.direction
+    # 자리표시자는 한 번에 치환 — {palette}+{hero} 동시 보유 플랜(food pop)에서 str.format이
+    # 누락 키로 KeyError를 내지 않게 한다.
+    fmt_args: dict[str, str] = {}
     if "{palette}" in direction:
-        direction = direction.format(palette=_style_palette_clause(plan.style_key, plan.domain, subject))
+        fmt_args["palette"] = _style_palette_clause(plan.style_key, plan.domain, subject)
+    if "{hero}" in direction:
+        fmt_args["hero"] = hero
+    if "{container_clause}" in direction:
+        fmt_args["container_clause"] = container_clause
+    if fmt_args:
+        direction = direction.format(**fmt_args)
     return (
         f"The photographed subject is {subject}. "
-        f"{_IDENTITY_LOCKS[plan.domain]}{direction} "
+        f"{identity_lock}{direction} "
         "Do not generate any new logo, label, lettering, watermark or advertising copy."
     )
 
