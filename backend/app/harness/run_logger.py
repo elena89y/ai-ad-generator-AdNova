@@ -200,7 +200,7 @@ class RunLogger:
         return False  # 예외 재전파(기록만 하고 삼키지 않음)
 
     def _build_kpi(self) -> dict:
-        """원장 행에서 비용/시간/품질 3축을 파생한다 (v6 T0 — 모노브 대비 KPI).
+        """원장 행에서 비용/시간/품질 3축을 파생한다 (v6 T0 — 서비스 핵심 KPI).
 
         - 비용: OpenAI 텍스트(자동 캡처) + 이미지 API(장당) + GPU 점유 환산.
           GPU 초는 "요청이 GPU 호스트를 점유한 벽시계 시간" 근사 = total_s (CUDA 가용 시).
