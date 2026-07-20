@@ -26,18 +26,22 @@ def test_copy_for_never_calls_gpt():
         copy = copy_for(hero)
     mocked.assert_not_called()
     assert copy.top_view_label == "" and copy.detail_title == ""
+    assert copy.cta == "자세히 보기" and copy.cta_title == "지금 만나보세요"
 
 
 def test_section_copy_uses_gpt_result_when_available():
     commercial_copy._section_labels.cache_clear()
     hero = hero_from_existing("x.png", product_name="햄치즈 샌드위치", headline="담백한 한 입",
                               domain="food", subject_en="ham and cheese sandwich")
-    fake = gpt_service.SectionLabels(top_view_label="위에서 본 한 입", detail_title="속까지\n꽉 찬")
+    fake = gpt_service.SectionLabels(top_view_label="위에서 본 한 입", detail_title="속까지\n꽉 찬",
+                                     cta_title="지금 맛보세요", cta_label="주문하기")
     with patch.object(gpt_service, "generate_section_labels", return_value=fake) as mocked:
         copy = section_copy_for(hero)
     mocked.assert_called_once()
     assert copy.top_view_label == "위에서 본 한 입"
     assert copy.detail_title == "속까지\n꽉 찬"
+    assert copy.cta_title == "지금 맛보세요"
+    assert copy.cta == "주문하기"
 
 
 def test_section_copy_falls_back_to_domain_label_on_gpt_failure():
@@ -48,13 +52,16 @@ def test_section_copy_falls_back_to_domain_label_on_gpt_failure():
         copy = section_copy_for(hero)
     assert copy.top_view_label == "위에서 보는 디테일"
     assert copy.detail_title == "디테일까지\n또렷하게"
+    assert copy.cta_title == "지금 만나보세요"
+    assert copy.cta == "자세히 보기"
 
 
 def test_section_copy_caches_by_product_so_repeat_calls_dont_hit_gpt_again():
     commercial_copy._section_labels.cache_clear()
     hero = hero_from_existing("x.png", product_name="아이스 아메리카노", headline="시원한 한 모금",
                               domain="drink", subject_en="iced americano")
-    fake = gpt_service.SectionLabels(top_view_label="위에서 본 얼음", detail_title="한 잔의\n청량함")
+    fake = gpt_service.SectionLabels(top_view_label="위에서 본 얼음", detail_title="한 잔의\n청량함",
+                                     cta_title="지금 마셔보세요", cta_label="주문하기")
     with patch.object(gpt_service, "generate_section_labels", return_value=fake) as mocked:
         section_copy_for(hero)
         section_copy_for(hero)
