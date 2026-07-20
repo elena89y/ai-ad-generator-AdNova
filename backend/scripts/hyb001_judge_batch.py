@@ -24,11 +24,10 @@ from dotenv import load_dotenv  # noqa: E402
 load_dotenv(_BACKEND / ".env")
 
 RUNS = _BACKEND / "experiments" / "runs.jsonl"
-OUT = _BACKEND / "experiments" / "hyb001_judge.jsonl"
 ARMS = ("local", "api", "hybrid")
 
 
-def _latest_rows() -> dict[tuple[str, str], dict]:
+def _latest_rows(phase: str) -> dict[tuple[str, str], dict]:
     """(암, 입력) → 최신 유효 행. 러너 summary 와 동일한 last-wins·error 제외 규칙."""
     latest: dict[tuple[str, str], dict] = {}
     for line in RUNS.read_text(encoding="utf-8").splitlines():
@@ -36,7 +35,7 @@ def _latest_rows() -> dict[tuple[str, str], dict]:
             rec = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if rec.get("phase") != "HYB-001" or not rec.get("kpi"):
+        if rec.get("phase") != phase or not rec.get("kpi"):
             continue
         arm = rec.get("params", {}).get("arm")
         if arm in ARMS:
@@ -47,15 +46,19 @@ def _latest_rows() -> dict[tuple[str, str], dict]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--inputs-dir", required=True)
+    parser.add_argument("--phase", default="HYB-001",
+                        help="채점 대상 phase (예: HOLDOUT-001)")
     args = parser.parse_args()
     inputs_dir = Path(args.inputs_dir).expanduser()
+    out_path = _BACKEND / "experiments" / (
+        args.phase.lower().replace("-", "") + "_judge.jsonl")
 
     from app.services import gpt_service
 
-    rows = _latest_rows()
+    rows = _latest_rows(args.phase)
     print(f"채점 대상 {len(rows)}건 (예상 Vision 호출 {len(rows)}회)")
     per_arm: dict[str, list[float]] = {a: [] for a in ARMS}
-    with OUT.open("a", encoding="utf-8") as f:
+    with out_path.open("a", encoding="utf-8") as f:
         for (arm, name), rec in sorted(rows.items()):
             original = inputs_dir / name
             if not original.exists():
@@ -83,7 +86,7 @@ def main() -> int:
         if vals:
             print(f"| {arm} | {len(vals)} | {sum(vals)/len(vals):.2f} "
                   f"| {statistics.median(vals):.1f} |")
-    print(f"\n→ 행별 기록: {OUT}")
+    print(f"\n→ 행별 기록: {out_path}")
     return 0
 
 
