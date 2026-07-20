@@ -47,6 +47,11 @@ apiq2:
     beef_marbled.png: realism        # scene_prompt 에 마블링 보존 문구 내장
     drink_ade.png: warm_vintage      # 카페 시그니처 음료 무드 (STY-003 선호 계열)
     mouse.jpeg: object_studio        # 사물 SKU 중립 스튜디오
+# [APIQ-002 판정 확정 07-21, 아트디렉터] 승자 = enhanced_v2 (enhanced + 가드 2종).
+#   꽃등심·마우스 enhanced 명확 승 / 에이드는 v2 가드로 브랜드 카드·빨대·도일리 복원 + 무단 소품 해소.
+#   경미 편차 기록: 빨대 재질 금속→회백(g2 공통), 배경 갈대 블러는 배경 연출로 허용 판정.
+# ↓ HYB-001 api/hybrid 암의 지시문 조립 = enhanced_v2. 모드→무드 기본 배정:
+api_style_by_mode: {dish: realism, cafe: warm_vintage, object: object_studio}
 
 items:
   # --- A 음식점 (in-place, 누끼 없음) ---

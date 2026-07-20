@@ -5,7 +5,8 @@
 
 **3암 = 서비스 3버전 대응 (발표 서사):**
   ① local  = 로컬 이미지 파이프라인 버전 — process_ad 기존 A/B/C 자동 라우팅 (GPU, VM에서)
-  ② api    = 전-LLM 버전 — 이미지 생성까지 전부 API(gpt-image edit + 모드별 연출 힌트).
+  ② api    = 전-LLM 버전 — 이미지 생성까지 전부 API. 지시문 = **enhanced_v2**(APIQ-002 승자):
+             6무드 scene_prompt + analyze_photo 파트별 보존등급 + 브랜드·소품 가드.
              CPU만 필요, API_BUDGET_USD 예산가드는 edit_image 내부에서 강제
   ③ hybrid = 상용화 후보 — hyb001_inputs.yaml 의 hybrid_engine 사전 배정
              (정체성 민감=사물 SKU·texture_hero → api / 배경·씬 연출 → local)
@@ -123,29 +124,30 @@ def _mode_style_hint(mode: str) -> str:
 def _run_one_api(image_path: Path, item: dict, knob: float, seed: int,
                  arm: str, out_dir: Path, runs_path: Path, dry: bool,
                  model: str = "", quality: str = "", phase: str = "HYB-001") -> None:
-    """api 엔진 1건. 실측에선 analyze_menu 결과 subject_en 을 쓰고 매니페스트 라벨과 대조 기록.
+    """api 엔진 1건 — 지시문 = enhanced_v2 (APIQ-002 승자, 07-21 승격).
 
-    model/quality: APIQ-001 매트릭스와 HYB-001 api 암이 공유하는 설정 축 —
-    미지정 시 호출부(cmd_run)가 매니페스트 apiq.chosen 을 넣어준다."""
+    6무드 scene_prompt(api_style_by_mode 배정) + analyze_photo 파트별 보존등급 + 가드 2종.
+    model/quality: 미지정 시 호출부(cmd_run)가 매니페스트 apiq.chosen 을 넣어준다."""
+    style_key = (_load_manifest().get("api_style_by_mode") or {}).get(
+        item["expected_mode"], "editorial")
     with RunLogger(phase=phase, mode=item["expected_mode"], engine="api",
                    input=item["file"], seed=seed,
                    params={"arm": arm, "knob": knob, "dry_run": dry,
-                           "model": model, "quality": quality},
+                           "model": model, "quality": quality,
+                           "variant": "enhanced_v2", "style": style_key},
                    runs_path=runs_path) as run:
         # GPU 호스트에서 API 경로의 유휴 GPU 시간이 비용으로 오계상되면 3암 비교가 왜곡된다
         run.set_meta(gpu_used=False)
-        style_hint = _mode_style_hint(item["expected_mode"])
+        instr = _build_api_instruction(image_path, item, "enhanced_v2", style_key, dry, run)
+        run.note(f"instruction[enhanced_v2/{style_key}]: {instr}")
         if dry:
             # 지시문 조립까지는 실코드 경로를 태워 배선 검증 (OpenAI 호출 없음)
             from app.harness.pricing import image_cost_of
-            from app.services.api_image_service import build_edit_instruction
+            from app.services.style_specs import get_spec
 
-            instr = build_edit_instruction(
-                item["subject_en"], style_hint=style_hint,
-                is_object=item["expected_mode"] == "object")
-            assert style_hint and style_hint in instr, \
-                f"모드 연출 힌트 누락: {item['expected_mode']} (prompts/api_image.yaml 확인)"
-            run.note(f"dry instruction: {instr[:120]}")
+            frag = get_spec(style_key).scene_prompt.format(subject=item["subject_en"])[:30]
+            assert frag in instr, f"scene_prompt 주입 누락: {style_key}"
+            assert "styling accessory" in instr and "Final rule" in instr, "v2 가드 누락"
             run.add_llm_usage("gpt-5.4-mini", tok_in=300, tok_out=80)   # 표 산식 검증용 모의값
             run.add_image_api_usage(model, n=1,
                                     cost_usd=image_cost_of(model, quality=quality) or 0.02)
@@ -154,15 +156,8 @@ def _run_one_api(image_path: Path, item: dict, knob: float, seed: int,
             run.set_output(str(out))
             run.set_verdict("dry")
             return
-        from app.services import gpt_service
-        from app.services.api_image_service import build_edit_instruction, edit_image
+        from app.services.api_image_service import edit_image
 
-        analysis = gpt_service.analyze_menu(item["name"])
-        subject = analysis.subject_en or item["subject_en"]
-        if subject != item["subject_en"]:
-            run.note(f"subject_en 상이: manifest={item['subject_en']} / analyze={subject}")
-        instr = build_edit_instruction(subject, style_hint=style_hint,
-                                       is_object=analysis.domain == "object")
         out = edit_image(str(image_path), instr, out_dir=str(out_dir),
                          model=model, quality=quality, run=run)
         run.set_output(out)
@@ -235,13 +230,15 @@ def cmd_apiq(args: argparse.Namespace) -> None:
                 logger.exception("[apiq %s/%s] %s 실패", model, quality, item["file"])
 
 
-def _build_apiq2_instruction(image_path: Path, item: dict, variant: str,
-                             style_key: str, dry: bool, run) -> str:  # noqa: ANN001
-    """APIQ-002 지시문 조립 — 단일변수인 '지시문'만 variant 로 갈라진다.
+def _build_api_instruction(image_path: Path, item: dict, variant: str,
+                           style_key: str, dry: bool, run) -> str:  # noqa: ANN001
+    """API edit 지시문 조립 (APIQ-002 실험 + HYB-001 본실험 공용).
 
-    draft    = APIQ-001 과 동일(모드별 한 줄 힌트, 이름 기반 subject).
-    enhanced = 6무드 scene_prompt({subject} 치환, 실측 튜닝 자산) + analyze_photo 파트별
-               보존등급 주입. negative 는 gpt-image edit 에 파라미터가 없어 미적용(주석 기록).
+    draft       = APIQ-001 초안(모드별 한 줄 힌트, 이름 기반 subject) — 실험 대조군 보존용.
+    enhanced    = 6무드 scene_prompt({subject} 치환, 실측 튜닝 자산) + analyze_photo 파트별
+                  보존등급 주입. negative 는 gpt-image edit 에 파라미터가 없어 미적용.
+    enhanced_v2 = enhanced + 가드 2종(브랜드·스타일링 소품 보존, 무드발 소품 추가 금지).
+                  **APIQ-002 승자(07-21 아트디렉터 확정) — HYB-001 api 암 기본.**
     """
     from app.services.api_image_service import build_edit_instruction
 
@@ -320,8 +317,8 @@ def cmd_apiq2(args: argparse.Namespace) -> None:
                                        "dry_run": args.dry_run},
                                runs_path=runs_path) as run:
                     run.set_meta(gpu_used=False)
-                    instr = _build_apiq2_instruction(image_path, item, variant, style_key,
-                                                    args.dry_run, run)
+                    instr = _build_api_instruction(image_path, item, variant, style_key,
+                                                   args.dry_run, run)
                     run.note(f"instruction[{variant}]: {instr}")
                     if args.dry_run:
                         if variant.startswith("enhanced"):
