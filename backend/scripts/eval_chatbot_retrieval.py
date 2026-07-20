@@ -66,19 +66,29 @@ def _escalation_metrics(rows: list) -> dict:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dense", action="store_true", help="KURE-v1 dense 아암 (BM25+RRF, CHAT-002)")
+    ap.add_argument("--rewrite", action="store_true",
+                    help="쿼리 리라이팅 아암 (CHAT-003) — ⚠️ 저신뢰 케이스당 LLM 1회 (OPENAI_API_KEY 필요)")
     args = ap.parse_args()
 
     cases = yaml.safe_load(GOLDEN_PATH.read_text(encoding="utf-8"))["cases"]
     embed_fn = build_transformers_embedder() if args.dense else None
     retriever = HybridRetriever(embed_fn=embed_fn)
-    suffix = "_dense" if args.dense else ""
+    suffix = ("_dense" if args.dense else "") + ("_rewrite" if args.rewrite else "")
+    if args.rewrite:
+        from app.services.chatbot.chat_service import retrieve_with_rewrite  # noqa: PLC0415
 
+    rewrites: list[tuple[str, str]] = []
     ans_by_type: dict[str, list] = defaultdict(list)
     esc_by_type: dict[str, list] = defaultdict(list)
     for c in cases:
         ctype = c.get("type", "direct")
-        hits = retriever.search(c["q"], top_k=TOP_K)
-        confident = HybridRetriever.is_confident(hits)
+        if args.rewrite:
+            hits, confident, rewritten = retrieve_with_rewrite(retriever, c["q"], top_k=TOP_K)
+            if rewritten:
+                rewrites.append((c["q"], rewritten))
+        else:
+            hits = retriever.search(c["q"], top_k=TOP_K)
+            confident = HybridRetriever.is_confident(hits)
         top_ids = [h.faq.id for h in hits]
         if c.get("escalate"):
             esc_by_type[ctype].append((c["q"], confident, top_ids, hits[0].bm25_score if hits else 0.0))
@@ -94,7 +104,9 @@ def main() -> None:
     predicted_esc = esc_correct + sum(1 for r in ans_all if not r[4])
     metrics = {
         "golden": GOLDEN_PATH.name,
-        "arm": "bm25+dense(KURE-v1,RRF)" if args.dense else "bm25",
+        "arm": ("bm25+dense(KURE-v1,RRF)" if args.dense else "bm25")
+        + ("+rewrite" if args.rewrite else ""),
+        "rewrites": [{"q": q, "rewritten": r} for q, r in rewrites],
         "overall": {
             "answerable": _answerable_metrics(ans_all),
             "escalation": {
@@ -150,9 +162,13 @@ def main() -> None:
 
     # --- 클린 A/B 자동 델타 (dense 아암 실행 시, baseline 이 있으면) -------------
     base_path = OUT_DIR / "chatbot_eval_retrieval.json"
-    if args.dense and base_path.exists():
+    if rewrites:
+        print("\n== 리라이팅 발동 케이스 ==")
+        for q, r in rewrites:
+            print(f"  {q!r} → {r!r}")
+    if (args.dense or args.rewrite) and base_path.exists():
         base = json.loads(base_path.read_text(encoding="utf-8"))
-        print("\n== A/B 델타 (dense − bm25) — 단일변수: embed_fn ==")
+        print(f"\n== A/B 델타 ({metrics['arm']} − bm25) — 단일변수 ==")
         for t in ANSWERABLE_TYPES:
             b, d = base["by_type"].get(t, {}), metrics["by_type"].get(t, {})
             if b.get("n"):
