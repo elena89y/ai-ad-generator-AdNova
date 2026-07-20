@@ -43,6 +43,7 @@ const USES = [
   { v: "sns", label: "SNS" },
   { v: "card", label: "카드뉴스" },
   { v: "banner", label: "배너" },
+  // [html-parity] 전단지 폐기 결정 반영 — 모놀리식 html은 이미 상세페이지로 교체됨
   { v: "detail", label: "상세페이지" },
 ];
 
@@ -54,7 +55,8 @@ const FORMAT_TO_USE: Record<string, string> = {
   detail_page: "detail",
 };
 
-/* 포맷 갤러리 라벨 (purpose 기준, 모놀리식 html FORMAT_GALLERY_LABELS 이식) */
+/* [html-parity] 포맷 갤러리 라벨 — 모놀리식 html FORMAT_GALLERY_LABELS 이식.
+   Next 이관에서 format_outputs 갤러리 자체가 누락되어 있었음 (index.html renderFormatGallery) */
 const FORMAT_GALLERY_LABELS: Record<string, string> = {
   sns: "이미지",
   card_news: "카드뉴스",
@@ -62,7 +64,8 @@ const FORMAT_GALLERY_LABELS: Record<string, string> = {
   detail_page: "상세페이지",
 };
 
-/* 용도 버튼 값 → 백엔드 purpose (모놀리식 html getSelectedPurpose 이식) */
+/* [html-parity] 용도 버튼 값 → 백엔드 purpose — 모놀리식 html getSelectedPurpose 이식.
+   Next 이관에서는 useValue가 페이로드에 실리지 않아 용도 버튼이 무동작이었음 */
 function resolvePurpose(value: string): string {
   return value === "banner"
     ? "banner"
@@ -100,6 +103,7 @@ export default function StudioPage() {
   const [loading, setLoading] = useState(false);
   const [loadStep, setLoadStep] = useState(GEN_STEPS[0]);
   const [activePlatform, setActivePlatform] = useState("instagram");
+  // [html-parity] 타이포 토글 상태 — html #typographyToggle 이식 (Next 이관 시 누락)
   const [typographyOn, setTypographyOn] = useState(true);
   const [uploadInfo, setUploadInfo] = useState(
     "사진만 넣으면 배경·구도는 AI가 알아서 잡아줘요."
@@ -220,7 +224,8 @@ export default function StudioPage() {
     formData.append("style", STYLE_PRESET_MAP[s.styleLabel] || "pop");
     formData.append("use_vision", "false");
     const purpose = resolvePurpose(s.useValue);
-    // 모놀리식 html과 동일: sns 용도만 poster=true
+    // [html-parity] html generate와 동일하게 purpose 전송 + sns 용도만 poster=true.
+    // 이관 직후엔 poster="false" 하드코딩 + purpose 미전송으로 용도 선택이 무시됐음.
     formData.append("poster", String(purpose === "sns"));
     formData.append("purpose", purpose);
 
@@ -269,6 +274,7 @@ export default function StudioPage() {
           product_description: s.promptText.trim(),
           prev_seed: s.currentResult.seed,
           use_vision: false,
+          // [html-parity] html regenerate와 동일 — 이관 시 poster:false 하드코딩·purpose 누락
           poster: resolvePurpose(s.useValue) === "sns",
           purpose: resolvePurpose(s.useValue),
         }),
@@ -324,7 +330,8 @@ export default function StudioPage() {
     router.push("/share");
   }
 
-  // 공통 다운로드 헬퍼 (메인 결과 + 포맷 갤러리 공용). 인증 헤더 + 프리미엄 게이트.
+  // [html-parity] html downloadImageFile 이식 — 기존 downloadResult 본문과 통합해
+  // 메인 결과 + 포맷 갤러리 공용. 인증 헤더 + 프리미엄 게이트 유지.
   async function downloadImage(url: string | undefined, filename: string) {
     if (!s.isPremium) {
       router.push("/billing");
@@ -359,6 +366,7 @@ export default function StudioPage() {
   }
 
   const result = s.currentResult;
+  // [html-parity] html applyGeneratedResult/getResultImageUrl 이식 (Next 이관 시 누락).
   // 타이포 페어(포함/무타이포)가 모두 있을 때만 토글 노출. 없으면 image_url 폴백.
   const hasTypographyPair = Boolean(
     result?.image_with_typography_url && result?.image_without_typography_url,
@@ -684,6 +692,7 @@ export default function StudioPage() {
             </div>
           ) : (
             <div>
+              {/* [html-parity] 타이포 포함 토글 — html #resultTypeOption 이식 (Next 이관 시 누락) */}
               {hasTypographyPair && (
                 <div
                   style={{
@@ -825,6 +834,8 @@ export default function StudioPage() {
                 </div>
               </div>
 
+              {/* [html-parity] 포맷 갤러리 — html renderFormatGallery 이식 (Next 이관 시 누락).
+                  용도별 산출물이 Next에서 안 보이던 원인. 인증 이미지라 AuthenticatedImage 사용 */}
               {(result.format_outputs?.length ?? 0) > 0 && (
                 <div
                   style={{
