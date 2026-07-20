@@ -271,9 +271,16 @@ def _build_apiq2_instruction(image_path: Path, item: dict, variant: str,
     import re
 
     hint = re.sub(r",?\s*--\w+(\s+\S+)?", "", hint).strip().rstrip(",")
-    return build_edit_instruction(subject, style_hint=hint,
-                                  identity_parts=identity, flexible_parts=flexible,
-                                  is_object=item["expected_mode"] == "object")
+    instr = build_edit_instruction(subject, style_hint=hint,
+                                   identity_parts=identity, flexible_parts=flexible,
+                                   is_object=item["expected_mode"] == "object")
+    if variant == "enhanced_v2":
+        # APIQ-002 보강 가드: 브랜드·스타일링 소품 보존 + 무드발(發) 소품 추가 금지 최종 규칙
+        from app.services import prompt_registry
+
+        instr += " " + prompt_registry.get("api_image", "brand_style_lock")
+        instr += " " + prompt_registry.get("api_image", "props_guard_final")
+    return instr
 
 
 def cmd_apiq2(args: argparse.Namespace) -> None:
@@ -291,8 +298,11 @@ def cmd_apiq2(args: argparse.Namespace) -> None:
     items = [by_file[f] for f in (data.get("apiq") or {}).get("items", []) if f in by_file]
     assert len(items) == 3 and set(style_map) == {i["file"] for i in items}, \
         "APIQ-002: apiq.items 3장과 apiq2.style_map 키가 일치해야 함"
+    if args.only:  # 부분 재검증(예: 가드 보강 후 에이드만)
+        items = [i for i in items if i["file"] == args.only]
+        assert items, f"--only {args.only}: apiq.items 에 없음"
 
-    for variant in apiq2.get("variants", ["draft", "enhanced"]):
+    for variant in (args.variants or apiq2.get("variants", ["draft", "enhanced"])):
         out_dir = BACKEND / "results" / "ai" / "apiq002" / variant
         out_dir.mkdir(parents=True, exist_ok=True)
         for item in items:
@@ -314,13 +324,16 @@ def cmd_apiq2(args: argparse.Namespace) -> None:
                                                     args.dry_run, run)
                     run.note(f"instruction[{variant}]: {instr}")
                     if args.dry_run:
-                        if variant == "enhanced":
+                        if variant.startswith("enhanced"):
                             from app.services.style_specs import get_spec
                             frag = get_spec(style_key).scene_prompt.format(
                                 subject=item["subject_en"])[:30]
                             assert frag and frag in instr, \
                                 f"scene_prompt 주입 누락: {style_key}"
                             assert "(dry) label" in instr, "identity_parts 주입 누락"
+                        if variant == "enhanced_v2":
+                            assert "styling accessory" in instr and "Final rule" in instr, \
+                                "v2 보강 가드 누락 (prompts/api_image.yaml 확인)"
                         from app.harness.pricing import image_cost_of
                         run.add_llm_usage("gpt-5.4-mini", tok_in=300, tok_out=80)
                         run.add_image_api_usage(model, n=1,
@@ -508,6 +521,9 @@ def main() -> None:
     pq.set_defaults(fn=cmd_apiq)
     p2 = sub.add_parser("apiq2", help="APIQ-002: 지시문 강화 A/B (3장×2변형, g2/low 고정, ≤$0.15)")
     p2.add_argument("--inputs-dir", required=True, help="입력 디렉터리 (HYB001_inputs 재사용)")
+    p2.add_argument("--only", help="apiq.items 중 1장만 재검증 (예: drink_ade.png)")
+    p2.add_argument("--variants", nargs="+",
+                    help="변형 지정 (기본: 매니페스트. 보강 재검증은 enhanced_v2)")
     p2.add_argument("--dry-run", action="store_true")
     p2.set_defaults(fn=cmd_apiq2)
     ps = sub.add_parser("summary", help="KPI 비교표 생성 (기본 HYB-001 3암, --apiq/--apiq2)")
