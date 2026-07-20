@@ -9,10 +9,8 @@
   --ink-mute: #8b8794;
   --line: rgba(255, 255, 255, 0.09);
   --card: #1f1e25;
-  --gold: #f2a93b;
-  --gold-deep: #f2b65a;
-  --berry: #e0567f;
-  --berry-deep: #c42e5c;
+  --gold: var(--accent);
+  --gold-deep: var(--accent-deep);
   --plum: #3b2f55;
   --ok: #5be3a0;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.5);
@@ -86,7 +84,7 @@
   font-style: italic;
   font-weight: 400;
   font-size: 20px;
-  color: var(--gold-deep);
+  color: var(--accent-deep);
   margin-left: -2px;
   line-height: 1;
 }
@@ -267,19 +265,39 @@
 
 /* ---------- LOGIN / SIGNUP / FORGOT ---------- */
 .auth-screen {
+  position: relative;
   min-height: 100vh;
   display: grid;
   grid-template-columns: 1fr 1fr;
+  overflow: hidden;
+
   background:
-    radial-gradient(85% 75% at 80% 32%, rgba(242, 169, 59, 0.13), transparent 60%),
-    radial-gradient(70% 65% at 90% 88%, rgba(196, 46, 92, 0.11), transparent 60%),
-    #131217;
+    radial-gradient(
+      circle 520px at calc(100% + 130px) -180px,
+      rgba(126, 87, 255, 0.26) 0%,
+      rgba(126, 87, 255, 0) 70%
+    ),
+    radial-gradient(
+      circle 620px at -180px calc(100% + 240px),
+      rgba(41, 182, 246, 0.18) 0%,
+      rgba(41, 182, 246, 0) 70%
+    ),
+    linear-gradient(
+      145deg,
+      #07111f 0%,
+      #0b1729 48%,
+      #101328 100%
+    );
+
+  color: var(--foreground);
 }
 .login-left {
   display: flex;
   flex-direction: column;
   justify-content: center;
   padding: 40px clamp(40px, 6vw, 80px);
+  background: transparent;
+  color: var(--foreground);
 }
 .login-brand {
   display: inline-flex;
@@ -319,27 +337,27 @@
 .field input {
   width: 100%;
   padding: 13px 15px;
-  border: 1.5px solid var(--line);
+  border: 1.5px solid var(--auth-border);
   border-radius: 12px;
   font-size: 15px;
-  background: var(--card);
+  background: var(--auth-input);
   transition: 0.15s;
-  color: var(--ink);
-  -webkit-text-fill-color: var(--ink);
+  color: var(--foreground);
+  -webkit-text-fill-color: var(--foreground);
 }
 .field input::placeholder {
   color: var(--ink-mute);
 }
 .field input:-webkit-autofill,
 .field input:-webkit-autofill:focus {
-  -webkit-text-fill-color: var(--ink);
-  -webkit-box-shadow: 0 0 0 1000px var(--card) inset;
-  caret-color: var(--ink);
+  -webkit-text-fill-color: var(--foreground);
+  -webkit-box-shadow: 0 0 0 1000px var(--auth-input) inset;
+  caret-color: var(--foreground);
 }
 .field input:focus {
   outline: none;
-  border-color: var(--gold);
-  box-shadow: 0 0 0 4px rgba(242, 169, 59, 0.18);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--auth-glow);
 }
 .password-input {
   position: relative;
@@ -386,7 +404,8 @@
   font-size: 15.5px;
   font-weight: 700;
   color: #fff;
-  background: linear-gradient(120deg, var(--gold), var(--berry-deep));
+  background: var(--auth-gradient);
+  box-shadow: 0 12px 30px var(--auth-glow);
   transition: 0.15s;
   margin-top: 6px;
 }
@@ -488,24 +507,11 @@
 .login-right {
   position: relative;
   overflow: hidden;
-  background: transparent;
   display: grid;
   place-items: center;
+  background: transparent;
 }
-.spotlight {
-  position: absolute;
-  width: 150%;
-  height: 150%;
-  left: -25%;
-  top: -25%;
-  background: conic-gradient(
-    from 200deg at 60% 40%,
-    transparent 0deg,
-    rgba(242, 169, 59, 0.14) 40deg,
-    transparent 90deg
-  );
-  animation: studio-spin 22s linear infinite;
-}
+
 @keyframes studio-spin {
   to {
     transform: rotate(360deg);
