@@ -97,6 +97,7 @@ class GenerationOutput:
     image_without_typography_path: Optional[str] = None
     image_with_typography_path: Optional[str] = None
     typography_layout: Optional[str] = None
+    domain: str = "food"      # food | drink | object (r.style_domain 우선, 없으면 r.domain, DETAIL-001)
 
 
 def run_generation(
@@ -342,6 +343,7 @@ def run_from_upload_v2(
                 image_without_typography_path=variants.without_typography_path,
                 image_with_typography_path=variants.with_typography_path,
                 typography_layout=variants.layout_key,
+                domain=getattr(r, "style_domain", None) or getattr(r, "domain", "food"),
             )
 
 
@@ -428,6 +430,7 @@ def rerun_v2(
                 image_without_typography_path=variants.without_typography_path,
                 image_with_typography_path=variants.with_typography_path,
                 typography_layout=variants.layout_key,
+                domain=getattr(r, "style_domain", None) or getattr(r, "domain", "food"),
             )
 
 
@@ -448,6 +451,7 @@ class ProcessedAd:
     seed: int
     style: Optional[str] = None       # 디자인시스템 스타일 키(있으면 style_gen 경로)
     aesthetic: Optional[float] = None # NIMA 심미 점수(플라이휠 라벨)
+    style_domain: Optional[str] = None  # food | drink | object (_resolve_style_domain 결과, DETAIL-001)
 
 
 def build_typography_variants(
@@ -853,6 +857,7 @@ def _process_ad_impl(
         subject_en=subject_en, copy_text=copy.copy_text, poster=poster,
         seconds=round(time.time() - t0, 2), seed=selected_seed,
         style=style, aesthetic=aesthetic,
+        style_domain=style_domain if style else None,
     )
 
     return result

@@ -185,6 +185,30 @@ def _record_generated_result(
             commit=False,
         )
 
+        # 타이포 ON/OFF 두 변형 모두 GET /ads/image/{filename}로 조회 가능해야 하는데,
+        # get_result_image()가 Image.stored_filename 정확일치로 소유자를 확인한다.
+        # 위에서 result.image_url(선택된 한쪽)만 등록하면 반대쪽 변형은 파일은 존재해도
+        # DB row가 없어 404("이미지 없음")가 난다(2026-07-20, TOGGLE-001). 나머지 변형도 등록.
+        for variant_url in (result.image_without_typography_url, result.image_with_typography_url):
+            if not variant_url:
+                continue
+            variant_filename = Path(variant_url).name
+            if variant_filename == output_filename:
+                continue
+            variant_path = image_service.RESULTS_DIR / variant_filename
+            create_image(
+                db,
+                user_id=user_id,
+                image_type="generated",
+                original_filename=variant_filename,
+                stored_filename=variant_filename,
+                file_path=str(variant_path),
+                image_url=variant_url,
+                content_type="image/png",
+                file_size=variant_path.stat().st_size if variant_path.exists() else None,
+                commit=False,
+            )
+
         advertisement = create_advertisement(
             db,
             user_id=user_id,
