@@ -64,12 +64,12 @@ export default function TemplatesPage() {
             원하는 연출을 고르면 스타일·용도가 자동으로 설정돼요. 제품 사진 1장이면 충분합니다.
           </p>
 
-          {/* 태그 필터 칩 */}
+          {/* 태그 필터 칩 — 가로 스크롤 대신 창 폭에 맞춰 여러 줄로 감싼다 */}
           <div
             style={{
               display: "flex",
               gap: 7,
-              overflowX: "auto",
+              flexWrap: "wrap",
               paddingBottom: 10,
               marginBottom: 16,
             }}
