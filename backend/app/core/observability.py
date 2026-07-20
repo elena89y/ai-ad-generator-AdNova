@@ -88,6 +88,36 @@ def observe(name: str | None = None):  # noqa: ANN201
         return _decorator
 
 
+def push_kpi_scores(run_id: str, kpi: dict | None) -> None:
+    """KPI 3축(비용/시간/품질)을 현재 Langfuse 트레이스의 score 로 push (v6 T0).
+
+    RunLogger.__exit__ 에서 호출된다. @observe 로 감싼 진입점(run_from_upload_v2 등)
+    안이면 현재 트레이스에 붙고, 트레이스 밖(단독 스크립트)이나 키 미설정이면 무해 no-op.
+    원본 데이터는 항상 runs.jsonl — Langfuse 는 대시보드 뷰일 뿐이라 실패해도 유실 없음.
+    """
+    if kpi is None or not os.environ.get("LANGFUSE_PUBLIC_KEY"):
+        return
+    try:
+        from langfuse import get_client
+
+        client = get_client()
+        scores: dict[str, float] = {
+            "kpi.cost_total_usd": float(kpi["cost"]["total_usd"]),
+        }
+        if kpi["time"]["total_s"] is not None:
+            scores["kpi.time_total_s"] = float(kpi["time"]["total_s"])
+        quality = kpi["quality"]
+        if quality.get("gate_passed") is not None:
+            scores["kpi.quality_gate_passed"] = 1.0 if quality["gate_passed"] else 0.0
+        for key in ("aesthetic", "judge_score", "identity"):
+            if quality.get(key) is not None:
+                scores[f"kpi.quality_{key}"] = float(quality[key])
+        for name, value in scores.items():
+            client.score_current_trace(name=name, value=value, comment=f"run_id={run_id}")
+    except Exception as e:  # noqa: BLE001 — score 실패가 생성 응답을 막으면 안 됨
+        logger.debug(f"Langfuse KPI score push 실패(무해): {e}")
+
+
 @contextmanager
 def propagate_attributes(**attrs):  # noqa: ANN003, ANN201
     """langfuse.propagate_attributes optional wrapper. 없으면 no-op context.
