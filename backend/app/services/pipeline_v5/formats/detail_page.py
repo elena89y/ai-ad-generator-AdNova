@@ -9,21 +9,13 @@ from PIL import Image, ImageDraw, ImageFont
 
 from ..format_spec import FormatSpec
 from ..hero import DetailCut, DetailCutRole, HeroAsset
-from ..commercial_copy import copy_for
+from ..commercial_copy import copy_for, section_copy_for
 
 MIN_UNIQUE_CUTS = 5
 REQUIRED_ROLES = tuple(DetailCutRole)
 MAX_STRUCTURE_CORRELATION = 0.84
 DEFAULT_CTA_TITLE = "지금 만나보세요"
 DEFAULT_CTA_LABEL = "자세히 보기"
-
-# 도메인 무관 문구(2026-07-20, ROUTING-001): "한 잔" 등 음료 전용 표현이 하드코딩돼 있어
-#   음식/사물 상세페이지에서도 그대로 나갔다. hero.domain(food|drink|object) 기준으로 분기.
-_TOP_VIEW_LABELS = {
-    "food": "위에서 보는 플레이팅",
-    "drink": "위에서 만나는 한 잔",
-    "object": "위에서 보는 디테일",
-}
 
 
 def render(hero: HeroAsset, spec: FormatSpec, output_dir: str) -> list[str]:
@@ -40,7 +32,7 @@ def render(hero: HeroAsset, spec: FormatSpec, output_dir: str) -> list[str]:
     _story(canvas, hero, y, heights[1], margin, width); y += heights[1]
 
     top = _cover(Image.open(cuts[DetailCutRole.TOP_VIEW]).convert("RGB"), (width, heights[2]))
-    top_view_label = _TOP_VIEW_LABELS.get(hero.domain, _TOP_VIEW_LABELS["food"])
+    top_view_label = section_copy_for(hero).top_view_label
     canvas.paste(top, (0, y)); _section_label(canvas, y, "01", top_view_label, light=False); y += heights[2]
 
     closeup = _cover(Image.open(cuts[DetailCutRole.TEXTURE_CLOSEUP]).convert("RGB"), (width, heights[3]))
