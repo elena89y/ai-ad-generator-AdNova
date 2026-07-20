@@ -135,16 +135,18 @@ def test_policy_api_routes_api(_stub_nodes):
     assert final["gate_passed"] is True and final["attempts"] == 1
 
 
-def test_hybrid_object_goes_api(_stub_nodes):
+def test_hybrid_object_goes_local(_stub_nodes):
+    """HYB-002 배정: 사물(C)은 local — warm 비용·정체성 우위 (HYB-001 육안 정본)."""
     final = _seq({"image_path": "x", "name": "n", "policy": "hybrid",
                   "domain": "object", "texture_hero": False, "attempts": 0})
-    assert final["engine"] == "api"
-
-
-def test_hybrid_plain_food_goes_local(_stub_nodes):
-    final = _seq({"image_path": "x", "name": "n", "policy": "hybrid",
-                  "domain": "food", "texture_hero": False, "attempts": 0})
     assert final["engine"] == "local" and _stub_nodes == {"api": 0, "local": 1}
+
+
+def test_hybrid_food_goes_api(_stub_nodes):
+    """HYB-002 배정: 연출류(음식·카페)는 api — texture_hero 여부와 무관 (구가설 폐기)."""
+    final = _seq({"image_path": "x", "name": "n", "policy": "hybrid",
+                  "domain": "food", "texture_hero": True, "attempts": 0})
+    assert final["engine"] == "api" and _stub_nodes == {"api": 1, "local": 0}
 
 
 def test_gate_fail_hybrid_crosses_engine(monkeypatch, _stub_nodes):
