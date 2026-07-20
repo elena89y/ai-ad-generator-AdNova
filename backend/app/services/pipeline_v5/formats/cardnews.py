@@ -14,6 +14,14 @@ SLIDE_COUNT = 4
 DEFAULT_CTA_TITLE = "지금 만나보세요"
 DEFAULT_CTA_LABEL = "자세히 보기"
 
+# 도메인 무관 문구(2026-07-20, ROUTING-001): "한 잔" 등 음료 전용 표현이 하드코딩돼 있어
+#   음식/사물 카드뉴스에서도 그대로 나갔다. hero.domain(food|drink|object) 기준으로 분기.
+_DETAIL_TITLES = {
+    "food": "맛까지\n또렷하게",
+    "drink": "한 잔의\n디테일",
+    "object": "디테일까지\n또렷하게",
+}
+
 
 def render(hero: HeroAsset, spec: FormatSpec, output_dir: str) -> list[str]:
     """표지·상품 인상·디테일·CTA를 각기 다른 구도로 만든다."""
@@ -101,7 +109,8 @@ def _detail_slide(
     copy = copy_for(hero)
     x = int(w * .51)
     draw.text((x, int(h * .70)), "03 / DETAIL", font=_font(21, True), fill=(43, 63, 187))
-    draw.text((x, int(h * .76)), "한 잔의\n디테일", font=_font(46, True), fill=(22, 22, 22), spacing=10)
+    detail_title = _DETAIL_TITLES.get(hero.domain, _DETAIL_TITLES["food"])
+    draw.text((x, int(h * .76)), detail_title, font=_font(46, True), fill=(22, 22, 22), spacing=10)
     if copy.subcopy:
         for index, line in enumerate(_wrap(copy.subcopy, 12)):
             draw.text((x, int(h * .88) + index * 34), line, font=_font(23), fill=(88, 84, 78))
