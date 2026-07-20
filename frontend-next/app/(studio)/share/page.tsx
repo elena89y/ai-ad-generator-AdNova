@@ -1,0 +1,201 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { getItemPlatformCopy } from "@/lib/api";
+import { PLATFORM_NAMES, exportSnsPost } from "@/lib/sns";
+import { useStudio } from "@/components/studio/StudioProvider";
+import { Brand } from "@/components/studio/chrome";
+
+const TABS = [
+  { p: "instagram", label: "Instagram", ig: true },
+  { p: "facebook", label: "Facebook" },
+  { p: "x", label: "X" },
+  { p: "threads", label: "Threads" },
+];
+
+export default function SharePage() {
+  const s = useStudio();
+  const router = useRouter();
+  const [platform, setPlatform] = useState(s.sharePlatform || "instagram");
+  const item = s.activeItem;
+
+  useEffect(() => {
+    if (s.ready && !item) router.replace("/studio");
+  }, [s.ready, item, router]);
+
+  if (!item) return null;
+  const copy = getItemPlatformCopy(item, platform);
+
+  async function shareNow() {
+    if (!item) return;
+    await exportSnsPost(
+      platform,
+      { ...item, copyHead: copy.head, copyBody: copy.body, copyTags: copy.tags },
+      s.toast
+    );
+  }
+
+  return (
+    <section>
+      <div className="subbar">
+        <Brand />
+        <Link href={s.shareFrom || "/studio"} className="back-link" style={{ margin: "0 0 0 6px" }}>
+          ← 뒤로
+        </Link>
+      </div>
+      <div className="page" style={{ maxWidth: 560 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 16 }}>
+          <h2 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-.5px" }}>
+            공유 &amp; 내보내기
+          </h2>
+          <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--ink-mute)" }}>
+            이력에 저장됨 ✓
+          </span>
+        </div>
+        <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+          {TABS.map((t) => (
+            <button
+              key={t.p}
+              className={`shtab${platform === t.p ? " on" : ""}`}
+              onClick={() => setPlatform(t.p)}
+            >
+              {t.ig && (
+                <span
+                  style={{
+                    width: 15,
+                    height: 15,
+                    borderRadius: 4,
+                    background: "linear-gradient(135deg,#f9ce34,#ee2a7b,#6228d7)",
+                    display: "grid",
+                    placeItems: "center",
+                    fontSize: 8,
+                    color: "#fff",
+                    fontWeight: 800,
+                  }}
+                >
+                  IG
+                </span>
+              )}
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div
+          style={{
+            background: "var(--card)",
+            border: "1px solid var(--line)",
+            borderRadius: 14,
+            overflow: "hidden",
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ aspectRatio: "1", background: "#0d0d10", position: "relative" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={item.img}
+              alt="공유할 광고"
+              style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+            />
+            <span
+              style={{
+                position: "absolute",
+                left: 11,
+                top: 11,
+                background: "rgba(0,0,0,.5)",
+                color: "var(--ink-soft)",
+                fontSize: 10,
+                fontWeight: 700,
+                padding: "4px 8px",
+                borderRadius: 6,
+              }}
+            >
+              AI 광고
+            </span>
+          </div>
+          <div style={{ padding: "14px 16px" }}>
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 700,
+                fontFamily: "var(--serif)",
+                fontStyle: "italic",
+                marginBottom: 5,
+              }}
+            >
+              {copy.head}
+            </div>
+            <div
+              style={{
+                fontSize: 12.5,
+                lineHeight: 1.6,
+                color: "var(--ink-soft)",
+                marginBottom: 7,
+                whiteSpace: "pre-line",
+              }}
+            >
+              {copy.body}
+            </div>
+            <div style={{ fontSize: 12, color: "var(--gold)", fontWeight: 600 }}>
+              {copy.tags}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <button
+            style={{
+              width: "100%",
+              padding: 12,
+              border: "none",
+              borderRadius: 11,
+              background: "var(--gold)",
+              color: "#16151A",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+            onClick={shareNow}
+          >
+            ↗ {PLATFORM_NAMES[platform] || platform} 공유
+          </button>
+        </div>
+        {!s.isPremium && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "12px 14px",
+              background: "rgba(242,169,59,.08)",
+              border: "1px solid rgba(242,169,59,.24)",
+              borderRadius: 11,
+            }}
+          >
+            <span>🔒</span>
+            <span
+              style={{ flex: 1, fontSize: 12, color: "var(--gold-deep)", fontWeight: 600 }}
+            >
+              고해상도 원본 다운로드는 프리미엄
+            </span>
+            <button
+              style={{
+                padding: "8px 13px",
+                border: "none",
+                borderRadius: 9,
+                background: "transparent",
+                color: "var(--gold)",
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: "pointer",
+              }}
+              onClick={() => router.push("/billing")}
+            >
+              업그레이드 →
+            </button>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
