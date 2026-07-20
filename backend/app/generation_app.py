@@ -137,6 +137,7 @@ def _render_multiformat(
         headline=headline.strip() or product_name,
         subcopy=subcopy.strip(),
         detail_cuts=tuple(cuts),
+        domain=getattr(out, "domain", "food"),
     )
     rendered = pipeline_v5.generate_v5(
         source,

@@ -41,15 +41,29 @@ _CLIP_STYLE_ANCHORS = {
 
 _IDENTITY_LOCKS = {
     "food": (
+        # BUG-KTX-001-2(2026-07-20): "realism" 스타일에서 컵 변환이 재발(negative 문구만으로는
+        #   불충분, 4/4는 아니지만 재현됨). 문장 맨 앞에 긍정 단언을 추가 — 부정문보다 앞쪽의
+        #   긍정 진술이 모델 조건화에 더 강하게 anchor된다는 관찰에 따른 보강.
+        "This is a plated food photograph resting on a flat table. There is no cup, mug, tumbler, lid or straw "
+        "anywhere in this image. "
         "Edit this exact food photograph. Keep every food item, plate, sauce and garnish exactly as "
-        "photographed: the same count, shape, doneness, texture, colors, camera angle, crop and arrangement. "
+        "photographed: the same count, shape, doneness, texture and colors. "
         # BUG-KTX-001(2026-07-20): top-down 원형 접시 샌드위치가 4/4 시드에서 테이크아웃 컵으로
         #   정규화됨(접시의 원형·방사형 골이 컵 뚜껑 시각신호와 겹침). 객체 변환 부정문으로 차단
         #   — seed42 단독 검증에서 정체성·구도 복원 확인.
         "Never convert the food, its plate or bowl into a cup, mug, takeaway container or any different "
-        "kind of object. "
-        "Do not add, remove, redraw, resize, move, merge or recolor any food item. Change only the background, "
-        "table surface and environmental lighting. "
+        "kind of object. The subject must remain a plated food item, never a beverage. "
+        "Do not add, remove, redraw, resize or recolor any food item, and do not rearrange food items relative "
+        "to each other. "
+        # PLATING-001(2026-07-20): editorial 등 배경·구도를 새로 그리는 스타일에서 "카메라 앵글 고정"
+        #   지시를 모델이 절반만 따라 배경만 바뀌고 음식은 원본 각도 그대로 남아, 새 장면(테이블·창문)
+        #   위에 붕 뜨거나 단면으로 세워진 것처럼 보이는 부자연스러운 결과가 나옴(육안 확인).
+        #   카메라 앵글 고정 대신 "장면에 맞는 자연스러운 접지"를 명시적으로 요구.
+        "You may reorient the whole plate or food as a single rigid object so it sits naturally within the new "
+        "scene, but it must always rest fully and flatly on the table surface with a single realistic contact "
+        "shadow. Never leave the food floating, tilted upright, balanced on a cut edge, or otherwise unsupported. "
+        "Change the background, table surface, camera framing and environmental lighting to match the requested "
+        "scene. "
     ),
     "drink": (
         "Edit this exact drink photograph. Preserve every source pixel belonging to the drink and its vessel. "
@@ -91,9 +105,13 @@ _PLANS: dict[tuple[str, str], ReferenceStylePlan] = {
     ("food", "realism"): _plan(
         "realism", "food", "macro_texture + food_hero",
         ("03_리얼리즘__IMG_4604", "03_리얼리즘__IMG_4675", "03_리얼리즘__IMG_4691"),
-        "Create a true-to-life premium restaurant photograph with a dark charcoal stone table and a softly blurred "
-        "neutral dining background. Use realistic directional light that reveals the exact natural food texture "
-        "without exaggeration. No smoke, fire, utensils, ingredients, garnish, hands or text.",
+        # BUG-KTX-001-2(2026-07-20): 이 스타일만 컵 변환이 재발했다. 다른 스타일과 달리 접시가
+        #   "테이블 위에 평평히 놓임"을 명시하지 않고 흐린 배경만 지시해, 근접 제품샷(컵) 구도로
+        #   미끄러지기 쉬웠던 것으로 추정 — 접시·테이블 접지를 명시적으로 보강.
+        "Create a true-to-life premium restaurant photograph with the plate resting flat on a dark charcoal stone "
+        "table and a softly blurred neutral dining background behind it. Use realistic directional light that "
+        "reveals the exact natural food texture without exaggeration. No smoke, fire, utensils, ingredients, "
+        "garnish, hands or text.",
     ),
     ("food", "pastel"): _plan(
         "pastel", "food", "pastel_tabletop + food_hero",
