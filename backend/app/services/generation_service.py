@@ -483,6 +483,8 @@ def build_typography_variants(
         brand_label=brand_label,
         kicker=kicker,
         cta=cta,
+        # TS-1/2(영문 헤드라인) 분기용 — 없으면 조판기가 한글 계열로 폴백
+        subject_en=getattr(result, "subject_en", "") or "",
     )
 
 
