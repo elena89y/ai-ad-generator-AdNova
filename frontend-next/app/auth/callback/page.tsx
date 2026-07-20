@@ -45,7 +45,7 @@ export default function OAuthCallbackPage() {
 
         setMessage("로그인이 완료되었습니다.");
 
-        router.replace("/");
+        router.replace("/dashboard");
       } catch (error) {
         console.error("[OAuth Callback Error]", error);
 
