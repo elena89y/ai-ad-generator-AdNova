@@ -27,6 +27,23 @@ type Message = {
 const GREETING =
   "안녕하세요, AdNova 고양이 상담사 노바냥이에요 🐾\n요금·사용법·사진 팁 등 궁금한 걸 물어보세요. 제가 모르는 건 1:1 문의로 이어드릴게요.";
 
+// KB 카테고리 → /support 문의 폼 카테고리 코드 매핑 (프리필용)
+const CATEGORY_CODE: Record<string, string> = {
+  "요금·크레딧": "billing",
+  계정: "account",
+  "서비스 이용": "generation",
+  "사진·품질": "generation",
+};
+
+function draftHref(draft: InquiryDraft): string {
+  const params = new URLSearchParams({
+    dtitle: draft.title,
+    dcontent: draft.content,
+    dcat: CATEGORY_CODE[draft.category_hint ?? ""] ?? "general",
+  });
+  return `/support?${params.toString()}`;
+}
+
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -113,12 +130,17 @@ export default function ChatWidget() {
                       {msg.text}
                     </div>
                     {msg.sources && msg.sources.length > 0 && (
-                      <a
-                        href="/support"
-                        className="inline-block rounded-full border border-accent/40 bg-accent/10 px-2.5 py-0.5 text-[11px] text-accent-deep transition-colors hover:bg-accent/20"
-                      >
-                        관련 FAQ 보러가기 →
-                      </a>
+                      <div className="flex flex-wrap gap-1.5">
+                        {msg.sources.map((s) => (
+                          <a
+                            key={s}
+                            href={`/support#${s}`}
+                            className="rounded-full border border-accent/40 bg-accent/10 px-2.5 py-0.5 text-[11px] text-accent-deep transition-colors hover:bg-accent/20"
+                          >
+                            근거 FAQ 보기 →
+                          </a>
+                        ))}
+                      </div>
                     )}
                     {msg.draft && (
                       <div className="rounded-xl border border-accent/30 bg-accent/10 p-3 text-xs text-soft">
@@ -134,7 +156,7 @@ export default function ChatWidget() {
                             초안 복사
                           </button>
                           <a
-                            href="/support"
+                            href={draftHref(msg.draft)}
                             className="rounded-full accent-gradient px-3 py-1 text-[11px] font-semibold text-white"
                           >
                             1:1 문의 작성하기

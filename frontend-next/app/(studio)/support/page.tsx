@@ -1,32 +1,15 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { apiFetch, readApiError, readJsonSafely } from "@/lib/api";
 import { useStudio } from "@/components/studio/StudioProvider";
 import { SubBar } from "@/components/studio/chrome";
+import { FAQ_CATEGORIES, FAQ_ITEMS } from "@/lib/faq-data";
 
-const FAQS = [
-  {
-    q: "크레딧은 어떻게 충전하나요?",
-    a: "프리미엄 플랜에 가입하면 매월 30크레딧이 지급돼요. 부족하면 10크레딧당 4,900원에 추가 구매할 수 있어요.",
-    open: false,
-  },
-  {
-    q: "다운로드가 안 돼요.",
-    a: "원본 다운로드는 프리미엄 플랜에서만 제공돼요. 무료 체험에서는 워터마크 미리보기와 사이트 이력 저장까지 가능합니다.",
-    open: true,
-  },
-  {
-    q: "생성한 광고는 어디에 저장되나요?",
-    a: "모든 생성 결과는 '내 광고' 이력에 자동 저장돼요. 언제든 다시 보고 공유할 수 있어요.",
-    open: false,
-  },
-  {
-    q: "상품 사진은 어떻게 찍으면 좋나요?",
-    a: "제품이 화면 중앙에 크게, 밝은 곳에서 단색 배경으로 찍으면 배경 제거와 합성 품질이 좋아져요.",
-    open: false,
-  },
-];
+/* FAQ 는 챗봇 지식 베이스(backend faq_ko.yaml → lib/faq-data.ts)와 단일 원본.
+   기존 하드코딩 4문항은 KB 로 흡수됨(다운로드/충전은 정책 확정 전이라 비단정 문구).
+   confirming=true 항목은 '정책 확정 중' 배지 표시.
+   챗봇(노바냥)의 근거 칩이 /support#faq-id 로 딥링크 — 해시로 자동 펼침. */
 
 const CATEGORY_LABELS: Record<string, string> = {
   general: "일반 문의",
@@ -67,8 +50,10 @@ function formatInquiryDate(value: string) {
 export default function SupportPage() {
   const { toast, token } = useStudio();
   const [query, setQuery] = useState("");
-  const [openStates, setOpenStates] = useState(FAQS.map((f) => f.open));
+  const [openFaqId, setOpenFaqId] = useState<string | null>(null);
+  const [catFilter, setCatFilter] = useState("전체");
   const [formOpen, setFormOpen] = useState(false);
+  const formRef = useRef<HTMLDivElement>(null);
   const [category, setCategory] = useState("general");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -111,9 +96,47 @@ export default function SupportPage() {
     };
   }, [token, toast]);
 
+  // 챗봇 근거 칩 딥링크(#faq-id): 해당 항목 자동 펼침 + 스크롤
+  useEffect(() => {
+    const applyHash = () => {
+      const id = window.location.hash.replace("#", "");
+      if (id && FAQ_ITEMS.some((f) => f.id === id)) {
+        setCatFilter("전체");
+        setQuery("");
+        setOpenFaqId(id);
+        setTimeout(
+          () => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "center" }),
+          80
+        );
+      }
+    };
+    applyHash();
+    window.addEventListener("hashchange", applyHash);
+    return () => window.removeEventListener("hashchange", applyHash);
+  }, []);
+
+  // 챗봇 에스컬레이션 초안 프리필(?dcat&dtitle&dcontent) — useSearchParams 대신
+  // window 파싱 (클라이언트 전용 페이지라 Suspense 경계 불필요)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const dtitle = params.get("dtitle");
+    const dcontent = params.get("dcontent");
+    if (!dtitle && !dcontent) return;
+    const dcat = params.get("dcat");
+    if (dcat && Object.hasOwn(CATEGORY_LABELS, dcat)) setCategory(dcat);
+    if (dtitle) setTitle(dtitle);
+    if (dcontent) setContent(dcontent);
+    setFormOpen(true);
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 120);
+  }, []);
+
   const q = query.trim().toLowerCase();
-  const visible = FAQS.map((f) => !q || (f.q + f.a).toLowerCase().includes(q));
-  const anyVisible = visible.some(Boolean);
+  const shownFaqs = FAQ_ITEMS.filter(
+    (f) =>
+      (catFilter === "전체" || f.category === catFilter) &&
+      (!q || (f.question + f.answer).toLowerCase().includes(q))
+  );
+  const anyVisible = shownFaqs.length > 0;
 
   async function submitInquiry(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -210,21 +233,58 @@ export default function SupportPage() {
         >
           자주 묻는 질문
         </div>
-        {FAQS.map((f, i) =>
-          visible[i] ? (
-            <div
-              key={f.q}
-              className={`faq${openStates[i] ? " open" : ""}`}
-              onClick={() => setOpenStates((prev) => prev.map((v, j) => (j === i ? !v : v)))}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "0 0 12px" }}>
+          {["전체", ...FAQ_CATEGORIES].map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setCatFilter(c)}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 999,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                border: "1px solid " + (catFilter === c ? "transparent" : "var(--line)"),
+                background: catFilter === c ? "var(--gold)" : "#26242D",
+                color: catFilter === c ? "#16151A" : "var(--ink-mute)",
+              }}
             >
-              <div className="q">
-                {f.q}
-                <span className="pm" />
-              </div>
-              <p className="a">{f.a}</p>
+              {c}
+            </button>
+          ))}
+        </div>
+        {shownFaqs.map((f) => (
+          <div
+            key={f.id}
+            id={f.id}
+            className={`faq${openFaqId === f.id ? " open" : ""}`}
+            onClick={() => setOpenFaqId((prev) => (prev === f.id ? null : f.id))}
+          >
+            <div className="q">
+              {f.question}
+              <span className="pm" />
             </div>
-          ) : null
-        )}
+            <p className="a">
+              {f.answer}
+              {f.confirming && (
+                <span
+                  style={{
+                    display: "inline-block",
+                    marginLeft: 6,
+                    padding: "2px 8px",
+                    borderRadius: 999,
+                    fontSize: 11,
+                    background: "rgba(242,169,59,.14)",
+                    color: "var(--gold)",
+                  }}
+                >
+                  ⓘ 정책 확정 중
+                </span>
+              )}
+            </p>
+          </div>
+        ))}
         {!anyVisible && (
           <div style={{ textAlign: "center", padding: 24, color: "var(--ink-mute)", fontSize: 13 }}>
             검색 결과가 없습니다.
@@ -232,6 +292,7 @@ export default function SupportPage() {
         )}
 
         <div
+          ref={formRef}
           style={{
             marginTop: 20,
             background: "linear-gradient(135deg,rgba(242,169,59,.1),rgba(196,46,92,.1))",
