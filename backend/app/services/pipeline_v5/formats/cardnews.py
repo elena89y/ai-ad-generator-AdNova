@@ -116,11 +116,11 @@ def _cta_slide(path: str, hero: HeroAsset, size: tuple[int, int], margin_ratio: 
     margin = int(w * margin_ratio)
     draw.rectangle((0, 0, w, h), fill=(0, 0, 0, 38))
     draw.rectangle((0, int(h * .65), w, h), fill=(18, 18, 18, 228))
-    copy = copy_for(hero)
+    copy = section_copy_for(hero)
     draw.text((margin, int(h * .69)), copy.product_name or "SIGNATURE", font=_font(24, True), fill=(195, 207, 255))
-    draw.text((margin, int(h * .75)), DEFAULT_CTA_TITLE, font=_font(52, True), fill="white")
+    draw.text((margin, int(h * .75)), copy.cta_title, font=_font(52, True), fill="white")
     draw.rectangle((margin, int(h * .85), margin + 238, int(h * .85) + 68), fill=(35, 55, 167))
-    draw.text((margin + 38, int(h * .85) + 18), DEFAULT_CTA_LABEL, font=_font(25, True), fill="white")
+    draw.text((margin + 38, int(h * .85) + 18), copy.cta, font=_font(25, True), fill="white")
     draw.text((w - margin - 36, h - 62), "04", font=_font(22, True), fill=(170, 170, 170))
     return canvas
 

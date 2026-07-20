@@ -31,9 +31,10 @@ def render(hero: HeroAsset, spec: FormatSpec, output_dir: str) -> list[str]:
     canvas.paste(hero_section, (0, y)); _title_overlay(canvas, hero, y, heights[0], width); y += heights[0]
     _story(canvas, hero, y, heights[1], margin, width); y += heights[1]
 
+    section_copy = section_copy_for(hero)
+
     top = _cover(Image.open(cuts[DetailCutRole.TOP_VIEW]).convert("RGB"), (width, heights[2]))
-    top_view_label = section_copy_for(hero).top_view_label
-    canvas.paste(top, (0, y)); _section_label(canvas, y, "01", top_view_label, light=False); y += heights[2]
+    canvas.paste(top, (0, y)); _section_label(canvas, y, "01", section_copy.top_view_label, light=False); y += heights[2]
 
     closeup = _cover(Image.open(cuts[DetailCutRole.TEXTURE_CLOSEUP]).convert("RGB"), (width, heights[3]))
     canvas.paste(closeup, (0, y)); _section_label(canvas, y, "02", "가까이 볼수록 선명하게", light=True); y += heights[3]
@@ -43,7 +44,7 @@ def render(hero: HeroAsset, spec: FormatSpec, output_dir: str) -> list[str]:
     lifestyle = _cover(Image.open(cuts[DetailCutRole.LIFESTYLE]).convert("RGB"), (width, heights[5]))
     canvas.paste(lifestyle, (0, y)); _lifestyle_overlay(canvas, hero, y, heights[5], width, margin); y += heights[5]
 
-    _cta(canvas, y, heights[6], margin, width)
+    _cta(canvas, y, heights[6], margin, width, section_copy)
     out = Path(output_dir) / f"detail_{width}x{total_h}_{spec.label}.jpg"
     canvas.save(out, quality=93)
     return [str(out)]
@@ -174,12 +175,12 @@ def _lifestyle_overlay(canvas, hero, y, height, width, margin):
     draw.text((margin, y + int(height * .79)), copy.headline, font=_fit(copy.headline, width - margin * 2, 43, 29), fill="white")
 
 
-def _cta(canvas, y, height, margin, width):
+def _cta(canvas, y, height, margin, width, copy):
     draw = ImageDraw.Draw(canvas)
     draw.rectangle((0, y, width, y + height), fill=(22, 22, 22))
-    draw.text((margin, y + 62), DEFAULT_CTA_TITLE, font=_font(36, True), fill="white")
+    draw.text((margin, y + 62), copy.cta_title, font=_font(36, True), fill="white")
     draw.rectangle((margin, y + 172, margin + 220, y + 238), fill=(43, 63, 187))
-    draw.text((margin + 34, y + 190), DEFAULT_CTA_LABEL, font=_font(23, True), fill="white")
+    draw.text((margin + 34, y + 190), copy.cta, font=_font(23, True), fill="white")
 
 
 def _font(size, bold=False):
