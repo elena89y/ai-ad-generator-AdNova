@@ -18,7 +18,8 @@ class Settings:
         os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
     )
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", str(DEFAULT_UPLOAD_DIR))
-    MAX_IMAGE_SIZE_MB: int = int(os.getenv("MAX_IMAGE_SIZE_MB", "10"))
+    # 15MB: 폰 원본(12MB급) 수용 — 업로드 즉시 정규화(장변 2048)로 축소 저장되므로 부담 없음
+    MAX_IMAGE_SIZE_MB: int = int(os.getenv("MAX_IMAGE_SIZE_MB", "15"))
     CORS_ORIGINS: tuple[str, ...] = tuple(
         origin.strip()
         for origin in os.getenv(

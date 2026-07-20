@@ -47,7 +47,10 @@ async def upload_image(
             stored_filename=stored_filename,
             file_path=str(upload_path),
             image_url=image_url,
-            content_type=file.content_type,
+            # 업로드 정규화(2026-07-21) 후에는 저장 바이트의 실제 형식이 원본과 다를 수 있어
+            # 확장자 기준으로 기록한다 (upload_validation.normalize_image_content 참조)
+            content_type={".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+                          ".webp": "image/webp"}.get(suffix, file.content_type),
             file_size=len(content),
         )
     except Exception as exc:
