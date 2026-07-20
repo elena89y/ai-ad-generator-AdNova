@@ -324,6 +324,110 @@ def generate_platform_copy(
     return out
 
 
+# --- v6-1 F1: 상세페이지 섹션별 카피 (한 번 호출 JSON + 환각 게이트) ------------
+@dataclass
+class DetailCopy:
+    """상세페이지 섹션별 전용 카피 (DIRECTION_v6-1 F1 P1).
+
+    같은 headline 이 3개 섹션에 복붙되던 문제(D1)와 하드코딩 섹션 문구(D2),
+    스토리 본문·혜택 불릿 부재(D3)를 한 번 호출로 해소한다.
+    """
+    intro_headline: str          # 히어로 오버레이 (기존 headline 과 다른 후킹)
+    story_title: str             # PRODUCT STORY 제목
+    story_body: str              # PRODUCT STORY 본문 2~3문장
+    benefit_bullets: list[str]   # 혜택/특징 불릿 최대 3개 (없으면 섹션 생략)
+    top_view_label: str          # 01 탑뷰 라벨
+    closeup_caption: str         # 02 클로즈업 캡션
+    profile_title: str           # 03 스플릿 제목 (최대 2줄, \n 구분)
+    profile_caption: str         # 03 스플릿 보조 문장
+    lifestyle_line: str          # 04 MOMENT 한 줄
+    cta_title: str
+    cta_label: str
+
+
+def _detail_copy_instruction(product_context: str, style_tone: str, headline: str,
+                             subcopy: str, allowed: list[str], image_desc: str,
+                             correction: Optional[list[str]]) -> str:
+    """상세 카피 프롬프트 조립 — 정직성·그라운딩·교정 조각은 platform_copy(D4b) 원장 재사용."""
+    honesty = _prompts.get(_NS, "platform_copy.honesty_base")
+    if allowed:
+        honesty += _prompts.fmt(_NS, "platform_copy.honesty_allowed",
+                                allowed=", ".join(allowed))
+    ground = (_prompts.fmt(_NS, "platform_copy.ground", image_desc=image_desc)
+              if image_desc else "")
+    fix = (_prompts.fmt(_NS, "platform_copy.fix", extra=", ".join(correction))
+           if correction else "")
+    return _prompts.fmt(
+        _NS, "detail_copy.instruction",
+        product_context=product_context, style_tone=style_tone,
+        headline=headline or "(없음)", subcopy=subcopy or "(없음)",
+        honesty=honesty, ground=ground, fix=fix)
+
+
+def _detail_copy_tone(style_key: str) -> str:
+    """스타일 키 → 문구 톤. 튜닝된 style_tone 원장 우선, 없는 키(realism 등)는
+    styles/specs.yaml 의 mood 로 폴백 — 스타일이 다르면 상세 카피 톤도 달라진다."""
+    tone = dict(_prompts.get(_NS, "style_tone")).get((style_key or "").strip())
+    if tone:
+        return tone
+    from .style_specs import get_spec
+    return get_spec(style_key or "editorial").mood
+
+
+def generate_detail_copy(product_name: str, subject_en: str, domain: str,
+                         headline: str, subcopy: str = "",
+                         core_ingredients: Optional[list[str]] = None,
+                         style_key: str = "", image_desc: str = "") -> DetailCopy:
+    """상세페이지 섹션 카피 전체를 한 번 호출 JSON 으로 생성한다 (v6-1 F1 P1).
+
+    환각 차단은 generate_platform_copy(D4b)와 동일 패턴 — 자기보고
+    claimed_ingredients ⊂ core_ingredients 검증, 초과 시 1회 교정 재생성.
+    본문이 길어질수록 허위 서술 위험이 커지는 포맷이라 게이트 최우선 적용 대상.
+    core_ingredients 가 비면 재료 검증 불가 → 게이트 통과(관대, D4b 동일).
+    실패는 예외로 던진다 — 호출부(commercial_copy.detail_copy_for)가 기존 문구로 폴백.
+    """
+    product_context = " — ".join(
+        p.strip() for p in (product_name, subject_en) if p and p.strip()
+    ) or "(상품 정보 없음)"
+    allowed = [str(i).strip().lower() for i in (core_ingredients or []) if str(i).strip()]
+    style_tone = _detail_copy_tone(style_key)
+
+    correction: Optional[list[str]] = None
+    result: dict = {}
+    for attempt in range(2):  # 최초 + 환각 시 교정 1회 (D4b 패턴)
+        instruction = _detail_copy_instruction(
+            product_context, style_tone, headline, subcopy, allowed, image_desc, correction)
+        result = _chat_json([{"role": "user", "content": instruction}], label="detail_copy")
+        claimed = [str(c).strip().lower() for c in (result.get("claimed_ingredients") or [])]
+        extra = [c for c in claimed
+                 if c and allowed and not any(c in a or a in c for a in allowed)]
+        if not extra:
+            break
+        logger.warning("detail_copy 환각 의심 재료 %s → 교정 재생성(%d)", extra, attempt)
+        correction = extra
+
+    lowered = {str(k).lower(): v for k, v in result.items()} if isinstance(result, dict) else {}
+
+    def _s(key: str) -> str:
+        return str(lowered.get(key, "")).strip()
+
+    bullets = [str(b).strip() for b in (lowered.get("benefit_bullets") or [])
+               if str(b).strip()][:3]
+    copy = DetailCopy(
+        intro_headline=_s("intro_headline"), story_title=_s("story_title"),
+        story_body=_s("story_body"), benefit_bullets=bullets,
+        top_view_label=_s("top_view_label"), closeup_caption=_s("closeup_caption"),
+        profile_title=_s("profile_title"), profile_caption=_s("profile_caption"),
+        lifestyle_line=_s("lifestyle_line"), cta_title=_s("cta_title"),
+        cta_label=_s("cta_label"))
+    required = (copy.intro_headline, copy.story_title, copy.story_body,
+                copy.top_view_label, copy.closeup_caption, copy.profile_title,
+                copy.lifestyle_line, copy.cta_title, copy.cta_label)
+    if not all(required):
+        raise RuntimeError(f"상세 카피 응답 필드 누락 (원문: {result!r:.200})")
+    return copy
+
+
 # --- 품질 저지 (GPT Vision — 골든셋 평가·캘리브레이션용, 실시간 아님) -----------
 # 역할분리: 실시간 결함검사는 로컬 vlm_service.inspect(빠르고 무료), 정밀 미세 순위는
 #   여기 GPT Vision(신뢰·저비용, 평가 호출량 적음). 2B 의 위치편향/점수압축 한계 극복(P2-2 재설계).

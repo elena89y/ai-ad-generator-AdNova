@@ -39,6 +39,9 @@ class HeroAsset:
     product_name: str = ""
     detail_image_paths: tuple[str, ...] = ()  # 상세페이지용 추가 구도(메인 제외)
     detail_cuts: tuple[DetailCut, ...] = ()
+    # (v6-1 F1) 진짜 구성 재료 — 상세 카피 환각 게이트(claimed⊂core) 근거.
+    # ProcessedAd 가 안 실어주므로 선택 필드 — 비면 게이트는 관대 통과(D4b 동일).
+    core_ingredients: tuple[str, ...] = ()
 
 
 def build_hero(
@@ -104,6 +107,7 @@ def hero_from_existing(
     detail_image_paths: tuple[str, ...] = (),
     detail_cuts: tuple[DetailCut, ...] = (),
     product_name: str = "",
+    core_ingredients: tuple[str, ...] = (),
 ) -> HeroAsset:
     """GPU 없이 기존 이미지로 HeroAsset 구성 — 로컬 compose 검증용(테스트 진입점)."""
     return HeroAsset(
@@ -112,6 +116,7 @@ def hero_from_existing(
         mask_path=mask_path, seed=0, product_name=product_name,
         detail_image_paths=detail_image_paths,
         detail_cuts=detail_cuts,
+        core_ingredients=core_ingredients,
     )
 
 
