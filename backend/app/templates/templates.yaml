@@ -17,7 +17,7 @@ templates:
     target: any
     formats: [sns, detail_page, banner]
     knob: null
-    thumbnail: null
+    thumbnail: assets/templates/editorial_lookbook.png
   pop_vivid_promo:
     title: 팝 비비드 프로모
     desc: 강한 측광·비비드 컬러 — 세일/신메뉴 임팩트 배너 중심
@@ -25,7 +25,7 @@ templates:
     target: any
     formats: [banner, sns, flyer]
     knob: null
-    thumbnail: null
+    thumbnail: assets/templates/pop_vivid_promo.png
   realism_food_hero:
     title: 리얼 푸드 히어로
     desc: 사진 사실감 우선 — 질감 보존 매크로, 음식점 대표컷
@@ -33,7 +33,7 @@ templates:
     target: food
     formats: [sns, detail_page, cardnews]
     knob: 0.4
-    thumbnail: null
+    thumbnail: assets/templates/realism_food_hero.png
   warm_vintage_cafe:
     title: 웜 빈티지 카페
     desc: 따뜻한 향수 무드 — 카페 시그니처 음료 연출
@@ -41,7 +41,7 @@ templates:
     target: drink
     formats: [sns, banner, cardnews]
     knob: null
-    thumbnail: null
+    thumbnail: assets/templates/warm_vintage_cafe.png
   object_studio_sku:
     title: 스튜디오 제품컷
     desc: 사물 SKU 중립 스튜디오 — 형태·색 보존 최우선
@@ -49,7 +49,7 @@ templates:
     target: object
     formats: [detail_page, sns, banner]
     knob: 0.3
-    thumbnail: null
+    thumbnail: assets/templates/object_studio_sku.png
   pop_split_summer:
     title: 팝 스플릿 시즌
     desc: 사선 컬러띠 분할 — 시즌 프로모(여름음료 템플릿 계승)
@@ -57,4 +57,4 @@ templates:
     target: drink
     formats: [banner, sns, flyer]
     knob: null
-    thumbnail: null
+    thumbnail: assets/templates/pop_split_summer.png

@@ -29,6 +29,20 @@ KNOWN_TARGETS = frozenset({"food", "drink", "object", "any"})
 _KNOB_MAX = 0.65  # 정직성 상한(허위광고 방지) — 템플릿 권장 knob 도 이 위를 못 넘는다
 
 
+# style_specs 키 → /ads/generate 전송용 StylePreset 값 (프론트가 템플릿 선택 후 기존
+#   generate 계약을 그대로 쓰기 위한 와이어 매핑 — 신규 생성 엔드포인트를 만들지 않는다).
+#   realism→retro_paper 는 BUTTON_STYLE_MAP 의 슬롯 재활용(2026-07-13) 역방향.
+#   object_studio/pop_split 은 '포맷'이라 라우터가 콘텐츠(사물/여름음료)로 자동 선택 —
+#   와이어에는 무난한 무드 값을 실어 보낸다.
+WIRE_PRESET: dict[str, str] = {
+    "editorial": "editorial", "pop": "pop", "monotone": "monotone",
+    "warm_vintage": "warm_vintage", "pastel_float": "pastel_float",
+    "realism": "retro_paper",
+    "object_studio": "editorial", "object_splash": "editorial",
+    "pop_split": "pop", "cross_section": "editorial",
+}
+
+
 @dataclass(frozen=True)
 class TemplatePreset:
     id: str
@@ -89,6 +103,7 @@ def list_templates(target: Optional[str] = None) -> list[dict]:
         items = [t for t in items if t.target in (target, "any")]
     return [
         {"id": t.id, "title": t.title, "desc": t.desc, "style": t.style,
+         "style_preset": WIRE_PRESET.get(t.style, "editorial"),  # /ads/generate 전송값
          "target": t.target, "formats": list(t.formats), "knob": t.knob,
          "thumbnail": t.thumbnail, "palette": list(t.palette), "mood": t.mood}
         for t in items
