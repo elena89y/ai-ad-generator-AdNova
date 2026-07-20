@@ -111,7 +111,13 @@ export default function StudioPage() {
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
     if (!file) return;
+    if (file.size > MAX_IMAGE_SIZE) {
+      s.toast("이미지는 최대 5MB까지 업로드할 수 있습니다.");
+      e.target.value = "";
+    return;
+    }
     if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
       s.toast("jpg, png, webp 이미지만 업로드할 수 있습니다");
       e.target.value = "";
