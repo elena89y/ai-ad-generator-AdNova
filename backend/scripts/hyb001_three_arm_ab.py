@@ -76,9 +76,13 @@ OUT_ROOT = BACKEND / "results" / "ai" / "hyb001"
 ARMS = ("local", "api", "hybrid")
 
 
-def _load_manifest() -> dict:
-    data = yaml.safe_load(MANIFEST.read_text(encoding="utf-8"))
-    assert len(data["items"]) == 12, "HYB-001 입력은 12장 고정 (G3 프로토콜)"
+def _load_manifest(path: Path = MANIFEST) -> dict:
+    path = Path(path)
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if path == MANIFEST:
+        assert len(data["items"]) == 12, "HYB-001 입력은 12장 고정 (G3 프로토콜)"
+    else:  # 커스텀 매니페스트(HOLDOUT-001 등) — 장수 고정 대신 최소만 강제
+        assert len(data["items"]) >= 3, f"매니페스트 항목 부족(<3): {path}"
     return data
 
 
@@ -172,12 +176,17 @@ def _chosen_setting(data: dict, args: argparse.Namespace) -> tuple[str, str]:
 
 
 def cmd_run(args: argparse.Namespace) -> None:
-    data = _load_manifest()
+    # --manifest/--phase (HOLDOUT-001 등 재사용): 기본값이면 기존 HYB-001 동작과 동일
+    manifest_path = Path(getattr(args, "manifest", None) or MANIFEST).expanduser()
+    phase = getattr(args, "phase", None) or "HYB-001"
+    data = _load_manifest(manifest_path)
     knob, seed = float(data["knob"]), int(data["seed"])
     inputs_dir = Path(args.inputs_dir).expanduser()
     runs_path = RUNS_DRY if args.dry_run else RUNS_REAL
     arms = ARMS if args.arm == "all" else (args.arm,)
     model, quality = _chosen_setting(data, args)
+    out_base = (OUT_ROOT if phase == "HYB-001"
+                else BACKEND / "results" / "ai" / phase.lower().replace("-", ""))
     if args.dry_run and args.arm == "all" and runs_path.exists():
         runs_path.unlink()  # 드라이런 원장은 매회 새로 (실측 원장은 절대 삭제 금지)
 
@@ -191,7 +200,7 @@ def cmd_run(args: argparse.Namespace) -> None:
         assert not missing, f"--only 미지 파일: {sorted(missing)} (매니페스트 items 대조)"
 
     for arm in arms:
-        out_dir = OUT_ROOT / arm
+        out_dir = out_base / arm
         out_dir.mkdir(parents=True, exist_ok=True)
         prev_local_mode: str | None = None
         for item in items:
@@ -214,7 +223,7 @@ def cmd_run(args: argparse.Namespace) -> None:
             logger.info("[%s] %s → %s", arm, item["file"], engine)
             try:
                 fn(image_path, item, knob, seed, arm, out_dir, runs_path, args.dry_run,
-                   model=model, quality=quality)
+                   model=model, quality=quality, phase=phase)
             except Exception:  # noqa: BLE001 — 1건 실패가 배치를 죽이면 안 됨(원장에 error 행 남음)
                 logger.exception("[%s] %s 실패", arm, item["file"])
 
@@ -479,14 +488,20 @@ def cmd_summary(args: argparse.Namespace) -> None:
     if getattr(args, "apiq", False):
         _summary_apiq(runs_path, SUMMARY_APIQ_DRY if args.dry_run else SUMMARY_APIQ)
         return
-    summary_path = SUMMARY_DRY if args.dry_run else SUMMARY_REAL
+    phase = getattr(args, "phase", None) or "HYB-001"
+    if phase == "HYB-001":
+        summary_path = SUMMARY_DRY if args.dry_run else SUMMARY_REAL
+    else:
+        stem = phase.lower().replace("-", "")
+        summary_path = ((BACKEND / "results" / "ai" / f"{stem}_summary_dry.md")
+                        if args.dry_run else (BACKEND / "experiments" / f"{stem}_summary.md"))
     rows: dict[str, list[dict]] = {a: [] for a in ARMS}
     for line in runs_path.read_text(encoding="utf-8").splitlines():
         try:
             rec = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if rec.get("phase") != "HYB-001" or not rec.get("kpi"):
+        if rec.get("phase") != phase or not rec.get("kpi"):
             continue
         arm = rec.get("params", {}).get("arm")
         if arm in rows:
@@ -504,7 +519,7 @@ def cmd_summary(args: argparse.Namespace) -> None:
     failures = {a: sum(1 for r in rows[a] if r.get("error")) for a in ARMS}
     rows = {a: [r for r in rows[a] if not r.get("error")] for a in ARMS}
 
-    lines = ["# HYB-001 — 3암 KPI 비교 (자동 생성: hyb001_three_arm_ab.py summary)", "",
+    lines = [f"# {phase} — 3암 KPI 비교 (자동 생성: hyb001_three_arm_ab.py summary)", "",
              "3암 = 서비스 3버전: ①local=로컬 파이프라인 ②api=전-LLM ③hybrid=상용화 후보.",
              "비용은 '이미지 엔진'(GPU환산+이미지API, 버전 간 변수)과 '공통 LLM'(분석·문구, 3버전 동일)을 분리 집계.", "",
              "| 암 | n | 실패 | 이미지 엔진 $/장 | 공통 LLM $/장 | 총 $/장 | p50 시간 s | gate 통과율 | judge (mean) | identity (mean) |",
@@ -552,6 +567,8 @@ def main() -> None:
     pr.add_argument("--quality", choices=("low", "medium", "high"),
                     help="api 엔진 quality (기본: 매니페스트 apiq.chosen)")
     pr.add_argument("--only", help="쉼표구분 파일명 — 해당 입력만 부분 재실측 (last-wins 집계)")
+    pr.add_argument("--manifest", help="입력 매니페스트 경로 (기본: hyb001_inputs.yaml)")
+    pr.add_argument("--phase", help="원장 phase (기본 HYB-001 — 예: HOLDOUT-001)")
     pr.add_argument("--dry-run", action="store_true",
                     help="생성·과금 없이 배선/원장/표 검증 (별도 드라이런 원장 사용)")
     pr.set_defaults(fn=cmd_run)
@@ -570,6 +587,7 @@ def main() -> None:
     ps.add_argument("--dry-run", action="store_true")
     ps.add_argument("--apiq", action="store_true", help="APIQ-001 매트릭스 요약")
     ps.add_argument("--apiq2", action="store_true", help="APIQ-002 지시문 A/B 요약")
+    ps.add_argument("--phase", help="집계 대상 phase (기본 HYB-001 — 예: HOLDOUT-001)")
     ps.set_defaults(fn=cmd_summary)
     args = p.parse_args()
     args.fn(args)
