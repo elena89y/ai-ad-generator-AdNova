@@ -1,0 +1,47 @@
+# API 이미지 편집(gpt-image 계열) 지시문 원장 — 담당: 한의정. (DIRECTION_v6 T2)
+#
+# ⚠️ 상태: 초안(실측 튜닝 전) — 2026-07-17 검증에서 모델의 정체성 보존이 확인됐고,
+#    문구 최적화는 T3 하이브리드 A/B(HYB-001)에서 진행한다. 튜닝 확정 후 스냅샷 게이트 편입.
+# 정직성 경계(로컬 경로와 동일): 원본에 없는 재료·소품 추가 금지, 사물(SKU)은 형태·색·로고 불변.
+# FLUX 함정 계승: 글자 생성 금지(no text) — 타이포는 코드(PIL) 담당.
+
+edit_base: >-
+  Keep the ${subject} exactly as photographed: identical shape, proportions, colors,
+  surface details${identity_clause}. Re-stage it as a professional advertisement photo:
+  ${style_hint}. Do not add any ingredient, garnish, prop or object that is not in the
+  original photo. Do not render any text, letters, logos or watermarks other than those
+  already on the product.
+
+identity_clause: ", especially keep ${identity_parts} unchanged"
+
+flexible_clause: " You may restyle ${flexible_parts} (container/vessel only) to match the mood."
+
+style_hint_default: clean premium studio scene with soft natural light and generous negative space
+
+# 모드별 연출 힌트 (HYB-001 3암 공정성): local 암은 process_ad 가 모드별 경로(A 인플레이스
+#   리터치 / B 씬 배경 / C 스튜디오)를 타므로, api 암도 동급의 모드 연출을 받아야
+#   "LLM-only 버전"이 제품급으로 비교된다. 키 = 라우팅 모드(dish|cafe|object).
+style_hint_dish: >-
+  appetizing premium restaurant advertisement, in-place restaging of the original plating,
+  warm appetizing light, rich natural texture
+style_hint_cafe: >-
+  inviting cafe scene background with warm ambient light, shallow depth of field,
+  the drink or dessert as the single hero on a clean table
+style_hint_object: >-
+  clean neutral studio background with a soft gradient and professional product lighting
+
+object_lock: >-
+  This is a retail product (SKU): do NOT redraw, reshape, smooth or recolor the product
+  itself; change only the background and lighting.
+
+# [APIQ-002 보강, 2026-07-21] enhanced 조립 전용 가드 2종.
+#   사고: warm_vintage scene_prompt 의 소품 지시("dried wheat and soft cafe props")가
+#   금지 가드를 이겨 팜파스 화병 추가 + 브랜드 카드·빨대·도일리가 identity 분류에서 빠져 소실.
+brand_style_lock: >-
+  Keep every brand element and styling accessory in the photo — brand cards, labels,
+  printed text, straws, coasters and doilies — present and unchanged.
+props_guard_final: >-
+  Final rule, overriding any mood description above: do not add any object that is not
+  in the original photo (no flowers, vases, plants, dishes or decorations). The background,
+  surface and lighting may be re-staged freely, but the product and everything touching
+  or styling it must stay exactly as photographed.

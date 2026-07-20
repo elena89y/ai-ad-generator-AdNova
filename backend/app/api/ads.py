@@ -6,6 +6,9 @@
   POST /ads/generate   — 통합 파이프라인: 전처리→생성→조화→문구(→포스터) (FR-06~09)
   POST /ads/regenerate — 동일 입력 · 새 seed 재생성 (FR-12)
   GET  /ads/image/{filename} — 생성 결과 이미지 서빙 (프론트 표시·다운로드용)
+  GET  /ads/templates        — 템플릿 프리셋 목록 (v6 T4; 항목의 style_preset/knob 을
+                               기존 /ads/generate 에 그대로 실어 보낸다 — 신규 생성 계약 없음)
+  GET  /ads/template-thumb/{template_id} — 템플릿 정적 썸네일 (assets, 코드 드로잉)
 
 프론트(frontend/app.py) 연동 스펙에 맞춘 구성. DB 이력 저장(FR-19)은
 advertisements CRUD(김범수님) 연동 시 추가 예정.
@@ -51,6 +54,7 @@ from ..services import (
     gpt_service,
     image_service,
     style_service,
+    template_service,
 )
 from ..services.prompt_service import build_image_prompt
 from ..services.upload_validation import read_image_upload_file_sync
@@ -565,3 +569,47 @@ def get_result_image(
     if path.name != filename or not path.is_file():
         raise HTTPException(status_code=404, detail="이미지 없음")
     return FileResponse(path, media_type=image.content_type or "image/png")
+
+
+# --- 템플릿 서비스 (DIRECTION_v6 T4) -----------------------------------------
+_BACKEND_ROOT = Path(__file__).resolve().parents[2]
+
+
+@router.get("/templates")
+def list_ad_templates(
+    target: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+) -> list[dict]:
+    """템플릿 프리셋 목록. 원장은 app/templates/templates.yaml (신규 템플릿 = YAML 추가).
+
+    프론트는 선택 템플릿의 style_preset·knob 을 기존 POST /ads/generate 폼에 그대로 실어
+    보낸다 — 생성 계약은 그대로, 이 목록은 읽기 전용 메타데이터다.
+    """
+    items = template_service.list_templates(target)
+    for item in items:
+        item["thumbnail"] = (
+            f"{settings.API_PREFIX}/ads/template-thumb/{item['id']}"
+            if item.get("thumbnail") else None)
+    return items
+
+
+@router.get("/template-thumb/{template_id}")
+def get_template_thumbnail(
+    template_id: str,
+    current_user: User = Depends(get_current_user),
+) -> FileResponse:
+    """템플릿 정적 썸네일. 경로는 검증된 원장 값(assets/templates)만 — 사용자 입력 경로 아님."""
+    try:
+        preset = template_service.get_template(template_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="미지 템플릿") from exc
+    if not preset.thumbnail:
+        raise HTTPException(status_code=404, detail="썸네일 없음")
+    path = (_BACKEND_ROOT / preset.thumbnail).resolve()
+    try:
+        path.relative_to((_BACKEND_ROOT / "assets" / "templates").resolve())
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="썸네일 없음") from exc
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="썸네일 없음")
+    return FileResponse(path, media_type="image/png")

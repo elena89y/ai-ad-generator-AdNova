@@ -21,9 +21,19 @@ import subprocess
 import time
 import uuid
 from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
+
+# 현재 활성 RunLogger (v6 T2 실측 G2에서 발견된 갭: 그래프 노드처럼 run 핸들을 인자로
+#   못 받는 깊은 호출부(api_image_service 등)가 비용을 원장에 싣지 못했다 → contextvar 로 노출).
+_CURRENT_RUN: ContextVar[Optional["RunLogger"]] = ContextVar("adnova_current_run", default=None)
+
+
+def current_run() -> Optional["RunLogger"]:
+    """with RunLogger(...) 블록 안이면 그 인스턴스, 밖이면 None."""
+    return _CURRENT_RUN.get()
 
 # 원장 위치: backend/experiments/runs.jsonl (repo 상대). 이미지 산출물과 분리.
 _HARNESS_DIR = Path(__file__).resolve().parents[2] / "experiments"
@@ -124,6 +134,9 @@ class RunLogger:
             "vram_peak_gb": 0.0,      # = vram.peak_allocated_gb (하위호환)
             "vram": {},               # allocated/reserved/free/total (OOM 진단, 연정 PDF #7)
             "llm_usage": [],
+            "image_api": [],          # 이미지 생성/편집 API 호출 (v6 T0: 하이브리드 비용축)
+            "gpu_used": None,         # False=API 경로 등 GPU 미사용 명시(GPU 호스트 오계상 방지)
+            "kpi": None,              # __exit__ 에서 파생되는 비용/시간/품질 3축 요약
             "output": None,
             "verdict": "",
             "notes": "",
@@ -138,6 +151,19 @@ class RunLogger:
 
     # --- 컨텍스트 ---
     def __enter__(self) -> "RunLogger":
+        self._cv_token = _CURRENT_RUN.set(self)
+        # run 1건 = Langfuse 트레이스 1건 (키 없으면 no-op) — score push 가 스팬 안에서 돌게.
+        self._span_cm = None
+        try:
+            from ..core.observability import run_span
+
+            self._span_cm = run_span(
+                f"run:{self.record['phase']}:{Path(str(self.record['input'])).name}",
+                metadata={"run_id": self.record["run_id"],
+                          "engine": self.record["engine"], "mode": self.record["mode"]})
+            self._span_cm.__enter__()
+        except Exception:  # noqa: BLE001 — 트레이싱 실패가 실행을 막으면 안 됨
+            self._span_cm = None
         _vram_reset()
         self._free_before = _vram_free_gb()
         if self._auto_llm:
@@ -179,6 +205,10 @@ class RunLogger:
             pass
 
     def __exit__(self, exc_type, exc, tb) -> bool:  # noqa: ANN001
+        try:
+            _CURRENT_RUN.reset(self._cv_token)
+        except Exception:  # noqa: BLE001 — 토큰 이상이 원장 저장을 막으면 안 됨
+            pass
         total = time.perf_counter() - self._t0
         self.record["timing"]["total_s"] = round(total, 2)
         if self.record["timing"]["infer_s"] is None:
@@ -190,10 +220,70 @@ class RunLogger:
         self.record["vram"] = stats
         self.record["vram_peak_gb"] = stats["peak_allocated_gb"]
         self._capture_llm()
+        self.record["kpi"] = self._build_kpi()
         if exc is not None:
             self.record["error"] = f"{exc_type.__name__}: {exc}"
         self._append()
+        self._push_kpi_scores()  # 스팬이 아직 열려 있는 시점 — score 가 이 트레이스에 붙는다
+        if self._span_cm is not None:
+            try:
+                self._span_cm.__exit__(exc_type, exc, tb)
+            except Exception:  # noqa: BLE001
+                logging.getLogger(__name__).debug("run span 종료 실패(무해)", exc_info=True)
         return False  # 예외 재전파(기록만 하고 삼키지 않음)
+
+    def _build_kpi(self) -> dict:
+        """원장 행에서 비용/시간/품질 3축을 파생한다 (v6 T0 — 서비스 핵심 KPI).
+
+        - 비용: OpenAI 텍스트(자동 캡처) + 이미지 API(장당) + GPU 점유 환산.
+          GPU 초는 "요청이 GPU 호스트를 점유한 벽시계 시간" 근사 = total_s (CUDA 가용 시).
+          단일 워커가 요청을 직렬 처리하는 현 구조(GPU busy 락)에서는 벽시계=점유로 타당.
+        - 품질: inline_gate 통과여부 + 심미/판정 점수 — 채워진 것만, 없으면 None 유지
+          (null도 정보다: 어떤 축이 미계측인지 집계에서 드러나야 한다).
+        """
+        from .pricing import gpu_cost_of
+
+        m = self.record["metrics"]
+        t = self.record["timing"]
+        gpu_s = 0.0
+        try:
+            import torch
+
+            # gpu_used=False 명시(API 경로 등)면 GPU 호스트여도 점유 0 — 하이브리드 A/B 공정성.
+            if torch.cuda.is_available() and self.record.get("gpu_used") is not False:
+                gpu_s = float(t["total_s"] or 0.0)
+        except Exception:  # noqa: BLE001 — torch 미설치(로컬 CPU 테스트)면 GPU 비용 0
+            pass
+        openai_usd = float(m.get("openai_cost_usd", 0.0))
+        image_usd = round(sum(i.get("cost_usd", 0.0) for i in self.record["image_api"]), 6)
+        gpu_usd = gpu_cost_of(gpu_s)
+        gate = m.get("gate")
+        gate_passed = gate.get("pass") if isinstance(gate, dict) else None
+        return {
+            "cost": {
+                "openai_usd": openai_usd,
+                "image_api_usd": image_usd,
+                "gpu_s": round(gpu_s, 2),
+                "gpu_usd_est": gpu_usd,
+                "total_usd": round(openai_usd + image_usd + gpu_usd, 6),
+            },
+            "time": {"total_s": t["total_s"], "load_s": t["load_s"], "infer_s": t["infer_s"]},
+            "quality": {
+                "gate_passed": gate_passed,
+                "aesthetic": m.get("aesthetic"),
+                "judge_score": m.get("judge_score"),
+                "identity": m.get("identity_dino"),
+            },
+        }
+
+    def _push_kpi_scores(self) -> None:
+        """KPI 3축을 현재 Langfuse 트레이스 score 로 push — 실패해도 원장은 이미 저장됨."""
+        try:
+            from ..core.observability import push_kpi_scores
+
+            push_kpi_scores(self.record["run_id"], self.record["kpi"])
+        except Exception:  # noqa: BLE001 — 트레이싱 장애가 생성 응답을 실패시키면 안 됨
+            logging.getLogger(__name__).debug("KPI score push 실패(무해)", exc_info=True)
 
     # --- 계측 마커 ---
     def mark_load_done(self) -> None:
@@ -242,6 +332,15 @@ class RunLogger:
         self.record["llm_usage"].append(
             {"model": model, "tok_in": tok_in, "tok_out": tok_out, "cost_usd": cost_usd}
         )
+
+    def add_image_api_usage(self, model: str, n: int = 1,
+                            cost_usd: Optional[float] = None) -> None:
+        """이미지 생성/편집 API 호출 기록 (v6 T0). cost 미지정 시 장당 단가표로 환산."""
+        if cost_usd is None:
+            from .pricing import image_cost_of
+
+            cost_usd = image_cost_of(model, n)
+        self.record["image_api"].append({"model": model, "n": n, "cost_usd": cost_usd})
 
     def set_verdict(self, verdict: str) -> None:
         self.record["verdict"] = verdict
