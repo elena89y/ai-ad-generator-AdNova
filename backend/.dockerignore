@@ -1,0 +1,11 @@
+# v6 T5 — 이미지 비대·비밀 유출 방지 (초안: 한의정)
+__pycache__/
+*.pyc
+.env
+results/
+data/
+uploads/
+experiments/runs.jsonl
+tests/
+venv/
+.venv/
