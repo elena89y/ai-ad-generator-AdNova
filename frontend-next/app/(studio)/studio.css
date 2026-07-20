@@ -1791,3 +1791,50 @@
   display: block;
   object-fit: contain;
 }
+/* v6 T4 — 워크스페이스 좌측 내비 (광고 이미지 / 템플릿) */
+.dashboard-layout.with-wsnav {
+  grid-template-columns: 150px 300px minmax(0, 1fr);
+}
+.workspace-shell {
+  display: flex;
+  min-height: calc(100vh - 61px);
+}
+.workspace-nav {
+  flex: 0 0 150px;
+  border-right: 1px solid var(--line);
+  padding: 20px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.workspace-nav a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.workspace-nav a.on {
+  color: var(--gold);
+  background: rgba(242, 169, 59, 0.12);
+}
+@media (max-width: 900px) {
+  .dashboard-layout.with-wsnav {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .workspace-shell {
+    flex-direction: column;
+  }
+  .workspace-nav {
+    flex: none;
+    flex-direction: row;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding: 10px 14px;
+  }
+}

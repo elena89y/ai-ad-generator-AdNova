@@ -136,11 +136,13 @@ export function UsagePill() {
 
 export function AppBar() {
   const pathname = usePathname();
+  // 광고 만들기 워크스페이스 = /studio(광고 이미지) + /templates(템플릿) — 좌측 내비로 전환
+  const inWorkspace = pathname === "/studio" || pathname === "/templates";
   return (
     <div className="appbar">
       <Brand />
       <nav className="appnav">
-        <Link href="/studio" className={pathname === "/studio" ? "on" : ""}>
+        <Link href="/studio" className={inWorkspace ? "on" : ""}>
           ✏️ <span className="txt">광고 만들기</span>
         </Link>
         <Link href="/my-ads" className={pathname === "/my-ads" ? "on" : ""}>
@@ -152,6 +154,24 @@ export function AppBar() {
         <ProfileMenu />
       </div>
     </div>
+  );
+}
+
+/* 워크스페이스 좌측 내비 — 광고 이미지 / 템플릿 (모노브식 2단 구조) */
+export function WorkspaceNav() {
+  const pathname = usePathname();
+  const items = [
+    { href: "/studio", icon: "🖼", label: "광고 이미지" },
+    { href: "/templates", icon: "📐", label: "템플릿" },
+  ];
+  return (
+    <nav className="workspace-nav">
+      {items.map((it) => (
+        <Link key={it.href} href={it.href} className={pathname === it.href ? "on" : ""}>
+          <span>{it.icon}</span> {it.label}
+        </Link>
+      ))}
+    </nav>
   );
 }
 
