@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import { deleteStoredAd, downloadHistoryResult } from "@/lib/sns";
 import { useStudio } from "@/components/studio/StudioProvider";
+import { AuthenticatedImage } from "@/components/studio/AuthenticatedImage";
 
 const TABS = [
   { p: "instagram", label: "IG" },
@@ -129,8 +130,7 @@ function DetailContent() {
                 background: "#0d0d10",
               }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <AuthenticatedImage
                 src={item.img}
                 alt="생성된 광고"
                 style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
