@@ -46,7 +46,10 @@ services:
   # --- GPU 생성 워커 (프로파일: gpu) ------------------------------------------
   # 요구: NVIDIA 드라이버 + nvidia-container-toolkit. HF 캐시·rembg 모델은 호스트 마운트.
   gpu-worker:
-    build: ./backend
+    build:
+      context: ./backend
+      args:
+        COMPUTE: gpu            # 원본 requirements(onnxruntime-gpu·bitsandbytes 포함)로 설치
     profiles: ["gpu"]
     command: ["uvicorn", "app.generation_app:app", "--host", "0.0.0.0", "--port", "8100"]
     ports:
