@@ -317,9 +317,9 @@ export default function StudioPage() {
 
   const result = s.currentResult;
   const beforeSrc =
-    s.selectedImagePreview ||
-    toAbsoluteUrl(s.selectedImageUrl) ||
-    "/app-assets/demo-product.jpg";
+    s.selectedImagePreview ??
+    toAbsoluteUrl(s.selectedImageUrl) ??
+    "";
 
   return (
     <section>
@@ -332,34 +332,102 @@ export default function StudioPage() {
             <div
               style={{
                 position: "relative",
+                height: 150,
                 borderRadius: 12,
                 overflow: "hidden",
-                border: "1px solid var(--line)",
+                border: beforeSrc
+                  ? "1px solid var(--line)"
+                  : "1px dashed rgba(255,255,255,.2)",
+                background: beforeSrc
+                  ? "var(--card)"
+                  : "rgba(255,255,255,.025)",
                 cursor: "pointer",
+                transition: "border-color .2s ease, background .2s ease",
               }}
               onClick={selectProductImage}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={beforeSrc}
-                style={{ width: "100%", height: 150, objectFit: "cover", display: "block" }}
-                alt="제품 사진"
-              />
-              <span
-                style={{
-                  position: "absolute",
-                  top: 8,
-                  right: 8,
-                  background: "rgba(0,0,0,.6)",
-                  color: "#fff",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  padding: "5px 10px",
-                  borderRadius: 8,
-                }}
-              >
-                사진 바꾸기
-              </span>
+              {beforeSrc ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={beforeSrc}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      display: "block",
+                    }}
+                    alt="제품 사진"
+                  />
+
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: 8,
+                      right: 8,
+                      background: "rgba(0,0,0,.65)",
+                      color: "#fff",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: "5px 10px",
+                      borderRadius: 8,
+                      backdropFilter: "blur(6px)",
+                    }}
+                  >
+                    사진 바꾸기
+                  </span>
+                </>
+              ) : (
+                <div
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 7,
+                    textAlign: "center",
+                    padding: 16,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 11,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "rgba(255,255,255,.06)",
+                      border: "1px solid rgba(255,255,255,.08)",
+                      fontSize: 18,
+                    }}
+                  >
+                    📷
+                  </div>
+
+                  <div
+                    style={{
+                      color: "var(--ink)",
+                      fontSize: 13,
+                      fontWeight: 700,
+                    }}
+                  >
+                    제품 사진 업로드
+                  </div>
+
+                  <div
+                    style={{
+                      color: "var(--ink-mute)",
+                      fontSize: 11,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    클릭하여 이미지를 선택하세요
+                  </div>
+                </div>
+              )}
             </div>
             <div
               style={{
