@@ -42,7 +42,7 @@ const features = [
   {
     icon: Share2,
     title: "채널별 용도 최적화",
-    desc: "SNS, 카드뉴스, 배너, 상세페이지, 전단지 — 용도에 맞게 내보내기.",
+    desc: "SNS, 카드뉴스, 배너, 상세페이지 — 용도에 맞게 내보내기.",
     span: "md:col-span-2",
   },
 ];

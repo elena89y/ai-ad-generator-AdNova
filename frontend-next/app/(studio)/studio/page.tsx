@@ -43,15 +43,27 @@ const USES = [
   { v: "sns", label: "SNS" },
   { v: "card", label: "카드뉴스" },
   { v: "banner", label: "배너" },
-  { v: "flyer", label: "전단지" },
+  { v: "detail", label: "상세페이지" },
 ];
 
-/* 템플릿 formats[0] → 용도 버튼 매핑 (v6 T4; detail_page 는 용도 버튼 없음 → 유지) */
+/* 템플릿 formats[0] → 용도 버튼 매핑 (v6 T4; 전단지 폐기 → 상세페이지로 대체) */
 const FORMAT_TO_USE: Record<string, string> = {
   sns: "sns",
   cardnews: "card",
   banner: "banner",
+  detail_page: "detail",
 };
+
+/* 용도 버튼 값 → 백엔드 purpose (모놀리식 html getSelectedPurpose 이식) */
+function useToPurpose(value: string): string {
+  return value === "banner"
+    ? "banner"
+    : value === "card"
+      ? "card_news"
+      : value === "detail"
+        ? "detail_page"
+        : "sns";
+}
 
 const PLATFORMS = [
   { p: "instagram", si: "ig", label: "Instagram", short: "IG" },
@@ -199,7 +211,10 @@ export default function StudioPage() {
     formData.append("product_description", s.promptText.trim());
     formData.append("style", STYLE_PRESET_MAP[s.styleLabel] || "pop");
     formData.append("use_vision", "false");
-    formData.append("poster", "false");
+    const purpose = useToPurpose(s.useValue);
+    // 모놀리식 html과 동일: sns 용도만 poster=true
+    formData.append("poster", String(purpose === "sns"));
+    formData.append("purpose", purpose);
 
     try {
       const res = await apiFetch("/api/ads/generate", { method: "POST", body: formData });
@@ -246,7 +261,8 @@ export default function StudioPage() {
           product_description: s.promptText.trim(),
           prev_seed: s.currentResult.seed,
           use_vision: false,
-          poster: false,
+          poster: useToPurpose(s.useValue) === "sns",
+          purpose: useToPurpose(s.useValue),
         }),
       });
       const data = (await readJsonSafely(res)) as GenerateResult | null;
