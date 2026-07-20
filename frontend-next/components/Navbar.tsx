@@ -64,6 +64,12 @@ export default function Navbar() {
 
           <div className="hidden items-center gap-3 md:flex">
             <a
+              href="/support"
+              className="text-sm text-muted transition-colors hover:text-foreground"
+            >
+              고객센터
+            </a>
+            <a
               href="/login"
               className="text-sm text-muted transition-colors hover:text-foreground"
             >
@@ -100,6 +106,13 @@ export default function Navbar() {
                 {l.label}
               </a>
             ))}
+            <a
+              href="/support"
+              onClick={() => setOpen(false)}
+              className="text-muted transition-colors hover:text-foreground"
+            >
+              고객센터
+            </a>
             <a
               href="/signup"
               onClick={() => setOpen(false)}
