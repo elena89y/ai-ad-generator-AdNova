@@ -1,0 +1,23 @@
+# API 이미지 편집(gpt-image 계열) 지시문 원장 — 담당: 한의정. (DIRECTION_v6 T2)
+#
+# ⚠️ 상태: 초안(실측 튜닝 전) — 2026-07-17 검증에서 모델의 정체성 보존이 확인됐고,
+#    문구 최적화는 T3 하이브리드 A/B(HYB-001)에서 진행한다. 튜닝 확정 후 스냅샷 게이트 편입.
+# 정직성 경계(로컬 경로와 동일): 원본에 없는 재료·소품 추가 금지, 사물(SKU)은 형태·색·로고 불변.
+# FLUX 함정 계승: 글자 생성 금지(no text) — 타이포는 코드(PIL) 담당.
+
+edit_base: >-
+  Keep the ${subject} exactly as photographed: identical shape, proportions, colors,
+  surface details${identity_clause}. Re-stage it as a professional advertisement photo:
+  ${style_hint}. Do not add any ingredient, garnish, prop or object that is not in the
+  original photo. Do not render any text, letters, logos or watermarks other than those
+  already on the product.
+
+identity_clause: ", especially keep ${identity_parts} unchanged"
+
+flexible_clause: " You may restyle ${flexible_parts} (container/vessel only) to match the mood."
+
+style_hint_default: clean premium studio scene with soft natural light and generous negative space
+
+object_lock: >-
+  This is a retail product (SKU): do NOT redraw, reshape, smooth or recolor the product
+  itself; change only the background and lighting.
