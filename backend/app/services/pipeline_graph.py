@@ -8,9 +8,10 @@ LangGraph StateGraph 로 명시한다. copy_graph 패턴 계승:
 ENGINE_POLICY (env, T3 하이브리드 실측의 강등 스위치 — GCP 종료 시 api 로 전환):
   local  = 기존 GPU 파이프라인만
   api    = gpt-image edit 만 (GPU 불필요 — 생존 경로)
-  hybrid = 라우팅 가설(T3 HYB-001 검증 대상): 정체성 민감(사물 SKU·texture_hero) → api,
-           그 외 연출 중심 → local. 근거: 2026-07-17 실측 — gpt-image-2 가 로고·투명유리·
-           3D 형상 보존에서 우수, 로컬 FLUX/RealVis 는 씬 연출 자유도·고정비 활용에서 우위.
+  hybrid = HYB-002 배정(07-21 실측 확정): 사물(C) → local / 그 외 연출류 → api.
+           근거: HYB-001 육안 정본(api 연출 7승, local 사물 우위) + HOLDOUT-001 일반화
+           검증(이 배정이 비용·속도 동시 1위). 구가설(정체성 민감→api)은 enhanced_v2
+           승격으로 폐기 — 상세는 실험로그 v4 HYB-001/HOLDOUT-001.
 
 각 실행은 RunLogger 1행(engine="graph:{엔진}") — KPI 3축(T0)이 자동 파생된다.
 """
@@ -71,8 +72,11 @@ def _do_analyze(state: PipelineState) -> PipelineState:
 def _route_engine(state: PipelineState) -> PipelineState:
     policy = state.get("policy") or engine_policy()
     if policy == "hybrid":
-        sensitive = state.get("domain") == "object" or bool(state.get("texture_hero"))
-        engine = "api" if sensitive else "local"
+        # HYB-002 배정(2026-07-21 확정 — 실험로그 HYB-001 육안 정본 + HOLDOUT-001 검증):
+        #   사물(C) → local: warm ~5s·$0.001 + 정체성(컵·괄사 육안 우위). 그 외 → api(enhanced_v2).
+        #   구배정("정체성 민감→api")은 enhanced_v2 승격으로 전제 붕괴 — 홀드아웃에서
+        #   본 규칙이 비용($0.0142)·속도(21.6s) 동시 1위 실측.
+        engine = "local" if state.get("domain") == "object" else "api"
     else:
         engine = policy
     state["policy"] = policy
