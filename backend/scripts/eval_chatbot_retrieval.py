@@ -75,6 +75,18 @@ def main() -> None:
     retriever = HybridRetriever(embed_fn=embed_fn)
     suffix = ("_dense" if args.dense else "") + ("_rewrite" if args.rewrite else "")
     if args.rewrite:
+        # 프로덕션의 rewrite 실패는 조용한 폴백이지만, 평가에서는 키 없음 = 측정 무효
+        # (실측 사고: dotenv 미로드로 전 케이스 폴백 → 델타 0 을 "효과 없음"으로 오독할 뻔)
+        import os  # noqa: PLC0415
+
+        try:
+            from dotenv import load_dotenv  # noqa: PLC0415
+
+            load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+        except ImportError:
+            pass
+        if not os.environ.get("OPENAI_API_KEY"):
+            sys.exit("--rewrite 아암은 OPENAI_API_KEY 필요 (backend/.env) — 측정 중단")
         from app.services.chatbot.chat_service import retrieve_with_rewrite  # noqa: PLC0415
 
     rewrites: list[tuple[str, str]] = []
