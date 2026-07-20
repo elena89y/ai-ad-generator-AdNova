@@ -25,6 +25,11 @@
   python scripts/hyb001_three_arm_ab.py apiq --inputs-dir ~/Desktop/AdNova/HYB001_inputs
   python scripts/hyb001_three_arm_ab.py summary --apiq
   #   → 육안 승자 확정 후 매니페스트 apiq.chosen 갱신 (HYB-001 api/hybrid 암이 이 설정을 읽음)
+  #   [결과 07-21] g2/low 유지, mini 정체성 3/3 실패 탈락, high 는 프리미엄 티어 후보 보관.
+  # [선행2] APIQ-002 — 지시문 강화 A/B(draft vs enhanced, 3장×2, ≤$0.15):
+  python scripts/hyb001_three_arm_ab.py apiq2 --inputs-dir ~/Desktop/AdNova/HYB001_inputs
+  python scripts/hyb001_three_arm_ab.py summary --apiq2
+  #   → enhanced 승 시 HYB-001 api 경로를 enhanced 조립으로 승격(별도 커밋) 후 본 실험.
   # VM 실측 (게이트 G3 지출 상한: api 암 전체 ≤ $0.5, high 선택 시 상한 재산정):
   python scripts/hyb001_three_arm_ab.py run --arm local  --inputs-dir ~/HYB001_inputs
   python scripts/hyb001_three_arm_ab.py run --arm api    --inputs-dir ~/HYB001_inputs
@@ -63,6 +68,8 @@ SUMMARY_REAL = BACKEND / "experiments" / "hyb001_summary.md"
 SUMMARY_DRY = BACKEND / "results" / "ai" / "hyb001_dryrun_summary.md"
 SUMMARY_APIQ = BACKEND / "experiments" / "apiq001_summary.md"
 SUMMARY_APIQ_DRY = BACKEND / "results" / "ai" / "apiq001_dryrun_summary.md"
+SUMMARY_APIQ2 = BACKEND / "experiments" / "apiq002_summary.md"
+SUMMARY_APIQ2_DRY = BACKEND / "results" / "ai" / "apiq002_dryrun_summary.md"
 OUT_ROOT = BACKEND / "results" / "ai" / "hyb001"
 
 ARMS = ("local", "api", "hybrid")
@@ -228,6 +235,110 @@ def cmd_apiq(args: argparse.Namespace) -> None:
                 logger.exception("[apiq %s/%s] %s 실패", model, quality, item["file"])
 
 
+def _build_apiq2_instruction(image_path: Path, item: dict, variant: str,
+                             style_key: str, dry: bool, run) -> str:  # noqa: ANN001
+    """APIQ-002 지시문 조립 — 단일변수인 '지시문'만 variant 로 갈라진다.
+
+    draft    = APIQ-001 과 동일(모드별 한 줄 힌트, 이름 기반 subject).
+    enhanced = 6무드 scene_prompt({subject} 치환, 실측 튜닝 자산) + analyze_photo 파트별
+               보존등급 주입. negative 는 gpt-image edit 에 파라미터가 없어 미적용(주석 기록).
+    """
+    from app.services.api_image_service import build_edit_instruction
+
+    if variant == "draft":
+        return build_edit_instruction(
+            item["subject_en"], style_hint=_mode_style_hint(item["expected_mode"]),
+            is_object=item["expected_mode"] == "object")
+
+    from app.services.style_specs import get_spec
+
+    spec = get_spec(style_key)
+    if dry:
+        subject = item["subject_en"]
+        identity, flexible = ["(dry) label"], ["(dry) container"]  # fmt 경로 배선 검증용
+    else:
+        from app.services import gpt_service
+
+        analysis = gpt_service.analyze_photo(str(image_path), item["name"])  # Vision 1회
+        subject = (getattr(analysis, "subject_en", "") or item["subject_en"]) if analysis \
+            else item["subject_en"]
+        identity = list(analysis.identity_parts) if analysis else None
+        flexible = list(analysis.flexible_parts) if analysis else None
+        if analysis is None:
+            run.note("analyze_photo 실패 → 파트 주입 없이 진행(폴백)")
+    hint = spec.scene_prompt.format(subject=subject) if spec.scene_prompt else spec.mood
+    # 레지스트리 원문은 불변(스냅샷 게이트) — MJ 관용구(--ar 4:5 등 플래그+값)만 gpt-image 전달 전 제거
+    import re
+
+    hint = re.sub(r",?\s*--\w+(\s+\S+)?", "", hint).strip().rstrip(",")
+    return build_edit_instruction(subject, style_hint=hint,
+                                  identity_parts=identity, flexible_parts=flexible,
+                                  is_object=item["expected_mode"] == "object")
+
+
+def cmd_apiq2(args: argparse.Namespace) -> None:
+    """APIQ-002 — 지시문 강화 A/B (draft vs enhanced). 모델·quality 는 chosen 고정.
+
+    APIQ-001 발견("초안 지시문이 병목 의심")의 검증 — 승자 확정 시 HYB-001 api 경로 승격."""
+    data = _load_manifest()
+    knob, seed = float(data["knob"]), int(data["seed"])
+    inputs_dir = Path(args.inputs_dir).expanduser()
+    runs_path = RUNS_DRY if args.dry_run else RUNS_REAL
+    model, quality = _chosen_setting(data, args)
+    apiq2 = data.get("apiq2") or {}
+    style_map: dict = apiq2.get("style_map") or {}
+    by_file = {it["file"]: it for it in data["items"]}
+    items = [by_file[f] for f in (data.get("apiq") or {}).get("items", []) if f in by_file]
+    assert len(items) == 3 and set(style_map) == {i["file"] for i in items}, \
+        "APIQ-002: apiq.items 3장과 apiq2.style_map 키가 일치해야 함"
+
+    for variant in apiq2.get("variants", ["draft", "enhanced"]):
+        out_dir = BACKEND / "results" / "ai" / "apiq002" / variant
+        out_dir.mkdir(parents=True, exist_ok=True)
+        for item in items:
+            image_path = inputs_dir / item["file"]
+            if not image_path.exists():
+                logger.error("입력 없음, 건너뜀: %s", image_path)
+                continue
+            style_key = style_map[item["file"]]
+            logger.info("[apiq2 %s] %s (style=%s)", variant, item["file"], style_key)
+            try:
+                with RunLogger(phase="APIQ-002", mode=item["expected_mode"], engine="api",
+                               input=item["file"], seed=seed,
+                               params={"arm": "apiq2", "variant": variant, "style": style_key,
+                                       "model": model, "quality": quality, "knob": knob,
+                                       "dry_run": args.dry_run},
+                               runs_path=runs_path) as run:
+                    run.set_meta(gpu_used=False)
+                    instr = _build_apiq2_instruction(image_path, item, variant, style_key,
+                                                    args.dry_run, run)
+                    run.note(f"instruction[{variant}]: {instr}")
+                    if args.dry_run:
+                        if variant == "enhanced":
+                            from app.services.style_specs import get_spec
+                            frag = get_spec(style_key).scene_prompt.format(
+                                subject=item["subject_en"])[:30]
+                            assert frag and frag in instr, \
+                                f"scene_prompt 주입 누락: {style_key}"
+                            assert "(dry) label" in instr, "identity_parts 주입 누락"
+                        from app.harness.pricing import image_cost_of
+                        run.add_llm_usage("gpt-5.4-mini", tok_in=300, tok_out=80)
+                        run.add_image_api_usage(model, n=1,
+                                                cost_usd=image_cost_of(model, quality=quality) or 0.02)
+                        out = out_dir / f"dry_{item['file']}"
+                        shutil.copy(image_path, out)
+                        run.set_output(str(out))
+                        run.set_verdict("dry")
+                        continue
+                    from app.services.api_image_service import edit_image
+
+                    out = edit_image(str(image_path), instr, out_dir=str(out_dir),
+                                     model=model, quality=quality, run=run)
+                    run.set_output(out)
+            except Exception:  # noqa: BLE001 — 1건 실패가 A/B 를 죽이면 안 됨
+                logger.exception("[apiq2 %s] %s 실패", variant, item["file"])
+
+
 def _p50(vals: list[float]) -> float | None:
     return round(statistics.median(vals), 2) if vals else None
 
@@ -271,8 +382,48 @@ def _summary_apiq(runs_path: Path, summary_path: Path) -> None:
     print(f"\n→ 저장: {summary_path}")
 
 
+def _summary_apiq2(runs_path: Path, summary_path: Path) -> None:
+    """APIQ-002 요약 — variant(draft|enhanced) 그룹 비용·시간. 품질은 육안 2단계 정본."""
+    groups: dict[str, list[dict]] = {}
+    fails: dict[str, int] = {}
+    for line in runs_path.read_text(encoding="utf-8").splitlines():
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if rec.get("phase") != "APIQ-002" or not rec.get("kpi"):
+            continue
+        variant = rec.get("params", {}).get("variant", "?")
+        if rec.get("error"):
+            fails[variant] = fails.get(variant, 0) + 1
+            continue
+        groups.setdefault(variant, []).append(rec)
+
+    lines = ["# APIQ-002 — 지시문 강화 A/B (자동 생성)", "",
+             "단일변수 = 지시문(draft=초안 힌트 / enhanced=6무드 scene_prompt+파트별 보존등급).",
+             "품질 승자는 육안 2단계 정본 — 산출: results/ai/apiq002/{variant}/. 지시문 전문은 원장 notes.", "",
+             "| variant | n | 실패 | 장당 비용 $ (mean) | p50 시간 s |",
+             "|---|---|---|---|---|"]
+    for variant, recs in sorted(groups.items()):
+        kpis = [r["kpi"] for r in recs]
+        costs = [k["cost"]["total_usd"] for k in kpis if k["cost"].get("total_usd") is not None]
+        times = [k["time"]["total_s"] for k in kpis if k["time"].get("total_s") is not None]
+        lines.append("| {} | {} | {} | {} | {} |".format(
+            variant, len(recs), fails.get(variant, 0),
+            round(sum(costs) / len(costs), 4) if costs else "—",
+            _p50(times) if times else "—"))
+    lines += ["", f"원장: {runs_path}"]
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print("\n".join(lines))
+    print(f"\n→ 저장: {summary_path}")
+
+
 def cmd_summary(args: argparse.Namespace) -> None:
     runs_path = RUNS_DRY if args.dry_run else RUNS_REAL
+    if getattr(args, "apiq2", False):
+        _summary_apiq2(runs_path, SUMMARY_APIQ2_DRY if args.dry_run else SUMMARY_APIQ2)
+        return
     if getattr(args, "apiq", False):
         _summary_apiq(runs_path, SUMMARY_APIQ_DRY if args.dry_run else SUMMARY_APIQ)
         return
@@ -355,9 +506,14 @@ def main() -> None:
     pq.add_argument("--inputs-dir", required=True, help="입력 디렉터리 (HYB001_inputs 재사용)")
     pq.add_argument("--dry-run", action="store_true")
     pq.set_defaults(fn=cmd_apiq)
-    ps = sub.add_parser("summary", help="KPI 비교표 생성 (기본 HYB-001 3암, --apiq 로 매트릭스)")
+    p2 = sub.add_parser("apiq2", help="APIQ-002: 지시문 강화 A/B (3장×2변형, g2/low 고정, ≤$0.15)")
+    p2.add_argument("--inputs-dir", required=True, help="입력 디렉터리 (HYB001_inputs 재사용)")
+    p2.add_argument("--dry-run", action="store_true")
+    p2.set_defaults(fn=cmd_apiq2)
+    ps = sub.add_parser("summary", help="KPI 비교표 생성 (기본 HYB-001 3암, --apiq/--apiq2)")
     ps.add_argument("--dry-run", action="store_true")
     ps.add_argument("--apiq", action="store_true", help="APIQ-001 매트릭스 요약")
+    ps.add_argument("--apiq2", action="store_true", help="APIQ-002 지시문 A/B 요약")
     ps.set_defaults(fn=cmd_summary)
     args = p.parse_args()
     args.fn(args)

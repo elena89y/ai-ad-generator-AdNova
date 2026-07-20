@@ -29,7 +29,24 @@ apiq:
     - {model: gpt-image-1-mini, quality: low}
     - {model: gpt-image-2, quality: low}      # 현행 기본(07-17 검증 설정)
     - {model: gpt-image-2, quality: high}     # 초고퀄(프리미엄 티어 후보)
-  chosen: {model: gpt-image-2, quality: low}  # APIQ-001 실측 전 임시 = 현행. 실측 후 갱신.
+  chosen: {model: gpt-image-2, quality: low}  # APIQ-001 판정(07-21): g2/low 유지 확정 — mini 3/3
+                                              # 정체성 실패(로고 위조 포함) 탈락, high 는 13배 비용
+                                              # 대비 우위가 케이스별로 갈려 프리미엄 티어 후보로만 보관.
+
+# --- APIQ-002: 지시문 강화 A/B (APIQ-001 후속, 07-21) ---------------------------------
+# 발견: APIQ-001 은 "튜닝 20일 로컬 vs 4문장 초안 지시문 API" 비교였음 — API 밋밋함의 유력 원인.
+# 단일변수 = 지시문. 모델·quality 는 chosen(g2/low) 고정, 입력 = apiq.items 3장 동일.
+#   draft    = 현행 초안(모드별 한 줄 힌트) — APIQ-001 과 동일 경로
+#   enhanced = ① 6무드 scene_prompt(T1 스타일 레지스트리, 실측 튜닝 자산) 이식
+#              ② analyze_photo(Vision) 파트별 보존등급(identity/flexible) 주입
+# 예산: 6장 × $0.015 + Vision 3회 ≈ ≤$0.15. 판정 = 육안 2단계(동일 프로토콜).
+# 승자 확정 시: enhanced 승이면 러너 api 경로 기본을 enhanced 로 승격 후 HYB-001 진행.
+apiq2:
+  variants: [draft, enhanced]
+  style_map:            # enhanced 의 무드 배정 (스타일 레지스트리 키)
+    beef_marbled.png: realism        # scene_prompt 에 마블링 보존 문구 내장
+    drink_ade.png: warm_vintage      # 카페 시그니처 음료 무드 (STY-003 선호 계열)
+    mouse.jpeg: object_studio        # 사물 SKU 중립 스튜디오
 
 items:
   # --- A 음식점 (in-place, 누끼 없음) ---
