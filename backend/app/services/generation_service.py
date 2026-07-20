@@ -753,16 +753,20 @@ def _process_ad_impl(
             #   requires_recompose 아키타입 선택 시)만 staging="recompose". 그 외는 보존 편집.
             staging, recompose_zone = _resolve_drink_staging(
                 resolved_analysis, style_domain, effective_style, seed)
-            recompose_kwargs = {}
+            # CONTAINER-001: Vision 용기 묘사·투명도는 보존 경로에도 전달 — 유리 디저트 용기
+            #   (빙수·파르페 등) 프리앰블 분기. 이름 기반 폴백(MenuAnalysis)은 None → 기존 문구(안전측).
+            scene_kwargs: dict = {
+                "container_desc": _container_desc(resolved_analysis),
+                "container_opacity": getattr(resolved_analysis, "container_opacity", None),
+            }
             if staging == "recompose":
-                recompose_kwargs = {
+                scene_kwargs.update({
                     "staging": "recompose",
-                    "container_desc": _container_desc(resolved_analysis),
                     "temperature": getattr(resolved_analysis, "temperature", None),
                     "text_zone": recompose_zone,
                     # 제품 이해(PU-001): 용기가 flexible이면 무드 팔레트로 리컬러 허용
                     "flexible_parts": getattr(resolved_analysis, "flexible_parts", None),
-                }
+                })
                 text_zone = recompose_zone
             # Best-of-N: N시드 생성 → 선별기로 top 선택. best_of=1 이면 기존 1샷.
             #   ⚠️ BON-002 기각(2026-07-13): NIMA 는 이미-좋은 이미지(5~6점대)를 변별 못 해 Best-of-N 무효.
@@ -774,7 +778,7 @@ def _process_ad_impl(
                     candidate = style_gen.generate_scene(
                         image_path, effective_style, subject_en,
                         output_dir=output_dir, seed=candidate_seed, steps=steps,
-                        domain=style_domain, **recompose_kwargs,
+                        domain=style_domain, **scene_kwargs,
                     )
                     cands.append(_tag_seed_output(candidate, candidate_seed))
             with _stage(run, "select"):

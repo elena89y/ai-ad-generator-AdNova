@@ -112,6 +112,49 @@ english_labels:
     사용.
 
     반드시 JSON 으로만 응답: {"name": "STRAWBERRY ADE", "phrase": "FRESH BERRY REFRESHMENT"}'
+# v6-1 F1(2026-07-21): 상세페이지 섹션별 전용 카피 — 한 번 호출 JSON.
+# honesty/ground/fix 조각은 platform_copy 원장을 재사용한다(코드 _detail_copy_instruction).
+detail_copy:
+  instruction: '아래 상품의 판매 상세페이지 섹션별 카피를 한국어로 작성해줘.
+
+    - 상품: ${product_context}
+
+    - 문구 톤: ${style_tone}
+
+    - 기존 광고 헤드라인(참고만, 그대로 재사용 금지): ${headline}
+
+    - 기존 서브카피(참고): ${subcopy}
+
+    - ${honesty}${ground}${fix}
+
+    섹션 구성과 규칙(글자 수는 공백 포함, 모든 문구 끝의 마침표·느낌표 제거):
+
+    1) intro_headline: 페이지 맨 위 후킹 한 줄, 16자 이내. 기존 헤드라인과 다른 표현으로.
+
+    2) story_title: 상품 스토리 제목 한 줄, 18자 이내.
+
+    3) story_body: 상품을 신뢰감 있게 소개하는 본문 2~3문장(문장 끝 마침표는 허용). 과장·최상급
+    없이 실제 특징만.
+
+    4) benefit_bullets: 구매 포인트 3개 배열, 각 14자 이내 명사형.
+
+    5) top_view_label: 위에서 내려다본 사진 섹션 라벨, 8자 내외 명사형(그릇 요리면 ''플레이팅'',
+    잔 음료면 ''잔'', 낱개 제품이면 ''제품'' 등 실제 형태에 맞게).
+
+    6) closeup_caption: 클로즈업 질감 섹션 캡션 한 줄, 12자 이내.
+
+    7) profile_title: 측면/형태 섹션 짧은 제목, 최대 2줄, 각 줄 6자 내외, 줄바꿈은 \n 하나만.
+
+    8) profile_caption: 그 옆 보조 문장 한 줄, 22자 이내.
+
+    9) lifestyle_line: 사용/연출 장면 위 감성 한 줄, 18자 이내. intro_headline 과 다른 표현으로.
+
+    10) cta_title: 구매 유도 큰 제목, 8자 내외. cta_label: 버튼 문구, 6자 내외.
+
+    각 섹션 문구는 서로 겹치지 않게 써(같은 문장 반복 금지). 카피에서 네가 언급한 구체적 재료를
+    claimed_ingredients(영문 소문자 배열)로 함께 보고해(환각 검증용, 언급 없으면 []).
+
+    반드시 JSON 으로만 응답: {"intro_headline":"","story_title":"","story_body":"","benefit_bullets":["","",""],"top_view_label":"","closeup_caption":"","profile_title":"...\n...","profile_caption":"","lifestyle_line":"","cta_title":"","cta_label":"","claimed_ingredients":[]}'
 section_labels:
   instruction: '아래 상품의 상세페이지 섹션 문구 4개를 만들어줘.
 

@@ -1,0 +1,79 @@
+# reference_style_plans 용기 문구 원장 — 담당: 한의정. (DIRECTION_v6 T1 소프트코딩)
+#
+# CONTAINER-001(2026-07-21, 팀장 피드백 백로그): food 프리앰블의 "no cup/tumbler"
+#   (BUG-KTX-001·PLATING-001 대응)와 (food,realism)의 "plate resting flat on dark charcoal"
+#   (BUG-KTX-001-2 대응)이 굽 유리볼 빙수를 밋밋한 흰 식당 접시로 강제 변환(운영 historyId=107).
+#   두 문구는 실측 버그 대응이라 삭제 불가 — analyze_photo(Vision)가 본 용기 묘사로 분기해,
+#   장식 용기(vessel)일 때만 "화려한 원본 용기 유지+프리미엄 연출" 긍정 단언으로 치환한다
+#   (BUG-KTX-001의 성공 패턴: 부정문 대신 긍정 단언 우선).
+# ⚠️ *_default 값은 기존 코드에 인라인이던 실측 튜닝값의 외부화 — 바꾸면 기본 경로
+#   바이트 동일성이 깨져 컵 변환·프로핑 버그가 회귀할 수 있다.
+# 자리표시자는 string.Template 문법(${name}). 로더: app/services/prompt_registry.py
+container:
+  # 기본(접시) 경로 문구 — 기존 인라인 값과 바이트 동일해야 한다.
+  hero_default: the plate
+  realism_clause_default: the plate resting flat
+  # vessel 경로: (food,realism)의 접지 문구 — 굽 용기는 "접시가 평평히"가 아니라
+  #   "제 굽으로 바로 선" 상태가 물리적으로 참이다.
+  realism_clause_vessel: the ${container} standing upright on its own base
+  # 분류 신호 — 실측(2026-07-21) 기반. analyze_photo가 굽·스템 형태를 단어로 주지 않고
+  #   container_kind는 'glass'/'plate' 수준, 대신 opacity가 유리 디저트 용기(transparent)와
+  #   불투명 접시(opaque)를 확실히 가른다. 세 층위로 판정한다(classify_container 참고):
+  # 1) vessel_keywords: Vision이 장식 용기 형태를 명시할 때(고블릿·파르페 등) — opacity 무관.
+  #    현행 프롬프트는 잘 안 주지만 미래 대비 + 이름 기반 폴백 대응.
+  vessel_keywords:
+    - pedestal
+    - footed
+    - stemmed
+    - goblet
+    - parfait
+    - sundae
+    - coupe
+    - trifle
+    - chalice
+    - compote
+  # 2) flat_kinds: 납작한 서빙면 — 투명 유리 접시여도 기존 접시 경로 유지(PLATING-001 가드).
+  flat_kinds:
+    - plate
+    - platter
+    - board
+    - tray
+  # 3) glass_vessel_kinds: 속이 깊은 용기. opacity가 transparent/translucent면 내용물이 비쳐
+  #    보이는 쇼피스 유리 용기(빙수·파르페·푸딩컵)로 판정. 맨몸 불투명 뚝배기·비빔밥기(opaque)는
+  #    여기 걸려도 opacity가 opaque라 default로 남는다.
+  glass_vessel_kinds:
+    - glass
+    - bowl
+    - cup
+    - mug
+    - jar
+    - tumbler
+    - snifter
+    - goblet
+    - coupe
+  # vessel 프리앰블 — 기본 food 프리앰블(_IDENTITY_LOCKS["food"])을 대체한다.
+  #   기본 프리앰블의 보호 장치를 유지하되(편집 잠금·객체 변환 금지·접지·장면 자유),
+  #   사실이 아닌 부정문("no cup anywhere" — 빙수 옆 라떼가 실제로 있는 사진에서 거짓)과
+  #   빵 눕히기 절(굽 용기와 무관)은 빼고, 용기 보존을 긍정 단언으로 앞세운다.
+  #   "dessert" 같은 제품군 고정 어휘는 쓰지 않는다(도메인 불가지론) — 유리 굽 볼 샐러드도
+  #   같은 분기를 타야 하므로 "dish/food"로 서술한다.
+  identity_lock_vessel: >-
+    This is a premium food photograph of a dish served in its original ${container},
+    and that decorative serving vessel is part of the dish's identity.
+    Keep the exact same ${container} as photographed: the same silhouette, stem, foot,
+    rim, wall shape, material, transparency and proportions.
+    Edit this exact food photograph. Keep every food item, topping, sauce and garnish
+    exactly as photographed: the same count, shape, texture and colors.
+    Never convert the ${container} into a plain flat plate, a generic white restaurant
+    plate, a cup, a mug, a takeaway container or any other kind of vessel, never move
+    the food out of its ${container}, and never turn the food into a beverage.
+    Do not add, remove, redraw, resize or recolor any food item, and do not rearrange
+    food items relative to each other.
+    You may reorient the whole ${container} and its food as a single rigid object so it
+    sits naturally within the new scene, but it must always stand upright on its own base
+    on the table surface, casting a single realistic contact shadow, as if simply set
+    down under normal gravity. Never leave it floating, tilted, propped up or otherwise
+    unsupported.
+    Change the background, table surface, camera framing and environmental lighting to
+    match the requested scene, presenting the dish as a premium showpiece in its
+    original vessel.

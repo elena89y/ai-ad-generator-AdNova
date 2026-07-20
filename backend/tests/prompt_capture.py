@@ -35,6 +35,16 @@ _CANNED: dict[str, dict] = {
         "threads": {"headline": "h", "body": "b", "hashtags": []},
         "claimed_ingredients": [],
     },
+    "detail_copy": {
+        "intro_headline": "오늘의 상큼함을 담다", "story_title": "수제 청으로 만든 한 잔",
+        "story_body": "매일 아침 딸기를 손질해 청을 담급니다. 설탕은 줄이고 과육은 살렸습니다.",
+        "benefit_bullets": ["수제 딸기청", "당일 제조", "생과육 가득"],
+        "top_view_label": "위에서 본 한 잔", "closeup_caption": "과육이 그대로",
+        "profile_title": "한 잔의\n밀도", "profile_caption": "바닥까지 가라앉지 않는 과육",
+        "lifestyle_line": "오후를 깨우는 붉은 한 모금",
+        "cta_title": "지금 맛보세요", "cta_label": "주문하기",
+        "claimed_ingredients": ["strawberry"],
+    },
     "judge_ad/vision": {"appetizing": 7, "realism": 7, "artifact_free": 7,
                         "composition": 7, "adherence": 7, "overall": 7, "reason": "ok"},
     "compare_ads/vision": {"winner": "first", "reason": "ok"},
@@ -144,6 +154,15 @@ def capture_all(tmp_dir: Path) -> dict[str, list]:
         captured["platform_copy/correction"] = [gpt_service._platform_copy_instruction(
             "딸기 에이드 — 상큼한 수제 청으로 만든 시그니처", StylePreset.POP,
             ["strawberry", "sparkling water"], "strawberry ade in a glass", ["mint"])]
+        with at("detail_copy"):
+            gpt_service.generate_detail_copy(
+                "딸기 에이드", "strawberry ade", "drink", "달콤한 한 잔",
+                subcopy="수제 청의 상큼함", core_ingredients=["strawberry", "sparkling water"],
+                style_key="pop", image_desc="strawberry ade in a glass")
+        captured["detail_copy/correction"] = [gpt_service._detail_copy_instruction(
+            "딸기 에이드 — strawberry ade", "발랄하고 에너지 넘치는 톤", "달콤한 한 잔",
+            "수제 청의 상큼함", ["strawberry", "sparkling water"],
+            "strawberry ade in a glass", ["mint"])]
         with at("judge_ad/plain"):
             gpt_service.judge_ad(img1)
         with at("judge_ad/ref"):
