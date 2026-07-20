@@ -7,6 +7,7 @@ import {
   AdItem,
   GenerateResult,
   PlatformCopy,
+  STYLE_LABEL_MAP,
   STYLE_PRESET_MAP,
   apiFetch,
   formatDateLabel,
@@ -19,9 +20,9 @@ import {
   toStyleLabel,
 } from "@/lib/api";
 import { useStudio } from "@/components/studio/StudioProvider";
-import { AppBar } from "@/components/studio/chrome";
+import { AppBar, WorkspaceNav } from "@/components/studio/chrome";
 import { AuthenticatedImage } from "@/components/studio/AuthenticatedImage";
-import { TemplateGrid } from "@/components/studio/TemplateGrid";
+import { fetchTemplates } from "@/lib/templates";
 
 const GEN_STEPS = [
   "사진을 분석하는 중…",
@@ -119,6 +120,50 @@ export default function StudioPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 템플릿 갤러리에서 진입 — ?template={원장id}(팩 전체 적용) 또는 ?style=&use=(프리셋만) (v6 T4)
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const id = sp.get("template");
+    const styleParam = sp.get("style");
+    const useParam = sp.get("use");
+    const tname = sp.get("tname");
+    if (!id && !styleParam && !useParam) return;
+
+    const clearQuery = () =>
+      window.history.replaceState(null, "", "/studio"); // 새로고침 재적용 방지
+
+    if (!id) {
+      s.setDashboardState({
+        ...(styleParam ? { styleLabel: styleParam } : {}),
+        ...(useParam ? { useValue: useParam } : {}),
+      });
+      s.toast(`템플릿 적용: ${tname ?? styleParam ?? ""}`);
+      clearQuery();
+      return;
+    }
+
+    let cancelled = false;
+    fetchTemplates()
+      .then((items) => {
+        if (cancelled) return;
+        const t = items.find((x) => x.id === id);
+        if (!t) return;
+        const styleLabel = STYLE_LABEL_MAP[t.style_preset] ?? t.style_preset;
+        const nextUse = FORMAT_TO_USE[t.formats[0] ?? ""];
+        s.setDashboardState({
+          styleLabel,
+          ...(nextUse ? { useValue: nextUse } : {}),
+        });
+        s.toast(`템플릿 적용: ${tname ?? t.title}`);
+        clearQuery();
+      })
+      .catch(() => {}); // 템플릿은 부가 기능 — 실패해도 스튜디오는 동작
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const platformCopy: PlatformCopy | null = s.currentResult
     ? currentCopyFor(activePlatform, s.currentResult)
     : null;
@@ -144,10 +189,11 @@ export default function StudioPage() {
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+    // 백엔드 MAX_IMAGE_SIZE_MB(15MB)와 동기 — 서버가 장변 2048로 정규화 저장하므로 폰 원본 OK
+    const MAX_IMAGE_SIZE = 15 * 1024 * 1024;
     if (!file) return;
     if (file.size > MAX_IMAGE_SIZE) {
-      s.toast("이미지는 최대 5MB까지 업로드할 수 있습니다.");
+      s.toast("이미지는 최대 15MB까지 업로드할 수 있습니다.");
       e.target.value = "";
     return;
     }
@@ -385,7 +431,8 @@ export default function StudioPage() {
   return (
     <section>
       <AppBar />
-      <div className="dashboard-layout">
+      <div className="dashboard-layout with-wsnav">
+        <WorkspaceNav />
         {/* CONTROL RAIL */}
         <div className="control-rail">
           <div>
@@ -599,20 +646,6 @@ export default function StudioPage() {
                 </button>
               ))}
             </div>
-          </div>
-          <div>
-            <div className="rail-label">템플릿 팩</div>
-            <TemplateGrid
-              activeStyleLabel={s.styleLabel}
-              onPick={(t, styleLabel) => {
-                const nextUse = FORMAT_TO_USE[t.formats[0] ?? ""];
-                s.setDashboardState({
-                  styleLabel,
-                  ...(nextUse ? { useValue: nextUse } : {}),
-                });
-                s.toast(`템플릿 적용: ${t.title}`);
-              }}
-            />
           </div>
           <div>
             <div className="rail-label">03 · 용도</div>
