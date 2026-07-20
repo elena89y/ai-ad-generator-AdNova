@@ -355,6 +355,9 @@ export default function StudioPage() {
       style: toStyleLabel(s.currentResult.style),
       rawStyle: s.currentResult.style,
       img: toAbsoluteUrl(resultImageUrl(s.currentResult)),
+      // [html-parity] 상세·공유로 넘어가도 타이포 토글이 되도록 페어 유지 (html 이식)
+      imageWithoutTypography: toAbsoluteUrl(s.currentResult.image_without_typography_url),
+      imageWithTypography: toAbsoluteUrl(s.currentResult.image_with_typography_url),
       inputImg: toAbsoluteUrl(s.selectedImageUrl),
       assetId: s.currentResult.asset_id,
       seed: s.currentResult.seed,
