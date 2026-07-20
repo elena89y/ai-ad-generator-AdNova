@@ -103,6 +103,9 @@ export interface AdItem {
   inputImageId?: number;
   inputImg: string;
   img: string;
+  // [html-parity] 상세 화면 타이포 토글용 페어 — html buildCurrentOutputItem 이식 (Next 이관 시 누락)
+  imageWithoutTypography?: string;
+  imageWithTypography?: string;
   assetId?: string;
   seed?: number;
   adType?: string;
@@ -336,6 +339,9 @@ export function historyToCard(history: HistoryEntry): AdItem {
     inputImageId: ad.input_image_id,
     inputImg: toAbsoluteUrl(inputImage.image_url),
     img: toAbsoluteUrl(outputImage.image_url || (responseData.image_url as string)),
+    // [html-parity] history response_data 의 타이포 페어 매핑 (html 이식, Next 이관 시 누락)
+    imageWithoutTypography: toAbsoluteUrl(responseData.image_without_typography_url as string),
+    imageWithTypography: toAbsoluteUrl(responseData.image_with_typography_url as string),
     assetId: responseData.asset_id as string | undefined,
     seed: responseData.seed as number | undefined,
     adType: ad.ad_type,
