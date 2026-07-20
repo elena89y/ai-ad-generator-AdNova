@@ -11,8 +11,10 @@ export default function LoginPage() {
 
 function LoginFallback() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#0e0e11] text-white">
-      <div className="text-sm text-white/50">로그인 화면을 불러오는 중...</div>
+    <main className="flex min-h-screen items-center justify-center bg-[var(--auth-background)] text-[var(--foreground)]">
+      <div className="text-sm text-[var(--muted)]">
+        로그인 화면을 불러오는 중...
+      </div>
     </main>
   );
 }

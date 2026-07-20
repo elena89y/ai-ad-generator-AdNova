@@ -119,18 +119,31 @@ export default function LoginClient() {
   }
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0e0e11] px-5 py-10 text-white">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[var(--auth-background)] px-5 py-10 text-[var(--foreground)]">
       {/* 배경 장식 */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
       >
-        <div className="absolute left-1/2 top-[-180px] h-[430px] w-[700px] -translate-x-1/2 rounded-full bg-[#f2a93b]/10 blur-[140px]" />
-        <div className="absolute bottom-[-220px] right-[-160px] h-[500px] w-[500px] rounded-full bg-[#c42e5c]/10 blur-[150px]" />
+        <div
+          className="absolute left-1/2 top-[-180px] h-[430px] w-[700px] -translate-x-1/2 rounded-full blur-[140px]"
+          style={{ background: "var(--auth-glow)" }}
+        />
+
+        <div
+          className="absolute bottom-[-220px] right-[-160px] h-[500px] w-[500px] rounded-full blur-[150px]"
+          style={{ background: "var(--auth-glow-deep)" }}
+        />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.3)_70%,rgba(0,0,0,0.6)_100%)]" />
       </div>
 
-      <section className="relative z-10 w-full max-w-[430px] rounded-[24px] border border-white/10 bg-[#1a191f]/95 p-8 shadow-[0_30px_90px_rgba(0,0,0,0.55)] backdrop-blur-xl sm:p-10">
+      <section
+        className="relative z-10 w-full max-w-[430px] rounded-[24px] border p-8 shadow-[0_30px_90px_rgba(0,0,0,0.55)] backdrop-blur-xl sm:p-10"
+        style={{
+          background: "var(--auth-panel)",
+          borderColor: "var(--auth-border)",
+        }}
+      >
         <Link
           href="/"
           className="mb-8 inline-flex items-center gap-2 text-xs font-medium text-white/45 transition hover:text-white/80"
@@ -187,7 +200,7 @@ export default function LoginClient() {
               onChange={(event) =>
                 setUsername(event.target.value)
               }
-              className="h-12 w-full rounded-xl border border-white/10 bg-[#111116] px-4 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-[#f2a93b]/60 focus:ring-4 focus:ring-[#f2a93b]/10 disabled:cursor-not-allowed disabled:opacity-60"
+              className="auth-input h-12 w-full rounded-xl px-4 text-sm outline-none transition disabled:cursor-not-allowed disabled:opacity-60"
             />
           </div>
 
@@ -202,7 +215,7 @@ export default function LoginClient() {
 
               <Link
                 href="/forgot"
-                className="text-xs font-medium text-white/40 transition hover:text-[#f2a93b]"
+                className="text-xs font-medium text-white/40 transition hover:text-[var(--accent-deep)]"
               >
                 비밀번호 찾기
               </Link>
@@ -218,14 +231,18 @@ export default function LoginClient() {
               onChange={(event) =>
                 setPassword(event.target.value)
               }
-              className="h-12 w-full rounded-xl border border-white/10 bg-[#111116] px-4 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-[#f2a93b]/60 focus:ring-4 focus:ring-[#f2a93b]/10 disabled:cursor-not-allowed disabled:opacity-60"
+              className="auth-input h-12 w-full rounded-xl px-4 text-sm outline-none transition disabled:cursor-not-allowed disabled:opacity-60"
             />
           </div>
 
           <button
             type="submit"
             disabled={isLoading}
-            className="h-12 w-full rounded-xl bg-gradient-to-r from-[#f2a93b] via-[#ed7651] to-[#d53769] text-sm font-extrabold text-white shadow-[0_12px_30px_rgba(213,55,105,0.2)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-12 w-full rounded-xl text-sm font-extrabold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+            style={{
+              background: "var(--auth-gradient)",
+              boxShadow: "0 12px 30px var(--auth-glow)",
+            }}
           >
             {isLoading ? "로그인 중..." : "로그인"}
           </button>
@@ -294,7 +311,7 @@ export default function LoginClient() {
           아직 계정이 없으세요?{" "}
           <Link
             href="/signup"
-            className="font-bold text-[#f2a93b] transition hover:text-[#ffbf5d]"
+            className="font-bold text-[var(--accent-deep)] transition hover:text-[var(--accent)]"
           >
             무료로 시작하기
           </Link>

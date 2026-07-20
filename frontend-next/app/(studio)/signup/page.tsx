@@ -371,7 +371,6 @@ export default function SignupPage() {
       </div>
 
       <div className="login-right">
-        <div className="spotlight" />
 
         <div className="showcase">
           <span className="tag">✦ 가입하면 바로</span>
