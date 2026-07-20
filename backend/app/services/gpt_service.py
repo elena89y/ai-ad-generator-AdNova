@@ -26,8 +26,13 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from ..schemas.ads import AdPurpose, ProductInfo, StyleCandidate, StylePreset
+from . import prompt_registry as _prompts
 
 logger = logging.getLogger(__name__)
+
+# 프롬프트 문구 원장(T1 소프트코딩): backend/app/prompts/gpt_service.yaml
+# 문구 수정은 코드가 아니라 YAML 에서 — 바이트 동일성 게이트(test_prompt_snapshots) 참조.
+_NS = "gpt_service"
 
 
 # --- 산출물 ------------------------------------------------------------------
@@ -112,23 +117,12 @@ def _get_client():  # noqa: ANN202
     return OpenAI(api_key=api_key)
 
 
-# --- 스타일 → 문구 톤 매핑 (v1 잠정치, 실험 후 확정) ---------------------------
+# --- 스타일 → 문구 톤 매핑 (v1 잠정치, 실험 후 확정) — 문구는 YAML 원장 -------
 _STYLE_TONE: dict[StylePreset, str] = {
-    StylePreset.MONOTONE: "절제되고 미니멀한 톤. 짧고 세련된 표현, 불필요한 수식어 배제",
-    StylePreset.WARM_VINTAGE: "따뜻하고 감성적인 톤. 포근한 정서와 추억을 자극하는 표현",
-    StylePreset.POP: "발랄하고 에너지 넘치는 톤. 리듬감 있는 표현과 감탄사 활용 가능",
-    StylePreset.EDITORIAL: "고급스럽고 정제된 톤. 프리미엄 매거진 헤드라인처럼 짧고 단정한 단문",
-    StylePreset.RETRO_PAPER: "복고풍의 정겨운 톤. 오래된 간판·손글씨 광고 같은 친근하고 담백한 표현",
-    StylePreset.PASTEL_FLOAT: "가볍고 산뜻한 톤. 부드럽고 몽글몽글한 표현, 상큼함과 설렘 강조",
-}
+    StylePreset(k): v for k, v in _prompts.get(_NS, "style_tone").items()}
 
 _PURPOSE_GUIDE: dict[AdPurpose, str] = {
-    AdPurpose.SNS: "인스타그램 피드 게시물. 첫 줄에 후킹, 이모지 적절히 활용, 해시태그 5~8개",
-    AdPurpose.CARD_NEWS: "카드뉴스 표지. 호기심을 유발하는 한 줄, 해시태그 3~5개",
-    AdPurpose.BANNER: "웹 배너. 매우 짧고 강한 한 줄, 해시태그 최소",
-    AdPurpose.DETAIL_PAGE: "상세페이지 도입부. 신뢰감 있는 설명형, 해시태그 불필요 시 빈 배열",
-    AdPurpose.FLYER: "오프라인 전단지. 직관적 혜택 강조, 해시태그 불필요 시 빈 배열",
-}
+    AdPurpose(k): v for k, v in _prompts.get(_NS, "purpose_guide").items()}
 
 
 # --- 이미지 캡셔닝 (B-0 저비용 경로, 로컬 BLIP) --------------------------------
@@ -205,21 +199,13 @@ def generate_copy(
     ) or "(상품 정보 없음)"
 
     retry_note = (
-        f"\n- ⚠️ 직전 시도가 규칙을 어겼어. 다음을 반드시 고쳐서 다시 써: {feedback}"
+        _prompts.fmt(_NS, "generate_copy.retry_note", feedback=feedback)
         if feedback else ""
     )
-    instruction = (
-        "아래 광고 이미지와 상품 정보를 바탕으로 한국어 광고 카피를 작성해줘.\n"
-        f"- 상품: {product_context}\n"
-        f"- 문구 톤: {_STYLE_TONE[style]}\n"
-        "요구사항: 국내 카페 광고처럼 짧게 써. 헤드라인 1줄(공백 포함 16자 이내), "
-        "서브카피는 꼭 필요할 때만 1줄(공백 포함 22자 이내)이고 필요 없으면 비워. "
-        "장면을 설명하는 문장(예: 테이블 위 한 잔)은 쓰지 마. 모든 문구 끝의 마침표·쉼표·느낌표를 빼. "
-        "줄바꿈은 두 문구 사이에 정확히 한 번만 사용해. 이미지에 실제로 보이는 분위기·소품과 "
-        "어울려야 하고, 이미지에 없는 요소를 지어내지 마."
-        f"{retry_note}\n"
-        '반드시 JSON 으로만 응답: {"copy": "헤드라인\\n서브카피"}'
-    )
+    instruction = _prompts.fmt(
+        _NS, "generate_copy.instruction",
+        product_context=product_context, style_tone=_STYLE_TONE[style],
+        retry_note=retry_note)
 
     if use_vision:
         with open(final_image_path, "rb") as f:
@@ -236,7 +222,8 @@ def generate_copy(
         ]
     else:
         caption = _caption_image(final_image_path)
-        content = f"{instruction}\n- 이미지 장면 묘사(캡션): {caption}"
+        content = _prompts.fmt(_NS, "generate_copy.caption_line",
+                               instruction=instruction, caption=caption)
 
     label = f"generate_copy/{'vision' if use_vision else 'blip'}"
     result = _chat_json([{"role": "user", "content": content}], label=label)
@@ -257,14 +244,10 @@ def generate_sns_copy(
         p.strip() for p in (product.name, product.description) if p and p.strip()
     ) or "(상품 정보 없음)"
 
-    instruction = (
-        "아래 상품의 홍보 문구를 한국어로 작성해줘.\n"
-        f"- 상품: {product_context}\n"
-        f"- 문구 톤: {_STYLE_TONE[style]}\n"
-        f"- 용도: {_PURPOSE_GUIDE[purpose]}\n"
-        "해시태그는 # 포함 문자열 배열로. "
-        '반드시 JSON 으로만 응답: {"caption": "...", "hashtags": ["#...", "#..."]}'
-    )
+    instruction = _prompts.fmt(
+        _NS, "generate_sns_copy.instruction",
+        product_context=product_context, style_tone=_STYLE_TONE[style],
+        purpose_guide=_PURPOSE_GUIDE[purpose])
 
     result = _chat_json([{"role": "user", "content": instruction}], label="generate_sns_copy")
     caption = str(result.get("caption", "")).strip()
@@ -276,41 +259,25 @@ def generate_sns_copy(
 
 # --- D4b 4매체 페르소나 카피 (한 번 호출 JSON + 자기보고 환각 게이트) ------------
 # UI 계약(2026-07-09): 마이페이지 SNS 공유 4버튼(IG/FB/X/Threads), 카피블록 = headline+body+hashtags.
-_PLATFORM_PERSONA: dict[str, str] = {
-    "instagram": "비주얼·감성 중심. 첫 줄 강한 후킹, 이모지 적절히, 해시태그 6~10개. body 2~3문장.",
-    "facebook": "정보·친근형. 혜택과 CTA 명확, body 2~4문장으로 조금 길게, 해시태그 2~4개.",
-    "x": "짧고 위트있게. 트렌디한 한두 문장, body 1~2문장, 해시태그 1~3개.",
-    "threads": "대화체·솔직담백. 친구에게 말하듯 캐주얼, body 1~3문장, 해시태그 0~3개.",
-}
+_PLATFORM_PERSONA: dict[str, str] = dict(_prompts.get(_NS, "platform_persona"))
 
 
 def _platform_copy_instruction(product_context: str, style: StylePreset,
                                allowed: list[str], image_desc: str,
                                correction: Optional[list[str]]) -> str:
     persona = "\n".join(f"  - {k}: {v}" for k, v in _PLATFORM_PERSONA.items())
-    honesty = ("정직성(중요): 이미지·상품에 실제로 있는 것만 표현해. 없는 재료·효능·수상·원산지·"
-               "할인·최상급 표현을 지어내지 마.")
+    honesty = _prompts.get(_NS, "platform_copy.honesty_base")
     if allowed:
-        honesty += f" 재료·맛 관련 표현은 다음 실제 구성만 근거로 삼아: {', '.join(allowed)}."
-    ground = f"\n- 이미지 실제 묘사(사실 근거): {image_desc}" if image_desc else ""
-    fix = (f"\n- ⚠️ 직전 시도가 실제에 없는 재료를 지어냈어: {', '.join(correction)}. "
-           "이 표현들을 빼고 다시 써." if correction else "")
-    return (
-        "아래 상품으로 4개 SNS 매체별 광고 카피를 한국어로 작성해줘.\n"
-        f"- 상품: {product_context}\n"
-        f"- 문구 톤: {_STYLE_TONE[style]}\n"
-        f"- {honesty}{ground}{fix}\n"
-        "- 모든 카피는 자연스러운 한국어로 써. 위 영문 재료명·이미지 묘사는 내용 참고용일 뿐이니 "
-        "영어 단어를 그대로 노출하지 말고 한국어로 자연스럽게 옮겨(예: tapioca pearls→타피오카 펄).\n"
-        "매체별 페르소나:\n" + persona + "\n"
-        "각 매체는 headline(임팩트 있는 1줄), body(페르소나에 맞는 문장), "
-        "hashtags(# 포함 문자열 배열)로.\n"
-        "또한 카피에서 네가 언급한 구체적 재료를 claimed_ingredients(영문 소문자 배열)로 함께 "
-        "보고해(환각 검증용, 언급 없으면 []).\n"
-        '반드시 JSON 으로만 응답: {"instagram":{"headline":"","body":"","hashtags":["#..."]},'
-        '"facebook":{"headline":"","body":"","hashtags":[]},"x":{...},"threads":{...},'
-        '"claimed_ingredients":["..."]}'
-    )
+        honesty += _prompts.fmt(_NS, "platform_copy.honesty_allowed",
+                                allowed=", ".join(allowed))
+    ground = (_prompts.fmt(_NS, "platform_copy.ground", image_desc=image_desc)
+              if image_desc else "")
+    fix = (_prompts.fmt(_NS, "platform_copy.fix", extra=", ".join(correction))
+           if correction else "")
+    return _prompts.fmt(
+        _NS, "platform_copy.instruction",
+        product_context=product_context, style_tone=_STYLE_TONE[style],
+        honesty=honesty, ground=ground, fix=fix, persona=persona)
 
 
 def generate_platform_copy(
@@ -360,8 +327,7 @@ def generate_platform_copy(
 # --- 품질 저지 (GPT Vision — 골든셋 평가·캘리브레이션용, 실시간 아님) -----------
 # 역할분리: 실시간 결함검사는 로컬 vlm_service.inspect(빠르고 무료), 정밀 미세 순위는
 #   여기 GPT Vision(신뢰·저비용, 평가 호출량 적음). 2B 의 위치편향/점수압축 한계 극복(P2-2 재설계).
-_JUDGE_SYS = ("You are a strict, experienced food/product advertising art director. Score honestly — "
-              "a mediocre ad gets 5-6, not 8. Reserve 9-10 for images that could run in a real premium campaign.")
+_JUDGE_SYS = _prompts.get(_NS, "judge_sys")
 
 
 def _vision_part(image_path: str) -> dict:
@@ -379,15 +345,9 @@ def judge_ad(image_path: str, instruction: str = "", ref_path: Optional[str] = N
     ref_path(원본)+instruction 주면 정체성 보존·명령 이행까지 평가.
     반환: {appetizing, realism, artifact_free, composition, adherence, overall, reason}.
     """
-    ident = (" Also judge how well it preserved the original product's identity and followed "
-             f'the edit "{instruction}" (first image = original, second = result).'
+    ident = (_prompts.fmt(_NS, "judge_ad.ident", instruction=instruction)
              if ref_path and instruction else "")
-    rubric = (
-        "Rate this food/product advertisement image on each axis from 1(poor) to 10(excellent): "
-        "appetizing, realism(photographic, not CGI/plastic), artifact_free(no warping/extra fingers/"
-        "gibberish/melting), composition(lighting·framing·ad polish), adherence." + ident +
-        ' Reply ONLY JSON: {"appetizing":N,"realism":N,"artifact_free":N,"composition":N,'
-        '"adherence":N,"overall":N,"reason":"one short sentence"}')
+    rubric = _prompts.fmt(_NS, "judge_ad.rubric", ident=ident)
     content: list = [{"type": "text", "text": rubric}]
     if ref_path and instruction:
         content.append(_vision_part(ref_path))
@@ -406,12 +366,8 @@ def compare_ads(image_a: str, image_b: str, ref_path: Optional[str] = None,
 
     반환: {winner: 'A'|'B'|'tie', reason}. A=image_a, B=image_b.
     """
-    q = ("As a strict food/product ad art director, which is the better advertisement — considering "
-         "appetite appeal, photographic realism, absence of artifacts, and faithfulness to the real "
-         "product? Richer color/gloss/enhancement is GOOD if it still looks like a real photo; penalize "
-         "only genuine flaws (warping, CGI/plastic look, fake blur). "
-         'Reply ONLY JSON: {"winner":"first" or "second","reason":"one short sentence"}')
-    lead = ("The first image is the ORIGINAL for reference. " if ref_path else "")
+    q = _prompts.get(_NS, "compare_ads.question")
+    lead = (_prompts.get(_NS, "compare_ads.lead_ref") if ref_path else "")
 
     def _one(x: str, y: str) -> tuple:
         content: list = [{"type": "text", "text": lead + q}]
@@ -444,14 +400,9 @@ def judge_ad_calibrated(image_path: str, style_key: str,
     from .style_specs import get_spec
     sp = get_spec(style_key)
     refs = ref_image_paths[:3]
-    intro = (
-        f"The first {len(refs)} images are REFERENCE examples of our TARGET '{style_key}' advertising "
-        f"aesthetic ({sp.mood}). The LAST image is a CANDIDATE ad we generated. Rate how well the "
-        "candidate matches this target, 1(off-target) to 10(indistinguishable from the references in "
-        "quality and style), on: style_match(mood·color·layout), execution(typography·lighting·"
-        "composition polish), identity(product looks real and faithful), overall. " + (extra + " " if extra else "") +
-        'Reply ONLY JSON: {"style_match":N,"execution":N,"identity":N,"overall":N,'
-        '"improve":"one concrete suggestion"}')
+    intro = _prompts.fmt(
+        _NS, "judge_calibrated.intro", n_refs=len(refs), style_key=style_key,
+        mood=sp.mood, extra_part=(extra + " " if extra else ""))
     content: list = [{"type": "text", "text": intro}]
     for p in refs:
         content.append(_vision_part(p))
@@ -483,13 +434,8 @@ def generate_english_labels(product: ProductInfo) -> tuple[str, str]:
     except Exception as e:  # noqa: BLE001
         logger.info(f"구조화 라벨 폴백 → raw JSON 경로: {e}")
 
-    instruction = (
-        "아래 상품의 광고 포스터용 영문 라벨 2개를 만들어줘.\n"
-        f"- 상품: {product_context}\n"
-        "규칙: name 은 상품의 실제 메뉴명을 영문 대문자 2~4단어로 (브랜드명·과장 금지), "
-        "phrase 는 상품 분위기를 담은 영문 대문자 3~6단어. 둘 다 영문자·공백·&만 사용.\n"
-        '반드시 JSON 으로만 응답: {"name": "STRAWBERRY ADE", "phrase": "FRESH BERRY REFRESHMENT"}'
-    )
+    instruction = _prompts.fmt(_NS, "english_labels.instruction",
+                               product_context=product_context)
     result = _chat_json([{"role": "user", "content": instruction}], label="english_labels")
     # 키 표기 변형(NAME/Name 등) 방어
     lowered = {str(k).lower(): v for k, v in result.items()} if isinstance(result, dict) else {}
@@ -518,24 +464,10 @@ def generate_section_labels(product_name: str, subject_en: str, domain: str,
     cta_title/cta_label은 2026-07-20 추가(CTA-001) — "지금 만나보세요"/"자세히 보기"가
     section 라벨과 별개로 여전히 모듈 상수로 하드코딩돼 있던 걸 같은 호출에 얹어 해결.
     """
-    instruction = (
-        "아래 상품의 상세페이지 섹션 문구 4개를 만들어줘.\n"
-        f"- 상품명: {product_name or subject_en}\n"
-        f"- 영문 키워드: {subject_en}\n"
-        f"- 카테고리: {domain} (food=음식, drink=음료, object=제품)\n"
-        f"- 광고 헤드라인(참고용): {headline}\n"
-        "규칙:\n"
-        "1) top_view_label: 위에서 내려다본 사진 섹션의 라벨. 8자 내외 한글, 상품의 실제 형태에 "
-        "맞는 표현 사용(그릇에 담긴 음식이면 '플레이팅', 잔에 담긴 음료면 '잔', 낱개 제품이면 "
-        "'제품' 등). 명사형으로 끝낼 것.\n"
-        "2) detail_title: 클로즈업 질감 섹션의 짧은 제목. 최대 2줄, 각 줄 6자 내외, 줄바꿈은 "
-        "\\n 하나만 사용.\n"
-        "3) cta_title: 페이지 맨 아래 구매 유도 큰 제목. 8자 내외 한글.\n"
-        "4) cta_label: 그 아래 작은 버튼 문구. 6자 내외 한글(예: 자세히 보기, 지금 주문하기).\n"
-        "없는 재료·효능·수식어를 지어내지 말고 상품명·카테고리에서 자연스럽게 나오는 표현만 써.\n"
-        '반드시 JSON 으로만 응답: {"top_view_label": "...", "detail_title": "...\\n...", '
-        '"cta_title": "...", "cta_label": "..."}'
-    )
+    instruction = _prompts.fmt(
+        _NS, "section_labels.instruction",
+        product_name=product_name or subject_en, subject_en=subject_en,
+        domain=domain, headline=headline)
     result = _chat_json([{"role": "user", "content": instruction}], label="section_labels")
     lowered = {str(k).lower(): v for k, v in result.items()} if isinstance(result, dict) else {}
     top_view_label = str(lowered.get("top_view_label", "")).strip()
@@ -675,18 +607,11 @@ def build_cake_layers(name: str, subject_en: str = "", image_desc: str = "") -> 
     실패/비케이크면 layers 빈 리스트 → 호출부가 일반 매크로로 폴백.
     """
     display = (name or "").strip()
-    hint = f" 이미지 관찰: {image_desc}." if image_desc else ""
-    instruction = (
-        "너는 10년 경력의 호텔 파티쉐이자 미슐랭 디저트 셰프이고 상업 음식사진 비주얼 디렉터야.\n"
-        f"케이크 이름: {display or '(빈 입력)'} (영문: {subject_en or 'cake'}).{hint}\n"
-        "이 케이크의 **실제로 판매 가능한** 단면 레이어 구성을 식감 대비·레이어 구조를 고려해 Bottom→Top 으로 재구성해.\n"
-        "각 레이어는 광고 사진 수준의 영문 물성 묘사(수분감·점성·광택·공기감·질감)로 1문장씩. 그 케이크에 "
-        "실재하지 않을 재료는 지어내지 마(정직성).\n"
-        "**중요:** 상품명이 케이크·디저트(생크림/무스/레이어 케이크류)가 아니면 — 전자제품·사물·음료·일반 음식 등 — "
-        "반드시 plausible=false, layers=[] 로 응답해. 마우스·가방 같은 사물을 억지로 케이크로 해석하지 마.\n"
-        'JSON 으로만: {"plausible":true/false,"layers":["Layer 1: ...(english)","Layer 2: ...", ...4~6개],'
-        '"top":"top decoration in english"}'
-    )
+    hint = (_prompts.fmt(_NS, "cake_recipe.hint", image_desc=image_desc)
+            if image_desc else "")
+    instruction = _prompts.fmt(
+        _NS, "cake_recipe.instruction",
+        display=display or "(빈 입력)", subject_en=subject_en or "cake", hint=hint)
     try:
         r = _chat_json([{"role": "user", "content": instruction}], label="cake_recipe")
         layers = [str(x) for x in (r.get("layers") or [])] if r.get("plausible") else []
@@ -705,27 +630,9 @@ def analyze_menu(name: str) -> MenuAnalysis:
     # 이름 기반 분석은 결정적이며 같은 생성에서 라우팅·플랫폼 카피가 중복 호출한다.
     # 예외는 lru_cache에 저장되지 않으므로 일시적인 API 실패도 고착되지 않는다.
     display_name = (name or "").strip()
-    instruction = (
-        "너는 소상공인 광고 파이프라인의 상품 분석기야. 아래 '상품명'을 분석해 JSON 으로만 응답해.\n"
-        f"- 상품명: {display_name or '(빈 입력)'}\n"
-        "규칙:\n"
-        "1. domain: 먹는 음식이면 'food', 사물·제품(전자기기·주방용품·뷰티툴·잡화 등)이면 'object'.\n"
-        f"2. category(food 일 때만 의미): [{_MENU_CATEGORIES}] 중 하나. "
-        "생소고기=beef, 생돼지고기=pork, 국·탕·찌개=soup, 튀김=fried, 빵·디저트=bakery, "
-        "구이=grill, 그 외=default. object 면 'default'.\n"
-        "3. subject_en: 이미지용 영어 설명(2~6단어, 항상 영어. 한글이면 번역). "
-        "브랜드명·과장 금지, 실제 상품만.\n"
-        "4. core_ingredients: (food) 원래 들어가는 핵심 재료 영어 배열(최대 4개). object 면 [].\n"
-        "5. texture_hero: (food) 미세 텍스처가 상품의 핵심이면 true "
-        "(마블링 생소고기·눈꽃치즈 파우더·회 등). 그 외 false. object 면 false.\n"
-        "6. material: (object) 'reflective'(금속·거울·유광), 'transparent'(유리·투명), "
-        "'matte'(무광 플라스틱·세라믹·천), 애매하면 'default'. food 면 'default'.\n"
-        "7. food_mode: (food) 그릇·용기에 담겨 나오는 음식점 요리(국·탕·밥·구이·정식·치킨 등)="
-        "'dish', 카페의 이산 제품(음료·커피·케이크·베이커리·디저트·마들렌 등)='cafe'. object 면 'dish'.\n"
-        "8. lang: 상품명이 한글이면 'ko', 영어면 'en'.\n"
-        '반드시 JSON: {"domain":"object","category":"default","subject_en":"wireless computer mouse",'
-        '"core_ingredients":[],"texture_hero":false,"material":"reflective","food_mode":"dish","lang":"ko"}'
-    )
+    instruction = _prompts.fmt(
+        _NS, "analyze_menu.instruction",
+        display_name=display_name or "(빈 입력)", menu_categories=_MENU_CATEGORIES)
     result = _chat_json([{"role": "user", "content": instruction}], label="analyze_menu")
     low = {str(k).lower(): v for k, v in result.items()} if isinstance(result, dict) else {}
     domain = "object" if str(low.get("domain", "food")).lower().startswith("obj") else "food"
@@ -758,42 +665,9 @@ def analyze_photo(image_path: str, name: str) -> Optional[PhotoAnalysis]:
     소문자 snake_case로 고정하며 core_ingredients와 이미지 프롬프트용 값은 영어를 강제한다.
     """
     display_name = (name or "").strip()
-    instruction = (
-        "너는 소상공인 광고 파이프라인의 사진·상품 통합 분석기야. 사진과 상품명을 함께 분석해 "
-        "아래 키를 정확히 사용한 JSON으로만 응답해.\n"
-        f"- 상품명: {display_name or '(빈 입력)'}\n"
-        "입력 게이트는 관대하게 판단해. 사진의 주 피사체가 상품명과 같은 종류 또는 같은 대분류의 "
-        "음식·음료·제품이면 match=true이고, 색·브랜드·세부 차이는 무시해. 상품이 전혀 없는 무관한 "
-        "사람·동물·풍경·빈 배경처럼 명백히 다를 때만 match=false로 해.\n"
-        "분류 규칙:\n"
-        "1. domain은 먹는 상품이면 food, 사물·제품이면 object.\n"
-        f"2. category는 food일 때 [{_MENU_CATEGORIES}] 중 하나, object는 default.\n"
-        "3. subject_en은 실제 상품만 설명하는 영어 2~6단어. 브랜드명·과장 금지.\n"
-        "4. core_ingredients는 food의 핵심 재료를 English words only 배열 최대 4개, object는 [].\n"
-        "5. texture_hero는 마블링·파우더·회처럼 미세 텍스처가 상품 핵심일 때만 true.\n"
-        "6. material은 matte|reflective|transparent|default 중 하나. 사진의 실제 표면을 근거로 해.\n"
-        "7. food_mode는 그릇 요리면 dish, 카페 음료·케이크·베이커리·디저트면 cafe, object는 dish.\n"
-        "8. lang은 상품명이 한글이면 ko, 영어면 en. display_name은 입력 상품명을 그대로 보존해.\n"
-        "9. container_kind와 container_color는 사진 속 주 상품 용기 기준 영어 소문자. 용기가 없으면 "
-        "kind=none, color=none. container_opacity는 opaque|transparent|translucent 중 하나.\n"
-        "10. temperature는 사진의 김·성에·얼음 근거를 우선하고 상품명을 보조해 hot|iced|ambient 중 하나.\n"
-        "11. view_angle은 eye|high|top 중 하나. visible_text는 제품 표면에 실제 보이는 글자 원문이며 "
-        "없거나 판독 불가하면 빈 문자열. seen은 사진에 실제 보이는 것을 한국어 한 줄로 써.\n"
-        "12. 제품 이해 — 광고 재연출 시 무엇을 보존하고 무엇을 바꿔도 되는지 파트를 나눠. "
-        "identity_parts는 상품의 정체성이라 반드시 원본대로 보존할 부분(상품 본체·로고·라벨·브랜드 각인), "
-        "flexible_parts는 상품이 아니라 담는 용기·그릇·받침처럼 무드에 맞게 색·재질을 바꿔도 되는 부분. "
-        "둘 다 English words only 배열(최대 5개).\n"
-        "  - 음료: 음료 자체와 라떼아트·거품은 identity, 컵·잔·머그·받침은 flexible.\n"
-        "  - 로고·라벨 있는 사물(향수·전자제품·화장품): 상품 전체가 identity(형태·로고·색 보존), flexible=[].\n"
-        "  - 그릇 요리: 음식 자체가 identity, 담는 접시·볼은 flexible.\n"
-        "  판단 불가하면 identity=[], flexible=[] (호출부가 전체 보존으로 안전 폴백).\n"
-        'JSON 키: {"match":true,"seen":"","domain":"food","display_name":"",'
-        '"subject_en":"cafe latte","category":"default","core_ingredients":["espresso","milk"],'
-        '"texture_hero":false,"material":"default","food_mode":"cafe","lang":"ko",'
-        '"container_kind":"cup","container_color":"white","container_opacity":"opaque",'
-        '"temperature":"hot","view_angle":"eye","visible_text":"",'
-        '"identity_parts":["coffee","latte art"],"flexible_parts":["cup","saucer"]}'
-    )
+    instruction = _prompts.fmt(
+        _NS, "analyze_photo.instruction",
+        display_name=display_name or "(빈 입력)", menu_categories=_MENU_CATEGORIES)
     try:
         content = [
             {"type": "text", "text": instruction},
@@ -894,12 +768,8 @@ def verify_photo_subject(image_path: str, name: str) -> dict:
     거부, 애매하면 통과. 반환: {"match": bool, "seen": "사진 내용 한 줄"}. 실패 시 통과(무해).
     (Vision 비용 1회. 추후 OpenAI 생성모델 전환 시 사진→상품명 자동추출로 대체 예정)
     """
-    content = [{"type": "text", "text": (
-        f'사용자가 상품명 "{(name or "").strip()}" 광고를 만들려고 이 사진을 올렸어. '
-        "사진의 주 피사체가 그 상품명과 **같은 종류**(같은 대분류의 음식/음료/제품이고 대충 그럴듯)면 "
-        "match=true. 색·브랜드·세부 차이는 무시하고 관대하게 판단해. "
-        "단, 사진에 그 상품이 **전혀 없으면**(무관한 사람·동물·풍경·빈 배경 등) match=false.\n"
-        'JSON 으로만: {"match": true/false, "seen": "사진에 실제로 보이는 것 한 줄(한국어)"}'
+    content = [{"type": "text", "text": _prompts.fmt(
+        _NS, "verify_photo_subject.instruction", name=(name or "").strip(),
     )}, _vision_part(image_path)]
     try:
         r = _chat_json([{"role": "user", "content": content}], label="verify_photo_subject")
@@ -917,14 +787,7 @@ def detect_material(image_path: str) -> str:
     media_type, _ = mimetypes.guess_type(image_path)
     if media_type is None or not media_type.startswith("image/"):
         media_type = "image/jpeg"
-    prompt = (
-        "이 사진 속 주된 사물의 표면 재질을 판정해 JSON 으로만 응답해.\n"
-        "- reflective: 금속·거울·유광 플라스틱 등 반사 강한 표면\n"
-        "- transparent: 유리·투명/반투명 재질\n"
-        "- matte: 무광 플라스틱·세라믹·천·나무 등\n"
-        "- default: 애매하거나 혼합\n"
-        '반드시 JSON: {"material": "reflective"}'
-    )
+    prompt = _prompts.get(_NS, "detect_material.prompt")
     response = client.chat.completions.create(
         model=GPT_MODEL,
         messages=[{"role": "user", "content": [
@@ -949,12 +812,8 @@ def detect_ingredients(image_path: str, n: int = 3) -> list[dict]:
     반환: [{"name":"연어","name_en":"salmon","x":0.35,"y":0.45}, ...] (x,y=0~1 재료 표면 위 점).
     (Vision 비용 1회)
     """
-    content = [{"type": "text", "text": (
-        f"이 음식 사진에서 명확히 구분되는 **음식 재료 {n}개**만 골라 JSON 으로만 응답해.\n"
-        "접시·컵·포크·나이프·냅킨·테이블·그릇·소품은 절대 고르지 마(음식만).\n"
-        "각 재료마다 그 재료의 실제 표면 안쪽 한 점의 상대좌표(x,y: 0~1, 좌상단 원점)를 줘. "
-        "점은 경계선·그림자·다른 음식 위가 아니라 그 재료 표면 중앙에.\n"
-        f'JSON: {{"items":[{{"name":"연어","name_en":"salmon slice","x":0.35,"y":0.45}}, ... {n}개]}}'
+    content = [{"type": "text", "text": _prompts.fmt(
+        _NS, "detect_ingredients.instruction", n=n,
     )}, _vision_part(image_path)]
     try:
         r = _chat_json([{"role": "user", "content": content}], label="detect_ingredients")
@@ -989,15 +848,8 @@ def analyze_image_for_style(image_path: str) -> list[StyleCandidate]:
 
     preset_values = [p.value for p in StylePreset]
 
-    prompt = (
-        "이 상품 이미지를 보고 어울리는 광고 스타일(문구 톤·색상) 후보 3개를 추천해줘. "
-        f"각 후보는 다음 중 하나여야 해: {preset_values}. "
-        "각 후보에 대해 왜 이 이미지에 어울리는지 간단한 이유도 함께 작성해줘. "
-        '반드시 아래 JSON 형식으로만 응답해: '
-        '{"candidates": [{"preset": "monotone", "reason": "..."}, '
-        '{"preset": "warm_vintage", "reason": "..."}, '
-        '{"preset": "pop", "reason": "..."}]}'
-    )
+    prompt = _prompts.fmt(_NS, "analyze_image_for_style.prompt",
+                          preset_values=preset_values)
 
     response = client.chat.completions.create(
         model=GPT_MODEL,
