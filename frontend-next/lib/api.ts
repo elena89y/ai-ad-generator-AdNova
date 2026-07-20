@@ -73,6 +73,9 @@ export interface GenerateResult {
   seed?: number;
   style?: string;
   image_url?: string;
+  // 타이포 포함/무타이포 페어 (백엔드가 함께 반환). 없으면 image_url 폴백.
+  image_with_typography_url?: string;
+  image_without_typography_url?: string;
   copy_text?: string;
   poster?: boolean;
   platform_copies?: Record<string, unknown>;

@@ -80,6 +80,7 @@ export default function StudioPage() {
   const [loading, setLoading] = useState(false);
   const [loadStep, setLoadStep] = useState(GEN_STEPS[0]);
   const [activePlatform, setActivePlatform] = useState("instagram");
+  const [typographyOn, setTypographyOn] = useState(true);
   const [uploadInfo, setUploadInfo] = useState(
     "사진만 넣으면 배경·구도는 AI가 알아서 잡아줘요."
   );
@@ -277,7 +278,7 @@ export default function StudioPage() {
       platformCopies: s.currentResult.platform_copies || {},
       style: toStyleLabel(s.currentResult.style),
       rawStyle: s.currentResult.style,
-      img: toAbsoluteUrl(s.currentResult.image_url),
+      img: toAbsoluteUrl(resultImageUrl(s.currentResult)),
       inputImg: toAbsoluteUrl(s.selectedImageUrl),
       assetId: s.currentResult.asset_id,
       seed: s.currentResult.seed,
@@ -304,7 +305,7 @@ export default function StudioPage() {
       router.push("/billing");
       return;
     }
-    const url = toAbsoluteUrl(s.currentResult?.image_url);
+    const url = toAbsoluteUrl(resultImageUrl(s.currentResult));
     if (!url) {
       s.toast("다운로드할 광고 이미지가 없습니다");
       return;
@@ -330,6 +331,16 @@ export default function StudioPage() {
   }
 
   const result = s.currentResult;
+  // 타이포 페어(포함/무타이포)가 모두 있을 때만 토글 노출. 없으면 image_url 폴백.
+  const hasTypographyPair = Boolean(
+    result?.image_with_typography_url && result?.image_without_typography_url,
+  );
+  const resultImageUrl = (r: GenerateResult | null, on = typographyOn) => {
+    if (!r) return undefined;
+    return on
+      ? r.image_with_typography_url || r.image_url
+      : r.image_without_typography_url || r.image_url;
+  };
   const beforeSrc =
     s.selectedImagePreview ??
     toAbsoluteUrl(s.selectedImageUrl) ??
@@ -645,6 +656,49 @@ export default function StudioPage() {
             </div>
           ) : (
             <div>
+              {hasTypographyPair && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    marginBottom: 12,
+                    padding: "10px 13px",
+                    border: "1px solid var(--line)",
+                    borderRadius: 10,
+                    background: "var(--card)",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: "var(--ink-soft)",
+                    }}
+                  >
+                    타이포 포함
+                  </span>
+                  <label
+                    htmlFor="typographyToggle"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 7,
+                      fontSize: 12,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <input
+                      id="typographyToggle"
+                      type="checkbox"
+                      checked={typographyOn}
+                      onChange={(e) => setTypographyOn(e.target.checked)}
+                    />
+                    {typographyOn ? "포함" : "무타이포"}
+                  </label>
+                </div>
+              )}
               <div
                 className="compare-grid"
                 style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}
@@ -697,7 +751,7 @@ export default function StudioPage() {
                   }}
                 >
                   <AuthenticatedImage
-                    src={toAbsoluteUrl(result.image_url)}
+                    src={toAbsoluteUrl(resultImageUrl(result))}
                     style={{
                       position: "absolute",
                       inset: 0,
