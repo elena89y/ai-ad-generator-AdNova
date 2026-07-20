@@ -122,8 +122,9 @@ def test_run_span_wraps_scores_with_fake_langfuse(tmp_path, monkeypatch):
             return False
 
     class _Client:
-        def start_as_current_span(self, name):  # noqa: ANN001
+        def start_as_current_observation(self, name, as_type="span"):  # noqa: ANN001
             calls.append(("span_name", name))
+            assert as_type == "span"
             return _Span()
 
         def update_current_trace(self, **kw):  # noqa: ANN003

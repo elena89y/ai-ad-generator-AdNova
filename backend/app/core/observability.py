@@ -104,7 +104,12 @@ def run_span(name: str, metadata: dict | None = None):  # noqa: ANN201
         from langfuse import get_client
 
         client = get_client()
-        cm = client.start_as_current_span(name=name)
+        # 4.x 정식 스팬 API = start_as_current_observation (경고 문구가 안내하는 그 함수 —
+        #   start_as_current_span 은 이 버전에 없음, VM 실측 확인 2026-07-21).
+        if hasattr(client, "start_as_current_observation"):
+            cm = client.start_as_current_observation(name=name, as_type="span")
+        else:  # 구버전 폴백
+            cm = client.start_as_current_span(name=name)
     except Exception as e:  # noqa: BLE001 — 트레이싱 실패가 생성 실행을 막으면 안 됨
         logger.debug(f"Langfuse run_span 시작 실패(무해): {e}")
         yield
