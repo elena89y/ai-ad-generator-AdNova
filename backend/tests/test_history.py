@@ -6,10 +6,15 @@ from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.api.history import download_generated_result
+from app.api.history import (
+    download_generated_result,
+    read_histories,
+    read_history_detail,
+)
 from app.database.billing_models import Subscription
 from app.database.connection import Base
 from app.database.models import Advertisement, History, Image, User
+from app.schemas.history import HistoryResponse
 
 
 class HistoryDownloadApiTestCase(unittest.TestCase):
@@ -130,6 +135,98 @@ class HistoryDownloadApiTestCase(unittest.TestCase):
                 )
 
             self.assertEqual(context.exception.status_code, 403)
+
+    def test_history_list_includes_advertisement_and_image_data(self) -> None:
+        input_image = Image(
+            user_id=self.user.id,
+            image_type="upload",
+            original_filename="product.png",
+            image_url="/uploads/product.png",
+        )
+        output_image = Image(
+            user_id=self.user.id,
+            image_type="generated",
+            original_filename="ad.png",
+            image_url="/api/ads/image/ad.png",
+        )
+        self.session.add_all([input_image, output_image])
+        self.session.flush()
+        advertisement = Advertisement(
+            user_id=self.user.id,
+            input_image_id=input_image.id,
+            output_image_id=output_image.id,
+            title="테스트 상품",
+            ad_type="image",
+            prompt="test prompt",
+            generated_text="테스트 광고 문구",
+            style="pop",
+            status="completed",
+        )
+        self.session.add(advertisement)
+        self.session.flush()
+        self.session.add(
+            History(
+                user_id=self.user.id,
+                advertisement_id=advertisement.id,
+                action_type="ads.generate",
+                status="completed",
+            )
+        )
+        self.session.commit()
+
+        histories = read_histories(
+            skip=0,
+            limit=50,
+            db=self.session,
+            current_user=self.user,
+        )
+        response = HistoryResponse.model_validate(histories[0])
+
+        self.assertEqual(len(histories), 1)
+        self.assertEqual(response.advertisement.title, "테스트 상품")
+        self.assertEqual(response.advertisement.style, "pop")
+        self.assertEqual(response.advertisement.generated_text, "테스트 광고 문구")
+        self.assertEqual(response.advertisement.input_image.image_url, "/uploads/product.png")
+        self.assertEqual(
+            response.advertisement.output_image.image_url,
+            "/api/ads/image/ad.png",
+        )
+
+    def test_owner_can_read_history_detail(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            history = self._create_history(Path(temp_dir) / "ad.png")
+
+            detail = read_history_detail(
+                history_id=history.id,
+                db=self.session,
+                current_user=self.user,
+            )
+
+        self.assertEqual(detail.id, history.id)
+        self.assertEqual(detail.advertisement_id, history.advertisement_id)
+
+    def test_other_user_cannot_read_history_detail(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            history = self._create_history(Path(temp_dir) / "ad.png")
+
+            with self.assertRaises(HTTPException) as context:
+                read_history_detail(
+                    history_id=history.id,
+                    db=self.session,
+                    current_user=self.other_user,
+                )
+
+        self.assertEqual(context.exception.status_code, 403)
+
+    def test_missing_history_detail_returns_not_found(self) -> None:
+        with self.assertRaises(HTTPException) as context:
+            read_history_detail(
+                history_id=9999,
+                db=self.session,
+                current_user=self.user,
+            )
+
+        self.assertEqual(context.exception.status_code, 404)
 
 
 if __name__ == "__main__":
