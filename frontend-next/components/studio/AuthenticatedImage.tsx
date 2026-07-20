@@ -19,7 +19,10 @@ function requiresToken(src: string): boolean {
   try {
     const url = new URL(src, window.location.origin);
 
-    return url.pathname.startsWith("/api/ads/image/");
+    return (
+      url.pathname.startsWith("/api/ads/image/") ||
+      url.pathname.startsWith("/api/ads/template-thumb/") // v6 T4 템플릿 썸네일도 인증 필요
+    );
   } catch {
     return false;
   }

@@ -21,6 +21,7 @@ import {
 import { useStudio } from "@/components/studio/StudioProvider";
 import { AppBar } from "@/components/studio/chrome";
 import { AuthenticatedImage } from "@/components/studio/AuthenticatedImage";
+import { TemplateGrid } from "@/components/studio/TemplateGrid";
 
 const GEN_STEPS = [
   "사진을 분석하는 중…",
@@ -44,6 +45,13 @@ const USES = [
   { v: "banner", label: "배너" },
   { v: "flyer", label: "전단지" },
 ];
+
+/* 템플릿 formats[0] → 용도 버튼 매핑 (v6 T4; detail_page 는 용도 버튼 없음 → 유지) */
+const FORMAT_TO_USE: Record<string, string> = {
+  sns: "sns",
+  cardnews: "card",
+  banner: "banner",
+};
 
 const PLATFORMS = [
   { p: "instagram", si: "ig", label: "Instagram", short: "IG" },
@@ -544,6 +552,20 @@ export default function StudioPage() {
                 </button>
               ))}
             </div>
+          </div>
+          <div>
+            <div className="rail-label">템플릿 팩</div>
+            <TemplateGrid
+              activeStyleLabel={s.styleLabel}
+              onPick={(t, styleLabel) => {
+                const nextUse = FORMAT_TO_USE[t.formats[0] ?? ""];
+                s.setDashboardState({
+                  styleLabel,
+                  ...(nextUse ? { useValue: nextUse } : {}),
+                });
+                s.toast(`템플릿 적용: ${t.title}`);
+              }}
+            />
           </div>
           <div>
             <div className="rail-label">03 · 용도</div>
