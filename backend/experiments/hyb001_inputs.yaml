@@ -1,0 +1,94 @@
+# HYB-001 — 하이브리드 3암 A/B 입력셋 (DIRECTION_v6 T3, 게이트 G3)
+#
+# 원칙: 클린 단일변수 A/B — 동일 입력 12장 × {local, api, hybrid} 3암.
+#   입력·knob·seed 고정, 엔진만 변수. 포스터/문구는 코드 경로(불변)라 비교에서 제외(poster=False).
+# 입력 = **골든 평가셋 v1 그대로** (~/Desktop/AdNova/golden_src, 2026-07-09 동결, A5·B4·C3):
+#   - 이미 육안 검수·함정 주석·expected_route 정답이 있는 유일한 신뢰 셋.
+#   - P6_coldbatch/inputs 풀은 2026-07-20 육안 검수 결과 50장 중 다수가 파일명·내용 불일치
+#     (거리 풍경·인물·인포그래픽 등)로 실험 입력 부적격 판정 → 사용 금지.
+# hybrid_engine = v6 §T3 라우팅 가설의 사전 배정:
+#   정체성 민감(texture_hero·사물 SKU) → api / 배경·씬 연출(A generative, B 씬) → local.
+# subject_en: dry-run·지시문 조립용 사전 라벨. 실측에선 analyze_menu 결과를 쓰고 이 값과 대조 기록.
+# 주의: cup.jpeg 는 입력가이드 위반(손째 촬영) 의도 포함 케이스 — 3암 모두 동일 조건이므로 유지.
+
+knob: 0.5
+seed: 1234
+
+items:
+  # --- A 음식점 (in-place, 누끼 없음) ---
+  - file: beef_marbled.png
+    name: 꽃등심
+    subject_en: marbled beef ribeye
+    expected_mode: dish
+    expected_route: A-grade
+    hybrid_engine: api        # texture_hero(마블링) — 로컬 생성 리터치는 마블링 표준화 위험
+  - file: yukgaejang.png
+    name: 육개장
+    subject_en: yukgaejang spicy beef soup
+    expected_mode: dish
+    expected_route: A-generative
+    hybrid_engine: local
+  - file: chicken_snowcheese.png
+    name: 눈꽃치즈치킨
+    subject_en: fried chicken with snow cheese powder
+    expected_mode: dish
+    expected_route: A-grade
+    hybrid_engine: api        # texture_hero(파우더) — 강도↑ 시 일반 후라이드로 표준화
+  - file: plate_brunch.png
+    name: 브런치 플레이트
+    subject_en: brunch plate
+    expected_mode: dish
+    expected_route: A-generative
+    hybrid_engine: local
+  - file: soup_cream.png
+    name: 버섯크림스프
+    subject_en: mushroom cream soup
+    expected_mode: dish
+    expected_route: A-generative
+    hybrid_engine: local
+
+  # --- B 카페 (누끼+리터치+씬/에디토리얼) ---
+  - file: drink_ade.png
+    name: 자몽에이드
+    subject_en: grapefruit ade
+    expected_mode: cafe
+    expected_route: B-cafe
+    hybrid_engine: local
+  - file: scone_strawberry.png
+    name: 딸기크림스콘
+    subject_en: strawberry cream scone
+    expected_mode: cafe
+    expected_route: B-cafe
+    hybrid_engine: local
+  - file: cookie.png
+    name: 수제쿠키
+    subject_en: handmade cookies
+    expected_mode: cafe
+    expected_route: B-cafe
+    hybrid_engine: local
+  - file: toast.png
+    name: 토스트
+    subject_en: cafe brunch toast
+    expected_mode: cafe
+    expected_route: B-cafe
+    hybrid_engine: local
+
+  # --- C 사물 (누끼+클린보정+스튜디오, SKU 형태·색 왜곡 금지) ---
+  - file: mouse.jpeg
+    name: 무선마우스
+    subject_en: wireless mouse
+    expected_mode: object
+    expected_route: C-object
+    hybrid_engine: api
+  - file: guasha.jpeg
+    name: 문어괄사
+    subject_en: pink octopus gua sha massage tool
+    expected_mode: object
+    expected_route: C-object
+    hybrid_engine: api
+  - file: cup.jpeg
+    name: 머그컵
+    subject_en: white ceramic mug
+    expected_mode: object
+    expected_route: C-object
+    hybrid_engine: api
