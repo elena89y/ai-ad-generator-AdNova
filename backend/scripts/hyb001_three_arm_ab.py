@@ -181,10 +181,19 @@ def cmd_run(args: argparse.Namespace) -> None:
     if args.dry_run and args.arm == "all" and runs_path.exists():
         runs_path.unlink()  # 드라이런 원장은 매회 새로 (실측 원장은 절대 삭제 금지)
 
+    items = data["items"]
+    if getattr(args, "only", None):
+        # 부분 재실측(프로토콜 개정분만) — 예: hybrid 암에서 api 배정 5장만 enhanced_v2 재실행.
+        # summary 의 last-wins 가 (암, 입력) 최신 행만 집계하므로 원장 정합 유지.
+        wanted = {s.strip() for s in args.only.split(",") if s.strip()}
+        items = [i for i in items if i["file"] in wanted]
+        missing = wanted - {i["file"] for i in items}
+        assert not missing, f"--only 미지 파일: {sorted(missing)} (매니페스트 items 대조)"
+
     for arm in arms:
         out_dir = OUT_ROOT / arm
         out_dir.mkdir(parents=True, exist_ok=True)
-        for item in data["items"]:
+        for item in items:
             image_path = inputs_dir / item["file"]
             if not image_path.exists():
                 logger.error("입력 없음, 건너뜀: %s", image_path)
@@ -509,6 +518,7 @@ def main() -> None:
     pr.add_argument("--model", help="api 엔진 모델 (기본: 매니페스트 apiq.chosen)")
     pr.add_argument("--quality", choices=("low", "medium", "high"),
                     help="api 엔진 quality (기본: 매니페스트 apiq.chosen)")
+    pr.add_argument("--only", help="쉼표구분 파일명 — 해당 입력만 부분 재실측 (last-wins 집계)")
     pr.add_argument("--dry-run", action="store_true",
                     help="생성·과금 없이 배선/원장/표 검증 (별도 드라이런 원장 사용)")
     pr.set_defaults(fn=cmd_run)
