@@ -303,13 +303,18 @@ class HybridRetriever:
         return corrected, corrections
 
     def search(self, query: str, top_k: int = 3) -> list[RetrievalHit]:
-        q_tokens, _ = self.normalize_tokens(tokenize(query), raw_query=query)
+        q_tokens, corrections = self.normalize_tokens(tokenize(query), raw_query=query)
         bm25_scores = self.bm25.scores(q_tokens)
         bm25_rank = np.argsort(-bm25_scores)
 
         fused = {int(i): self._rrf(r) for r, i in enumerate(bm25_rank)}
         if self._doc_emb is not None and self.embed_fn is not None:
-            q_emb = np.asarray(self.embed_fn([query]), dtype=np.float64)[0]
+            # dense 에도 오타 교정 반영 — 원문 그대로 임베딩하면 오타 질의에서 dense 가
+            # BM25 의 교정 성과를 되끌어내림 (CHAT-002 1차 실측: typo hit@1 100→88%)
+            dense_query = query
+            for wrong, right in corrections.items():
+                dense_query = dense_query.replace(wrong, right)
+            q_emb = np.asarray(self.embed_fn([dense_query]), dtype=np.float64)[0]
             q_emb = q_emb / (np.linalg.norm(q_emb) + 1e-9)
             dense_rank = np.argsort(-(self._doc_emb @ q_emb))
             for r, i in enumerate(dense_rank):
@@ -339,10 +344,12 @@ class HybridRetriever:
 
 # --- dense 임베딩 백엔드 (옵션) -------------------------------------------------
 def build_transformers_embedder(model_name: str = "nlpai-lab/KURE-v1") -> EmbedFn:
-    """KURE-v1(한국어 특화, bge-m3 계열) 임베딩 로더 — VM/서버 전용.
+    """KURE-v1(한국어 특화, bge-m3 계열) 임베딩 로더 — dense 아암 전용 (평상시 미호출).
 
-    로컬 Mac 기본 개발 흐름에서는 호출하지 않는다 (모델 ~2GB 다운로드).
-    sentence-transformers 없이 transformers 만으로 mean pooling 구현.
+    모델 ~2.3GB 다운로드 — 서비스 기본 경로는 BM25 단독이고, 이 로더는 CHAT-002
+    A/B 와 dense 채택 시에만 쓴다. sentence-transformers 없이 transformers 로 구현.
+    ⚠️ 풀링 = CLS 토큰: bge-m3 계열의 dense 표현은 mean pooling 이 아니라 [CLS]
+    (모델 학습 방식과 일치해야 검색 성능이 나옴). 정규화는 HybridRetriever 가 수행.
     """
     import torch  # noqa: PLC0415 — 지연 임포트 (CPU 환경 기동시간 보호)
     from transformers import AutoModel, AutoTokenizer  # noqa: PLC0415
@@ -354,9 +361,7 @@ def build_transformers_embedder(model_name: str = "nlpai-lab/KURE-v1") -> EmbedF
     def _embed(texts: Sequence[str]) -> np.ndarray:
         with torch.no_grad():
             enc = tok(list(texts), padding=True, truncation=True, max_length=512, return_tensors="pt")
-            out = model(**enc).last_hidden_state
-            mask = enc["attention_mask"].unsqueeze(-1)
-            pooled = (out * mask).sum(1) / mask.sum(1).clamp(min=1)
+            pooled = model(**enc).last_hidden_state[:, 0]  # [CLS]
         return pooled.cpu().numpy()
 
     return _embed

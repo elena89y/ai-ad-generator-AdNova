@@ -6,16 +6,19 @@
   게이트 종합: escalation precision
 
 실행 (backend/ 에서):
-  ../.venv/bin/python scripts/eval_chatbot_retrieval.py
+  ../.venv/bin/python scripts/eval_chatbot_retrieval.py            # BM25 단독 (기본)
+  ../.venv/bin/python scripts/eval_chatbot_retrieval.py --dense    # +KURE-v1 dense 아암 (CHAT-002 A/B)
 산출:
-  results/ai/chatbot_eval_retrieval.md    사람용 리포트 (오답 상세 포함)
-  results/ai/chatbot_eval_retrieval.json  기계용 지표 — check_chatbot_release_gate.py 입력 계약
+  results/ai/chatbot_eval_retrieval{_dense}.md    사람용 리포트 (오답 상세 포함)
+  results/ai/chatbot_eval_retrieval{_dense}.json  기계용 지표 — check_chatbot_release_gate.py 입력 계약
+  --dense 실행 시 baseline json 이 있으면 유형별 델타를 자동 출력 (클린 A/B — 단일변수=embed_fn)
 
 임계값 튜닝: retrieval.MIN_BM25_SCORE / MIN_COVERAGE / typo_normalize 임계값을
   바꿔가며 재측정 (클린 A/B 원칙 — 단일 변수만 변경).
 """
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from collections import defaultdict
@@ -25,7 +28,7 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.services.chatbot.retrieval import HybridRetriever  # noqa: E402
+from app.services.chatbot.retrieval import HybridRetriever, build_transformers_embedder  # noqa: E402
 
 GOLDEN_PATH = Path(__file__).resolve().parents[1] / "experiments" / "chatbot_golden_v1.yaml"
 OUT_DIR = Path(__file__).resolve().parents[1] / "results" / "ai"
@@ -61,8 +64,14 @@ def _escalation_metrics(rows: list) -> dict:
 
 
 def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dense", action="store_true", help="KURE-v1 dense 아암 (BM25+RRF, CHAT-002)")
+    args = ap.parse_args()
+
     cases = yaml.safe_load(GOLDEN_PATH.read_text(encoding="utf-8"))["cases"]
-    retriever = HybridRetriever()  # BM25 단독 (로컬 기본). dense 는 VM 에서 embed_fn 주입 후 재실행
+    embed_fn = build_transformers_embedder() if args.dense else None
+    retriever = HybridRetriever(embed_fn=embed_fn)
+    suffix = "_dense" if args.dense else ""
 
     ans_by_type: dict[str, list] = defaultdict(list)
     esc_by_type: dict[str, list] = defaultdict(list)
@@ -85,6 +94,7 @@ def main() -> None:
     predicted_esc = esc_correct + sum(1 for r in ans_all if not r[4])
     metrics = {
         "golden": GOLDEN_PATH.name,
+        "arm": "bm25+dense(KURE-v1,RRF)" if args.dense else "bm25",
         "overall": {
             "answerable": _answerable_metrics(ans_all),
             "escalation": {
@@ -130,13 +140,31 @@ def main() -> None:
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     report = "\n".join(lines) + "\n"
-    (OUT_DIR / "chatbot_eval_retrieval.md").write_text(report, encoding="utf-8")
-    (OUT_DIR / "chatbot_eval_retrieval.json").write_text(
+    (OUT_DIR / f"chatbot_eval_retrieval{suffix}.md").write_text(report, encoding="utf-8")
+    (OUT_DIR / f"chatbot_eval_retrieval{suffix}.json").write_text(
         json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     print(report)
-    print(f"[saved] {OUT_DIR / 'chatbot_eval_retrieval.md'}")
-    print(f"[saved] {OUT_DIR / 'chatbot_eval_retrieval.json'}")
+    print(f"[saved] {OUT_DIR / f'chatbot_eval_retrieval{suffix}.md'}")
+    print(f"[saved] {OUT_DIR / f'chatbot_eval_retrieval{suffix}.json'}")
+
+    # --- 클린 A/B 자동 델타 (dense 아암 실행 시, baseline 이 있으면) -------------
+    base_path = OUT_DIR / "chatbot_eval_retrieval.json"
+    if args.dense and base_path.exists():
+        base = json.loads(base_path.read_text(encoding="utf-8"))
+        print("\n== A/B 델타 (dense − bm25) — 단일변수: embed_fn ==")
+        for t in ANSWERABLE_TYPES:
+            b, d = base["by_type"].get(t, {}), metrics["by_type"].get(t, {})
+            if b.get("n"):
+                print(f"  {t:<11} hit@1 {b['hit1']:.0%} → {d['hit1']:.0%} ({d['hit1']-b['hit1']:+.0%})  "
+                      f"MRR {b['mrr']:.3f} → {d['mrr']:.3f} ({d['mrr']-b['mrr']:+.3f})")
+        for t in ESCALATE_TYPES:
+            b, d = base["by_type"].get(t, {}), metrics["by_type"].get(t, {})
+            if b.get("n"):
+                print(f"  {t:<11} recall {b['recall']:.0%} → {d['recall']:.0%} ({d['recall']-b['recall']:+.0%})")
+        ba, da = base["overall"]["answerable"], metrics["overall"]["answerable"]
+        print(f"  {'overall':<11} hit@1 {ba['hit1']:.0%} → {da['hit1']:.0%} ({da['hit1']-ba['hit1']:+.0%})  "
+              f"MRR {ba['mrr']:.3f} → {da['mrr']:.3f} ({da['mrr']-ba['mrr']:+.3f})")
 
 
 if __name__ == "__main__":
