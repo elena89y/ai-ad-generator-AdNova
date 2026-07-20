@@ -73,9 +73,17 @@ export interface GenerateResult {
   seed?: number;
   style?: string;
   image_url?: string;
+  // [html-parity] 타이포 포함/무타이포 페어. 모놀리식 frontend/html/index.html에는
+  // 있었으나 Next 이관 시 누락 — 백엔드가 반환하는 두 URL이 타입에 없어 버려지고 있었음.
+  image_with_typography_url?: string;
+  image_without_typography_url?: string;
   copy_text?: string;
   poster?: boolean;
   platform_copies?: Record<string, unknown>;
+  // [html-parity] purpose별 포맷 산출물 URL 목록 + 그 purpose. Next 이관 시 누락되어
+  // 용도별 결과(카드뉴스·배너·상세페이지)가 화면에 아예 표시되지 않던 원인.
+  format_outputs?: string[];
+  purpose?: string;
 }
 
 export interface AdItem {
@@ -95,6 +103,9 @@ export interface AdItem {
   inputImageId?: number;
   inputImg: string;
   img: string;
+  // [html-parity] 상세 화면 타이포 토글용 페어 — html buildCurrentOutputItem 이식 (Next 이관 시 누락)
+  imageWithoutTypography?: string;
+  imageWithTypography?: string;
   assetId?: string;
   seed?: number;
   adType?: string;
@@ -328,6 +339,9 @@ export function historyToCard(history: HistoryEntry): AdItem {
     inputImageId: ad.input_image_id,
     inputImg: toAbsoluteUrl(inputImage.image_url),
     img: toAbsoluteUrl(outputImage.image_url || (responseData.image_url as string)),
+    // [html-parity] history response_data 의 타이포 페어 매핑 (html 이식, Next 이관 시 누락)
+    imageWithoutTypography: toAbsoluteUrl(responseData.image_without_typography_url as string),
+    imageWithTypography: toAbsoluteUrl(responseData.image_with_typography_url as string),
     assetId: responseData.asset_id as string | undefined,
     seed: responseData.seed as number | undefined,
     adType: ad.ad_type,

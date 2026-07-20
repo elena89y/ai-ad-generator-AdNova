@@ -1,0 +1,62 @@
+# 템플릿 프리셋 원장 — 초안 (DIRECTION_v6 T4, 모노브 M1·M4·M5 대응) — 담당: 한의정.
+#
+# 템플릿 = 스타일(styles/specs.yaml 키) × 포맷(pipeline_v5/formats: banner|cardnews|detail_page|sns)
+# 조합 프리셋. 신규 템플릿 = 여기 1항목 추가 (코드 수정 불필요 — T1 소프트코딩 원칙 계승).
+# ⚠️ flyer(전단지)는 범위 제외(2026-07-21 결정, 온라인 포맷 위주) — 미구현(NotImplementedError)이라
+#    원장에 넣으면 팩 생성이 터진다. DIRECTION_v6 §개요 범위 제외 참조.
+#
+# ⚠️ 상태: 데이터 초안. HTTP 노출(GET /api/ads/templates 등)은 공유 파일(api/ads.py·schemas/ads.py)
+#    수정이라 범수님 통지·조율 후 D-1~2에 진행. 이 파일 자체는 아직 어떤 코드도 읽지 않는다.
+# 필드: title/desc(한국어, 프론트 노출) style(styles/specs.yaml 키 — 로더에서 존재 검증할 것)
+#       formats(생성 팩 구성) target(food|drink|object|any — 라우팅 도메인 가드)
+#       knob(권장 강도, null=기본) thumbnail(정적 썸네일 경로 — D-1에 생성해 채움)
+
+templates:
+  editorial_lookbook:
+    title: 에디토리얼 룩북
+    desc: 프리미엄 매거진 무드 — 미니멀 자연광, 세리프 타이포
+    style: editorial
+    target: any
+    formats: [sns, detail_page, banner]
+    knob: null
+    thumbnail: assets/templates/editorial_lookbook.png
+  pop_vivid_promo:
+    title: 팝 비비드 프로모
+    desc: 강한 측광·비비드 컬러 — 세일/신메뉴 임팩트 배너 중심
+    style: pop
+    target: any
+    formats: [banner, sns, cardnews]
+    knob: null
+    thumbnail: assets/templates/pop_vivid_promo.png
+  realism_food_hero:
+    title: 리얼 푸드 히어로
+    desc: 사진 사실감 우선 — 질감 보존 매크로, 음식점 대표컷
+    style: realism
+    target: food
+    formats: [sns, detail_page, cardnews]
+    knob: 0.4
+    thumbnail: assets/templates/realism_food_hero.png
+  warm_vintage_cafe:
+    title: 웜 빈티지 카페
+    desc: 따뜻한 향수 무드 — 카페 시그니처 음료 연출
+    style: warm_vintage
+    target: drink
+    formats: [sns, banner, cardnews]
+    knob: null
+    thumbnail: assets/templates/warm_vintage_cafe.png
+  object_studio_sku:
+    title: 스튜디오 제품컷
+    desc: 사물 SKU 중립 스튜디오 — 형태·색 보존 최우선
+    style: object_studio
+    target: object
+    formats: [detail_page, sns, banner]
+    knob: 0.3
+    thumbnail: assets/templates/object_studio_sku.png
+  pop_split_summer:
+    title: 팝 스플릿 시즌
+    desc: 사선 컬러띠 분할 — 시즌 프로모(여름음료 템플릿 계승)
+    style: pop_split
+    target: drink
+    formats: [banner, sns, cardnews]
+    knob: null
+    thumbnail: assets/templates/pop_split_summer.png

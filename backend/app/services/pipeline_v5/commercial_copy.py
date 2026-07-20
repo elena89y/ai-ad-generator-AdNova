@@ -24,6 +24,9 @@ _DETAIL_TITLE_FALLBACK = {
 # CTA는 도메인 무관하게 원래도 뜻이 통하는 범용 문구라 폴백은 단일값으로 충분(CTA-001).
 _CTA_TITLE_FALLBACK = "지금 만나보세요"
 _CTA_LABEL_FALLBACK = "자세히 보기"
+# (v6-1 F1) 상세페이지 02 클로즈업 캡션 폴백 — 종전 detail_page.py 하드코딩(D2)을
+# 폴백으로 강등. GPT 성공 시엔 상품별 캡션이 나간다.
+_CLOSEUP_FALLBACK = "가까이 볼수록 선명하게"
 
 
 @dataclass(frozen=True)
@@ -64,6 +67,75 @@ def section_copy_for(hero: HeroAsset) -> CommercialCopy:
         base, top_view_label=labels[0], detail_title=labels[1],
         cta_title=labels[2], cta=labels[3],
     )
+
+
+# --- v6-1 F1: 상세페이지 섹션별 카피 -----------------------------------------
+@dataclass(frozen=True)
+class DetailPageCopy:
+    """상세페이지 렌더러 전용 카피 묶음 (DIRECTION_v6-1 F1).
+
+    D1(헤드라인 3곳 복붙)·D2(하드코딩)·D3(본문 부재)를 해소하는 섹션별 전용 문구.
+    GPT 실패 시엔 기존 headline/subcopy 조합으로 폴백 — 종전 렌더와 동일한 화면.
+    """
+    product_name: str
+    intro_headline: str
+    story_title: str
+    story_body: str
+    benefit_bullets: tuple[str, ...]   # 비면 혜택 섹션 생략
+    top_view_label: str
+    closeup_caption: str
+    profile_title: str                 # 최대 2줄(\n)
+    profile_caption: str
+    lifestyle_line: str
+    cta_title: str
+    cta_label: str
+
+
+def detail_copy_for(hero: HeroAsset) -> DetailPageCopy:
+    """상세페이지 섹션별 전용 카피 — GPT 1회 호출(캐싱), 실패 시 기존 문구로 폴백.
+
+    캐시 키에 style 포함: 같은 상품이라도 스타일이 다르면 톤이 달라진다.
+    """
+    base = copy_for(hero)
+    raw = _detail_copy(base.product_name, hero.subject_en, hero.domain,
+                       base.headline, base.subcopy, hero.style or "",
+                       tuple(hero.core_ingredients))
+    if raw is not None:
+        return DetailPageCopy(
+            product_name=base.product_name,
+            intro_headline=raw[0], story_title=raw[1], story_body=raw[2],
+            benefit_bullets=raw[3], top_view_label=raw[4], closeup_caption=raw[5],
+            profile_title=raw[6], profile_caption=raw[7], lifestyle_line=raw[8],
+            cta_title=raw[9], cta_label=raw[10])
+    # 폴백: 종전 렌더와 동일 구성(헤드라인 재사용 + 도메인 고정 라벨) — 빈 화면 방지.
+    key = hero.domain if hero.domain in _TOP_VIEW_FALLBACK else "food"
+    return DetailPageCopy(
+        product_name=base.product_name,
+        intro_headline=base.headline, story_title=base.headline,
+        story_body=base.subcopy, benefit_bullets=(),
+        top_view_label=_TOP_VIEW_FALLBACK[key], closeup_caption=_CLOSEUP_FALLBACK,
+        profile_title=_DETAIL_TITLE_FALLBACK[key], profile_caption=base.subcopy,
+        lifestyle_line=base.headline, cta_title=_CTA_TITLE_FALLBACK,
+        cta_label=_CTA_LABEL_FALLBACK)
+
+
+@lru_cache(maxsize=256)
+def _detail_copy(product_name: str, subject_en: str, domain: str, headline: str,
+                 subcopy: str, style: str, core_ingredients: tuple[str, ...]):
+    """generate_detail_copy 캐싱 래퍼. 실패 시 None — detail_copy_for 가 폴백 조립."""
+    try:
+        from .. import gpt_service
+        dc = gpt_service.generate_detail_copy(
+            product_name=product_name, subject_en=subject_en, domain=domain,
+            headline=headline, subcopy=subcopy,
+            core_ingredients=list(core_ingredients), style_key=style)
+        return (dc.intro_headline, dc.story_title, dc.story_body,
+                tuple(dc.benefit_bullets), dc.top_view_label, dc.closeup_caption,
+                dc.profile_title, dc.profile_caption, dc.lifestyle_line,
+                dc.cta_title, dc.cta_label)
+    except Exception as e:  # noqa: BLE001
+        logger.info(f"상세 카피 GPT 생성 실패 → 기존 문구 폴백: {e}")
+        return None
 
 
 @lru_cache(maxsize=256)

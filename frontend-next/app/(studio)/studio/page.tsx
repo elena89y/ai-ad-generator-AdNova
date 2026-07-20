@@ -7,6 +7,7 @@ import {
   AdItem,
   GenerateResult,
   PlatformCopy,
+  STYLE_LABEL_MAP,
   STYLE_PRESET_MAP,
   apiFetch,
   formatDateLabel,
@@ -19,8 +20,9 @@ import {
   toStyleLabel,
 } from "@/lib/api";
 import { useStudio } from "@/components/studio/StudioProvider";
-import { AppBar } from "@/components/studio/chrome";
+import { AppBar, WorkspaceNav } from "@/components/studio/chrome";
 import { AuthenticatedImage } from "@/components/studio/AuthenticatedImage";
+import { fetchTemplates } from "@/lib/templates";
 
 const GEN_STEPS = [
   "사진을 분석하는 중…",
@@ -42,8 +44,38 @@ const USES = [
   { v: "sns", label: "SNS" },
   { v: "card", label: "카드뉴스" },
   { v: "banner", label: "배너" },
-  { v: "flyer", label: "전단지" },
+  // [html-parity] 전단지 폐기 결정 반영 — 모놀리식 html은 이미 상세페이지로 교체됨
+  { v: "detail", label: "상세페이지" },
 ];
+
+/* 템플릿 formats[0] → 용도 버튼 매핑 (v6 T4; 전단지 폐기 → 상세페이지로 대체) */
+const FORMAT_TO_USE: Record<string, string> = {
+  sns: "sns",
+  cardnews: "card",
+  banner: "banner",
+  detail_page: "detail",
+};
+
+/* [html-parity] 포맷 갤러리 라벨 — 모놀리식 html FORMAT_GALLERY_LABELS 이식.
+   Next 이관에서 format_outputs 갤러리 자체가 누락되어 있었음 (index.html renderFormatGallery) */
+const FORMAT_GALLERY_LABELS: Record<string, string> = {
+  sns: "이미지",
+  card_news: "카드뉴스",
+  banner: "배너 규격",
+  detail_page: "상세페이지",
+};
+
+/* [html-parity] 용도 버튼 값 → 백엔드 purpose — 모놀리식 html getSelectedPurpose 이식.
+   Next 이관에서는 useValue가 페이로드에 실리지 않아 용도 버튼이 무동작이었음 */
+function resolvePurpose(value: string): string {
+  return value === "banner"
+    ? "banner"
+    : value === "card"
+      ? "card_news"
+      : value === "detail"
+        ? "detail_page"
+        : "sns";
+}
 
 const PLATFORMS = [
   { p: "instagram", si: "ig", label: "Instagram", short: "IG" },
@@ -72,6 +104,8 @@ export default function StudioPage() {
   const [loading, setLoading] = useState(false);
   const [loadStep, setLoadStep] = useState(GEN_STEPS[0]);
   const [activePlatform, setActivePlatform] = useState("instagram");
+  // [html-parity] 타이포 토글 상태 — html #typographyToggle 이식 (Next 이관 시 누락)
+  const [typographyOn, setTypographyOn] = useState(true);
   const [uploadInfo, setUploadInfo] = useState(
     "사진만 넣으면 배경·구도는 AI가 알아서 잡아줘요."
   );
@@ -83,6 +117,50 @@ export default function StudioPage() {
 
   useEffect(() => {
     s.refreshDashboardSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 템플릿 갤러리에서 진입 — ?template={원장id}(팩 전체 적용) 또는 ?style=&use=(프리셋만) (v6 T4)
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const id = sp.get("template");
+    const styleParam = sp.get("style");
+    const useParam = sp.get("use");
+    const tname = sp.get("tname");
+    if (!id && !styleParam && !useParam) return;
+
+    const clearQuery = () =>
+      window.history.replaceState(null, "", "/studio"); // 새로고침 재적용 방지
+
+    if (!id) {
+      s.setDashboardState({
+        ...(styleParam ? { styleLabel: styleParam } : {}),
+        ...(useParam ? { useValue: useParam } : {}),
+      });
+      s.toast(`템플릿 적용: ${tname ?? styleParam ?? ""}`);
+      clearQuery();
+      return;
+    }
+
+    let cancelled = false;
+    fetchTemplates()
+      .then((items) => {
+        if (cancelled) return;
+        const t = items.find((x) => x.id === id);
+        if (!t) return;
+        const styleLabel = STYLE_LABEL_MAP[t.style_preset] ?? t.style_preset;
+        const nextUse = FORMAT_TO_USE[t.formats[0] ?? ""];
+        s.setDashboardState({
+          styleLabel,
+          ...(nextUse ? { useValue: nextUse } : {}),
+        });
+        s.toast(`템플릿 적용: ${tname ?? t.title}`);
+        clearQuery();
+      })
+      .catch(() => {}); // 템플릿은 부가 기능 — 실패해도 스튜디오는 동작
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -111,10 +189,11 @@ export default function StudioPage() {
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+    // 백엔드 MAX_IMAGE_SIZE_MB(15MB)와 동기 — 서버가 장변 2048로 정규화 저장하므로 폰 원본 OK
+    const MAX_IMAGE_SIZE = 15 * 1024 * 1024;
     if (!file) return;
     if (file.size > MAX_IMAGE_SIZE) {
-      s.toast("이미지는 최대 5MB까지 업로드할 수 있습니다.");
+      s.toast("이미지는 최대 15MB까지 업로드할 수 있습니다.");
       e.target.value = "";
     return;
     }
@@ -190,7 +269,11 @@ export default function StudioPage() {
     formData.append("product_description", s.promptText.trim());
     formData.append("style", STYLE_PRESET_MAP[s.styleLabel] || "pop");
     formData.append("use_vision", "false");
-    formData.append("poster", "false");
+    const purpose = resolvePurpose(s.useValue);
+    // [html-parity] html generate와 동일하게 purpose 전송 + sns 용도만 poster=true.
+    // 이관 직후엔 poster="false" 하드코딩 + purpose 미전송으로 용도 선택이 무시됐음.
+    formData.append("poster", String(purpose === "sns"));
+    formData.append("purpose", purpose);
 
     try {
       const res = await apiFetch("/api/ads/generate", { method: "POST", body: formData });
@@ -237,7 +320,9 @@ export default function StudioPage() {
           product_description: s.promptText.trim(),
           prev_seed: s.currentResult.seed,
           use_vision: false,
-          poster: false,
+          // [html-parity] html regenerate와 동일 — 이관 시 poster:false 하드코딩·purpose 누락
+          poster: resolvePurpose(s.useValue) === "sns",
+          purpose: resolvePurpose(s.useValue),
         }),
       });
       const data = (await readJsonSafely(res)) as GenerateResult | null;
@@ -269,7 +354,10 @@ export default function StudioPage() {
       platformCopies: s.currentResult.platform_copies || {},
       style: toStyleLabel(s.currentResult.style),
       rawStyle: s.currentResult.style,
-      img: toAbsoluteUrl(s.currentResult.image_url),
+      img: toAbsoluteUrl(resultImageUrl(s.currentResult)),
+      // [html-parity] 상세·공유로 넘어가도 타이포 토글이 되도록 페어 유지 (html 이식)
+      imageWithoutTypography: toAbsoluteUrl(s.currentResult.image_without_typography_url),
+      imageWithTypography: toAbsoluteUrl(s.currentResult.image_with_typography_url),
       inputImg: toAbsoluteUrl(s.selectedImageUrl),
       assetId: s.currentResult.asset_id,
       seed: s.currentResult.seed,
@@ -291,12 +379,13 @@ export default function StudioPage() {
     router.push("/share");
   }
 
-  async function downloadResult() {
+  // [html-parity] html downloadImageFile 이식 — 기존 downloadResult 본문과 통합해
+  // 메인 결과 + 포맷 갤러리 공용. 인증 헤더 + 프리미엄 게이트 유지.
+  async function downloadImage(url: string | undefined, filename: string) {
     if (!s.isPremium) {
       router.push("/billing");
       return;
     }
-    const url = toAbsoluteUrl(s.currentResult?.image_url);
     if (!url) {
       s.toast("다운로드할 광고 이미지가 없습니다");
       return;
@@ -310,7 +399,7 @@ export default function StudioPage() {
       const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = objectUrl;
-      link.download = "adnova-ad.png";
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -321,7 +410,22 @@ export default function StudioPage() {
     }
   }
 
+  async function downloadResult() {
+    await downloadImage(toAbsoluteUrl(resultImageUrl(s.currentResult)), "adnova-ad.png");
+  }
+
   const result = s.currentResult;
+  // [html-parity] html applyGeneratedResult/getResultImageUrl 이식 (Next 이관 시 누락).
+  // 타이포 페어(포함/무타이포)가 모두 있을 때만 토글 노출. 없으면 image_url 폴백.
+  const hasTypographyPair = Boolean(
+    result?.image_with_typography_url && result?.image_without_typography_url,
+  );
+  const resultImageUrl = (r: GenerateResult | null, on = typographyOn) => {
+    if (!r) return undefined;
+    return on
+      ? r.image_with_typography_url || r.image_url
+      : r.image_without_typography_url || r.image_url;
+  };
   const beforeSrc =
     s.selectedImagePreview ??
     toAbsoluteUrl(s.selectedImageUrl) ??
@@ -330,7 +434,8 @@ export default function StudioPage() {
   return (
     <section>
       <AppBar />
-      <div className="dashboard-layout">
+      <div className="dashboard-layout with-wsnav">
+        <WorkspaceNav />
         {/* CONTROL RAIL */}
         <div className="control-rail">
           <div>
@@ -623,6 +728,50 @@ export default function StudioPage() {
             </div>
           ) : (
             <div>
+              {/* [html-parity] 타이포 포함 토글 — html #resultTypeOption 이식 (Next 이관 시 누락) */}
+              {hasTypographyPair && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    marginBottom: 12,
+                    padding: "10px 13px",
+                    border: "1px solid var(--line)",
+                    borderRadius: 10,
+                    background: "var(--card)",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: "var(--ink-soft)",
+                    }}
+                  >
+                    타이포 포함
+                  </span>
+                  <label
+                    htmlFor="typographyToggle"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 7,
+                      fontSize: 12,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <input
+                      id="typographyToggle"
+                      type="checkbox"
+                      checked={typographyOn}
+                      onChange={(e) => setTypographyOn(e.target.checked)}
+                    />
+                    {typographyOn ? "포함" : "무타이포"}
+                  </label>
+                </div>
+              )}
               <div
                 className="compare-grid"
                 style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}
@@ -675,7 +824,7 @@ export default function StudioPage() {
                   }}
                 >
                   <AuthenticatedImage
-                    src={toAbsoluteUrl(result.image_url)}
+                    src={toAbsoluteUrl(resultImageUrl(result))}
                     style={{
                       position: "absolute",
                       inset: 0,
@@ -720,6 +869,72 @@ export default function StudioPage() {
                   )}
                 </div>
               </div>
+
+              {/* [html-parity] 포맷 갤러리 — html renderFormatGallery 이식 (Next 이관 시 누락).
+                  용도별 산출물이 Next에서 안 보이던 원인. 인증 이미지라 AuthenticatedImage 사용 */}
+              {(result.format_outputs?.length ?? 0) > 0 && (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+                    gap: 12,
+                    marginTop: 16,
+                  }}
+                >
+                  {result.format_outputs!.map((value, index) => {
+                    const url = toAbsoluteUrl(value);
+                    const label =
+                      FORMAT_GALLERY_LABELS[result.purpose ?? ""] || "결과";
+                    const alt =
+                      result.format_outputs!.length > 1
+                        ? `${label} ${index + 1}`
+                        : label;
+                    return (
+                      <div
+                        key={`${value}-${index}`}
+                        style={{
+                          position: "relative",
+                          overflow: "hidden",
+                          border: "1px solid var(--line)",
+                          borderRadius: 12,
+                          background: "#0d0d10",
+                          minHeight: 180,
+                        }}
+                      >
+                        <AuthenticatedImage
+                          src={url}
+                          alt={alt}
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            height: "100%",
+                            minHeight: 180,
+                            objectFit: "contain",
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="oa download"
+                          style={{
+                            position: "absolute",
+                            right: 10,
+                            bottom: 10,
+                            background: "rgba(22,21,26,.88)",
+                          }}
+                          onClick={() =>
+                            downloadImage(
+                              url,
+                              `adnova-${result.purpose || "format"}-${index + 1}.jpg`,
+                            )
+                          }
+                        >
+                          다운로드
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               <div
                 className="copy-block"

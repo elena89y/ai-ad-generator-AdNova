@@ -1,4 +1,11 @@
-"""v5 판매 상세페이지: 서로 다른 상품 사진 5컷 이상을 요구한다."""
+"""v5 판매 상세페이지: 서로 다른 상품 사진 5컷 이상을 요구한다.
+
+v6-1 F1(2026-07-21) 고도화:
+  - 섹션별 전용 카피(detail_copy_for) — headline 3곳 복붙(D1)·하드코딩 문구(D2)·본문 부재(D3) 해소.
+  - 스타일 원장 accent 연동 팔레트(D4) — 남색 고정 제거, 스타일이 다르면 상세 톤도 다르다.
+  - 스토리 본문 길이 적응형 높이(D5) + 혜택 불릿 섹션 신설(카피가 있을 때만).
+GPT 실패 시 detail_copy_for 폴백이 종전과 같은 문구 구성을 돌려주므로 화면 회귀 없음.
+"""
 from __future__ import annotations
 
 import hashlib
@@ -8,7 +15,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from ..format_spec import FormatSpec
 from ..hero import DetailCut, DetailCutRole, HeroAsset
-from ..commercial_copy import copy_for, section_copy_for
+from ..commercial_copy import DetailPageCopy, detail_copy_for
 from ..similarity import MAX_STRUCTURE_CORRELATION, correlation, structure_vector
 
 MIN_UNIQUE_CUTS = 5
@@ -16,37 +23,59 @@ REQUIRED_ROLES = tuple(DetailCutRole)
 DEFAULT_CTA_TITLE = "지금 만나보세요"
 DEFAULT_CTA_LABEL = "자세히 보기"
 
+_PAPER = (248, 247, 243)
+_PAPER_WARM = (245, 243, 238)
+_INK = (18, 18, 18)
+
 
 def render(hero: HeroAsset, spec: FormatSpec, output_dir: str) -> list[str]:
     cuts = {cut.role: cut.image_path for cut in _select_role_cuts(hero)}
     width = spec.canvas[0]
     margin = int(width * spec.safe_margin)
-    heights = (940, 390, 760, 720, 650, 820, 320)
+    copy = detail_copy_for(hero)
+    pal = _palette(hero.style)
+
+    story_lines, story_h = _story_metrics(copy, width, margin)
+    benefits_h = _benefits_height(copy)
+    heights = (940, story_h, benefits_h, 760, 720, 650, 820, 320)
     total_h = sum(heights)
     canvas = Image.new("RGB", (width, total_h), "white")
     y = 0
 
     hero_section = _cover(Image.open(cuts[DetailCutRole.HERO]).convert("RGB"), (width, heights[0]))
-    canvas.paste(hero_section, (0, y)); _title_overlay(canvas, hero, y, heights[0], width); y += heights[0]
-    _story(canvas, hero, y, heights[1], margin, width); y += heights[1]
+    canvas.paste(hero_section, (0, y)); _title_overlay(canvas, copy, pal, y, heights[0], width); y += heights[0]
+    _story(canvas, copy, pal, story_lines, y, heights[1], margin, width); y += heights[1]
+    if benefits_h:
+        _benefits(canvas, copy, pal, y, heights[2], margin, width)
+        y += heights[2]
 
-    section_copy = section_copy_for(hero)
+    top = _cover(Image.open(cuts[DetailCutRole.TOP_VIEW]).convert("RGB"), (width, heights[3]))
+    canvas.paste(top, (0, y)); _section_label(canvas, pal, y, "01", copy.top_view_label, light=False); y += heights[3]
 
-    top = _cover(Image.open(cuts[DetailCutRole.TOP_VIEW]).convert("RGB"), (width, heights[2]))
-    canvas.paste(top, (0, y)); _section_label(canvas, y, "01", section_copy.top_view_label, light=False); y += heights[2]
+    closeup = _cover(Image.open(cuts[DetailCutRole.TEXTURE_CLOSEUP]).convert("RGB"), (width, heights[4]))
+    canvas.paste(closeup, (0, y)); _section_label(canvas, pal, y, "02", copy.closeup_caption, light=True); y += heights[4]
 
-    closeup = _cover(Image.open(cuts[DetailCutRole.TEXTURE_CLOSEUP]).convert("RGB"), (width, heights[3]))
-    canvas.paste(closeup, (0, y)); _section_label(canvas, y, "02", "가까이 볼수록 선명하게", light=True); y += heights[3]
+    _split_section(canvas, cuts[DetailCutRole.SIDE_PROFILE], copy, pal, y, heights[5], width, margin); y += heights[5]
 
-    _split_section(canvas, cuts[DetailCutRole.SIDE_PROFILE], hero, y, heights[4], width, margin); y += heights[4]
+    lifestyle = _cover(Image.open(cuts[DetailCutRole.LIFESTYLE]).convert("RGB"), (width, heights[6]))
+    canvas.paste(lifestyle, (0, y)); _lifestyle_overlay(canvas, copy, pal, y, heights[6], width, margin); y += heights[6]
 
-    lifestyle = _cover(Image.open(cuts[DetailCutRole.LIFESTYLE]).convert("RGB"), (width, heights[5]))
-    canvas.paste(lifestyle, (0, y)); _lifestyle_overlay(canvas, hero, y, heights[5], width, margin); y += heights[5]
-
-    _cta(canvas, y, heights[6], margin, width, section_copy)
+    _cta(canvas, copy, pal, y, heights[7], margin, width)
     out = Path(output_dir) / f"detail_{width}x{total_h}_{spec.label}.jpg"
     canvas.save(out, quality=93)
     return [str(out)]
+
+
+def _palette(style_key) -> dict:
+    """스타일 원장(styles/specs.yaml) accent 기반 팔레트 (D4: 남색 하드코딩 제거).
+
+    accent=원색(라벨·버튼), deep=진한 변형(패널 배경), tint=밝은 변형(어두운 배경 위 보조 텍스트).
+    """
+    from ...style_specs import get_spec
+    accent = tuple(get_spec(style_key or "editorial").accent)
+    deep = tuple(int(c * .78) for c in accent)
+    tint = tuple(int(c + (255 - c) * .78) for c in accent)
+    return {"accent": accent, "deep": deep, "tint": tint}
 
 
 def _unique_images(paths: tuple[str, ...]) -> list[str]:
@@ -116,67 +145,92 @@ def _cover(image: Image.Image, size: tuple[int, int]) -> Image.Image:
     return resized.crop((left, top, left + w, top + h))
 
 
-def _title_overlay(canvas, hero, y, height, width):
+def _title_overlay(canvas, copy: DetailPageCopy, pal, y, height, width):
     draw = ImageDraw.Draw(canvas, "RGBA")
-    draw.rectangle((0, y, width, y + 104), fill=(248, 247, 243, 242))
-    draw.rectangle((0, y + int(height * .68), width, y + height), fill=(18, 18, 18, 220))
+    draw.rectangle((0, y, width, y + 104), fill=(*_PAPER, 242))
+    draw.rectangle((0, y + int(height * .68), width, y + height), fill=(*_INK, 220))
     margin = int(width * .07)
-    copy = copy_for(hero)
     draw.text((margin, y + 37), copy.product_name or "ADNOVA SELECT", font=_font(22, True), fill=(24, 24, 24))
-    draw.line((width - margin - 100, y + 52, width - margin, y + 52), fill=(43, 63, 187), width=4)
-    draw.text((margin, y + int(height * .73)), copy.product_name, font=_font(23, True), fill=(195, 207, 255))
-    font = _fit(copy.headline, width - margin * 2, 55, 34)
-    draw.text((margin, y + int(height * .79)), copy.headline, font=font, fill="white")
+    draw.line((width - margin - 100, y + 52, width - margin, y + 52), fill=pal["accent"], width=4)
+    draw.text((margin, y + int(height * .73)), copy.product_name, font=_font(23, True), fill=pal["tint"])
+    font = _fit(copy.intro_headline, width - margin * 2, 55, 34)
+    draw.text((margin, y + int(height * .79)), copy.intro_headline, font=font, fill="white")
 
 
-def _story(canvas, hero, y, height, margin, width):
+def _story_metrics(copy: DetailPageCopy, width, margin) -> tuple[list[str], int]:
+    """스토리 본문을 픽셀 폭 기준으로 줄바꿈하고 섹션 높이를 계산한다 (D5 적응형)."""
+    lines = _wrap_px(copy.story_body, _font(22), width - margin * 2) if copy.story_body else []
+    # 라벨 64 + 제목 118~ + 본문 시작 205 + 줄당 38 + 하단 여백·룰 90. 종전 390 미만 금지.
+    height = max(390, 295 + max(len(lines), 1) * 38 + 90)
+    return lines, height
+
+
+def _story(canvas, copy: DetailPageCopy, pal, body_lines, y, height, margin, width):
     draw = ImageDraw.Draw(canvas)
-    draw.rectangle((0, y, width, y + height), fill=(245, 243, 238))
-    copy = copy_for(hero)
-    draw.text((margin, y + 64), "PRODUCT STORY", font=_font(20, True), fill=(43, 63, 187))
-    font = _fit(copy.headline, width - margin * 2, 43, 29)
-    draw.text((margin, y + 118), copy.headline, font=font, fill=(25, 25, 25))
-    if copy.subcopy:
-        draw.text((margin, y + 205), copy.subcopy, font=_fit(copy.subcopy, width - margin * 2, 26, 20), fill=(90, 90, 90))
+    draw.rectangle((0, y, width, y + height), fill=_PAPER_WARM)
+    draw.text((margin, y + 64), "PRODUCT STORY", font=_font(20, True), fill=pal["accent"])
+    font = _fit(copy.story_title, width - margin * 2, 43, 29)
+    draw.text((margin, y + 118), copy.story_title, font=font, fill=(25, 25, 25))
+    for index, line in enumerate(body_lines):
+        draw.text((margin, y + 205 + index * 38), line, font=_font(22), fill=(90, 90, 90))
     draw.line((margin, y + height - 56, width - margin, y + height - 56), fill=(190, 187, 180), width=1)
 
 
-def _section_label(canvas, y, number, title, light):
+def _benefits_height(copy: DetailPageCopy) -> int:
+    """혜택 불릿 섹션 높이 — 카피가 없으면 0(섹션 생략, 폴백 렌더는 종전과 동일 구성)."""
+    if not copy.benefit_bullets:
+        return 0
+    return 96 + len(copy.benefit_bullets) * 72 + 48
+
+
+def _benefits(canvas, copy: DetailPageCopy, pal, y, height, margin, width):
+    draw = ImageDraw.Draw(canvas)
+    draw.rectangle((0, y, width, y + height), fill="white")
+    draw.text((margin, y + 48), "WHY THIS", font=_font(20, True), fill=pal["accent"])
+    for index, bullet in enumerate(copy.benefit_bullets):
+        row_y = y + 96 + index * 72
+        draw.ellipse((margin, row_y + 8, margin + 34, row_y + 42), fill=pal["accent"])
+        draw.text((margin + 9, row_y + 13), f"{index + 1}", font=_font(19, True), fill="white")
+        draw.text((margin + 56, row_y + 8),
+                  _fit_line(bullet, width - margin * 2 - 56, 27), font=_font(27, True), fill=(30, 30, 30))
+
+
+def _section_label(canvas, pal, y, number, title, light):
     draw = ImageDraw.Draw(canvas, "RGBA")
-    fill = (248, 247, 243, 232) if light else (18, 18, 18, 205)
+    fill = (*_PAPER, 232) if light else (*_INK, 205)
     text = (24, 24, 24) if light else (255, 255, 255)
     draw.rectangle((44, y + 42, 520, y + 145), fill=fill)
-    draw.text((68, y + 67), number, font=_font(20, True), fill=(43, 63, 187))
-    draw.text((128, y + 63), title, font=_font(27, True), fill=text)
+    draw.text((68, y + 67), number, font=_font(20, True), fill=pal["accent"])
+    draw.text((128, y + 63), _fit_line(title, 520 - 128 - 24, 27), font=_font(27, True), fill=text)
 
 
-def _split_section(canvas, path, hero, y, height, width, margin):
+def _split_section(canvas, path, copy: DetailPageCopy, pal, y, height, width, margin):
     image_w = int(width * .56)
     canvas.paste(_cover(Image.open(path).convert("RGB"), (image_w, height)), (0, y))
     draw = ImageDraw.Draw(canvas)
-    draw.rectangle((image_w, y, width, y + height), fill=(35, 55, 167))
+    draw.rectangle((image_w, y, width, y + height), fill=pal["deep"])
     x = image_w + margin
-    draw.text((x, y + 85), "03 / PROFILE", font=_font(19, True), fill=(195, 207, 255))
-    draw.text((x, y + 150), "형태까지\n또렷하게", font=_font(39, True), fill="white", spacing=8)
-    copy = copy_for(hero)
-    if copy.subcopy:
-        draw.text((x, y + 310), copy.subcopy, font=_fit(copy.subcopy, width - x - margin, 23, 18), fill=(230, 233, 255))
+    draw.text((x, y + 85), "03 / PROFILE", font=_font(19, True), fill=pal["tint"])
+    draw.text((x, y + 150), copy.profile_title, font=_font(39, True), fill="white", spacing=8)
+    if copy.profile_caption:
+        for index, line in enumerate(_wrap_px(copy.profile_caption, _font(21), width - x - margin)[:3]):
+            draw.text((x, y + 310 + index * 34), line, font=_font(21), fill=pal["tint"])
 
 
-def _lifestyle_overlay(canvas, hero, y, height, width, margin):
+def _lifestyle_overlay(canvas, copy: DetailPageCopy, pal, y, height, width, margin):
     draw = ImageDraw.Draw(canvas, "RGBA")
-    draw.rectangle((0, y + int(height * .67), width, y + height), fill=(18, 18, 18, 205))
-    copy = copy_for(hero)
-    draw.text((margin, y + int(height * .72)), "04 / MOMENT", font=_font(20, True), fill=(195, 207, 255))
-    draw.text((margin, y + int(height * .79)), copy.headline, font=_fit(copy.headline, width - margin * 2, 43, 29), fill="white")
+    draw.rectangle((0, y + int(height * .67), width, y + height), fill=(*_INK, 205))
+    draw.text((margin, y + int(height * .72)), "04 / MOMENT", font=_font(20, True), fill=pal["tint"])
+    draw.text((margin, y + int(height * .79)), copy.lifestyle_line,
+              font=_fit(copy.lifestyle_line, width - margin * 2, 43, 29), fill="white")
 
 
-def _cta(canvas, y, height, margin, width, copy):
+def _cta(canvas, copy: DetailPageCopy, pal, y, height, margin, width):
     draw = ImageDraw.Draw(canvas)
     draw.rectangle((0, y, width, y + height), fill=(22, 22, 22))
     draw.text((margin, y + 62), copy.cta_title, font=_font(36, True), fill="white")
-    draw.rectangle((margin, y + 172, margin + 220, y + 238), fill=(43, 63, 187))
-    draw.text((margin + 34, y + 190), copy.cta, font=_font(23, True), fill="white")
+    draw.rectangle((margin, y + 172, margin + 220, y + 238), fill=pal["accent"])
+    draw.text((margin + 34, y + 190), copy.cta_label, font=_font(23, True), fill="white")
 
 
 def _font(size, bold=False):
@@ -191,6 +245,33 @@ def _fit(text, max_width, start, minimum):
         if draw.textbbox((0, 0), text, font=font)[2] <= max_width:
             return font
     return _font(minimum, True)
+
+
+def _fit_line(text: str, max_width: int, size: int) -> str:
+    """폭을 넘는 한 줄 라벨을 말줄임으로 자른다(레이아웃 침범 방지)."""
+    draw = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    font = _font(size, True)
+    if draw.textbbox((0, 0), text, font=font)[2] <= max_width:
+        return text
+    while text and draw.textbbox((0, 0), text + "…", font=font)[2] > max_width:
+        text = text[:-1]
+    return text + "…"
+
+
+def _wrap_px(text: str, font, max_width: int) -> list[str]:
+    """픽셀 폭 기준 어절 줄바꿈 — 본문 문장용 (글자수 기준 _wrap 과 달리 폰트 실측)."""
+    draw = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    lines, current = [], ""
+    for word in (text or "").split():
+        candidate = f"{current} {word}".strip()
+        if current and draw.textbbox((0, 0), candidate, font=font)[2] > max_width:
+            lines.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        lines.append(current)
+    return lines
 
 
 def _height(font):

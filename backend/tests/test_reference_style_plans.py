@@ -109,3 +109,93 @@ def test_food_identity_lock_forbids_propped_up_food_styling() -> None:
     assert "leaning against anything" in instruction
     assert "slice of bread, toast, cake" in instruction
     assert "never a food item standing upright" in instruction
+
+
+def test_container_default_path_keeps_measured_bug_fix_phrases() -> None:
+    """CONTAINER-001 회귀 가드: 용기 근거가 없거나 불투명 접시·그릇이면 컵 변환(BUG-KTX-001)·
+    프로핑(PLATING-001) 대응 문구가 바이트 동일하게 유지돼야 한다. 실측(2026-07-21) 샌드위치·
+    프렌치토스트는 opacity=opaque, kind=plate — vessel 분기는 투명 유리 디저트 용기만 탄다."""
+    base = build_reference_instruction("realism", "food", "club sandwich")
+    assert base is not None
+    default_inputs = [
+        (None, None),
+        ("", None),
+        ("none", "opaque"),
+        ("pink plate", "opaque"),          # 샌드위치 실측
+        ("white plate", "opaque"),         # 프렌치토스트 실측
+        ("black stone bowl", "opaque"),    # 불투명 뚝배기 — 깊은 용기지만 opaque라 default
+        ("clear glass", None),             # opacity 근거 없으면 안전측 default
+        ("clear glass plate", "transparent"),  # 투명해도 flat(plate) → default(PLATING-001 가드)
+    ]
+    for desc, opacity in default_inputs:
+        assert build_reference_instruction(
+            "realism", "food", "club sandwich",
+            container_desc=desc, container_opacity=opacity) == base, (desc, opacity)
+    assert "There is no cup, mug, tumbler, lid or straw anywhere" in base
+    assert "the plate resting flat on a dark charcoal stone table" in base
+    assert "Never convert the food, its plate or bowl into a cup" in base
+    # 자리표시자가 그대로 노출되지 않아야 한다
+    assert "{hero}" not in base and "{container_clause}" not in base
+    # editorial·pop의 {hero} 기본 치환도 기존 문구와 동일해야 한다
+    editorial = build_reference_instruction("editorial", "food", "club sandwich")
+    assert "generous quiet copy space above the plate." in editorial
+    pop = build_reference_instruction("pop", "food", "club sandwich")
+    assert "diagonal shadow behind the plate." in pop
+
+
+def test_vessel_container_switches_to_positive_preservation() -> None:
+    """CONTAINER-001(2026-07-21): 굽 유리볼 빙수가 (food,realism)에서 밋밋한 흰 접시+차콜로
+    강제 변환된 운영 실측(historyId=107) — 투명 유리 디저트 용기는 "원본 용기 유지+프리미엄
+    연출" 긍정 단언으로 전환하고, 그 사진에서 거짓이 되는 부정문(no cup anywhere)과 접시 강제
+    문구를 치운다. 실측 container_kind='glass', opacity='transparent'."""
+    instr = build_reference_instruction(
+        "realism", "food", "fruit shaved ice",
+        container_desc="transparent glass", container_opacity="transparent")
+    assert instr is not None
+    # 긍정 단언이 부정문보다 앞(BUG-KTX-001 성공 패턴)
+    assert "served in its original transparent glass" in instr
+    assert instr.index("served in its original") < instr.index("Never convert")
+    # 용기→접시 변환 차단 + 실측 거짓 부정문 제거
+    assert "Never convert the transparent glass into a plain flat plate" in instr
+    assert "There is no cup" not in instr
+    assert "the plate resting flat" not in instr
+    # realism 접지 문구는 굽 용기에 물리적으로 참인 서술로 치환
+    assert ("with the transparent glass standing upright on its own base "
+            "on a dark charcoal stone table") in instr
+    assert "{container_clause}" not in instr and "{hero}" not in instr
+
+
+def test_vessel_explicit_shape_keyword_fires_regardless_of_opacity() -> None:
+    """Vision이 굽·스템 형태를 명시적으로 주면(고블릿·파르페 등) opacity 근거가 없어도
+    vessel — 이름 기반 폴백·미래 프롬프트 강화 대비."""
+    for desc in ("clear pedestal glass bowl", "tall parfait glass", "footed goblet"):
+        instr = build_reference_instruction(
+            "realism", "food", "strawberry parfait", container_desc=desc)
+        assert instr is not None, desc
+        assert f"served in its original {desc}" in instr, desc
+        assert "There is no cup" not in instr, desc
+
+
+def test_vessel_preamble_applies_across_all_food_moods() -> None:
+    """vessel 분기는 realism만이 아니라 food 6무드 전부의 프리앰블에 적용된다."""
+    styles = ("editorial", "pop", "realism", "pastel_float", "monotone", "warm_vintage")
+    for style in styles:
+        instr = build_reference_instruction(
+            style, "food", "strawberry parfait",
+            container_desc="clear glass", container_opacity="transparent")
+        assert instr is not None, style
+        assert "served in its original clear glass" in instr, style
+        assert "There is no cup" not in instr, style
+        assert "{hero}" not in instr and "{container_clause}" not in instr, style
+        assert "{palette}" not in instr, style
+
+
+def test_vessel_branch_only_applies_to_food_domain() -> None:
+    """drink·object 프리앰블은 용기 묘사와 무관하게 기존 그대로 — drink는 이미 용기 실루엣
+    보존 계약이 있고, object는 정직성 경계(형태·색 왜곡 금지)가 담당한다."""
+    for domain in ("drink", "object"):
+        base = build_reference_instruction("realism", domain, "iced tea")
+        with_desc = build_reference_instruction(
+            "realism", domain, "iced tea",
+            container_desc="transparent glass", container_opacity="transparent")
+        assert with_desc == base, domain

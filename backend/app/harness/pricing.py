@@ -28,3 +28,48 @@ def cost_of(model: str, tok_in: int = 0, tok_out: int = 0) -> float:
     """토큰 → 비용($). 미등록 모델은 0(로컬 가정)."""
     p = _lookup(model)
     return round((tok_in * p.get("in", 0.0) + tok_out * p.get("out", 0.0)) / 1_000_000, 6)
+
+
+# --- GPU 시간 → 비용($) 환산 (v6 T0) -------------------------------------------
+# "로컬 모델은 공짜"가 아니라는 KPI 논거용 근사치. GCP g2(NVIDIA L4, us-central1)
+# 온디맨드 시간당 요금 근사 — 정확 단가는 팀 청구서 기준으로 env GPU_USD_PER_HOUR 교체.
+GPU_USD_PER_HOUR_DEFAULT = 0.71
+
+
+def gpu_usd_per_hour() -> float:
+    import os
+
+    try:
+        return float(os.environ.get("GPU_USD_PER_HOUR", GPU_USD_PER_HOUR_DEFAULT))
+    except ValueError:
+        return GPU_USD_PER_HOUR_DEFAULT
+
+
+def gpu_cost_of(seconds: float) -> float:
+    """GPU 점유 초 → 환산 비용($). CPU 실행(로컬 Mac 등)은 호출부에서 0초로 들어온다."""
+    return round(max(seconds, 0.0) / 3600.0 * gpu_usd_per_hour(), 6)
+
+
+# --- 이미지 생성 API 장당 비용($) ------------------------------------------------
+# gpt-image-2 edit 실측(2026-07-17 A/B/C 전모드 검증, quality=low): 장당 $0.01~0.02 → 중앙값 근사.
+# gpt-image-1-mini · "model:quality" 세분 키는 미실측 보수 추정 — 첫 실호출에서 usage 역산으로 보정할 것.
+# 세분 키가 있으면 우선, 없으면 모델 키 폴백(quality 미지정 호출 하위호환).
+IMAGE_PRICES: dict[str, float] = {
+    "gpt-image-2": 0.015,
+    "gpt-image-1-mini": 0.005,
+    # APIQ-001(모델×quality 매트릭스) 예산 선점용 — high 가 low 의 10배쯤인 과금 구조를
+    # 과소 예약하면 API_BUDGET_USD 하드스톱이 무력화되므로 보수(높게) 잡는다.
+    "gpt-image-2:high": 0.20,
+    "gpt-image-2:medium": 0.06,
+}
+
+
+def image_cost_of(model: str, n: int = 1, quality: str | None = None) -> float:
+    """이미지 생성/편집 API n장 → 비용($). 미등록 모델은 0(로컬 가정).
+
+    quality 를 주면 "model:quality" 세분 단가를 우선 조회(없으면 모델 단가 폴백).
+    """
+    price = IMAGE_PRICES.get(f"{model}:{quality}") if quality else None
+    if price is None:
+        price = IMAGE_PRICES.get(model, 0.0)
+    return round(price * max(n, 0), 6)
