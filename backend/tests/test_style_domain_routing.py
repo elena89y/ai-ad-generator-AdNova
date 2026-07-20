@@ -40,6 +40,16 @@ def test_bakery_desserts_stay_food():
         assert _resolve_style_domain(a, "food", "cafe", subject) == "food", subject
 
 
+def test_savory_cafe_food_stays_food():
+    """BUG-KTX-001-2(2026-07-20) 재현 케이스: 샌드위치가 cafe→drink로 승격되면 drink 지시문
+    ("vessel/rim/wall 보존")이 접시를 컵으로 굳혀버린다. 디저트 목록에 없는 신메뉴라도
+    실제 음료 어휘가 없으면 food에 남아야 한다."""
+    for subject in ("ham and cheese sandwich", "club sandwich", "caesar salad",
+                    "chicken panini", "avocado toast"):
+        a = _menu(subject_en=subject)
+        assert _resolve_style_domain(a, "food", "cafe", subject) == "food", subject
+
+
 def test_actual_beverages_still_route_to_drink():
     for subject in ("cafe latte", "iced americano", "strawberry smoothie"):
         a = _menu(subject_en=subject)

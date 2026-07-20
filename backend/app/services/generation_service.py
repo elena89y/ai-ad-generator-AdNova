@@ -606,35 +606,37 @@ def process_ad(
         return result
 
 
-# 디저트 어휘 — food_mode=cafe(카페 이산제품: 음료+디저트 혼재)에서 '음료 아님'을 판별.
+# 음료 어휘 — food_mode=cafe(카페 취급 상품: 음료+디저트+샌드위치 등 혼재)에서 '진짜 음료'를
+#   긍정 판별한다(화이트리스트). 예전엔 반대로 디저트 어휘 블랙리스트 방식이라 목록에 없는
+#   신메뉴가 전부 drink로 새는 구조였다:
 #   2026-07-17 라이브 결함: '말차베리쿠키'가 cafe→drink로 승격 → drink 지시문("Keep the
 #   drink, cup or glass, foam…")이 존재하지 않는 컵을 지어내 쿠키가 라떼로 재생성됨(날조).
-_DESSERT_HINTS = (
-    "cookie", "cake", "scone", "bread", "croissant", "macaron", "macaroon", "muffin",
-    "tart", "donut", "doughnut", "brownie", "pastry", "dessert", "pie", "waffle",
-    "bagel", "bun", "roll", "pudding", "tiramisu", "financier", "madeleine",
+#   2026-07-20 재발: '햄치즈 샌드위치'도 같은 구조로 drink로 승격 → vessel/rim 보존 지시문이
+#   접시를 컵으로 굳혀버림(BUG-KTX-001-2 재조사로 발견). 블랙리스트를 화이트리스트로 뒤집어
+#   미등록 신메뉴가 기본적으로 food(안전측)에 남도록 근본 수정.
+_DRINK_HINTS = (
+    "coffee", "latte", "americano", "cappuccino", "espresso", "mocha", "macchiato",
+    "tea", "ade", "juice", "smoothie", "shake", "float", "soda", "lemonade", "beer",
+    "wine", "cocktail", "frappe", "frappuccino", "milk tea", "bubble tea",
 )
 _DRINK_CONTAINERS = ("cup", "glass", "mug", "bottle", "can", "tumbler", "jar")
 
 
 def _resolve_style_domain(analysis, domain: str, food_mode: Optional[str],
                           subject_en: str) -> str:  # noqa: ANN001
-    """StylePlan 도메인 정규화. drink 는 '실제 음료'일 때만 — 디저트의 drink 승격 금지.
+    """StylePlan 도메인 정규화. drink는 '실제 음료'라는 긍정 근거가 있을 때만 승격한다.
 
-    1차: PhotoAnalysis(UNIFIED_ANALYSIS 경로)의 container_kind — 사진 근거(D-4).
-    2차(텍스트 폴백): category=bakery 또는 subject_en 디저트 어휘면 food 유지.
+    1차: PhotoAnalysis(UNIFIED_ANALYSIS 경로)의 container_kind — 사진 근거(D-4) 최우선.
+    2차(텍스트 폴백): subject_en에 실제 음료 어휘가 있을 때만 drink. 그 외(디저트·빵·샌드위치 등
+    카페에서 파는 고체 음식 전부)는 food 유지 — 화이트리스트라 새 메뉴가 나와도 안전측으로 기운다.
     """
     if domain != "food" or food_mode != "cafe":
         return domain
     container = getattr(analysis, "container_kind", None)
     if container is not None:  # Vision 근거 우선
         return "drink" if str(container).lower() in _DRINK_CONTAINERS else domain
-    if getattr(analysis, "category", "") == "bakery":
-        return domain
     low = (subject_en or "").lower()
-    if any(hint in low for hint in _DESSERT_HINTS):
-        return domain
-    return "drink"
+    return "drink" if any(hint in low for hint in _DRINK_HINTS) else domain
 
 
 _COMPOSE_INELIGIBLE_MATERIAL = ("transparent", "reflective")

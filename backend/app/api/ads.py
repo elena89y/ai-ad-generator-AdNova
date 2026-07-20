@@ -209,6 +209,26 @@ def _record_generated_result(
                 commit=False,
             )
 
+        # 카드뉴스/상세페이지/배너 결과 파일(format_outputs)도 같은 이유로 등록해야 조회된다
+        # (2026-07-20, TOGGLE-002) — 등록 안 하면 파일은 있어도 프론트에서 빈 썸네일로만 보임.
+        for format_url in result.format_outputs or []:
+            format_filename = Path(format_url).name
+            if format_filename == output_filename:
+                continue
+            format_path = image_service.RESULTS_DIR / format_filename
+            create_image(
+                db,
+                user_id=user_id,
+                image_type="generated",
+                original_filename=format_filename,
+                stored_filename=format_filename,
+                file_path=str(format_path),
+                image_url=format_url,
+                content_type="image/jpeg",
+                file_size=format_path.stat().st_size if format_path.exists() else None,
+                commit=False,
+            )
+
         advertisement = create_advertisement(
             db,
             user_id=user_id,
