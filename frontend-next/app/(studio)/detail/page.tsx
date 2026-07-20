@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import {
   apiFetch,
   formatAdType,
@@ -21,7 +21,7 @@ const TABS = [
   { p: "threads", label: "Threads" },
 ];
 
-export default function DetailPage() {
+function DetailContent() {
   const s = useStudio();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -322,5 +322,13 @@ export default function DetailPage() {
         </div>
       </div>
     </section>
+  );
+}
+
+export default function DetailPage() {
+  return (
+    <Suspense fallback={<div className="page">광고 상세 정보를 불러오는 중입니다.</div>}>
+      <DetailContent />
+    </Suspense>
   );
 }
