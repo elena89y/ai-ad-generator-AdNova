@@ -193,12 +193,23 @@ def cmd_run(args: argparse.Namespace) -> None:
     for arm in arms:
         out_dir = OUT_ROOT / arm
         out_dir.mkdir(parents=True, exist_ok=True)
+        prev_local_mode: str | None = None
         for item in items:
             image_path = inputs_dir / item["file"]
             if not image_path.exists():
                 logger.error("입력 없음, 건너뜀: %s", image_path)
                 continue
             engine = _engine_for(arm, item)
+            # 배치 러너 전용 VRAM 방어(2026-07-21 실측 OOM): 상주 워커와 달리 러너는
+            # A→B→C 를 한 프로세스에서 순회 — 모드 경계에서 전부 언로드하지 않으면
+            # Kontext(11G)+FLUX(14G) 동시 상주로 22G 초과(VRAM 규칙 1·2).
+            if engine == "local" and not args.dry_run:
+                mode = item["expected_mode"]
+                if prev_local_mode is not None and mode != prev_local_mode:
+                    logger.info("[%s] 모드 전환 %s→%s — 파이프라인 전체 언로드",
+                                arm, prev_local_mode, mode)
+                    _unload_all_pipelines()
+                prev_local_mode = mode
             fn = _run_one_local if engine == "local" else _run_one_api
             logger.info("[%s] %s → %s", arm, item["file"], engine)
             try:
@@ -206,6 +217,28 @@ def cmd_run(args: argparse.Namespace) -> None:
                    model=model, quality=quality)
             except Exception:  # noqa: BLE001 — 1건 실패가 배치를 죽이면 안 됨(원장에 error 행 남음)
                 logger.exception("[%s] %s 실패", arm, item["file"])
+
+
+def _unload_all_pipelines() -> None:
+    """모드 경계 언로드 — 러너(배치) 전용, 프로덕션 서비스 코드는 불변.
+
+    실패는 무해 통과(언로드 대상이 안 떠 있으면 정상). empty_cache 로 단편화도 정리.
+    """
+    import importlib
+
+    for mod_name, fn_name in (("app.services.image_service", "unload_pipelines"),
+                              ("app.services.flux_service", "unload"),
+                              ("app.services.kontext_service", "unload")):
+        try:
+            getattr(importlib.import_module(mod_name), fn_name)()
+        except Exception:  # noqa: BLE001
+            pass
+    try:
+        import torch
+
+        torch.cuda.empty_cache()
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def cmd_apiq(args: argparse.Namespace) -> None:
