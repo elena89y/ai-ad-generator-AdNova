@@ -24,6 +24,7 @@ import {
   readApiError,
   readJsonSafely,
   storeAuth,
+  toAbsoluteUrl,
 } from "@/lib/api";
 
 interface StudioState {
@@ -35,6 +36,7 @@ interface StudioState {
   freeTotal: number;
   billingSummary: BillingSummary | null;
   billingPurchases: PurchaseHistory[];
+  profileImageUrl: string | null;
   ads: AdItem[];
   dashboardSummaryText: string;
   /* 대시보드 작업 상태 (화면 이동 후에도 유지 — 프로토타입의 전역 변수 대응) */
@@ -76,10 +78,9 @@ interface StudioState {
   openDetail: (item: AdItem) => void;
   openShare: (item: AdItem, from: string, platform: string) => void;
   setBillingSummary: (summary: BillingSummary | null) => void;
+  setProfileImageUrl: (imageUrl: string | null) => void;
   upgradeOpen: boolean;
   setUpgradeOpen: (open: boolean) => void;
-  userVersion: number;
-  bumpUser: () => void;
 }
 
 const StudioContext = createContext<StudioState | null>(null);
@@ -115,10 +116,10 @@ export default function StudioProvider({ children }: { children: React.ReactNode
   }, [ready, authVersion]);
   const [billingSummary, setBillingSummaryState] = useState<BillingSummary | null>(null);
   const [billingPurchases, setBillingPurchases] = useState<PurchaseHistory[]>([]);
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   const [ads, setAdsState] = useState<AdItem[]>([]);
   const [dashboardSummaryText, setDashboardSummaryText] = useState("");
   const [upgradeOpen, setUpgradeOpen] = useState(false);
-  const [userVersion, setUserVersion] = useState(0);
 
   const [dashState, setDashState] = useState({
     selectedImageId: null as number | null,
@@ -239,6 +240,7 @@ export default function StudioProvider({ children }: { children: React.ReactNode
     setAuthVersion((v) => v + 1);
     setBillingSummaryState(null);
     setBillingPurchases([]);
+    setProfileImageUrl(null);
     setAdsState([]);
     setDashState((s) => ({
       ...s,
@@ -259,6 +261,28 @@ export default function StudioProvider({ children }: { children: React.ReactNode
     });
   }, [token, refreshBilling, refreshHistory, refreshDashboardSummary]);
 
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+
+    async function loadProfileImage() {
+      try {
+        const res = await apiFetch("/api/account/profile-image");
+        const data = (await readJsonSafely(res)) as { image_url?: string | null } | null;
+        if (!res.ok) throw new Error();
+        if (!cancelled)
+          setProfileImageUrl(data?.image_url ? toAbsoluteUrl(data.image_url) : null);
+      } catch {
+        if (!cancelled) setProfileImageUrl(null);
+      }
+    }
+
+    void loadProfileImage();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
   const isPremium = Boolean(billingSummary?.is_premium);
   const freeLeft = billingSummary?.free_credits_remaining ?? 3;
   const freeTotal = billingSummary?.free_credit_limit ?? 3;
@@ -273,6 +297,7 @@ export default function StudioProvider({ children }: { children: React.ReactNode
       freeTotal,
       billingSummary,
       billingPurchases,
+      profileImageUrl,
       ads,
       dashboardSummaryText,
       ...dashState,
@@ -294,10 +319,9 @@ export default function StudioProvider({ children }: { children: React.ReactNode
         setSharePlatform(platform);
       },
       setBillingSummary: setBillingSummaryState,
+      setProfileImageUrl,
       upgradeOpen,
       setUpgradeOpen,
-      userVersion,
-      bumpUser: () => setUserVersion((v) => v + 1),
     }),
     [
       ready,
@@ -308,6 +332,7 @@ export default function StudioProvider({ children }: { children: React.ReactNode
       freeTotal,
       billingSummary,
       billingPurchases,
+      profileImageUrl,
       ads,
       dashboardSummaryText,
       dashState,
@@ -321,7 +346,6 @@ export default function StudioProvider({ children }: { children: React.ReactNode
       refreshHistory,
       refreshDashboardSummary,
       upgradeOpen,
-      userVersion,
     ]
   );
 

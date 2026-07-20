@@ -1,15 +1,16 @@
 "use client";
 
 import {
+  type CSSProperties,
   type ImgHTMLAttributes,
   useEffect,
   useState,
 } from "react";
 import { getToken } from "@/lib/api";
 
-type AuthenticatedImageProps = Omit<
+type AuthenticatedImageProps = Pick<
   ImgHTMLAttributes<HTMLImageElement>,
-  "src"
+  "alt" | "className" | "style"
 > & {
   src?: string | null;
 };
@@ -30,10 +31,13 @@ export function AuthenticatedImage({
   ...props
 }: AuthenticatedImageProps) {
   const [displaySrc, setDisplaySrc] = useState("");
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     if (!src) {
       setDisplaySrc("");
+      setLoadState("error");
       return;
     }
 
@@ -42,6 +46,7 @@ export function AuthenticatedImage({
 
     if (!requiresToken(imageSrc)) {
       setDisplaySrc(imageSrc);
+      setLoadState("ready");
       return;
     }
 
@@ -71,17 +76,20 @@ export function AuthenticatedImage({
 
         if (!cancelled) {
           setDisplaySrc(objectUrl);
+          setLoadState("ready");
         }
       } catch (error) {
         console.error("인증 이미지 로딩 실패:", error);
 
         if (!cancelled) {
           setDisplaySrc("");
+          setLoadState("error");
         }
       }
     }
 
     setDisplaySrc("");
+    setLoadState("loading");
     void loadImage();
 
     return () => {
@@ -91,12 +99,64 @@ export function AuthenticatedImage({
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [src]);
+  }, [src, retryKey]);
 
-  if (!displaySrc) {
-    return null;
+  if (!displaySrc || loadState !== "ready") {
+    const stateStyle: CSSProperties = {
+      ...style,
+      display: "grid",
+      placeItems: "center",
+      gap: 8,
+      padding: 12,
+      background: "rgba(13,13,16,.82)",
+      color: "var(--ink-mute)",
+      fontSize: 12,
+      textAlign: "center",
+    };
+
+    return (
+      <div className={className} style={stateStyle} role="img" aria-label={alt || "광고 이미지"}>
+        {loadState === "error" ? (
+          <>
+            <span>이미지를 불러오지 못했습니다</span>
+            {src && (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setRetryKey((value) => value + 1);
+                }}
+                style={{
+                  border: "1px solid rgba(255,255,255,.22)",
+                  borderRadius: 6,
+                  background: "transparent",
+                  color: "var(--ink-soft)",
+                  padding: "4px 8px",
+                  fontSize: 11,
+                  cursor: "pointer",
+                }}
+              >
+                다시 시도
+              </button>
+            )}
+          </>
+        ) : (
+          <span>이미지를 불러오는 중입니다</span>
+        )}
+      </div>
+    );
   }
 
   // eslint-disable-next-line @next/next/no-img-element
-  return <img {...props} src={displaySrc} alt={alt ?? ""} />;
+  return (
+    <img
+      {...props}
+      src={displaySrc}
+      alt={alt ?? ""}
+      onError={() => {
+        setDisplaySrc("");
+        setLoadState("error");
+      }}
+    />
+  );
 }

@@ -1,15 +1,27 @@
+import asyncio
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
 
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile
 from fastapi.security import HTTPAuthorizationCredentials
+from PIL import Image as PilImage
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from starlette.datastructures import Headers
 
-from app.api.account import change_password, delete_account, read_current_user
+from app.api.account import (
+    change_password,
+    delete_account,
+    patch_notification_settings,
+    read_current_user,
+    read_notification_settings,
+    read_profile_image,
+    upload_profile_image,
+)
 from app.core.config import settings
 from app.core.security import (
     create_access_token,
@@ -32,10 +44,15 @@ from app.database.models import (
     CreditRefillState,
     History,
     Image,
+    NotificationSettings,
     SupportInquiry,
     User,
 )
-from app.schemas.account import AccountDeleteRequest, PasswordChangeRequest
+from app.schemas.account import (
+    AccountDeleteRequest,
+    NotificationSettingsUpdateRequest,
+    PasswordChangeRequest,
+)
 from app.services import image_service
 
 
@@ -63,6 +80,17 @@ class AccountApiTestCase(unittest.TestCase):
         Base.metadata.drop_all(bind=self.engine)
         self.engine.dispose()
 
+    @staticmethod
+    def _profile_upload(filename: str) -> UploadFile:
+        content = BytesIO()
+        PilImage.new("RGB", (2, 2), "white").save(content, format="PNG")
+        content.seek(0)
+        return UploadFile(
+            file=content,
+            filename=filename,
+            headers=Headers({"content-type": "image/png"}),
+        )
+
     def test_password_can_be_changed(self) -> None:
         result = change_password(
             request=PasswordChangeRequest(
@@ -89,6 +117,65 @@ class AccountApiTestCase(unittest.TestCase):
         self.assertEqual(result.email, "account@example.com")
         self.assertEqual(result.auth_provider, "local")
         self.assertTrue(result.is_active)
+
+    def test_notification_settings_are_saved_per_user(self) -> None:
+        defaults = read_notification_settings(db=self.session, current_user=self.user)
+        self.assertTrue(defaults.ad_generation_complete_email)
+        self.assertTrue(defaults.credit_depletion_alert)
+        self.assertFalse(defaults.marketing_updates)
+
+        updated = patch_notification_settings(
+            request=NotificationSettingsUpdateRequest(
+                ad_generation_complete_email=False,
+                marketing_updates=True,
+            ),
+            db=self.session,
+            current_user=self.user,
+        )
+
+        self.assertFalse(updated.ad_generation_complete_email)
+        self.assertTrue(updated.credit_depletion_alert)
+        self.assertTrue(updated.marketing_updates)
+        self.assertEqual(self.session.query(NotificationSettings).count(), 1)
+
+    def test_profile_image_is_replaced_and_read_from_server(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            upload_dir = Path(temp_dir) / "uploads"
+            with patch.object(settings, "UPLOAD_DIR", str(upload_dir)):
+                first = asyncio.run(
+                    upload_profile_image(
+                        file=self._profile_upload("first.png"),
+                        db=self.session,
+                        current_user=self.user,
+                    )
+                )
+                first_path = Path(
+                    self.session.query(Image)
+                    .filter(Image.id == first.image_id)
+                    .one()
+                    .file_path
+                )
+
+                second = asyncio.run(
+                    upload_profile_image(
+                        file=self._profile_upload("second.png"),
+                        db=self.session,
+                        current_user=self.user,
+                    )
+                )
+                profile = read_profile_image(db=self.session, current_user=self.user)
+
+            self.assertEqual(self.session.query(Image).filter(Image.image_type == "profile").count(), 1)
+            self.assertEqual(profile.image_url, second.image_url)
+            self.assertFalse(first_path.exists())
+            self.assertTrue(
+                Path(
+                    self.session.query(Image)
+                    .filter(Image.id == second.image_id)
+                    .one()
+                    .file_path
+                ).exists()
+            )
 
     def test_wrong_current_password_is_rejected(self) -> None:
         with self.assertRaises(HTTPException) as context:
@@ -189,6 +276,10 @@ class AccountApiTestCase(unittest.TestCase):
                         user_id=self.user.id,
                         next_refill_at=datetime.now(timezone.utc) + timedelta(days=1),
                     ),
+                    NotificationSettings(
+                        user_id=self.user.id,
+                        marketing_updates=True,
+                    ),
                     PremiumCreditBalance(
                         user_id=self.user.id,
                         credits_remaining=29,
@@ -221,6 +312,7 @@ class AccountApiTestCase(unittest.TestCase):
             self.assertEqual(self.session.query(CreditBalance).count(), 0)
             self.assertEqual(self.session.query(CreditRefillState).count(), 0)
             self.assertEqual(self.session.query(PremiumCreditBalance).count(), 0)
+            self.assertEqual(self.session.query(NotificationSettings).count(), 0)
             self.assertFalse(input_path.exists())
             self.assertFalse(output_path.exists())
 

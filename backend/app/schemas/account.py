@@ -26,3 +26,19 @@ class AccountDeleteRequest(BaseModel):
 
 class AccountMessageResponse(BaseModel):
     message: str
+
+
+class ProfileImageResponse(BaseModel):
+    image_url: str | None = None
+
+
+class NotificationSettingsResponse(BaseModel):
+    ad_generation_complete_email: bool
+    credit_depletion_alert: bool
+    marketing_updates: bool
+
+
+class NotificationSettingsUpdateRequest(BaseModel):
+    ad_generation_complete_email: bool | None = None
+    credit_depletion_alert: bool | None = None
+    marketing_updates: bool | None = None

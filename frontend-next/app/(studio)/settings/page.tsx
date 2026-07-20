@@ -4,15 +4,15 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   PASSWORD_PATTERN,
+  NotificationSettings,
+  ProfileImageResponse,
   apiFetch,
   avatarHue,
-  clearAvatarPhoto,
   getDisplayName,
-  getStoredAvatarPhoto,
   isSocialAuthUser,
   readApiError,
   readJsonSafely,
-  storeAvatarPhoto,
+  toAbsoluteUrl,
 } from "@/lib/api";
 import { useHydrated, useStudio } from "@/components/studio/StudioProvider";
 import { SubBar } from "@/components/studio/chrome";
@@ -27,7 +27,6 @@ export default function SettingsPage() {
   const [deletePassword, setDeletePassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [notiState, setNotiState] = useState([true, true, false]);
-  const [avatarOverride, setAvatarOverride] = useState<string | null>(null);
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const pwRef = useRef<HTMLDivElement>(null);
@@ -36,11 +35,40 @@ export default function SettingsPage() {
   const [activeNav, setActiveNav] = useState("setProfile");
 
   const social = hydrated ? isSocialAuthUser() : false;
-  const avatarPhoto = avatarOverride ?? (hydrated ? getStoredAvatarPhoto() : "");
+  const avatarPhoto = hydrated ? s.profileImageUrl || "" : "";
 
   useEffect(() => {
     if (s.ready && !s.token) router.replace("/login");
   }, [s.ready, s.token, router]);
+
+  useEffect(() => {
+    if (!s.ready || !s.token) return;
+    let cancelled = false;
+
+    async function loadNotificationSettings() {
+      try {
+        const res = await apiFetch("/api/account/notifications");
+        const data = (await readJsonSafely(res)) as NotificationSettings | null;
+        if (!res.ok || !data)
+          throw new Error(readApiError(data, "알림 설정을 불러오지 못했습니다"));
+        if (!cancelled) {
+          setNotiState([
+            data.ad_generation_complete_email,
+            data.credit_depletion_alert,
+            data.marketing_updates,
+          ]);
+        }
+      } catch (err) {
+        if (!cancelled)
+          s.toast(err instanceof Error ? err.message : "알림 설정을 불러오지 못했습니다");
+      }
+    }
+
+    void loadNotificationSettings();
+    return () => {
+      cancelled = true;
+    };
+  }, [s.ready, s.token, s.toast]);
 
   const name = getDisplayName(s.user);
   const hue = avatarHue(name);
@@ -58,17 +86,29 @@ export default function SettingsPage() {
       });
   }
 
-  function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      storeAvatarPhoto(reader.result as string);
-      setAvatarOverride(reader.result as string);
-      s.bumpUser();
+
+    setBusy(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await apiFetch("/api/account/profile-image", {
+        method: "POST",
+        body: formData,
+      });
+      const data = (await readJsonSafely(res)) as ProfileImageResponse | null;
+      if (!res.ok || !data?.image_url)
+        throw new Error(readApiError(data, "프로필 사진을 저장하지 못했습니다"));
+      s.setProfileImageUrl(toAbsoluteUrl(data.image_url));
       s.toast("프로필 사진이 변경되었습니다");
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      s.toast(err instanceof Error ? err.message : "프로필 사진을 저장하지 못했습니다");
+    } finally {
+      e.target.value = "";
+      setBusy(false);
+    }
   }
 
   async function handlePasswordChange() {
@@ -122,7 +162,6 @@ export default function SettingsPage() {
         throw new Error(readApiError(data, "회원 탈퇴에 실패했습니다"));
       }
       s.clearAuth();
-      clearAvatarPhoto();
       router.push("/login");
       s.toast("회원 탈퇴가 완료되었습니다");
     } catch (err) {
@@ -136,6 +175,34 @@ export default function SettingsPage() {
     s.clearAuth();
     router.push("/login");
     s.toast("로그아웃되었습니다");
+  }
+
+  async function handleNotificationSave() {
+    setBusy(true);
+    try {
+      const res = await apiFetch("/api/account/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ad_generation_complete_email: notiState[0],
+          credit_depletion_alert: notiState[1],
+          marketing_updates: notiState[2],
+        }),
+      });
+      const data = (await readJsonSafely(res)) as NotificationSettings | null;
+      if (!res.ok || !data)
+        throw new Error(readApiError(data, "알림 설정을 저장하지 못했습니다"));
+      setNotiState([
+        data.ad_generation_complete_email,
+        data.credit_depletion_alert,
+        data.marketing_updates,
+      ]);
+      s.toast("알림 설정을 저장했습니다");
+    } catch (err) {
+      s.toast(err instanceof Error ? err.message : "알림 설정을 저장하지 못했습니다");
+    } finally {
+      setBusy(false);
+    }
   }
 
   const noti = ["광고 생성 완료 이메일", "크레딧 소진 알림", "마케팅 소식 받기"];
@@ -226,6 +293,7 @@ export default function SettingsPage() {
                     fontWeight: 600,
                     cursor: "pointer",
                   }}
+                  disabled={busy}
                   onClick={() => avatarFileRef.current?.click()}
                 >
                   사진 변경
@@ -233,7 +301,7 @@ export default function SettingsPage() {
                 <input
                   ref={avatarFileRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
                   style={{ display: "none" }}
                   onChange={handleAvatarUpload}
                 />
@@ -399,6 +467,7 @@ export default function SettingsPage() {
 
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button
+                disabled={busy}
                 style={{
                   padding: "12px 18px",
                   border: "1px solid rgba(255,255,255,.14)",
@@ -424,10 +493,7 @@ export default function SettingsPage() {
                   fontWeight: 700,
                   cursor: "pointer",
                 }}
-                onClick={() => {
-                  s.toast("변경 사항을 저장했어요");
-                  router.push("/studio");
-                }}
+                onClick={handleNotificationSave}
               >
                 변경 사항 저장
               </button>
