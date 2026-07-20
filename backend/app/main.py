@@ -9,7 +9,7 @@ import os
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api import account, admin, ads, billing, dashboard, history, images, inquiries
+from app.api import account, admin, ads, billing, chatbot, dashboard, history, images, inquiries
 from app.api.auth import router as auth_router
 from app.api.google_auth import router as google_auth_router
 from app.api.kakao_auth import router as kakao_auth_router
@@ -62,6 +62,7 @@ app.include_router(dashboard.router, prefix=settings.API_PREFIX)
 app.include_router(history.router, prefix=settings.API_PREFIX)
 app.include_router(images.router, prefix=settings.API_PREFIX)
 app.include_router(inquiries.router, prefix=settings.API_PREFIX)
+app.include_router(chatbot.router, prefix=settings.API_PREFIX)  # 고객센터 챗봇 (한의정, 07-21 활성화 승인)
 app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
 
 
