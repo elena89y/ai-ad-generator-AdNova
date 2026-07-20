@@ -21,7 +21,11 @@
   python scripts/hyb001_three_arm_ab.py run --arm all --dry-run \
       --inputs-dir ~/Desktop/AdNova/HYB001_inputs
   python scripts/hyb001_three_arm_ab.py summary --dry-run
-  # VM 실측 (게이트 G3 지출 상한: api 암 전체 ≤ $0.5):
+  # [선행] APIQ-001 — API 모델×quality 매트릭스(3장×3설정, 보수 추정 ≤$1, CPU 로컬 가능):
+  python scripts/hyb001_three_arm_ab.py apiq --inputs-dir ~/Desktop/AdNova/HYB001_inputs
+  python scripts/hyb001_three_arm_ab.py summary --apiq
+  #   → 육안 승자 확정 후 매니페스트 apiq.chosen 갱신 (HYB-001 api/hybrid 암이 이 설정을 읽음)
+  # VM 실측 (게이트 G3 지출 상한: api 암 전체 ≤ $0.5, high 선택 시 상한 재산정):
   python scripts/hyb001_three_arm_ab.py run --arm local  --inputs-dir ~/HYB001_inputs
   python scripts/hyb001_three_arm_ab.py run --arm api    --inputs-dir ~/HYB001_inputs
   python scripts/hyb001_three_arm_ab.py run --arm hybrid --inputs-dir ~/HYB001_inputs
@@ -57,6 +61,8 @@ RUNS_REAL = BACKEND / "experiments" / "runs.jsonl"
 RUNS_DRY = BACKEND / "results" / "ai" / "hyb001_dryrun_runs.jsonl"  # gitignore 영역
 SUMMARY_REAL = BACKEND / "experiments" / "hyb001_summary.md"
 SUMMARY_DRY = BACKEND / "results" / "ai" / "hyb001_dryrun_summary.md"
+SUMMARY_APIQ = BACKEND / "experiments" / "apiq001_summary.md"
+SUMMARY_APIQ_DRY = BACKEND / "results" / "ai" / "apiq001_dryrun_summary.md"
 OUT_ROOT = BACKEND / "results" / "ai" / "hyb001"
 
 ARMS = ("local", "api", "hybrid")
@@ -73,9 +79,11 @@ def _engine_for(arm: str, item: dict) -> str:
 
 
 def _run_one_local(image_path: Path, item: dict, knob: float, seed: int,
-                   arm: str, out_dir: Path, runs_path: Path, dry: bool) -> None:
-    """local 엔진 1건: 기존 process_ad 라우팅 그대로 (단일변수 원칙상 파라미터 손대지 않음)."""
-    with RunLogger(phase="HYB-001", mode=item["expected_mode"], engine="local",
+                   arm: str, out_dir: Path, runs_path: Path, dry: bool,
+                   model: str = "", quality: str = "", phase: str = "HYB-001") -> None:
+    """local 엔진 1건: 기존 process_ad 라우팅 그대로 (단일변수 원칙상 파라미터 손대지 않음).
+    model/quality 는 api 엔진 전용 — 시그니처 통일을 위해 받고 무시한다."""
+    with RunLogger(phase=phase, mode=item["expected_mode"], engine="local",
                    input=item["file"], seed=seed,
                    params={"arm": arm, "knob": knob, "dry_run": dry},
                    runs_path=runs_path) as run:
@@ -106,17 +114,23 @@ def _mode_style_hint(mode: str) -> str:
 
 
 def _run_one_api(image_path: Path, item: dict, knob: float, seed: int,
-                 arm: str, out_dir: Path, runs_path: Path, dry: bool) -> None:
-    """api 엔진 1건. 실측에선 analyze_menu 결과 subject_en 을 쓰고 매니페스트 라벨과 대조 기록."""
-    with RunLogger(phase="HYB-001", mode=item["expected_mode"], engine="api",
+                 arm: str, out_dir: Path, runs_path: Path, dry: bool,
+                 model: str = "", quality: str = "", phase: str = "HYB-001") -> None:
+    """api 엔진 1건. 실측에선 analyze_menu 결과 subject_en 을 쓰고 매니페스트 라벨과 대조 기록.
+
+    model/quality: APIQ-001 매트릭스와 HYB-001 api 암이 공유하는 설정 축 —
+    미지정 시 호출부(cmd_run)가 매니페스트 apiq.chosen 을 넣어준다."""
+    with RunLogger(phase=phase, mode=item["expected_mode"], engine="api",
                    input=item["file"], seed=seed,
-                   params={"arm": arm, "knob": knob, "dry_run": dry},
+                   params={"arm": arm, "knob": knob, "dry_run": dry,
+                           "model": model, "quality": quality},
                    runs_path=runs_path) as run:
         # GPU 호스트에서 API 경로의 유휴 GPU 시간이 비용으로 오계상되면 3암 비교가 왜곡된다
         run.set_meta(gpu_used=False)
         style_hint = _mode_style_hint(item["expected_mode"])
         if dry:
             # 지시문 조립까지는 실코드 경로를 태워 배선 검증 (OpenAI 호출 없음)
+            from app.harness.pricing import image_cost_of
             from app.services.api_image_service import build_edit_instruction
 
             instr = build_edit_instruction(
@@ -126,7 +140,8 @@ def _run_one_api(image_path: Path, item: dict, knob: float, seed: int,
                 f"모드 연출 힌트 누락: {item['expected_mode']} (prompts/api_image.yaml 확인)"
             run.note(f"dry instruction: {instr[:120]}")
             run.add_llm_usage("gpt-5.4-mini", tok_in=300, tok_out=80)   # 표 산식 검증용 모의값
-            run.add_image_api_usage("gpt-image-2", n=1)
+            run.add_image_api_usage(model, n=1,
+                                    cost_usd=image_cost_of(model, quality=quality) or 0.02)
             out = out_dir / f"dry_{item['file']}"
             shutil.copy(image_path, out)
             run.set_output(str(out))
@@ -141,8 +156,17 @@ def _run_one_api(image_path: Path, item: dict, knob: float, seed: int,
             run.note(f"subject_en 상이: manifest={item['subject_en']} / analyze={subject}")
         instr = build_edit_instruction(subject, style_hint=style_hint,
                                        is_object=analysis.domain == "object")
-        out = edit_image(str(image_path), instr, out_dir=str(out_dir), run=run)
+        out = edit_image(str(image_path), instr, out_dir=str(out_dir),
+                         model=model, quality=quality, run=run)
         run.set_output(out)
+
+
+def _chosen_setting(data: dict, args: argparse.Namespace) -> tuple[str, str]:
+    """api 엔진 설정 해석: CLI 명시 > 매니페스트 apiq.chosen (APIQ-001 승자 설정)."""
+    chosen = (data.get("apiq") or {}).get("chosen") or {}
+    model = getattr(args, "model", None) or chosen.get("model", "gpt-image-2")
+    quality = getattr(args, "quality", None) or chosen.get("quality", "low")
+    return model, quality
 
 
 def cmd_run(args: argparse.Namespace) -> None:
@@ -151,6 +175,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     inputs_dir = Path(args.inputs_dir).expanduser()
     runs_path = RUNS_DRY if args.dry_run else RUNS_REAL
     arms = ARMS if args.arm == "all" else (args.arm,)
+    model, quality = _chosen_setting(data, args)
     if args.dry_run and args.arm == "all" and runs_path.exists():
         runs_path.unlink()  # 드라이런 원장은 매회 새로 (실측 원장은 절대 삭제 금지)
 
@@ -166,17 +191,91 @@ def cmd_run(args: argparse.Namespace) -> None:
             fn = _run_one_local if engine == "local" else _run_one_api
             logger.info("[%s] %s → %s", arm, item["file"], engine)
             try:
-                fn(image_path, item, knob, seed, arm, out_dir, runs_path, args.dry_run)
+                fn(image_path, item, knob, seed, arm, out_dir, runs_path, args.dry_run,
+                   model=model, quality=quality)
             except Exception:  # noqa: BLE001 — 1건 실패가 배치를 죽이면 안 됨(원장에 error 행 남음)
                 logger.exception("[%s] %s 실패", arm, item["file"])
+
+
+def cmd_apiq(args: argparse.Namespace) -> None:
+    """APIQ-001 — API 모델×quality 매트릭스 미니 실험 (HYB-001 선행).
+
+    모드별 최난이도 3장 × 매니페스트 apiq.matrix 설정. 실측 후 육안(아트디렉터)+judge 로
+    승자를 정해 매니페스트 apiq.chosen 을 갱신하면 HYB-001 이 그 설정으로 돈다."""
+    data = _load_manifest()
+    knob, seed = float(data["knob"]), int(data["seed"])
+    inputs_dir = Path(args.inputs_dir).expanduser()
+    runs_path = RUNS_DRY if args.dry_run else RUNS_REAL
+    apiq = data.get("apiq") or {}
+    by_file = {it["file"]: it for it in data["items"]}
+    items = [by_file[f] for f in apiq.get("items", []) if f in by_file]
+    assert len(items) == 3, "APIQ-001 입력은 모드별 최난이도 3장 (매니페스트 apiq.items 확인)"
+
+    for setting in apiq.get("matrix", []):
+        model, quality = setting["model"], setting["quality"]
+        out_dir = BACKEND / "results" / "ai" / "apiq001" / f"{model}_{quality}"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        for item in items:
+            image_path = inputs_dir / item["file"]
+            if not image_path.exists():
+                logger.error("입력 없음, 건너뜀: %s", image_path)
+                continue
+            logger.info("[apiq %s/%s] %s", model, quality, item["file"])
+            try:
+                _run_one_api(image_path, item, knob, seed, "apiq", out_dir, runs_path,
+                             args.dry_run, model=model, quality=quality, phase="APIQ-001")
+            except Exception:  # noqa: BLE001 — 1건 실패가 매트릭스를 죽이면 안 됨
+                logger.exception("[apiq %s/%s] %s 실패", model, quality, item["file"])
 
 
 def _p50(vals: list[float]) -> float | None:
     return round(statistics.median(vals), 2) if vals else None
 
 
+def _summary_apiq(runs_path: Path, summary_path: Path) -> None:
+    """APIQ-001 매트릭스 요약 — (model, quality) 그룹별 비용·시간. 품질 판정은 육안 정본
+    (JDG-002 메타 교훈: 자동지표는 스크리닝용) — 표 옆에 산출 디렉터리를 병기해 육안 대조를 돕는다."""
+    groups: dict[tuple[str, str], list[dict]] = {}
+    fails: dict[tuple[str, str], int] = {}
+    for line in runs_path.read_text(encoding="utf-8").splitlines():
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if rec.get("phase") != "APIQ-001" or not rec.get("kpi"):
+            continue
+        p = rec.get("params", {})
+        key = (p.get("model", "?"), p.get("quality", "?"))
+        if rec.get("error"):
+            fails[key] = fails.get(key, 0) + 1
+            continue
+        groups.setdefault(key, []).append(rec)
+
+    lines = ["# APIQ-001 — API 모델×quality 매트릭스 (자동 생성)", "",
+             "품질 승자 판정은 육안(아트디렉터) 정본 — 산출: results/ai/apiq001/{model}_{quality}/.",
+             "승자 확정 후 experiments/hyb001_inputs.yaml 의 apiq.chosen 갱신 → HYB-001 이 그 설정으로 실행.", "",
+             "| model | quality | n | 실패 | 장당 비용 $ (mean) | p50 시간 s |",
+             "|---|---|---|---|---|---|"]
+    for (model, quality), recs in sorted(groups.items()):
+        kpis = [r["kpi"] for r in recs]
+        costs = [k["cost"]["total_usd"] for k in kpis if k["cost"].get("total_usd") is not None]
+        times = [k["time"]["total_s"] for k in kpis if k["time"].get("total_s") is not None]
+        lines.append("| {} | {} | {} | {} | {} | {} |".format(
+            model, quality, len(recs), fails.get((model, quality), 0),
+            round(sum(costs) / len(costs), 4) if costs else "—",
+            _p50(times) if times else "—"))
+    lines += ["", f"원장: {runs_path}"]
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print("\n".join(lines))
+    print(f"\n→ 저장: {summary_path}")
+
+
 def cmd_summary(args: argparse.Namespace) -> None:
     runs_path = RUNS_DRY if args.dry_run else RUNS_REAL
+    if getattr(args, "apiq", False):
+        _summary_apiq(runs_path, SUMMARY_APIQ_DRY if args.dry_run else SUMMARY_APIQ)
+        return
     summary_path = SUMMARY_DRY if args.dry_run else SUMMARY_REAL
     rows: dict[str, list[dict]] = {a: [] for a in ARMS}
     for line in runs_path.read_text(encoding="utf-8").splitlines():
@@ -246,11 +345,19 @@ def main() -> None:
     pr = sub.add_parser("run", help="1개 암(또는 all) 실행")
     pr.add_argument("--arm", choices=(*ARMS, "all"), required=True)
     pr.add_argument("--inputs-dir", required=True, help="입력 12장 디렉터리")
+    pr.add_argument("--model", help="api 엔진 모델 (기본: 매니페스트 apiq.chosen)")
+    pr.add_argument("--quality", choices=("low", "medium", "high"),
+                    help="api 엔진 quality (기본: 매니페스트 apiq.chosen)")
     pr.add_argument("--dry-run", action="store_true",
                     help="생성·과금 없이 배선/원장/표 검증 (별도 드라이런 원장 사용)")
     pr.set_defaults(fn=cmd_run)
-    ps = sub.add_parser("summary", help="3암 KPI 비교표 생성")
+    pq = sub.add_parser("apiq", help="APIQ-001: API 모델×quality 매트릭스 (3장×3설정, ≤$1)")
+    pq.add_argument("--inputs-dir", required=True, help="입력 디렉터리 (HYB001_inputs 재사용)")
+    pq.add_argument("--dry-run", action="store_true")
+    pq.set_defaults(fn=cmd_apiq)
+    ps = sub.add_parser("summary", help="KPI 비교표 생성 (기본 HYB-001 3암, --apiq 로 매트릭스)")
     ps.add_argument("--dry-run", action="store_true")
+    ps.add_argument("--apiq", action="store_true", help="APIQ-001 매트릭스 요약")
     ps.set_defaults(fn=cmd_summary)
     args = p.parse_args()
     args.fn(args)

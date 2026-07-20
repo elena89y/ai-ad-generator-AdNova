@@ -16,6 +16,20 @@
 knob: 0.5
 seed: 1234
 
+# --- APIQ-001: API 모델×quality 매트릭스 미니 실험 (HYB-001 선행) --------------------
+# 목적: ① HYB-001 api 암 대표 설정을 근거로 확정 ② mini 정체성 보존 검증(성립 시 하이브리드
+#   원가 1/3) ③ 초고퀄(프리미엄 티어) 샘플 + 비용↔품질 프런티어 4점 확보(발표).
+# 입력 = 모드별 최난이도 3장 · 판정 = 육안(아트디렉터) + judge 참고. 예산 ≤$1 (보수 추정 $0.66).
+# 실행: hyb001_three_arm_ab.py apiq --inputs-dir ... → 실측 후 아래 chosen 을 채우고
+#   HYB-001 api/hybrid 암은 chosen 설정으로 돌린다(러너 기본값이 chosen 을 읽음).
+apiq:
+  items: [beef_marbled.png, drink_ade.png, mouse.jpeg]   # A 마블링 / B 투명잔 / C 로고 SKU
+  matrix:
+    - {model: gpt-image-1-mini, quality: low}
+    - {model: gpt-image-2, quality: low}      # 현행 기본(07-17 검증 설정)
+    - {model: gpt-image-2, quality: high}     # 초고퀄(프리미엄 티어 후보)
+  chosen: {model: gpt-image-2, quality: low}  # APIQ-001 실측 전 임시 = 현행. 실측 후 갱신.
+
 items:
   # --- A 음식점 (in-place, 누끼 없음) ---
   - file: beef_marbled.png

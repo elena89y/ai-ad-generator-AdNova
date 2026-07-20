@@ -51,14 +51,25 @@ def gpu_cost_of(seconds: float) -> float:
 
 
 # --- 이미지 생성 API 장당 비용($) ------------------------------------------------
-# gpt-image-2 edit 실측(2026-07-17 A/B/C 전모드 검증): 장당 $0.01~0.02 → 중앙값 근사.
-# gpt-image-1-mini 는 미실측 추정치 — T2 첫 실호출에서 usage 역산으로 보정할 것.
+# gpt-image-2 edit 실측(2026-07-17 A/B/C 전모드 검증, quality=low): 장당 $0.01~0.02 → 중앙값 근사.
+# gpt-image-1-mini · "model:quality" 세분 키는 미실측 보수 추정 — 첫 실호출에서 usage 역산으로 보정할 것.
+# 세분 키가 있으면 우선, 없으면 모델 키 폴백(quality 미지정 호출 하위호환).
 IMAGE_PRICES: dict[str, float] = {
     "gpt-image-2": 0.015,
     "gpt-image-1-mini": 0.005,
+    # APIQ-001(모델×quality 매트릭스) 예산 선점용 — high 가 low 의 10배쯤인 과금 구조를
+    # 과소 예약하면 API_BUDGET_USD 하드스톱이 무력화되므로 보수(높게) 잡는다.
+    "gpt-image-2:high": 0.20,
+    "gpt-image-2:medium": 0.06,
 }
 
 
-def image_cost_of(model: str, n: int = 1) -> float:
-    """이미지 생성/편집 API n장 → 비용($). 미등록 모델은 0(로컬 가정)."""
-    return round(IMAGE_PRICES.get(model, 0.0) * max(n, 0), 6)
+def image_cost_of(model: str, n: int = 1, quality: str | None = None) -> float:
+    """이미지 생성/편집 API n장 → 비용($). 미등록 모델은 0(로컬 가정).
+
+    quality 를 주면 "model:quality" 세분 단가를 우선 조회(없으면 모델 단가 폴백).
+    """
+    price = IMAGE_PRICES.get(f"{model}:{quality}") if quality else None
+    if price is None:
+        price = IMAGE_PRICES.get(model, 0.0)
+    return round(price * max(n, 0), 6)

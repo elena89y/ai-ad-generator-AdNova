@@ -114,7 +114,7 @@ def edit_image(image_path: str, instruction: str,
 
     run(RunLogger) 을 주면 image_api 비용축이 KPI 원장에 자동 기록된다(T0 계약).
     """
-    estimated = image_cost_of(model) or 0.02  # 미등록 모델은 보수적으로 상한 근사
+    estimated = image_cost_of(model, quality=quality) or 0.02  # 미등록 모델은 보수적으로 상한 근사
     _reserve_budget(estimated)
 
     if run is None:  # 그래프 노드 등 핸들 없는 호출부 → 활성 원장에 자동 합류(G2 실측 갭)
@@ -138,7 +138,7 @@ def edit_image(image_path: str, instruction: str,
 
     if run is not None:
         try:
-            run.add_image_api_usage(model, n=1)
+            run.add_image_api_usage(model, n=1, cost_usd=estimated)  # quality 세분 단가 반영
         except Exception:  # noqa: BLE001 — 계측 실패가 생성 응답을 막으면 안 됨
             logger.debug("image_api usage 기록 실패(무해)", exc_info=True)
     logger.info("api edit 완료 model=%s quality=%s cost≈$%.3f → %s",
