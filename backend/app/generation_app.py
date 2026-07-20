@@ -45,7 +45,7 @@ from .services.pipeline_v5.hero import (  # noqa: E402
     DetailCutRole,
     hero_from_existing,
 )
-from scripts.detail_multishot_generate import ROLE_PROMPTS  # noqa: E402
+from scripts.detail_multishot_generate import role_prompts_for  # noqa: E402
 
 # 위 load_dotenv() 다음, 서비스 임포트로 인한 첫 OpenAI 호출보다 앞서 초기화.
 init_langfuse()
@@ -123,7 +123,8 @@ def _render_multiformat(
     work_dir = image_service.RESULTS_DIR / f"{out.asset_id}_{purpose.value}"
     work_dir.mkdir(parents=True, exist_ok=True)
     cuts = [DetailCut(source, DetailCutRole.HERO)]
-    for role, prompt in ROLE_PROMPTS.items():
+    role_prompts = role_prompts_for(getattr(out, "domain", "food"))
+    for role, prompt in role_prompts.items():
         generated = kontext_service.edit(source, prompt, steps=12, output_dir=str(work_dir))
         target = work_dir / f"{role}.png"
         Path(generated).replace(target)
