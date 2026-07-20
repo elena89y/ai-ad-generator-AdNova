@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   PASSWORD_PATTERN,
+  NotificationSettings,
   apiFetch,
   avatarHue,
   clearAvatarPhoto,
@@ -41,6 +42,35 @@ export default function SettingsPage() {
   useEffect(() => {
     if (s.ready && !s.token) router.replace("/login");
   }, [s.ready, s.token, router]);
+
+  useEffect(() => {
+    if (!s.ready || !s.token) return;
+    let cancelled = false;
+
+    async function loadNotificationSettings() {
+      try {
+        const res = await apiFetch("/api/account/notifications");
+        const data = (await readJsonSafely(res)) as NotificationSettings | null;
+        if (!res.ok || !data)
+          throw new Error(readApiError(data, "알림 설정을 불러오지 못했습니다"));
+        if (!cancelled) {
+          setNotiState([
+            data.ad_generation_complete_email,
+            data.credit_depletion_alert,
+            data.marketing_updates,
+          ]);
+        }
+      } catch (err) {
+        if (!cancelled)
+          s.toast(err instanceof Error ? err.message : "알림 설정을 불러오지 못했습니다");
+      }
+    }
+
+    void loadNotificationSettings();
+    return () => {
+      cancelled = true;
+    };
+  }, [s.ready, s.token, s.toast]);
 
   const name = getDisplayName(s.user);
   const hue = avatarHue(name);
@@ -136,6 +166,34 @@ export default function SettingsPage() {
     s.clearAuth();
     router.push("/login");
     s.toast("로그아웃되었습니다");
+  }
+
+  async function handleNotificationSave() {
+    setBusy(true);
+    try {
+      const res = await apiFetch("/api/account/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ad_generation_complete_email: notiState[0],
+          credit_depletion_alert: notiState[1],
+          marketing_updates: notiState[2],
+        }),
+      });
+      const data = (await readJsonSafely(res)) as NotificationSettings | null;
+      if (!res.ok || !data)
+        throw new Error(readApiError(data, "알림 설정을 저장하지 못했습니다"));
+      setNotiState([
+        data.ad_generation_complete_email,
+        data.credit_depletion_alert,
+        data.marketing_updates,
+      ]);
+      s.toast("알림 설정을 저장했습니다");
+    } catch (err) {
+      s.toast(err instanceof Error ? err.message : "알림 설정을 저장하지 못했습니다");
+    } finally {
+      setBusy(false);
+    }
   }
 
   const noti = ["광고 생성 완료 이메일", "크레딧 소진 알림", "마케팅 소식 받기"];
@@ -399,6 +457,7 @@ export default function SettingsPage() {
 
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button
+                disabled={busy}
                 style={{
                   padding: "12px 18px",
                   border: "1px solid rgba(255,255,255,.14)",
@@ -424,10 +483,7 @@ export default function SettingsPage() {
                   fontWeight: 700,
                   cursor: "pointer",
                 }}
-                onClick={() => {
-                  s.toast("변경 사항을 저장했어요");
-                  router.push("/studio");
-                }}
+                onClick={handleNotificationSave}
               >
                 변경 사항 저장
               </button>

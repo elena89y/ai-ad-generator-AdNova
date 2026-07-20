@@ -13,6 +13,7 @@ from app.database.models import (
     CreditRefillState,
     History,
     Image,
+    NotificationSettings,
     SupportInquiry,
     User,
 )
@@ -25,6 +26,36 @@ def update_user_password(db: Session, user: User, password_hash: str) -> None:
     except Exception:
         db.rollback()
         raise
+
+
+def get_notification_settings(db: Session, user_id: int) -> NotificationSettings | None:
+    return (
+        db.query(NotificationSettings)
+        .filter(NotificationSettings.user_id == user_id)
+        .first()
+    )
+
+
+def update_notification_settings(
+    db: Session,
+    user_id: int,
+    updates: dict[str, bool],
+) -> NotificationSettings:
+    settings = get_notification_settings(db, user_id)
+    if settings is None:
+        settings = NotificationSettings(user_id=user_id)
+        db.add(settings)
+
+    for field, value in updates.items():
+        setattr(settings, field, value)
+
+    try:
+        db.commit()
+        db.refresh(settings)
+    except Exception:
+        db.rollback()
+        raise
+    return settings
 
 
 def delete_user_account(db: Session, user: User) -> list[str]:
@@ -44,6 +75,9 @@ def delete_user_account(db: Session, user: User) -> list[str]:
         db.query(CreditBalance).filter(CreditBalance.user_id == user_id).delete(
             synchronize_session=False
         )
+        db.query(NotificationSettings).filter(
+            NotificationSettings.user_id == user_id
+        ).delete(synchronize_session=False)
         db.query(SupportInquiry).filter(SupportInquiry.user_id == user_id).delete(
             synchronize_session=False
         )

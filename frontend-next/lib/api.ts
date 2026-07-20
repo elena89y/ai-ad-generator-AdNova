@@ -239,6 +239,12 @@ export function toAbsoluteUrl(url?: string | null): string {
     return url;
   return buildApiUrl(url);
 }
+
+export interface NotificationSettings {
+  ad_generation_complete_email: boolean;
+  credit_depletion_alert: boolean;
+  marketing_updates: boolean;
+}
 export function splitCopyText(text?: string | null): { head: string; body: string } {
   const lines = (text || "").split("\n").map((v) => v.trim()).filter(Boolean);
   return {

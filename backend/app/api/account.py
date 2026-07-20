@@ -11,13 +11,20 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
-from app.crud.account import delete_user_account, update_user_password
+from app.crud.account import (
+    delete_user_account,
+    get_notification_settings,
+    update_notification_settings,
+    update_user_password,
+)
 from app.database.admin_models import AdminAccount
 from app.database.connection import get_db
 from app.database.models import User
 from app.schemas.account import (
     AccountDeleteRequest,
     AccountMessageResponse,
+    NotificationSettingsResponse,
+    NotificationSettingsUpdateRequest,
     PasswordChangeRequest,
 )
 from app.schemas.auth import UserResponse
@@ -27,6 +34,20 @@ from app.services import image_service
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/account", tags=["Account"])
 SOCIAL_AUTH_PROVIDERS = {"google", "kakao", "naver"}
+
+
+def _notification_settings_response(settings) -> NotificationSettingsResponse:
+    if settings is None:
+        return NotificationSettingsResponse(
+            ad_generation_complete_email=True,
+            credit_depletion_alert=True,
+            marketing_updates=False,
+        )
+    return NotificationSettingsResponse(
+        ad_generation_complete_email=settings.ad_generation_complete_email,
+        credit_depletion_alert=settings.credit_depletion_alert,
+        marketing_updates=settings.marketing_updates,
+    )
 
 
 @router.get("/me", response_model=UserResponse)
@@ -44,6 +65,31 @@ def read_current_user(
         auth_provider=auth_provider,
         is_active=current_user.is_active,
     )
+
+
+@router.get("/notifications", response_model=NotificationSettingsResponse)
+def read_notification_settings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> NotificationSettingsResponse:
+    settings = get_notification_settings(db, current_user.id)
+    return _notification_settings_response(settings)
+
+
+@router.patch("/notifications", response_model=NotificationSettingsResponse)
+def patch_notification_settings(
+    request: NotificationSettingsUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> NotificationSettingsResponse:
+    updates = request.model_dump(exclude_unset=True, exclude_none=True)
+    if not updates:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="변경할 알림 설정이 없습니다.",
+        )
+    settings = update_notification_settings(db, current_user.id, updates)
+    return _notification_settings_response(settings)
 
 
 def _delete_account_image_files(file_paths: list[str]) -> None:

@@ -33,6 +33,9 @@ class User(Base):
     advertisements = relationship("Advertisement", back_populates="user")
     histories = relationship("History", back_populates="user")
     inquiries = relationship("SupportInquiry", back_populates="user")
+    notification_settings = relationship(
+        "NotificationSettings", back_populates="user", uselist=False
+    )
 
 
 class CreditBalance(Base):
@@ -63,6 +66,25 @@ class CreditRefillState(Base):
         onupdate=utc_now,
         nullable=False,
     )
+
+
+class NotificationSettings(Base):
+    __tablename__ = "notification_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False, index=True)
+    ad_generation_complete_email = Column(Boolean, default=True, nullable=False)
+    credit_depletion_alert = Column(Boolean, default=True, nullable=False)
+    marketing_updates = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
+
+    user = relationship("User", back_populates="notification_settings")
 
 
 class Image(Base):

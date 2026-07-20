@@ -9,7 +9,13 @@ from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.api.account import change_password, delete_account, read_current_user
+from app.api.account import (
+    change_password,
+    delete_account,
+    patch_notification_settings,
+    read_current_user,
+    read_notification_settings,
+)
 from app.core.config import settings
 from app.core.security import (
     create_access_token,
@@ -32,10 +38,15 @@ from app.database.models import (
     CreditRefillState,
     History,
     Image,
+    NotificationSettings,
     SupportInquiry,
     User,
 )
-from app.schemas.account import AccountDeleteRequest, PasswordChangeRequest
+from app.schemas.account import (
+    AccountDeleteRequest,
+    NotificationSettingsUpdateRequest,
+    PasswordChangeRequest,
+)
 from app.services import image_service
 
 
@@ -89,6 +100,26 @@ class AccountApiTestCase(unittest.TestCase):
         self.assertEqual(result.email, "account@example.com")
         self.assertEqual(result.auth_provider, "local")
         self.assertTrue(result.is_active)
+
+    def test_notification_settings_are_saved_per_user(self) -> None:
+        defaults = read_notification_settings(db=self.session, current_user=self.user)
+        self.assertTrue(defaults.ad_generation_complete_email)
+        self.assertTrue(defaults.credit_depletion_alert)
+        self.assertFalse(defaults.marketing_updates)
+
+        updated = patch_notification_settings(
+            request=NotificationSettingsUpdateRequest(
+                ad_generation_complete_email=False,
+                marketing_updates=True,
+            ),
+            db=self.session,
+            current_user=self.user,
+        )
+
+        self.assertFalse(updated.ad_generation_complete_email)
+        self.assertTrue(updated.credit_depletion_alert)
+        self.assertTrue(updated.marketing_updates)
+        self.assertEqual(self.session.query(NotificationSettings).count(), 1)
 
     def test_wrong_current_password_is_rejected(self) -> None:
         with self.assertRaises(HTTPException) as context:
@@ -189,6 +220,10 @@ class AccountApiTestCase(unittest.TestCase):
                         user_id=self.user.id,
                         next_refill_at=datetime.now(timezone.utc) + timedelta(days=1),
                     ),
+                    NotificationSettings(
+                        user_id=self.user.id,
+                        marketing_updates=True,
+                    ),
                     PremiumCreditBalance(
                         user_id=self.user.id,
                         credits_remaining=29,
@@ -221,6 +256,7 @@ class AccountApiTestCase(unittest.TestCase):
             self.assertEqual(self.session.query(CreditBalance).count(), 0)
             self.assertEqual(self.session.query(CreditRefillState).count(), 0)
             self.assertEqual(self.session.query(PremiumCreditBalance).count(), 0)
+            self.assertEqual(self.session.query(NotificationSettings).count(), 0)
             self.assertFalse(input_path.exists())
             self.assertFalse(output_path.exists())
 
