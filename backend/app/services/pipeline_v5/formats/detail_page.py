@@ -4,16 +4,15 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 from ..format_spec import FormatSpec
 from ..hero import DetailCut, DetailCutRole, HeroAsset
 from ..commercial_copy import copy_for, section_copy_for
+from ..similarity import MAX_STRUCTURE_CORRELATION, correlation, structure_vector
 
 MIN_UNIQUE_CUTS = 5
 REQUIRED_ROLES = tuple(DetailCutRole)
-MAX_STRUCTURE_CORRELATION = 0.84
 DEFAULT_CTA_TITLE = "지금 만나보세요"
 DEFAULT_CTA_LABEL = "자세히 보기"
 
@@ -72,7 +71,7 @@ def _select_role_cuts(hero: HeroAsset) -> list[DetailCut]:
         )
     by_role: dict[DetailCutRole, DetailCut] = {}
     hashes: set[str] = set()
-    structures: list[tuple[DetailCutRole, np.ndarray]] = []
+    structures: list[tuple[DetailCutRole, object]] = []
     for cut in hero.detail_cuts:
         path = Path(cut.image_path)
         if not path.is_file():
@@ -82,13 +81,21 @@ def _select_role_cuts(hero: HeroAsset) -> list[DetailCut]:
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         if digest in hashes:
             raise ValueError("같은 이미지 내용을 서로 다른 상세페이지 구도로 사용할 수 없습니다")
-        structure = _structure_vector(path)
+        structure = structure_vector(path)
         for existing_role, existing in structures:
-            # 동일 상품의 기본 히어로와 정면 측면컷은 실루엣이 유사할 수 있다.
-            # 역할·파일 중복은 별도 게이트로 막고 이 정상 조합만 구조 비교에서 제외한다.
-            if {existing_role, cut.role} == {DetailCutRole.HERO, DetailCutRole.SIDE_PROFILE}:
+            # GATE-001(2026-07-20, 임시방편): 4개 구도(top_view/texture_closeup/side_profile/
+            # lifestyle) 전부 생성 단계(generation_app._generate_with_retry)에서 이미 히어로와
+            # 비교하며 여러 변형을 재시도해 최선의 결과를 골라온 뒤다. 원본이 이미 단순한 구도인
+            # 상품(마우스, 문어모양 괄사 실측)은 그 최선의 결과조차 임계값을 못 넘을 수 있는데,
+            # 여기서 hero와 다시 같은 기준으로 걸러버리면 5장 다 만들어놓고 전체를 실패시키는
+            # 문제가 재발한다. 생성 단계의 재시도를 최종 판정으로 신뢰하고 hero가 낀 쌍은
+            # 재검증하지 않는다.
+            # ⚠️ 알려진 한계: 구도끼리(hero가 안 낀 쌍, 예: top_view vs lifestyle)는 재시도가
+            # 서로를 모르므로 여전히 걸릴 수 있다(실측 재현) — 아래 검사가 그 경우를 잡는다.
+            # 더 정확한 해법(후속 작업): 새 컷을 히어로뿐 아니라 이미 확정된 모든 컷과 비교.
+            if DetailCutRole.HERO in (existing_role, cut.role):
                 continue
-            if _correlation(existing, structure) >= MAX_STRUCTURE_CORRELATION:
+            if correlation(existing, structure) >= MAX_STRUCTURE_CORRELATION:
                 raise ValueError(
                     f"상세페이지 구도가 너무 유사합니다: {existing_role.value}, {cut.role.value}"
                 )
@@ -99,17 +106,6 @@ def _select_role_cuts(hero: HeroAsset) -> list[DetailCut]:
     if missing:
         raise ValueError("상세페이지 필수 구도가 부족합니다: " + ", ".join(missing))
     return [by_role[role] for role in REQUIRED_ROLES]
-
-
-def _structure_vector(path: Path) -> np.ndarray:
-    image = Image.open(path).convert("L").resize((32, 32), Image.BILINEAR)
-    return np.asarray(image, dtype=np.float32).reshape(-1)
-
-
-def _correlation(left: np.ndarray, right: np.ndarray) -> float:
-    if float(left.std()) < 1e-6 or float(right.std()) < 1e-6:
-        return 1.0 if np.allclose(left, right, atol=3.0) else 0.0
-    return float(np.corrcoef(left, right)[0, 1])
 
 
 def _cover(image: Image.Image, size: tuple[int, int]) -> Image.Image:
