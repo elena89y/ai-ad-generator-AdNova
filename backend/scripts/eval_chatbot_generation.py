@@ -213,6 +213,15 @@ async def _run() -> None:
     print("\n".join(lines))
     print(f"\n[saved] {OUT_DIR / 'chatbot_eval_generation.json'}")
 
+    # 누적 원장 append — 실험 결과는 항상 파일로 누적 (스냅샷 덮어쓰기 방지)
+    from datetime import datetime  # noqa: PLC0415
+
+    ledger = GOLDEN_PATH.parent / "chatbot_runs.jsonl"
+    entry = {"ts": datetime.now().isoformat(timespec="seconds"), "script": "generation", **metrics}
+    with ledger.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    print(f"[ledger] {ledger}")
+
 
 if __name__ == "__main__":
     if not os.environ.get("OPENAI_API_KEY"):

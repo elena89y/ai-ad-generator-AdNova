@@ -22,6 +22,7 @@ import argparse
 import json
 import sys
 from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
 
 import yaml
@@ -171,6 +172,14 @@ def main() -> None:
     print(report)
     print(f"[saved] {OUT_DIR / f'chatbot_eval_retrieval{suffix}.md'}")
     print(f"[saved] {OUT_DIR / f'chatbot_eval_retrieval{suffix}.json'}")
+
+    # 누적 원장 append — 스냅샷(json/md)은 덮어쓰기라 이력이 안 남음. 실험 결과는 항상 누적.
+    ledger = GOLDEN_PATH.parent / "chatbot_runs.jsonl"
+    entry = {"ts": datetime.now().isoformat(timespec="seconds"), "script": "retrieval", **metrics}
+    entry.pop("rewrites", None)  # 원장은 지표만 — 상세는 스냅샷 md 참조
+    with ledger.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    print(f"[ledger] {ledger}")
 
     # --- 클린 A/B 자동 델타 (dense 아암 실행 시, baseline 이 있으면) -------------
     base_path = OUT_DIR / "chatbot_eval_retrieval.json"
