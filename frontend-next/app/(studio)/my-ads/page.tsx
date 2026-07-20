@@ -6,6 +6,7 @@ import { AdItem, normalizePlatformCopy } from "@/lib/api";
 import { SNS_LIST, deleteStoredAd, exportSnsPost } from "@/lib/sns";
 import { useStudio } from "@/components/studio/StudioProvider";
 import { AppBar } from "@/components/studio/chrome";
+import { AuthenticatedImage } from "@/components/studio/AuthenticatedImage";
 
 const FILTERS = ["all", "모노톤", "웜 빈티지", "팝 비비드", "에디토리얼", "리얼리즘", "파스텔"];
 
@@ -109,8 +110,7 @@ export default function MyAdsPage() {
                 <div className="cpic" style={{ background: a.g }}>
                   <span className="st-tag">{a.style}</span>
                   {a.img ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img className="cimg" src={a.img} alt={a.hl} />
+                    <AuthenticatedImage className="cimg" src={a.img} alt={a.hl} />
                   ) : (
                     <>
                       <div className="prod" style={{ background: a.prod }}>

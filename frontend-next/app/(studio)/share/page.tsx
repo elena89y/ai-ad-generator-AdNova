@@ -7,6 +7,7 @@ import { getItemPlatformCopy } from "@/lib/api";
 import { PLATFORM_NAMES, exportSnsPost } from "@/lib/sns";
 import { useStudio } from "@/components/studio/StudioProvider";
 import { Brand } from "@/components/studio/chrome";
+import { AuthenticatedImage } from "@/components/studio/AuthenticatedImage";
 
 const TABS = [
   { p: "instagram", label: "Instagram", ig: true },
@@ -92,8 +93,7 @@ export default function SharePage() {
           }}
         >
           <div style={{ aspectRatio: "1", background: "#0d0d10", position: "relative" }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <AuthenticatedImage
               src={item.img}
               alt="공유할 광고"
               style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}

@@ -20,6 +20,7 @@ import {
 } from "@/lib/api";
 import { useStudio } from "@/components/studio/StudioProvider";
 import { AppBar } from "@/components/studio/chrome";
+import { AuthenticatedImage } from "@/components/studio/AuthenticatedImage";
 
 const GEN_STEPS = [
   "사진을 분석하는 중…",
@@ -599,8 +600,7 @@ export default function StudioPage() {
                     background: "#0d0d10",
                   }}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <AuthenticatedImage
                     src={toAbsoluteUrl(result.image_url)}
                     style={{
                       position: "absolute",
