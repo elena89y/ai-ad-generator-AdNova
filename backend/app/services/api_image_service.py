@@ -113,6 +113,11 @@ def edit_image(image_path: str, instruction: str,
     estimated = image_cost_of(model) or 0.02  # 미등록 모델은 보수적으로 상한 근사
     _reserve_budget(estimated)
 
+    if run is None:  # 그래프 노드 등 핸들 없는 호출부 → 활성 원장에 자동 합류(G2 실측 갭)
+        from ..harness.run_logger import current_run
+
+        run = current_run()
+
     from .gpt_service import _get_client  # Langfuse drop-in 트레이싱 계승
 
     upload_path = _downscale_for_upload(image_path)

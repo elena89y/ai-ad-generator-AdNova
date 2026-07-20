@@ -21,9 +21,19 @@ import subprocess
 import time
 import uuid
 from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
+
+# 현재 활성 RunLogger (v6 T2 실측 G2에서 발견된 갭: 그래프 노드처럼 run 핸들을 인자로
+#   못 받는 깊은 호출부(api_image_service 등)가 비용을 원장에 싣지 못했다 → contextvar 로 노출).
+_CURRENT_RUN: ContextVar[Optional["RunLogger"]] = ContextVar("adnova_current_run", default=None)
+
+
+def current_run() -> Optional["RunLogger"]:
+    """with RunLogger(...) 블록 안이면 그 인스턴스, 밖이면 None."""
+    return _CURRENT_RUN.get()
 
 # 원장 위치: backend/experiments/runs.jsonl (repo 상대). 이미지 산출물과 분리.
 _HARNESS_DIR = Path(__file__).resolve().parents[2] / "experiments"
@@ -141,6 +151,7 @@ class RunLogger:
 
     # --- 컨텍스트 ---
     def __enter__(self) -> "RunLogger":
+        self._cv_token = _CURRENT_RUN.set(self)
         _vram_reset()
         self._free_before = _vram_free_gb()
         if self._auto_llm:
@@ -182,6 +193,10 @@ class RunLogger:
             pass
 
     def __exit__(self, exc_type, exc, tb) -> bool:  # noqa: ANN001
+        try:
+            _CURRENT_RUN.reset(self._cv_token)
+        except Exception:  # noqa: BLE001 — 토큰 이상이 원장 저장을 막으면 안 됨
+            pass
         total = time.perf_counter() - self._t0
         self.record["timing"]["total_s"] = round(total, 2)
         if self.record["timing"]["infer_s"] is None:

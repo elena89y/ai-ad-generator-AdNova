@@ -72,6 +72,36 @@ def test_edit_instruction_object_locks_shape():
     assert "You may restyle" not in text                # 사물은 flexible 무시(전체 보존)
 
 
+# --- 원장 자동 합류 (G2 실측에서 발견: run 핸들 없는 호출부의 비용 누락) ----------------
+def test_edit_records_cost_via_current_run(tmp_path, monkeypatch):
+    import base64
+    import io
+    import json as _json
+    from types import SimpleNamespace
+
+    from app.harness.run_logger import RunLogger
+
+    monkeypatch.setenv("API_BUDGET_USD", "1.0")
+    buf = io.BytesIO()
+    Image.new("RGB", (8, 8), (10, 10, 10)).save(buf, "PNG")
+    fake_resp = SimpleNamespace(data=[SimpleNamespace(
+        b64_json=base64.b64encode(buf.getvalue()).decode())])
+    fake_client = SimpleNamespace(images=SimpleNamespace(edit=lambda **kw: fake_resp))
+
+    from app.services import gpt_service
+    monkeypatch.setattr(gpt_service, "_get_client", lambda: fake_client)
+
+    runs_path = tmp_path / "runs.jsonl"
+    with RunLogger(phase="TEST", mode="C", engine="graph:api", input="x.png",
+                   runs_path=runs_path, auto_llm=False):
+        out = api_image_service.edit_image(_img(tmp_path), "restage",
+                                           out_dir=str(tmp_path / "out"))
+    assert out.endswith(".png")
+    row = _json.loads(runs_path.read_text().strip().splitlines()[-1])
+    assert row["image_api"][0]["model"] == api_image_service.DEFAULT_MODEL
+    assert row["kpi"]["cost"]["image_api_usd"] > 0     # run 인자 없이도 원장 합류
+
+
 # --- 그래프 라우팅·폴백 ---------------------------------------------------------------
 @pytest.fixture()
 def _stub_nodes(monkeypatch, tmp_path):
