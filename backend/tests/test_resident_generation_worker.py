@@ -92,9 +92,13 @@ def test_health_reports_ready_and_busy():
     assert body["busy"] is True
 
 
-def test_generation_client_enforces_300_second_minimum(monkeypatch):
-    monkeypatch.setattr(generation_client.settings, "GENERATION_TIMEOUT_S", 180)
-    assert generation_client._request_timeout() == 300
+def test_generation_client_enforces_minimum_timeout(monkeypatch):
+    # v5 멀티포맷(0dfdb30)에서 바닥값 300→420 — 어떤 값이든 300초 하한은 계약이다.
+    minimum = generation_client._MIN_TIMEOUT_S
+    assert minimum >= 300
 
-    monkeypatch.setattr(generation_client.settings, "GENERATION_TIMEOUT_S", 420)
-    assert generation_client._request_timeout() == 420
+    monkeypatch.setattr(generation_client.settings, "GENERATION_TIMEOUT_S", 180)
+    assert generation_client._request_timeout() == minimum
+
+    monkeypatch.setattr(generation_client.settings, "GENERATION_TIMEOUT_S", minimum + 60)
+    assert generation_client._request_timeout() == minimum + 60
