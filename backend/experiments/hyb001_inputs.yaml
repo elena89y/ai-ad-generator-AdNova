@@ -1,7 +1,9 @@
 # HYB-001 — 하이브리드 3암 A/B 입력셋 (DIRECTION_v6 T3, 게이트 G3)
 #
-# 원칙: 클린 단일변수 A/B — 동일 입력 12장 × {local, api, hybrid} 3암.
-#   입력·knob·seed 고정, 엔진만 변수. 포스터/문구는 코드 경로(불변)라 비교에서 제외(poster=False).
+# 3암 = 서비스 3버전 비교: ①local=로컬 이미지 파이프라인 ②api=전-LLM(이미지까지 API)
+#   ③hybrid=상용화 후보(혼합으로 비용 절감). 분석·문구는 3버전 공통 GPT — summary 가 분리 집계.
+# 원칙: 클린 단일변수 A/B — 동일 입력 12장 × 3암.
+#   입력·knob·seed 고정, 이미지 엔진만 변수. 포스터/문구는 코드 경로(불변)라 비교에서 제외(poster=False).
 # 입력 = **골든 평가셋 v1 그대로** (~/Desktop/AdNova/golden_src, 2026-07-09 동결, A5·B4·C3):
 #   - 이미 육안 검수·함정 주석·expected_route 정답이 있는 유일한 신뢰 셋.
 #   - P6_coldbatch/inputs 풀은 2026-07-20 육안 검수 결과 50장 중 다수가 파일명·내용 불일치

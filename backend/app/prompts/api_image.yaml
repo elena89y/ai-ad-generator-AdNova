@@ -18,6 +18,18 @@ flexible_clause: " You may restyle ${flexible_parts} (container/vessel only) to 
 
 style_hint_default: clean premium studio scene with soft natural light and generous negative space
 
+# 모드별 연출 힌트 (HYB-001 3암 공정성): local 암은 process_ad 가 모드별 경로(A 인플레이스
+#   리터치 / B 씬 배경 / C 스튜디오)를 타므로, api 암도 동급의 모드 연출을 받아야
+#   "LLM-only 버전"이 제품급으로 비교된다. 키 = 라우팅 모드(dish|cafe|object).
+style_hint_dish: >-
+  appetizing premium restaurant advertisement, in-place restaging of the original plating,
+  warm appetizing light, rich natural texture
+style_hint_cafe: >-
+  inviting cafe scene background with warm ambient light, shallow depth of field,
+  the drink or dessert as the single hero on a clean table
+style_hint_object: >-
+  clean neutral studio background with a soft gradient and professional product lighting
+
 object_lock: >-
   This is a retail product (SKU): do NOT redraw, reshape, smooth or recolor the product
   itself; change only the background and lighting.
