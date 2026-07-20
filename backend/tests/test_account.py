@@ -9,7 +9,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.api.account import change_password, delete_account
+from app.api.account import change_password, delete_account, read_current_user
 from app.core.config import settings
 from app.core.security import (
     create_access_token,
@@ -77,6 +77,18 @@ class AccountApiTestCase(unittest.TestCase):
         self.assertEqual(result.message, "비밀번호가 변경되었습니다.")
         self.assertTrue(verify_password("NewPassword2@", self.user.password_hash))
         self.assertFalse(verify_password(self.password, self.user.password_hash))
+
+    def test_current_user_endpoint_returns_user_and_auth_provider(self) -> None:
+        result = read_current_user(
+            current_user=self.user,
+            auth_provider="local",
+        )
+
+        self.assertEqual(result.id, self.user.id)
+        self.assertEqual(result.username, "account1")
+        self.assertEqual(result.email, "account@example.com")
+        self.assertEqual(result.auth_provider, "local")
+        self.assertTrue(result.is_active)
 
     def test_wrong_current_password_is_rejected(self) -> None:
         with self.assertRaises(HTTPException) as context:

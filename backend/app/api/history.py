@@ -60,6 +60,22 @@ def read_histories(
     )
 
 
+@router.get("/{history_id}", response_model=HistoryResponse)
+def read_history_detail(
+    history_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> HistoryResponse:
+    history = get_history_with_result_by_id(db, history_id)
+    if history is None:
+        raise HTTPException(status_code=404, detail="history를 찾을 수 없습니다.")
+
+    if history.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="본인 생성 결과만 조회할 수 있습니다.")
+
+    return history
+
+
 @router.get("/{history_id}/result/download")
 def download_generated_result(
     history_id: int,
