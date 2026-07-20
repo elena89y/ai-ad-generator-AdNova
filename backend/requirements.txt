@@ -30,6 +30,11 @@ langgraph
 langchain-openai
 langchain  # langfuse.langchain.CallbackHandler 가 import 시점에 요구(judge_service.py 트레이싱)
 
+# 고객센터 챗봇 하이브리드 검색 한국어 형태소 분석 (services/chatbot/retrieval.py).
+# 미설치여도 문자 bigram 폴백으로 동작하지만 검색 품질이 떨어짐 (골든셋 실측 기준 채택)
+kiwipiepy
+rapidfuzz  # 챗봇 오타 정규화(자모 fuzzy) — 미설치 시 해당 기능만 비활성 (typo hit@1 100→75%)
+
 torch
 diffusers
 transformers
