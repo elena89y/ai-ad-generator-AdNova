@@ -27,6 +27,8 @@ function requiresToken(src: string): boolean {
 export function AuthenticatedImage({
   src,
   alt,
+  className,
+  style,
   ...props
 }: AuthenticatedImageProps) {
   const [displaySrc, setDisplaySrc] = useState("");
