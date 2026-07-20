@@ -35,7 +35,7 @@ export default function MyAdsPage() {
 
   function openDetail(item: AdItem) {
     s.openDetail(item);
-    router.push("/detail");
+    router.push(item.historyId ? `/detail?historyId=${item.historyId}` : "/detail");
   }
 
   async function share(platformName: string, platform: string, item: AdItem) {

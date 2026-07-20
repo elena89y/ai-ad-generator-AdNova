@@ -1,9 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { formatAdType, getItemPlatformCopy } from "@/lib/api";
+import {
+  apiFetch,
+  formatAdType,
+  getItemPlatformCopy,
+  historyToCard,
+  readApiError,
+  readJsonSafely,
+} from "@/lib/api";
 import { deleteStoredAd, downloadHistoryResult } from "@/lib/sns";
 import { useStudio } from "@/components/studio/StudioProvider";
 
@@ -17,14 +24,51 @@ const TABS = [
 export default function DetailPage() {
   const s = useStudio();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [platform, setPlatform] = useState("instagram");
+  const [loading, setLoading] = useState(false);
+  const requestedHistoryId = Number(searchParams.get("historyId"));
+  const historyId = Number.isInteger(requestedHistoryId) && requestedHistoryId > 0
+    ? requestedHistoryId
+    : null;
   const item = s.activeItem;
 
   useEffect(() => {
-    if (s.ready && !item) router.replace("/my-ads");
-  }, [s.ready, item, router]);
+    if (!s.ready) return;
+    if (!historyId && !item) {
+      router.replace("/my-ads");
+      return;
+    }
+    if (!historyId || item?.historyId === historyId) return;
 
-  if (!item) return null;
+    let cancelled = false;
+    setLoading(true);
+
+    async function loadDetail() {
+      try {
+        const res = await apiFetch(`/api/history/${historyId}`);
+        const data = await readJsonSafely(res);
+        if (!res.ok) {
+          throw new Error(readApiError(data, "광고 상세 정보를 불러오지 못했습니다"));
+        }
+        if (!cancelled) s.openDetail(historyToCard(data as Parameters<typeof historyToCard>[0]));
+      } catch (err) {
+        if (!cancelled) {
+          s.toast(err instanceof Error ? err.message : "광고 상세 정보를 불러오지 못했습니다");
+          router.replace("/my-ads");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void loadDetail();
+    return () => {
+      cancelled = true;
+    };
+  }, [historyId, item?.historyId, router, s]);
+
+  if (!item) return loading ? <div className="page">광고 정보를 불러오는 중입니다.</div> : null;
   const copy = getItemPlatformCopy(item, platform);
 
   function reuse() {
@@ -46,7 +90,7 @@ export default function DetailPage() {
 
   function openShare() {
     if (!item) return;
-    s.openShare(item, "/detail", platform);
+    s.openShare(item, historyId ? `/detail?historyId=${historyId}` : "/detail", platform);
     router.push("/share");
   }
 

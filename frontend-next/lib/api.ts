@@ -1,15 +1,26 @@
 /* 프로토타입(frontend/html/index.html)의 backend api 유틸 포팅 */
 
-/* 기본값 "" = same-origin — next.config.ts 의 rewrites 프록시로 백엔드에 전달됨.
-   별도 도메인 백엔드를 쓰려면 NEXT_PUBLIC_API_BASE_URL 설정 (백엔드 CORS 허용 필요). */
-export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(
+/* 로그인 API와 같은 기준을 사용한다.
+   기본값은 same-origin /api, 별도 백엔드는 http://host:8000/api 형태로 설정한다. */
+export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? "/api").replace(
   /\/$/,
   ""
 );
 
-const ACCESS_TOKEN_KEY = "adnova_access_token";
-const USER_KEY = "adnova_user";
+const ACCESS_TOKEN_KEY = "access_token";
+const USER_KEY = "user";
 const AVATAR_KEY = "adnova_avatar_photo";
+
+function buildApiUrl(path: string): string {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const baseIncludesApi = API_BASE_URL === "/api" || API_BASE_URL.endsWith("/api");
+  const pathWithoutDuplicateApi =
+    baseIncludesApi && normalizedPath.startsWith("/api/")
+      ? normalizedPath.slice(4)
+      : normalizedPath;
+
+  return `${API_BASE_URL}${pathWithoutDuplicateApi}`;
+}
 
 export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const USERNAME_PATTERN = /^[A-Za-z0-9]{7,12}$/;
@@ -174,7 +185,7 @@ export function isSocialAuthUser(): boolean {
 /* ---------- fetch ---------- */
 export async function apiFetch(path: string, options: RequestInit = {}) {
   const token = getToken();
-  return fetch(`${API_BASE_URL}${path}`, {
+  return fetch(buildApiUrl(path), {
     ...options,
     headers: {
       ...(options.headers || {}),
@@ -226,7 +237,7 @@ export function toAbsoluteUrl(url?: string | null): string {
   if (!url) return "";
   if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:"))
     return url;
-  return `${API_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+  return buildApiUrl(url);
 }
 export function splitCopyText(text?: string | null): { head: string; body: string } {
   const lines = (text || "").split("\n").map((v) => v.trim()).filter(Boolean);
