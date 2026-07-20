@@ -45,7 +45,21 @@ from .services.pipeline_v5.hero import (  # noqa: E402
     DetailCutRole,
     hero_from_existing,
 )
-from scripts.detail_multishot_generate import role_prompts_for  # noqa: E402
+from .services.pipeline_v5.similarity import (  # noqa: E402
+    MAX_STRUCTURE_CORRELATION,
+    correlation,
+    structure_vector,
+)
+from scripts.detail_multishot_generate import (  # noqa: E402
+    LIFESTYLE_ANGLES,
+    SIDE_PROFILE_ANGLES,
+    TEXTURE_CLOSEUP_VARIANTS,
+    TOP_VIEW_ANGLES,
+    lifestyle_prompt,
+    side_profile_prompt,
+    texture_closeup_prompt,
+    top_view_prompt,
+)
 
 # 위 load_dotenv() 다음, 서비스 임포트로 인한 첫 OpenAI 호출보다 앞서 초기화.
 init_langfuse()
@@ -113,6 +127,52 @@ def _to_response(out: generation_service.GenerationOutput) -> GenerateAdResponse
     )
 
 
+def _generate_with_retry(
+    source: str, work_dir: Path, accepted_structures: list, role_label: str,
+    prompt_for_variant, variants,
+):
+    """GATE-001(2026-07-20): 원본이 이미 단순한 구도인 상품(책상 위 마우스, 문어모양 괄사)은
+    기본 프롬프트로 편집해도 이미 확정된 다른 컷과 구조적으로 거의 같아 상세페이지 구조-유사도
+    게이트에 걸린다(hero 포함 4개 구도 전부에서 실측 재현). 변형을 하나씩 시도해 "지금까지
+    확정된 모든 컷"과 비교, 전부와 충분히 달라지는 결과를 찾는다. 전부 실패해도 하드 실패
+    대신 가장 덜 유사한(최대 상관계수가 가장 낮은) 결과를 쓴다 — 5장 생성해놓고 전체를
+    날리는 것보다 낫다.
+
+    비교 대상을 hero뿐 아니라 accepted_structures 전체로 넓혀도 GPU 생성 횟수(변형 개수)는
+    그대로다 — 상관계수 비교는 32x32 흑백 벡터끼리라 사실상 공짜라 늘어나는 비용이 없다.
+    반환값은 (경로, 이 컷의 구조 벡터) — 호출부가 다음 구도 비교 대상에 누적해서 넘긴다.
+    """
+    best_path, best_structure, best_score = None, None, None
+    for variant in variants:
+        generated = kontext_service.edit(
+            source, prompt_for_variant(variant), steps=12, output_dir=str(work_dir),
+        )
+        target = work_dir / f"{role_label}_{variant}.png"
+        Path(generated).replace(target)
+        candidate = structure_vector(target)
+        max_score = max((correlation(existing, candidate) for _, existing in accepted_structures), default=0.0)
+        if best_score is None or max_score < best_score:
+            best_path, best_structure, best_score = str(target), candidate, max_score
+        if max_score < MAX_STRUCTURE_CORRELATION:
+            logger.info(f"{role_label} variant={variant}: 기존 컷들과 충분히 다름(corr={max_score:.3f})")
+            return str(target), candidate
+        logger.info(f"{role_label} variant={variant}: 기존 컷과 여전히 유사(corr={max_score:.3f}) → 다음 재시도")
+    logger.warning(
+        f"{role_label} 전 변형({variants})이 기존 컷과 유사 — 가장 덜 유사한 결과(corr={best_score:.3f})로 진행"
+    )
+    return best_path, best_structure
+
+
+# GATE-001: 4개 구도 전부 재시도 대상 — role_prompts_for()의 단발성 프롬프트는 이제
+# multiformat 경로에서 안 쓰인다(CLI 스크립트·기본값 조회용으로만 남김).
+_ROLE_RETRY_SPECS: dict[DetailCutRole, tuple] = {
+    DetailCutRole.TOP_VIEW: (top_view_prompt, TOP_VIEW_ANGLES),
+    DetailCutRole.TEXTURE_CLOSEUP: (texture_closeup_prompt, TEXTURE_CLOSEUP_VARIANTS),
+    DetailCutRole.SIDE_PROFILE: (side_profile_prompt, SIDE_PROFILE_ANGLES),
+    DetailCutRole.LIFESTYLE: (lifestyle_prompt, LIFESTYLE_ANGLES),
+}
+
+
 def _render_multiformat(
     out: generation_service.GenerationOutput,
     product_name: str,
@@ -122,13 +182,17 @@ def _render_multiformat(
     source = getattr(out, "image_without_typography_path", None) or out.final_image_path
     work_dir = image_service.RESULTS_DIR / f"{out.asset_id}_{purpose.value}"
     work_dir.mkdir(parents=True, exist_ok=True)
+    domain = getattr(out, "domain", "food")
     cuts = [DetailCut(source, DetailCutRole.HERO)]
-    role_prompts = role_prompts_for(getattr(out, "domain", "food"))
-    for role, prompt in role_prompts.items():
-        generated = kontext_service.edit(source, prompt, steps=12, output_dir=str(work_dir))
-        target = work_dir / f"{role}.png"
-        Path(generated).replace(target)
-        cuts.append(DetailCut(str(target), DetailCutRole(role)))
+    accepted_structures = [(DetailCutRole.HERO.value, structure_vector(source))]
+
+    for role, (prompt_fn, variants) in _ROLE_RETRY_SPECS.items():
+        path, candidate_structure = _generate_with_retry(
+            source, work_dir, accepted_structures, role.value,
+            lambda variant, fn=prompt_fn: fn(domain, variant), variants,
+        )
+        cuts.append(DetailCut(path, role))
+        accepted_structures.append((role.value, candidate_structure))
 
     headline, _, subcopy = out.copy_text.partition("\n")
     hero = hero_from_existing(
@@ -137,7 +201,7 @@ def _render_multiformat(
         headline=headline.strip() or product_name,
         subcopy=subcopy.strip(),
         detail_cuts=tuple(cuts),
-        domain=getattr(out, "domain", "food"),
+        domain=domain,
     )
     rendered = pipeline_v5.generate_v5(
         source,

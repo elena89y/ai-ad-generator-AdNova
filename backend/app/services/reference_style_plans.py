@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 import os
 
@@ -39,13 +40,97 @@ _CLIP_STYLE_ANCHORS = {
     "warm_organic": "warm organic editorial, travertine, gentle golden light",
 }
 
+# PALETTE-001(2026-07-20): "pop" 스타일이 상품과 무관하게 도메인당 색조합 딱 1개로 고정돼
+#   있었다("항상 저 색깔로만 출력"). reference_recipe_data.PALETTE_VARIANTS에 이미 pop용
+#   후보(cobalt_duo/teal_duo/coral_duo)가 있지만, 그건 "전부 후보 — 시각 몽타주 승인 전
+#   조립부 사용 금지"로 명시된 미승인 레지스트리라 여기서 그대로 끌어쓰지 않는다. 대신
+#   기존 색(원래 프로덕션에서 쓰던 값)을 variant 0으로 유지하고, 같은 미감을 유지하는 새
+#   조합을 추가해 상품명(subject_en) 해시로 결정론적 선택한다 — 같은 상품은 항상 같은 색,
+#   다른 상품은 다른 색. PALETTE-002(같은 날): pastel·monotone(food/drink)도 같은 문제라
+#   같은 방식으로 확장 — object monotone은 원래 색 미지정("one restrained color family")이라
+#   해당 없음.
+_POP_PALETTES: dict[str, tuple[str, ...]] = {
+    "food": (
+        "a saturated cobalt-blue background and a clean tomato-red table surface",
+        "a saturated magenta-pink background and a clean lime-green table surface",
+        "a saturated golden-yellow background and a clean deep-violet table surface",
+    ),
+    "drink": (
+        "a saturated cobalt-blue background and a clean vivid orange table surface",
+        "a saturated teal background and a clean coral table surface",
+        "a saturated violet background and a clean chartreuse table surface",
+    ),
+    "object": (
+        "a saturated electric-blue surface against a vivid coral background",
+        "a saturated emerald-green surface against a vivid magenta background",
+        "a saturated amber-yellow surface against a vivid indigo background",
+    ),
+}
+
+_PASTEL_PALETTES: dict[str, tuple[str, ...]] = {
+    "food": (
+        "a pale blush background and a low muted lavender table plane",
+        "a pale powder-blue background and a low muted blush-pink table plane",
+        "a pale mint-green background and a low muted lilac table plane",
+    ),
+    "drink": (
+        "a pale blush background and a muted lavender table plane",
+        "a pale powder-blue background and a muted blush-pink table plane",
+        "a pale mint-green background and a muted lilac table plane",
+    ),
+    "object": (
+        "a pale blush background and one low matte lavender pedestal behind the product",
+        "a pale powder-blue background and one low matte blush-pink pedestal behind the product",
+        "a pale mint-green background and one low matte lilac pedestal behind the product",
+    ),
+}
+
+_MONOTONE_PALETTES: dict[str, tuple[str, ...]] = {
+    "food": (
+        "a strict deep burgundy monochrome environment using wine-red, charcoal and black only",
+        "a strict pale dove-gray monochrome environment using soft gray, warm white and pale taupe only",
+    ),
+    "drink": (
+        "a strict espresso-brown monochrome environment using coffee brown, dark cocoa and warm cream only",
+        "a strict pale dove-gray monochrome environment using soft gray, warm white and pale taupe only",
+    ),
+}
+
+
+def _palette_clause(palettes: dict[str, tuple[str, ...]], domain: str, subject_en: str) -> str:
+    """상품명 기준 결정론적 팔레트 선택. 같은 상품은 재생성해도 항상 같은 색."""
+    variants = palettes.get(domain, palettes.get("food", next(iter(palettes.values()))))
+    digest = hashlib.sha256((subject_en or "").strip().lower().encode()).digest()
+    return variants[digest[0] % len(variants)]
+
+
+_STYLE_PALETTES: dict[str, dict[str, tuple[str, ...]]] = {
+    "pop": _POP_PALETTES,
+    "pastel": _PASTEL_PALETTES,
+    "monotone": _MONOTONE_PALETTES,
+}
+
+
+def _style_palette_clause(style_key: str, domain: str, subject_en: str) -> str:
+    palettes = _STYLE_PALETTES.get(style_key)
+    if palettes is None:
+        return ""
+    return _palette_clause(palettes, domain, subject_en)
+
 _IDENTITY_LOCKS = {
     "food": (
         # BUG-KTX-001-2(2026-07-20): "realism" 스타일에서 컵 변환이 재발(negative 문구만으로는
         #   불충분, 4/4는 아니지만 재현됨). 문장 맨 앞에 긍정 단언을 추가 — 부정문보다 앞쪽의
         #   긍정 진술이 모델 조건화에 더 강하게 anchor된다는 관찰에 따른 보강.
-        "This is a plated food photograph resting on a flat table. There is no cup, mug, tumbler, lid or straw "
-        "anywhere in this image. "
+        # PLATING-001-3(2026-07-20): 두 번째 강화도 실패(프렌치토스트 재현 지속) — "propped up"
+        #   부정문만으로는 못 이기는 강한 모델 편향(빵/토스트를 기대 세워 찍는 흔한 음식사진
+        #   프로핑 연출)으로 판단. 긍정 단언을 이 지점에도 추가하고, 빵/토스트류를 구체적으로
+        #   호명해 눕혀진 상태를 명시 — BUG-KTX-001의 "컵 아님" 성공 패턴(부정 대신 긍정 우선)을
+        #   재적용.
+        "This is a plated food photograph resting flat on a table, photographed from above or at a gentle angle "
+        "— never a food item standing upright or propped on its edge. If the food is a slice of bread, toast, "
+        "cake or similarly flat-cut item, it lies flat on its widest cut face, the same way it was photographed "
+        "originally. There is no cup, mug, tumbler, lid or straw anywhere in this image. "
         "Edit this exact food photograph. Keep every food item, plate, sauce and garnish exactly as "
         "photographed: the same count, shape, doneness, texture and colors. "
         # BUG-KTX-001(2026-07-20): top-down 원형 접시 샌드위치가 4/4 시드에서 테이크아웃 컵으로
@@ -59,9 +144,16 @@ _IDENTITY_LOCKS = {
         #   지시를 모델이 절반만 따라 배경만 바뀌고 음식은 원본 각도 그대로 남아, 새 장면(테이블·창문)
         #   위에 붕 뜨거나 단면으로 세워진 것처럼 보이는 부자연스러운 결과가 나옴(육안 확인).
         #   카메라 앵글 고정 대신 "장면에 맞는 자연스러운 접지"를 명시적으로 요구.
+        # PLATING-001-2(2026-07-20): "pop" 스타일(강한 각도·다이애거널 섀도 연출)에서 재발 —
+        #   프렌치토스트가 접시 위에 기대 세워진 채로 나옴. 기존 문구가 "떠있지 마라"는 다뤘지만
+        #   "기대 세우는" 흔한 음식사진 프로핑 연출은 명시적으로 안 막고 있었음 — 추가.
         "You may reorient the whole plate or food as a single rigid object so it sits naturally within the new "
-        "scene, but it must always rest fully and flatly on the table surface with a single realistic contact "
-        "shadow. Never leave the food floating, tilted upright, balanced on a cut edge, or otherwise unsupported. "
+        "scene, but it must always rest fully and flatly on the table surface with its full base or underside in "
+        "contact with the plate, casting a single realistic contact shadow, as if simply set down under normal "
+        "gravity. Never leave the food floating, tilted upright, propped up, leaned back, leaning against "
+        "anything, resting on a thin cut edge, or otherwise unsupported — this is a flat lay or gently-angled "
+        "tabletop shot, never a propped-up or upright food-styling shot. This rule applies with no exceptions, "
+        "regardless of camera angle, background color or lighting mood. "
         "Change the background, table surface, camera framing and environmental lighting to match the requested "
         "scene. "
     ),
@@ -98,9 +190,11 @@ _PLANS: dict[tuple[str, str], ReferenceStylePlan] = {
     ("food", "pop"): _plan(
         "pop", "food", "saturated_color_block + macro_texture",
         ("02_팝_pop__IMG_4606", "02_팝_pop__IMG_4608", "03_리얼리즘__IMG_4680"),
-        "Create a bold contemporary food campaign with a saturated cobalt-blue background and a clean tomato-red "
-        "table surface, crisp hard side light and one strong graphic diagonal shadow behind the plate. Keep the "
-        "food's true appetizing colors. No extra food, props, hands, splashes, floating objects or text.",
+        # PALETTE-001(2026-07-20): {palette}는 상품명(subject_en) 기준 결정론적으로 선택되는
+        # 자리표시자 — build_reference_instruction()이 채운다. _POP_PALETTES 참고.
+        "Create a bold contemporary food campaign with {palette}, crisp hard side light and one strong graphic "
+        "diagonal shadow behind the plate. Keep the food's true appetizing colors. No extra food, props, hands, "
+        "splashes, floating objects or text.",
     ),
     ("food", "realism"): _plan(
         "realism", "food", "macro_texture + food_hero",
@@ -116,16 +210,16 @@ _PLANS: dict[tuple[str, str], ReferenceStylePlan] = {
     ("food", "pastel"): _plan(
         "pastel", "food", "pastel_tabletop + food_hero",
         ("04_파스텔__IMG_4674", "04_파스텔__IMG_4710", "04_파스텔__IMG_4712"),
-        "Create a refined pastel culinary set with a pale blush background and a low muted lavender table plane, "
-        "high-key diffused light and a very soft contact shadow. Keep all food colors fully natural, never "
-        "pastel-tinted. No geometric props, flowers, extra food, hands or text.",
+        "Create a refined pastel culinary set with {palette}, high-key diffused light and a very soft contact "
+        "shadow. Keep all food colors fully natural, never pastel-tinted. No geometric props, flowers, extra "
+        "food, hands or text.",
     ),
     ("food", "monotone"): _plan(
         "monotone", "food", "dark_color_lock + food_hero",
         ("05_모노톤__IMG_4704", "05_모노톤__IMG_4705", "03_리얼리즘__IMG_4604"),
-        "Create a strict deep burgundy monochrome environment using wine-red, charcoal and black only in the "
-        "background and table. Add a precise warm rim light and one bold diagonal shadow. Keep all food colors true "
-        "and isolated from the monochrome surroundings. No props, extra food, hands or text.",
+        "Create {palette} in the background and table. Add a precise warm rim light and one bold diagonal "
+        "shadow. Keep all food colors true and isolated from the monochrome surroundings. No props, extra food, "
+        "hands or text.",
     ),
     ("food", "warm_organic"): _plan(
         "warm_organic", "food", "warm_tabletop + organic_material",
@@ -144,9 +238,8 @@ _PLANS: dict[tuple[str, str], ReferenceStylePlan] = {
     ("drink", "pop"): _plan(
         "pop", "drink", "saturated_color_block + drink_hero",
         ("02_팝_pop__IMG_4697", "02_팝_pop__IMG_4698", "02_팝_pop__IMG_4699"),
-        "Create a bold contemporary beverage campaign with a saturated cobalt-blue background and a clean vivid "
-        "orange table surface, crisp hard side light and one graphic shadow. No fruit, packets, beans, ice, splash, "
-        "straw, hands, food or text.",
+        "Create a bold contemporary beverage campaign with {palette}, crisp hard side light and one graphic "
+        "shadow. No fruit, packets, beans, ice, splash, straw, hands, food or text.",
     ),
     ("drink", "realism"): _plan(
         "realism", "drink", "natural_cafe + drink_hero",
@@ -158,16 +251,15 @@ _PLANS: dict[tuple[str, str], ReferenceStylePlan] = {
     ("drink", "pastel"): _plan(
         "pastel", "drink", "pastel_tabletop + drink_hero",
         ("04_파스텔__IMG_4674", "04_파스텔__IMG_4710", "04_파스텔__IMG_4712"),
-        "Create a soft pastel cafe set with a pale blush background and a muted lavender table plane, ethereal "
-        "high-key diffused light and soft contact shadows. Keep the drink and container grounded and true to their "
-        "original colors. No shapes, flowers, props, food, hands or text.",
+        "Create a soft pastel cafe set with {palette}, ethereal high-key diffused light and soft contact "
+        "shadows. Keep the drink and container grounded and true to their original colors. No shapes, flowers, "
+        "props, food, hands or text.",
     ),
     ("drink", "monotone"): _plan(
         "monotone", "drink", "brand_color_lock + drink_hero",
         ("05_모노톤__IMG_4705", "05_모노톤__IMG_4713"),
-        "Create a strict espresso-brown monochrome environment using coffee brown, dark cocoa and warm cream only "
-        "in the background and table. Add clean even lighting and one bold diagonal shadow. Preserve the drink and "
-        "container's real colors exactly. No props, beans, food, hands or text.",
+        "Create {palette} in the background and table. Add clean even lighting and one bold diagonal shadow. "
+        "Preserve the drink and container's real colors exactly. No props, beans, food, hands or text.",
     ),
     ("drink", "warm_organic"): _plan(
         "warm_organic", "drink", "warm_tabletop + organic_material",
@@ -186,9 +278,9 @@ _PLANS: dict[tuple[str, str], ReferenceStylePlan] = {
     ("object", "pop"): _plan(
         "pop", "object", "saturated_color_block + commercial_hero",
         ("02_팝_pop__IMG_4609", "02_팝_pop__IMG_4621", "IMG_4790"),
-        "Create an energetic graphic product campaign on a saturated electric-blue surface against a vivid coral "
-        "background. Add two large matte geometric blocks far behind the product and crisp hard directional shadows. "
-        "No food, spheres, hands, extra products or text outside the unchanged product label.",
+        "Create an energetic graphic product campaign with {palette}. Add two large matte geometric blocks far "
+        "behind the product and crisp hard directional shadows. No food, spheres, hands, extra products or text "
+        "outside the unchanged product label.",
     ),
     ("object", "realism"): _plan(
         "realism", "object", "natural_material + commercial_hero",
@@ -200,9 +292,9 @@ _PLANS: dict[tuple[str, str], ReferenceStylePlan] = {
     ("object", "pastel"): _plan(
         "pastel", "object", "soft_pedestal + pastel_product_hero",
         ("04_파스텔__IMG_4674", "04_파스텔__IMG_4710", "IMG_4808"),
-        "Create a soft pastel product set with a pale blush background and one low matte lavender pedestal behind "
-        "the product. Use ethereal high-key diffused light and soft contact shadows. Keep the product grounded. No "
-        "mist, ribbons, flowers or text outside the unchanged product label.",
+        "Create a soft pastel product set with {palette}. Use ethereal high-key diffused light and soft contact "
+        "shadows. Keep the product grounded. No mist, ribbons, flowers or text outside the unchanged product "
+        "label.",
     ),
     ("object", "monotone"): _plan(
         "monotone", "object", "brand_color_lock + minimal_studio",
@@ -276,9 +368,12 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
     if plan is None:
         return None
     subject = (subject_en or "product").strip()
+    direction = plan.direction
+    if "{palette}" in direction:
+        direction = direction.format(palette=_style_palette_clause(plan.style_key, plan.domain, subject))
     return (
         f"The photographed subject is {subject}. "
-        f"{_IDENTITY_LOCKS[plan.domain]}{plan.direction} "
+        f"{_IDENTITY_LOCKS[plan.domain]}{direction} "
         "Do not generate any new logo, label, lettering, watermark or advertising copy."
     )
 
@@ -402,8 +497,11 @@ def build_recompose_instruction(style_key: str, subject_en: str,
     # direction 말미의 소품 금지문("No fruit, ... ice, splash ...")은 보존 편집용 —
     # 재연출 계약의 "identical ice/toppings as photographed"와 충돌한다(그 음료의 진짜 얼음까지
     # 지우라는 뜻으로 읽힘). 씬 묘사만 취하고 금지는 아래 계약 문장이 일원화해서 담당한다.
+    raw_direction = plan.direction
+    if "{palette}" in raw_direction:  # PALETTE-001: build_reference_instruction과 동일 치환
+        raw_direction = raw_direction.format(palette=_style_palette_clause(plan.style_key, plan.domain, subject))
     scene_direction = ". ".join(
-        s.rstrip(".") for s in plan.direction.split(". ") if not s.strip().startswith("No ")
+        s.rstrip(".") for s in raw_direction.split(". ") if not s.strip().startswith("No ")
     ) + "."
     return (
         f"Restage this {subject} into a new advertisement composition. "
