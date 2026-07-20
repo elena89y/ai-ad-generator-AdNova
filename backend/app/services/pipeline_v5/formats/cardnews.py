@@ -7,20 +7,12 @@ from PIL import Image, ImageDraw, ImageFont
 
 from ..format_spec import FormatSpec
 from ..hero import DetailCutRole, HeroAsset
-from ..commercial_copy import copy_for
+from ..commercial_copy import copy_for, section_copy_for
 from .detail_page import _select_role_cuts
 
 SLIDE_COUNT = 4
 DEFAULT_CTA_TITLE = "지금 만나보세요"
 DEFAULT_CTA_LABEL = "자세히 보기"
-
-# 도메인 무관 문구(2026-07-20, ROUTING-001): "한 잔" 등 음료 전용 표현이 하드코딩돼 있어
-#   음식/사물 카드뉴스에서도 그대로 나갔다. hero.domain(food|drink|object) 기준으로 분기.
-_DETAIL_TITLES = {
-    "food": "맛까지\n또렷하게",
-    "drink": "한 잔의\n디테일",
-    "object": "디테일까지\n또렷하게",
-}
 
 
 def render(hero: HeroAsset, spec: FormatSpec, output_dir: str) -> list[str]:
@@ -106,10 +98,10 @@ def _detail_slide(
     inset = _cover(Image.open(side_path).convert("RGB"), (inset_w, inset_h))
     canvas.paste(inset, (int(w * .07), int(h * .69)))
     draw = ImageDraw.Draw(canvas)
-    copy = copy_for(hero)
+    copy = section_copy_for(hero)
     x = int(w * .51)
     draw.text((x, int(h * .70)), "03 / DETAIL", font=_font(21, True), fill=(43, 63, 187))
-    detail_title = _DETAIL_TITLES.get(hero.domain, _DETAIL_TITLES["food"])
+    detail_title = copy.detail_title
     draw.text((x, int(h * .76)), detail_title, font=_font(46, True), fill=(22, 22, 22), spacing=10)
     if copy.subcopy:
         for index, line in enumerate(_wrap(copy.subcopy, 12)):

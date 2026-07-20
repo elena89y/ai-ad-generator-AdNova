@@ -501,6 +501,45 @@ def generate_english_labels(product: ProductInfo) -> tuple[str, str]:
 
 
 @dataclass
+class SectionLabels:
+    """v5 카드뉴스/상세페이지 섹션 라벨 (ROUTING-002)."""
+    top_view_label: str
+    detail_title: str
+
+
+def generate_section_labels(product_name: str, subject_en: str, domain: str,
+                            headline: str) -> SectionLabels:
+    """카드뉴스/상세페이지 섹션 라벨 2개를 상품에 맞게 생성한다.
+
+    도메인 고정 문구("한 잔의 디테일" 등)가 모든 상품에 똑같이 나가던 문제(ROUTING-001)의
+    후속 — 실패하면 예외를 그대로 던진다. 호출부(commercial_copy.py)가 도메인별 고정 문구로
+    폴백한다.
+    """
+    instruction = (
+        "아래 상품의 상세페이지 섹션 문구 2개를 만들어줘.\n"
+        f"- 상품명: {product_name or subject_en}\n"
+        f"- 영문 키워드: {subject_en}\n"
+        f"- 카테고리: {domain} (food=음식, drink=음료, object=제품)\n"
+        f"- 광고 헤드라인(참고용): {headline}\n"
+        "규칙:\n"
+        "1) top_view_label: 위에서 내려다본 사진 섹션의 라벨. 8자 내외 한글, 상품의 실제 형태에 "
+        "맞는 표현 사용(그릇에 담긴 음식이면 '플레이팅', 잔에 담긴 음료면 '잔', 낱개 제품이면 "
+        "'제품' 등). 명사형으로 끝낼 것.\n"
+        "2) detail_title: 클로즈업 질감 섹션의 짧은 제목. 최대 2줄, 각 줄 6자 내외, 줄바꿈은 "
+        "\\n 하나만 사용.\n"
+        "없는 재료·효능·수식어를 지어내지 말고 상품명·카테고리에서 자연스럽게 나오는 표현만 써.\n"
+        '반드시 JSON 으로만 응답: {"top_view_label": "...", "detail_title": "...\\n..."}'
+    )
+    result = _chat_json([{"role": "user", "content": instruction}], label="section_labels")
+    lowered = {str(k).lower(): v for k, v in result.items()} if isinstance(result, dict) else {}
+    top_view_label = str(lowered.get("top_view_label", "")).strip()
+    detail_title = str(lowered.get("detail_title", "")).strip()
+    if not top_view_label or not detail_title:
+        raise RuntimeError(f"섹션 라벨 응답이 비어 있습니다 (원문: {result!r:.200})")
+    return SectionLabels(top_view_label=top_view_label, detail_title=detail_title)
+
+
+@dataclass
 class MenuAnalysis:
     """상품명 → 라우팅 정보 (A 음식 / C 사물 공통).
 
