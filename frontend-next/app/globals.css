@@ -1,16 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --background: #16151a;
-  --foreground: #edebf0;
-  --muted: #8b8794;
-  --soft: #b8b4c0;
-  --border: rgba(255, 255, 255, 0.09);
-  --surface: #1f1e25;
-  --accent: #f2a93b;
-  --accent-deep: #f2b65a;
-  --berry: #e0567f;
-  --berry-deep: #c42e5c;
+  --background: #071426;
+  --foreground: #f8fafc;
+  --muted: #94a3b8;
+  --soft: #cbd5e1;
+  --border: rgba(148, 163, 184, 0.16);
+  --surface: #102039;
+
+  --accent: #8b5cf6;
+  --accent-deep: #a78bfa;
+
+  --berry: #a78bfa;
+  --berry-deep: #6d4aff;
+
   --ok: #5be3a0;
 }
 
@@ -40,9 +43,18 @@ html {
 
 body {
   background:
-    radial-gradient(130% 90% at 100% -10%, rgba(242, 169, 59, 0.07), transparent 55%),
-    radial-gradient(120% 80% at 0% 108%, rgba(196, 46, 92, 0.08), transparent 55%),
+    radial-gradient(
+      130% 90% at 100% -10%,
+      rgba(139, 92, 246, 0.12),
+      transparent 55%
+    ),
+    radial-gradient(
+      120% 80% at 0% 108%,
+      rgba(109, 74, 255, 0.1),
+      transparent 55%
+    ),
     var(--background);
+
   color: var(--foreground);
   font-family: var(--font-sans);
 }
@@ -58,7 +70,12 @@ body {
 }
 
 .text-gradient {
-  background: linear-gradient(90deg, #ffffff 0%, #f2b65a 55%, #e0567f 100%);
+  background: linear-gradient(
+    90deg,
+    #ffffff 0%,
+    #c4b5fd 52%,
+    #8b5cf6 100%
+  );
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -67,16 +84,16 @@ body {
 .accent-gradient {
   background-image: linear-gradient(
     135deg,
-    var(--accent) 0%,
-    var(--berry-deep) 100%
+    #7c3aed 0%,
+    #a855f7 100%
   );
 }
 
 .glass {
-  background: rgba(31, 30, 37, 0.75);
+  background: rgba(16, 32, 57, 0.78);
   backdrop-filter: saturate(140%) blur(14px);
   -webkit-backdrop-filter: saturate(140%) blur(14px);
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(148, 163, 184, 0.16);
 }
 
 .noise {
@@ -95,7 +112,7 @@ body {
 
 ::selection {
   background: var(--accent);
-  color: #16151a;
+  color: #ffffff;
 }
 
 ::-webkit-scrollbar {
@@ -107,6 +124,6 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(148, 163, 184, 0.24);
   border-radius: 999px;
 }
