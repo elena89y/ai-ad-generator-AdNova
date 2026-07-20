@@ -150,6 +150,12 @@ export function AppBar() {
         </Link>
       </nav>
       <div className="right">
+        <Link
+          href="/support"
+          style={{ fontSize: 13, color: "var(--muted)", textDecoration: "none" }}
+        >
+          💬 <span className="txt">고객센터</span>
+        </Link>
         <UsagePill />
         <ProfileMenu />
       </div>
@@ -186,6 +192,7 @@ export function SubBar({
   showProfile?: boolean;
   right?: React.ReactNode;
 }) {
+  const pathname = usePathname();
   return (
     <div className="subbar">
       <Brand />
@@ -193,6 +200,14 @@ export function SubBar({
         ← {backLabel}
       </Link>
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+        {pathname !== "/support" && (
+          <Link
+            href="/support"
+            style={{ fontSize: 13, color: "var(--muted)", textDecoration: "none" }}
+          >
+            💬 고객센터
+          </Link>
+        )}
         {right}
         {showProfile && <ProfileMenu />}
       </div>
