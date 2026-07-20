@@ -202,6 +202,11 @@ def _render_multiformat(
         subcopy=subcopy.strip(),
         detail_cuts=tuple(cuts),
         domain=domain,
+        # v6-1 F1: 상세 카피 톤·팔레트가 스타일을 따라가도록 배선. StylePreset enum 이면
+        # value(문자열 키), style_gen 경로의 문자열 키면 그대로.
+        # ⚠️ 잔여 배선: subject_en·core_ingredients 는 GenerationOutput 이 안 실어줌 —
+        # 환각 게이트가 관대 통과로 돌아간다. generation_service 확장 시 함께 태울 것.
+        style=getattr(out.style, "value", out.style) if out.style else None,
     )
     rendered = pipeline_v5.generate_v5(
         source,
