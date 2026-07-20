@@ -20,12 +20,30 @@ from app.schemas.account import (
     AccountMessageResponse,
     PasswordChangeRequest,
 )
+from app.schemas.auth import UserResponse
 from app.services import image_service
 
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/account", tags=["Account"])
 SOCIAL_AUTH_PROVIDERS = {"google", "kakao", "naver"}
+
+
+@router.get("/me", response_model=UserResponse)
+def read_current_user(
+    current_user: User = Depends(get_current_user),
+    auth_provider: str = Depends(get_current_auth_provider),
+) -> UserResponse:
+    return UserResponse(
+        id=current_user.id,
+        email=current_user.email,
+        username=current_user.username,
+        name=current_user.name,
+        business_name=current_user.business_name,
+        business_type=current_user.business_type,
+        auth_provider=auth_provider,
+        is_active=current_user.is_active,
+    )
 
 
 def _delete_account_image_files(file_paths: list[str]) -> None:

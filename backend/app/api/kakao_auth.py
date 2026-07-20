@@ -132,7 +132,7 @@ def _redirect_oauth_error(error_code: str, message: str) -> RedirectResponse:
         }
     )
     return RedirectResponse(
-        url=f"{FRONTEND_URL}/?{error_query}",
+        url=f"{FRONTEND_URL}/login?{error_query}",
         status_code=status.HTTP_302_FOUND,
     )
 
@@ -302,7 +302,7 @@ def kakao_callback(
     )
 
     redirect_url = (
-        f"{FRONTEND_URL}/"
+        f"{FRONTEND_URL}/auth/callback"
         f"#access_token={access_token}"
         f"&token_type=bearer"
         f"&user_id={user.id}"

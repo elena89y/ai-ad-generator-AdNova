@@ -161,8 +161,8 @@ def naver_login(request: Request):
     )
 
     return RedirectResponse(
-        url=f"{NAVER_AUTHORIZE_URL}?{authorize_query}",
-        status_code=status.HTTP_302_FOUND,
+    url=f"{FRONTEND_URL}/login?{error_query}",
+    status_code=status.HTTP_302_FOUND,
     )
 
 
@@ -307,7 +307,7 @@ def naver_callback(
     )
 
     redirect_url = (
-        f"{FRONTEND_URL}/"
+        f"{FRONTEND_URL}/auth/callback"
         f"#access_token={access_token}"
         f"&token_type=bearer"
         f"&user_id={user.id}"

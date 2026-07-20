@@ -166,7 +166,7 @@ async def google_callback(
             }
         )
         return RedirectResponse(
-            url=f"{FRONTEND_URL}/?{error_query}",
+            url=f"{FRONTEND_URL}/login?{error_query}",
             status_code=status.HTTP_302_FOUND,
         )
 
@@ -221,7 +221,7 @@ async def google_callback(
 
     # 로컬 테스트용: URL query 대신 fragment에 토큰을 실어 서버 로그 노출을 줄인다.
     redirect_url = (
-        f"{FRONTEND_URL}/"
+        f"{FRONTEND_URL}/auth/callback"
         f"#access_token={access_token}"
         f"&token_type=bearer"
         f"&user_id={user.id}"

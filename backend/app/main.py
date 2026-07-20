@@ -36,9 +36,9 @@ app = FastAPI(
 
 app.add_middleware(
     SessionMiddleware,
-    secret_key=os.getenv("SESSION_SECRET_KEY"),
+    secret_key=os.getenv("SESSION_SECRET_KEY", "change-this-session-secret"),
     same_site="lax",
-    https_only=False, # HTTPS 도메인 적용 후 True로 변경
+    https_only=os.getenv("SESSION_HTTPS_ONLY", "false").lower() == "true",
 )
 
 app.add_middleware(
