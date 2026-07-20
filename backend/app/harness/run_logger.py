@@ -125,6 +125,7 @@ class RunLogger:
             "vram": {},               # allocated/reserved/free/total (OOM 진단, 연정 PDF #7)
             "llm_usage": [],
             "image_api": [],          # 이미지 생성/편집 API 호출 (v6 T0: 하이브리드 비용축)
+            "gpu_used": None,         # False=API 경로 등 GPU 미사용 명시(GPU 호스트 오계상 방지)
             "kpi": None,              # __exit__ 에서 파생되는 비용/시간/품질 3축 요약
             "output": None,
             "verdict": "",
@@ -216,7 +217,8 @@ class RunLogger:
         try:
             import torch
 
-            if torch.cuda.is_available():
+            # gpu_used=False 명시(API 경로 등)면 GPU 호스트여도 점유 0 — 하이브리드 A/B 공정성.
+            if torch.cuda.is_available() and self.record.get("gpu_used") is not False:
                 gpu_s = float(t["total_s"] or 0.0)
         except Exception:  # noqa: BLE001 — torch 미설치(로컬 CPU 테스트)면 GPU 비용 0
             pass

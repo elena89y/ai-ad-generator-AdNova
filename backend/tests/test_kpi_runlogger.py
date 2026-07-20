@@ -73,6 +73,25 @@ def test_image_api_usage_counted(tmp_path):
     )
 
 
+def test_gpu_used_false_zeroes_gpu_cost_on_gpu_host(tmp_path, monkeypatch):
+    """API 경로(gpu_used=False)는 GPU 호스트(CUDA 가용)에서도 GPU 비용 0 — 3암 A/B 공정성."""
+    import time
+
+    import torch
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    runs_path = tmp_path / "runs.jsonl"
+    for gpu_used, expect_zero in ((False, True), (None, False)):
+        with RunLogger(phase="TEST", mode="A", engine="graph:api", input="x.png",
+                       runs_path=runs_path, auto_llm=False) as run:
+            time.sleep(0.02)  # total_s 가 0.00 으로 반올림되지 않도록
+            if gpu_used is not None:
+                run.set_meta(gpu_used=gpu_used)
+    rows = [json.loads(l) for l in runs_path.read_text().strip().splitlines()]
+    assert rows[0]["kpi"]["cost"]["gpu_s"] == 0.0            # gpu_used=False
+    assert rows[1]["kpi"]["cost"]["gpu_s"] > 0.0             # 미지정(기존 로컬 경로) = 점유 계상
+
+
 # --- 단가 환산 ---------------------------------------------------------------------
 def test_gpu_cost_env_override(monkeypatch):
     monkeypatch.setenv("GPU_USD_PER_HOUR", "1.80")

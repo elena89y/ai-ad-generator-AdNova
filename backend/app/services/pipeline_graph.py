@@ -137,8 +137,13 @@ def _after_gate(state: PipelineState) -> str:
 
 
 def _fallback_engine(state: PipelineState) -> PipelineState:
-    state["engine"] = "local" if state["engine"] == "api" else "api"
-    logger.info("pipeline_graph 폴백: 엔진 전환 → %s", state["engine"])
+    """hybrid 만 반대 엔진으로 교차 폴백. 단일 정책(local|api)은 같은 엔진 재시도 1회 —
+    T3 3암 A/B 의 암 순수성(로컬암에 API 결과 혼입 금지) 보장."""
+    if state.get("policy") == "hybrid":
+        state["engine"] = "local" if state["engine"] == "api" else "api"
+        logger.info("pipeline_graph 폴백: 엔진 전환 → %s", state["engine"])
+    else:
+        logger.info("pipeline_graph 폴백: 같은 엔진(%s) 재시도", state["engine"])
     return state
 
 
@@ -174,9 +179,16 @@ def _run_sequential(state: PipelineState) -> PipelineState:
     return state
 
 
+from ..core.observability import observe
+
+
+@observe(name="pipeline.run_graph")
 def run_pipeline(image_path: str, name: str, style: Optional[str] = None,
                  policy: Optional[str] = None) -> PipelineState:
-    """그래프 실행 1회 = KPI 원장 1행. 반환 state 에 out_path/gate_passed/attempts/error."""
+    """그래프 실행 1회 = KPI 원장 1행. 반환 state 에 out_path/gate_passed/attempts/error.
+
+    @observe 스팬 안에서 RunLogger 가 닫히므로 KPI score 가 이 트레이스에 붙는다(T0 계약).
+    """
     from ..harness.run_logger import RunLogger
 
     initial: PipelineState = {
@@ -193,7 +205,8 @@ def run_pipeline(image_path: str, name: str, style: Optional[str] = None,
             logger.info("langgraph 미설치 → 순차 폴백 실행")
             final = _run_sequential(initial)
         run.set_meta(mode=final.get("domain", "pending"),
-                     engine=f"graph:{final.get('engine', 'unknown')}")
+                     engine=f"graph:{final.get('engine', 'unknown')}",
+                     gpu_used=(final.get("engine") == "local"))
         if final.get("out_path"):
             run.set_output(final["out_path"])
         run.add_metric("gate", {"pass": bool(final.get("gate_passed")),

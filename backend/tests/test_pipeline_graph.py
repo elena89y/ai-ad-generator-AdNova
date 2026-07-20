@@ -117,15 +117,26 @@ def test_hybrid_plain_food_goes_local(_stub_nodes):
     assert final["engine"] == "local" and _stub_nodes == {"api": 0, "local": 1}
 
 
-def test_gate_fail_falls_back_once(monkeypatch, _stub_nodes):
-    """1차 실패 → 반대 엔진 1회 폴백, 추가 생성 ≤1 (총 attempts 2 상한)."""
+def test_gate_fail_hybrid_crosses_engine(monkeypatch, _stub_nodes):
+    """hybrid: 1차 실패 → 반대 엔진 1회 교차 폴백, 추가 생성 ≤1 (총 attempts 2 상한)."""
     verdicts = iter([False, False])  # 둘 다 실패해도 2회에서 멈춰야 함
     monkeypatch.setattr(pipeline_graph, "_gate",
                         lambda s: {**s, "gate_passed": next(verdicts, False)})
-    final = _seq({"image_path": "x", "name": "n", "policy": "local",
+    final = _seq({"image_path": "x", "name": "n", "policy": "hybrid",
+                  "domain": "food", "texture_hero": False, "attempts": 0})
+    assert final["attempts"] == 2
+    assert _stub_nodes == {"api": 1, "local": 1}         # local → api 교차 1회
+
+
+def test_gate_fail_pure_policy_stays_same_engine(monkeypatch, _stub_nodes):
+    """단일 정책(api)은 폴백도 같은 엔진 — 3암 A/B 암 순수성(타 엔진 혼입 금지)."""
+    verdicts = iter([False, True])
+    monkeypatch.setattr(pipeline_graph, "_gate",
+                        lambda s: {**s, "gate_passed": next(verdicts, False)})
+    final = _seq({"image_path": "x", "name": "n", "policy": "api",
                   "domain": "food", "attempts": 0})
     assert final["attempts"] == 2
-    assert _stub_nodes == {"api": 1, "local": 1}         # local → api 폴백 1회
+    assert _stub_nodes == {"api": 2, "local": 0}
 
 
 def test_flag_default_off(monkeypatch):
