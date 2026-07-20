@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -127,9 +128,16 @@ def _to_response(out: generation_service.GenerationOutput) -> GenerateAdResponse
     )
 
 
+# 상세/카드뉴스 4컷 생성 단계의 시간 예산(초) — GATE-001 각도 재시도가 최악(전 구도 전 변형
+#   소진)에서 16회 생성 ≈ 15분까지 부풀어 클라이언트 타임아웃(600s)을 뚫는 사고 실측(2026-07-21,
+#   김치찌개 상세페이지 420s 초과 502). 예산 소진 후에는 구도당 1변형만 생성하고 최저상관 채택.
+MULTIFORMAT_TIME_BUDGET_S = float(os.getenv("MULTIFORMAT_TIME_BUDGET_S", "300"))
+
+
 def _generate_with_retry(
     source: str, work_dir: Path, accepted_structures: list, role_label: str,
     prompt_for_variant, variants,
+    deadline: float | None = None,
 ):
     """GATE-001(2026-07-20): 원본이 이미 단순한 구도인 상품(책상 위 마우스, 문어모양 괄사)은
     기본 프롬프트로 편집해도 이미 확정된 다른 컷과 구조적으로 거의 같아 상세페이지 구조-유사도
@@ -144,6 +152,11 @@ def _generate_with_retry(
     """
     best_path, best_structure, best_score = None, None, None
     for variant in variants:
+        # 예산 가드: 첫 변형은 무조건 생성(컷 자체는 필요), 이후 변형은 데드라인 내에서만.
+        if best_path is not None and deadline is not None and time.monotonic() > deadline:
+            logger.warning(
+                f"{role_label}: 시간 예산 소진 — 남은 변형 생략, 최저상관 결과(corr={best_score:.3f}) 채택")
+            return best_path, best_structure
         generated = kontext_service.edit(
             source, prompt_for_variant(variant), steps=12, output_dir=str(work_dir),
         )
@@ -186,10 +199,12 @@ def _render_multiformat(
     cuts = [DetailCut(source, DetailCutRole.HERO)]
     accepted_structures = [(DetailCutRole.HERO.value, structure_vector(source))]
 
+    deadline = time.monotonic() + MULTIFORMAT_TIME_BUDGET_S
     for role, (prompt_fn, variants) in _ROLE_RETRY_SPECS.items():
         path, candidate_structure = _generate_with_retry(
             source, work_dir, accepted_structures, role.value,
             lambda variant, fn=prompt_fn: fn(domain, variant), variants,
+            deadline=deadline,
         )
         cuts.append(DetailCut(path, role))
         accepted_structures.append((role.value, candidate_structure))

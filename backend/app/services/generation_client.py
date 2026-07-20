@@ -15,7 +15,9 @@ from ..core.config import settings
 from ..schemas.ads import AdPurpose, GenerateAdResponse, ProductInfo, StylePreset
 from . import image_service
 
-_MIN_TIMEOUT_S = 420
+# 600s (2026-07-21 실측 상향): 워커 콜드로드 ~240s + 상세 4컷 최소 232s + 예산 내 재시도
+#   + 조판 ≈ 최악 ~570s. nginx /api/ read timeout(660s)보다 작아야 502 대신 유의미한 응답.
+_MIN_TIMEOUT_S = 600
 
 
 def _request_timeout() -> int:
