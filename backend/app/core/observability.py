@@ -88,6 +88,35 @@ def observe(name: str | None = None):  # noqa: ANN201
         return _decorator
 
 
+@contextmanager
+def run_span(name: str, metadata: dict | None = None):  # noqa: ANN201
+    """RunLogger 1건을 Langfuse 트레이스(스팬)로 감싼다. 키 없으면 무해 no-op.
+
+    근본 수정(v6 APIQ-001 실측 발견): 러너/스크립트 직행 경로는 @observe 스팬 밖이라
+    score_current_trace 가 'No active span' 으로 스킵됐다 → 원장 계층에서 스팬을 직접 열어
+    실행 경로와 무관하게 run 1건 = 트레이스 1건 + KPI score 를 보장한다.
+    ⚠️ propagate_attributes 와 같은 원칙: 셋업 실패만 폴백으로 흡수, 본문 예외는 그대로 전파.
+    """
+    if not os.environ.get("LANGFUSE_PUBLIC_KEY"):
+        yield
+        return
+    try:
+        from langfuse import get_client
+
+        client = get_client()
+        cm = client.start_as_current_span(name=name)
+    except Exception as e:  # noqa: BLE001 — 트레이싱 실패가 생성 실행을 막으면 안 됨
+        logger.debug(f"Langfuse run_span 시작 실패(무해): {e}")
+        yield
+        return
+    with cm:  # 본문 예외는 여기서 정상 전파(스팬에는 에러로 기록됨)
+        try:
+            client.update_current_trace(name=name, metadata=metadata or {})
+        except Exception:  # noqa: BLE001
+            pass
+        yield
+
+
 def push_kpi_scores(run_id: str, kpi: dict | None) -> None:
     """KPI 3축(비용/시간/품질)을 현재 Langfuse 트레이스의 score 로 push (v6 T0).
 

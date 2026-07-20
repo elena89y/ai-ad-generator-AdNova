@@ -104,6 +104,54 @@ def test_image_cost_unknown_model_is_zero():
     assert pricing.image_cost_of("some-local-model", 3) == 0.0
 
 
+# --- run 1건 = Langfuse 트레이스 1건 (APIQ-001 'no active span' 갭의 근본 수정) --------
+def test_run_span_wraps_scores_with_fake_langfuse(tmp_path, monkeypatch):
+    """스팬 열림 → score push → 스팬 닫힘 순서 보장. 러너 직행 경로에서도 트레이스가 남는다."""
+    import sys
+    import types
+
+    calls: list = []
+
+    class _Span:
+        def __enter__(self):
+            calls.append("span_enter")
+            return self
+
+        def __exit__(self, *a):  # noqa: ANN002
+            calls.append("span_exit")
+            return False
+
+    class _Client:
+        def start_as_current_span(self, name):  # noqa: ANN001
+            calls.append(("span_name", name))
+            return _Span()
+
+        def update_current_trace(self, **kw):  # noqa: ANN003
+            calls.append(("trace_meta", kw.get("metadata", {}).get("engine")))
+
+        def score_current_trace(self, name, value, comment=None):  # noqa: ANN001
+            calls.append(("score", name, value))
+
+    fake = types.ModuleType("langfuse")
+    fake.get_client = lambda: _Client()
+    monkeypatch.setitem(sys.modules, "langfuse", fake)
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-test")
+
+    with RunLogger(phase="LF-TEST", mode="A", engine="graph:api", input="x.png",
+                   runs_path=tmp_path / "runs.jsonl", auto_llm=False) as run:
+        run.add_metric("gate", {"pass": True, "failures": [], "mode": "audit"})
+        run.set_output(str(tmp_path / "out.png"))
+
+    enter_i, exit_i = calls.index("span_enter"), calls.index("span_exit")
+    score_is = [i for i, c in enumerate(calls)
+                if isinstance(c, tuple) and c[0] == "score"]
+    assert score_is, "KPI score 가 하나도 push 되지 않음"
+    assert all(enter_i < i < exit_i for i in score_is), "score 가 스팬 밖에서 push 됨"
+    assert ("span_name", "run:LF-TEST:x.png") in calls
+    score_names = {c[1] for c in calls if isinstance(c, tuple) and c[0] == "score"}
+    assert {"kpi.cost_total_usd", "kpi.time_total_s", "kpi.quality_gate_passed"} <= score_names
+
+
 # --- score push 무해성 -------------------------------------------------------------
 def test_push_kpi_scores_noop_without_key(tmp_path, monkeypatch):
     """LANGFUSE_PUBLIC_KEY 없으면 push 는 조용히 no-op — 예외/네트워크 호출 없어야 한다."""

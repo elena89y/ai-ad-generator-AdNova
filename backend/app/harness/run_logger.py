@@ -152,6 +152,18 @@ class RunLogger:
     # --- 컨텍스트 ---
     def __enter__(self) -> "RunLogger":
         self._cv_token = _CURRENT_RUN.set(self)
+        # run 1건 = Langfuse 트레이스 1건 (키 없으면 no-op) — score push 가 스팬 안에서 돌게.
+        self._span_cm = None
+        try:
+            from ..core.observability import run_span
+
+            self._span_cm = run_span(
+                f"run:{self.record['phase']}:{Path(str(self.record['input'])).name}",
+                metadata={"run_id": self.record["run_id"],
+                          "engine": self.record["engine"], "mode": self.record["mode"]})
+            self._span_cm.__enter__()
+        except Exception:  # noqa: BLE001 — 트레이싱 실패가 실행을 막으면 안 됨
+            self._span_cm = None
         _vram_reset()
         self._free_before = _vram_free_gb()
         if self._auto_llm:
@@ -212,7 +224,12 @@ class RunLogger:
         if exc is not None:
             self.record["error"] = f"{exc_type.__name__}: {exc}"
         self._append()
-        self._push_kpi_scores()
+        self._push_kpi_scores()  # 스팬이 아직 열려 있는 시점 — score 가 이 트레이스에 붙는다
+        if self._span_cm is not None:
+            try:
+                self._span_cm.__exit__(exc_type, exc, tb)
+            except Exception:  # noqa: BLE001
+                logging.getLogger(__name__).debug("run span 종료 실패(무해)", exc_info=True)
         return False  # 예외 재전파(기록만 하고 삼키지 않음)
 
     def _build_kpi(self) -> dict:
