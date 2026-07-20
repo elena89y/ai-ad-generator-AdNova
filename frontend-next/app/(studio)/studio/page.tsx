@@ -54,8 +54,16 @@ const FORMAT_TO_USE: Record<string, string> = {
   detail_page: "detail",
 };
 
+/* 포맷 갤러리 라벨 (purpose 기준, 모놀리식 html FORMAT_GALLERY_LABELS 이식) */
+const FORMAT_GALLERY_LABELS: Record<string, string> = {
+  sns: "이미지",
+  card_news: "카드뉴스",
+  banner: "배너 규격",
+  detail_page: "상세페이지",
+};
+
 /* 용도 버튼 값 → 백엔드 purpose (모놀리식 html getSelectedPurpose 이식) */
-function useToPurpose(value: string): string {
+function resolvePurpose(value: string): string {
   return value === "banner"
     ? "banner"
     : value === "card"
@@ -211,7 +219,7 @@ export default function StudioPage() {
     formData.append("product_description", s.promptText.trim());
     formData.append("style", STYLE_PRESET_MAP[s.styleLabel] || "pop");
     formData.append("use_vision", "false");
-    const purpose = useToPurpose(s.useValue);
+    const purpose = resolvePurpose(s.useValue);
     // 모놀리식 html과 동일: sns 용도만 poster=true
     formData.append("poster", String(purpose === "sns"));
     formData.append("purpose", purpose);
@@ -261,8 +269,8 @@ export default function StudioPage() {
           product_description: s.promptText.trim(),
           prev_seed: s.currentResult.seed,
           use_vision: false,
-          poster: useToPurpose(s.useValue) === "sns",
-          purpose: useToPurpose(s.useValue),
+          poster: resolvePurpose(s.useValue) === "sns",
+          purpose: resolvePurpose(s.useValue),
         }),
       });
       const data = (await readJsonSafely(res)) as GenerateResult | null;
@@ -316,12 +324,12 @@ export default function StudioPage() {
     router.push("/share");
   }
 
-  async function downloadResult() {
+  // 공통 다운로드 헬퍼 (메인 결과 + 포맷 갤러리 공용). 인증 헤더 + 프리미엄 게이트.
+  async function downloadImage(url: string | undefined, filename: string) {
     if (!s.isPremium) {
       router.push("/billing");
       return;
     }
-    const url = toAbsoluteUrl(resultImageUrl(s.currentResult));
     if (!url) {
       s.toast("다운로드할 광고 이미지가 없습니다");
       return;
@@ -335,7 +343,7 @@ export default function StudioPage() {
       const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = objectUrl;
-      link.download = "adnova-ad.png";
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -344,6 +352,10 @@ export default function StudioPage() {
     } catch (err) {
       s.toast(err instanceof Error ? err.message : "광고 이미지를 다운로드하지 못했습니다");
     }
+  }
+
+  async function downloadResult() {
+    await downloadImage(toAbsoluteUrl(resultImageUrl(s.currentResult)), "adnova-ad.png");
   }
 
   const result = s.currentResult;
@@ -812,6 +824,70 @@ export default function StudioPage() {
                   )}
                 </div>
               </div>
+
+              {(result.format_outputs?.length ?? 0) > 0 && (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+                    gap: 12,
+                    marginTop: 16,
+                  }}
+                >
+                  {result.format_outputs!.map((value, index) => {
+                    const url = toAbsoluteUrl(value);
+                    const label =
+                      FORMAT_GALLERY_LABELS[result.purpose ?? ""] || "결과";
+                    const alt =
+                      result.format_outputs!.length > 1
+                        ? `${label} ${index + 1}`
+                        : label;
+                    return (
+                      <div
+                        key={`${value}-${index}`}
+                        style={{
+                          position: "relative",
+                          overflow: "hidden",
+                          border: "1px solid var(--line)",
+                          borderRadius: 12,
+                          background: "#0d0d10",
+                          minHeight: 180,
+                        }}
+                      >
+                        <AuthenticatedImage
+                          src={url}
+                          alt={alt}
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            height: "100%",
+                            minHeight: 180,
+                            objectFit: "contain",
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="oa download"
+                          style={{
+                            position: "absolute",
+                            right: 10,
+                            bottom: 10,
+                            background: "rgba(22,21,26,.88)",
+                          }}
+                          onClick={() =>
+                            downloadImage(
+                              url,
+                              `adnova-${result.purpose || "format"}-${index + 1}.jpg`,
+                            )
+                          }
+                        >
+                          다운로드
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               <div
                 className="copy-block"

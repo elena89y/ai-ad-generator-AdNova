@@ -79,6 +79,9 @@ export interface GenerateResult {
   copy_text?: string;
   poster?: boolean;
   platform_copies?: Record<string, unknown>;
+  // 용도(purpose)별 포맷 산출물 썸네일 URL 목록 + 그 purpose
+  format_outputs?: string[];
+  purpose?: string;
 }
 
 export interface AdItem {
