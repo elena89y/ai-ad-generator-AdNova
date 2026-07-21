@@ -11,7 +11,7 @@ import {
   readApiError,
   readJsonSafely,
 } from "@/lib/api";
-import { deleteStoredAd, downloadHistoryResult } from "@/lib/sns";
+import { deleteStoredAd, downloadHistoryResult, downloadImageUrl } from "@/lib/sns";
 import { useStudio } from "@/components/studio/StudioProvider";
 import { AuthenticatedImage } from "@/components/studio/AuthenticatedImage";
 
@@ -38,6 +38,10 @@ function DetailContent() {
 
   useEffect(() => {
     if (!s.ready) return;
+    if (!s.token) {
+      router.replace("/login");
+      return;
+    }
     if (!historyId && !item) {
       router.replace("/my-ads");
       return;
@@ -71,6 +75,9 @@ function DetailContent() {
     };
   }, [historyId, item?.historyId, router, s]);
 
+  if (!s.ready || !s.token) {
+    return <div className="page">로그인 정보를 확인하는 중입니다.</div>;
+  }
   if (!item) return loading ? <div className="page">광고 정보를 불러오는 중입니다.</div> : null;
   const copy = getItemPlatformCopy(item, platform);
   // [html-parity] 페어가 모두 있을 때만 토글 노출, 없으면 item.img 폴백 (html getDetailImageUrl 이식)
@@ -79,26 +86,14 @@ function DetailContent() {
     ? (typographyOn ? item.imageWithTypography : item.imageWithoutTypography)
     : item.img;
 
-  function reuse() {
-    if (!item?.inputImageId || !item.inputImg) {
-      s.toast("이 광고의 입력 이미지를 다시 사용할 수 없습니다");
-      return;
-    }
-    s.setDashboardState({
-      selectedImageId: item.inputImageId,
-      selectedImageUrl: item.inputImg,
-      selectedImagePreview: item.inputImg,
-      prodName: item.productName || "",
-      promptText: item.productDescription || "",
-      styleLabel: item.style || "웜 빈티지",
-    });
-    router.push("/studio");
-    s.toast("이전 광고 설정을 불러왔습니다");
-  }
-
   function openShare() {
     if (!item) return;
-    s.openShare(item, historyId ? `/detail?historyId=${historyId}` : "/detail", platform);
+    // 타이포 토글 상태를 공유 대상 이미지에 반영
+    // (historyId를 제거해야 sns.ts가 저장본 다운로드 API 대신 이 URL을 직접 사용)
+    const shareItem = hasTypographyPair
+      ? { ...item, img: detailImageSrc || item.img, historyId: undefined }
+      : item;
+    s.openShare(shareItem, historyId ? `/detail?historyId=${historyId}` : "/detail", platform);
     router.push("/share");
   }
 
@@ -157,28 +152,6 @@ function DetailContent() {
               >
                 AI 생성
               </span>
-              {item.inputImg && (
-                <div
-                  style={{
-                    position: "absolute",
-                    left: 12,
-                    bottom: 12,
-                    width: 82,
-                    aspectRatio: "1",
-                    border: "2px solid rgba(255,255,255,.7)",
-                    borderRadius: 9,
-                    overflow: "hidden",
-                    background: "#16151A",
-                  }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={item.inputImg}
-                    alt="입력 이미지"
-                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                  />
-                </div>
-              )}
             </div>
             {/* [html-parity] 타이포 토글 — html #detailTypographyOption 이식 (Next 이관 시 누락) */}
             {hasTypographyPair && (
@@ -218,16 +191,17 @@ function DetailContent() {
               </div>
             )}
             <div className="detail-actions">
-              <button className="oa" onClick={reuse}>
-                🔄 이 광고로 다시 만들기
-              </button>
               <button className="oa" onClick={openShare}>
                 ↗ 공유
               </button>
               {s.isPremium && (
                 <button
                   className="oa download"
-                  onClick={() => downloadHistoryResult(item.historyId, s.toast)}
+                  onClick={() =>
+                    hasTypographyPair
+                      ? downloadImageUrl(detailImageSrc || item.img, s.toast)
+                      : downloadHistoryResult(item.historyId, s.toast)
+                  }
                 >
                   ⬇ 다운로드
                 </button>

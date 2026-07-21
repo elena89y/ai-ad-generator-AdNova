@@ -58,6 +58,8 @@ class ChatEndpointTestCase(unittest.TestCase):
         body = res.json()
         self.assertFalse(body["escalate"])
         self.assertEqual(body["sources"], ["faq-bill-002"])
+        # 근거 태그는 내부 장치 — 사용자 표시 답변에선 제거 (연정님 피드백 07-21)
+        self.assertNotIn("[근거", body["answer"])
         self.assertIsNone(body["inquiry_draft"])
         gen.assert_called_once()
 

@@ -9,6 +9,7 @@ export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? "/api").replace(
 
 const ACCESS_TOKEN_KEY = "access_token";
 const USER_KEY = "user";
+export const AUTH_EXPIRED_EVENT = "adnova:auth-expired";
 
 function buildApiUrl(path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -69,6 +70,7 @@ export interface PlatformCopy {
 }
 
 export interface GenerateResult {
+  history_id?: number;
   asset_id?: string;
   seed?: number;
   style?: string;
@@ -100,7 +102,6 @@ export interface AdItem {
   rawStyle?: string;
   date: string;
   createdAt?: string;
-  inputImageId?: number;
   inputImg: string;
   img: string;
   // [html-parity] 상세 화면 타이포 토글용 페어 — html buildCurrentOutputItem 이식 (Next 이관 시 누락)
@@ -119,6 +120,9 @@ export interface BillingSummary {
   free_credits_remaining: number;
   free_credit_limit: number;
   next_free_credit_at?: string | null;
+  premium_credits_remaining?: number | null;
+  premium_credit_limit?: number;
+  next_premium_credit_at?: string | null;
   subscription?: {
     plan?: string;
     status?: string;
@@ -177,13 +181,20 @@ export function isSocialAuthUser(): boolean {
 /* ---------- fetch ---------- */
 export async function apiFetch(path: string, options: RequestInit = {}) {
   const token = getToken();
-  return fetch(buildApiUrl(path), {
+  const response = await fetch(buildApiUrl(path), {
     ...options,
     headers: {
       ...(options.headers || {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
+
+  if (response.status === 401 && typeof window !== "undefined") {
+    clearStoredAuth();
+    window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+  }
+
+  return response;
 }
 
 interface ValidationItem {
@@ -307,7 +318,6 @@ interface HistoryEntry {
 
 export function historyToCard(history: HistoryEntry): AdItem {
   const ad = history.advertisement || {};
-  const inputImage = ad.input_image || {};
   const outputImage = ad.output_image || {};
   let responseData: Record<string, unknown> = {};
   let requestData: Record<string, unknown> = {};
@@ -336,8 +346,7 @@ export function historyToCard(history: HistoryEntry): AdItem {
     rawStyle: ad.style,
     date: formatDateLabel(history.created_at),
     createdAt: history.created_at,
-    inputImageId: ad.input_image_id,
-    inputImg: toAbsoluteUrl(inputImage.image_url),
+    inputImg: "",
     img: toAbsoluteUrl(outputImage.image_url || (responseData.image_url as string)),
     // [html-parity] history response_data 의 타이포 페어 매핑 (html 이식, Next 이관 시 누락)
     imageWithoutTypography: toAbsoluteUrl(responseData.image_without_typography_url as string),

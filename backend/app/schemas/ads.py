@@ -119,6 +119,7 @@ class PlatformCopy(BaseModel):
 # --- 통합 광고 생성 (FR-06~09, /ads/generate — 프론트 app.py 연동 스펙) --------
 class GenerateAdResponse(BaseModel):
     """통합 파이프라인 응답. 프론트 결과 페이지가 사용하는 필드 구성."""
+    history_id: Optional[int] = None  # 저장된 생성 이력 상세·공유 복구용
     asset_id: str                    # 재생성(/ads/regenerate)에 필요한 산출물 식별자
     seed: int                        # 재현/재생성용
     style: StylePreset

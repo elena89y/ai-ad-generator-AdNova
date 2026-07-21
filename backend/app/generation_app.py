@@ -284,6 +284,8 @@ def generate(
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"생성 실패: {e}") from e
+    finally:
+        src.unlink(missing_ok=True)
     return _to_response(out).model_copy(update={"purpose": purpose})
 
 

@@ -1733,9 +1733,12 @@ function showImageFallback(image,message='이미지를 불러올 수 없습니�
   fallback.textContent=message;
 }
 let imageLoadSequence=0;
-function isProtectedGeneratedImageUrl(url){
+function isProtectedImageUrl(url){
   if(!url) return false;
-  try{return new URL(url,window.location.href).pathname.includes('/ads/image/');}
+  try{
+    const pathname=new URL(url,window.location.href).pathname;
+    return pathname.includes('/ads/image/')||pathname.includes('/images/');
+  }
   catch(_){return false;}
 }
 function releaseImageObjectUrl(image){
@@ -1758,7 +1761,7 @@ function setImageSource(image,url,message){
     showImageFallback(image,message);
     return;
   }
-  if(isProtectedGeneratedImageUrl(url)){
+  if(isProtectedImageUrl(url)){
     image.removeAttribute('src');
     const token=getToken();
     fetch(url,{headers:token?{Authorization:`Bearer ${token}`}:{}})

@@ -61,7 +61,17 @@ from ..services.upload_validation import read_image_upload_file_sync
 
 router = APIRouter(prefix="/ads", tags=["ads"])
 
-UPLOAD_DIR = Path(__file__).resolve().parents[2] / "uploads"
+TEMP_UPLOAD_DIR = Path(__file__).resolve().parents[2] / "temp_uploads"
+
+
+def _remove_temporary_upload(path: Path | None) -> None:
+    if path is None:
+        return
+    try:
+        if path.parent.resolve() == TEMP_UPLOAD_DIR.resolve():
+            path.unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 def _consume_generation_credit(db: Session, user_id: int) -> str:
@@ -172,7 +182,7 @@ def _record_generated_result(
     result: GenerateAdResponse,
     action_type: str,
     request_data: str,
-) -> None:
+) -> int:
     output_filename = Path(result.image_url).name
     output_path = image_service.RESULTS_DIR / output_filename
     try:
@@ -246,7 +256,7 @@ def _record_generated_result(
             status="completed",
             commit=False,
         )
-        create_history(
+        history = create_history(
             db,
             user_id=user_id,
             advertisement_id=advertisement.id,
@@ -257,6 +267,7 @@ def _record_generated_result(
             commit=False,
         )
         db.commit()
+        return history.id
     except Exception:
         db.rollback()
         raise
@@ -331,6 +342,7 @@ def generate_ad(
     """
     current_user_id = current_user.id
     input_image_id: Optional[int] = None
+    temporary_source_path: Path | None = None
     request_data = json.dumps(
         {
             "image_id": image_id,
@@ -357,8 +369,9 @@ def generate_ad(
         input_image_id = row.id
     elif image is not None:
         _, suffix, content = read_image_upload_file_sync(image)
-        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-        src_path = UPLOAD_DIR / f"{uuid.uuid4().hex[:12]}{suffix}"
+        TEMP_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        temporary_source_path = TEMP_UPLOAD_DIR / f"{uuid.uuid4().hex[:12]}{suffix}"
+        src_path = temporary_source_path
         src_path.write_bytes(content)
     else:
         raise HTTPException(status_code=400, detail="image 파일 또는 image_id 중 하나가 필요합니다")
@@ -393,7 +406,7 @@ def generate_ad(
             if not generation_client.is_remote():
                 raise ValueError("카드뉴스·상세페이지는 GPU 생성 서비스 연결이 필요합니다")
 
-        _record_generated_result(
+        history_id = _record_generated_result(
             user_id=current_user_id,
             db=db,
             input_image_id=input_image_id,
@@ -405,7 +418,7 @@ def generate_ad(
             result=result,
             request_data=request_data,
         )
-        return result
+        return result.model_copy(update={"history_id": history_id})
     except ValueError as e:
         _restore_generation_credit(db, current_user_id, credit_type)
         create_history(
@@ -429,6 +442,8 @@ def generate_ad(
             error_message=str(e),
         )
         raise HTTPException(status_code=500, detail=f"광고 생성 실패: {e}") from e
+    finally:
+        _remove_temporary_upload(temporary_source_path)
 
 
 @router.post("/regenerate", response_model=GenerateAdResponse)
@@ -488,7 +503,7 @@ def regenerate_ad(
         elif req.purpose != AdPurpose.SNS:
             raise ValueError("상세페이지·카드뉴스는 5구도 생성 API 연결 후 사용할 수 있습니다")
 
-        _record_generated_result(
+        history_id = _record_generated_result(
             db=db,
             user_id=current_user_id,
             input_image_id=input_image_id,
@@ -500,7 +515,7 @@ def regenerate_ad(
             action_type="ads.regenerate",
             request_data=request_data,
         )
-        return result
+        return result.model_copy(update={"history_id": history_id})
     except ValueError as e:
         _restore_generation_credit(db, current_user_id, credit_type)
         create_history(

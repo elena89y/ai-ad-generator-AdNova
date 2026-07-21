@@ -16,6 +16,7 @@ usage 는 gpt_service._record_usage 로 기존 $30 한도 장부에 합산.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Optional, Sequence
 
@@ -199,6 +200,9 @@ class ChatService:
         if not sources:
             logger.warning("chatbot: 무근거 답변 감지 → 에스컬레이션 (%r)", question[:50])
             return build_escalation(question, hits)
+        # 근거 태그는 내부 품질 장치(무근거 감지·sources 추출·judge 평가)용 — 사용자에게는
+        # 숨긴다 (연정님 피드백 07-21). sources 추출 후 표시 답변에서만 제거.
+        answer = re.sub(r"\n?\s*\[근거:[^\]]*\]", "", answer).strip()
         # 미확정 정책 근거를 인용한 답변엔 "추후 보완" 고지를 코드로 부착 (사용자 지시 07-21).
         # 프롬프트(룰4)에만 맡기면 준수가 소프트함 — 라이브 실측에서 미첨부 관찰됨.
         cited_pending = any(h.faq.needs_confirmation for h in hits if h.faq.id in sources)
