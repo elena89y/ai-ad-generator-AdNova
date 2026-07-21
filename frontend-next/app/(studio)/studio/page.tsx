@@ -354,6 +354,7 @@ export default function StudioPage() {
     const productName = s.prodName.trim() || "광고 상품";
     const copy = currentCopyFor(activePlatform, s.currentResult);
     return {
+      historyId: s.currentResult.history_id,
       emoji: "✦",
       hl: copy.head || productName,
       copyHead: copy.head || productName,
@@ -384,7 +385,9 @@ export default function StudioPage() {
       return;
     }
     s.openShare(item, "/studio", activePlatform);
-    router.push("/share");
+    router.push(
+      item.historyId ? `/share?historyId=${item.historyId}` : "/share"
+    );
   }
 
   // [html-parity] html downloadImageFile 이식 — 기존 downloadResult 본문과 통합해

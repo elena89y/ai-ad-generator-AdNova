@@ -70,6 +70,7 @@ export interface PlatformCopy {
 }
 
 export interface GenerateResult {
+  history_id?: number;
   asset_id?: string;
   seed?: number;
   style?: string;

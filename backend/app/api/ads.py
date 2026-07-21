@@ -172,7 +172,7 @@ def _record_generated_result(
     result: GenerateAdResponse,
     action_type: str,
     request_data: str,
-) -> None:
+) -> int:
     output_filename = Path(result.image_url).name
     output_path = image_service.RESULTS_DIR / output_filename
     try:
@@ -246,7 +246,7 @@ def _record_generated_result(
             status="completed",
             commit=False,
         )
-        create_history(
+        history = create_history(
             db,
             user_id=user_id,
             advertisement_id=advertisement.id,
@@ -257,6 +257,7 @@ def _record_generated_result(
             commit=False,
         )
         db.commit()
+        return history.id
     except Exception:
         db.rollback()
         raise
@@ -393,7 +394,7 @@ def generate_ad(
             if not generation_client.is_remote():
                 raise ValueError("카드뉴스·상세페이지는 GPU 생성 서비스 연결이 필요합니다")
 
-        _record_generated_result(
+        history_id = _record_generated_result(
             user_id=current_user_id,
             db=db,
             input_image_id=input_image_id,
@@ -405,7 +406,7 @@ def generate_ad(
             result=result,
             request_data=request_data,
         )
-        return result
+        return result.model_copy(update={"history_id": history_id})
     except ValueError as e:
         _restore_generation_credit(db, current_user_id, credit_type)
         create_history(
@@ -488,7 +489,7 @@ def regenerate_ad(
         elif req.purpose != AdPurpose.SNS:
             raise ValueError("상세페이지·카드뉴스는 5구도 생성 API 연결 후 사용할 수 있습니다")
 
-        _record_generated_result(
+        history_id = _record_generated_result(
             db=db,
             user_id=current_user_id,
             input_image_id=input_image_id,
@@ -500,7 +501,7 @@ def regenerate_ad(
             action_type="ads.regenerate",
             request_data=request_data,
         )
-        return result
+        return result.model_copy(update={"history_id": history_id})
     except ValueError as e:
         _restore_generation_credit(db, current_user_id, credit_type)
         create_history(
