@@ -103,6 +103,10 @@ export interface AdItem {
   inputImageId?: number;
   inputImg: string;
   img: string;
+  /* [v6-1] 용도별 산출물(상세페이지/카드뉴스/배너 여러 장)과 그 purpose.
+     img 는 대표 히어로 1장(SNS 공유용) 유지 — 실제 포맷 결과는 여기로 렌더. */
+  formatOutputs?: string[];
+  purpose?: string;
   assetId?: string;
   seed?: number;
   adType?: string;
@@ -302,6 +306,14 @@ interface HistoryEntry {
   } | null;
 }
 
+/* [v6-1] 용도(purpose) → 한글 라벨. studio 포맷 갤러리와 동일 어휘로 my-ads/detail 공용. */
+export const FORMAT_LABELS: Record<string, string> = {
+  sns: "이미지",
+  card_news: "카드뉴스",
+  banner: "배너 규격",
+  detail_page: "상세페이지",
+};
+
 export function historyToCard(history: HistoryEntry): AdItem {
   const ad = history.advertisement || {};
   const inputImage = ad.input_image || {};
@@ -336,6 +348,10 @@ export function historyToCard(history: HistoryEntry): AdItem {
     inputImageId: ad.input_image_id,
     inputImg: toAbsoluteUrl(inputImage.image_url),
     img: toAbsoluteUrl(outputImage.image_url || (responseData.image_url as string)),
+    formatOutputs: Array.isArray(responseData.format_outputs)
+      ? (responseData.format_outputs as string[]).map((u) => toAbsoluteUrl(u))
+      : [],
+    purpose: (responseData.purpose as string) || undefined,
     assetId: responseData.asset_id as string | undefined,
     seed: responseData.seed as number | undefined,
     adType: ad.ad_type,
