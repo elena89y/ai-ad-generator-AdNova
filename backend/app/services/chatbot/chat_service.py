@@ -199,6 +199,12 @@ class ChatService:
         if not sources:
             logger.warning("chatbot: 무근거 답변 감지 → 에스컬레이션 (%r)", question[:50])
             return build_escalation(question, hits)
+        # 미확정 정책 근거를 인용한 답변엔 "추후 보완" 고지를 코드로 부착 (사용자 지시 07-21).
+        # 프롬프트(룰4)에만 맡기면 준수가 소프트함 — 라이브 실측에서 미첨부 관찰됨.
+        cited_pending = any(h.faq.needs_confirmation for h in hits if h.faq.id in sources)
+        if cited_pending and "추후 보완" not in answer:
+            answer += ("\n\n※ 이 안내는 정책 확정 전 내용이라 추후 보완이 필요해요. "
+                       "정확한 확인이 필요하시면 1:1 문의를 이용해 주세요.")
         return ChatResult(
             answer=answer,
             escalate=False,

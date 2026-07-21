@@ -94,6 +94,22 @@ class ChatEndpointTestCase(unittest.TestCase):
         gen.assert_not_called()
         self.assertTrue(res.json()["escalate"])
 
+    def test_pending_policy_source_appends_notice(self):
+        """미확정 정책(needs_confirmation) 근거 인용 시 '추후 보완' 고지가 코드로 부착."""
+        canned = "환불 규정 안내입니다.\n[근거: faq-bill-004]"
+        with patch.object(chat_service, "generate_answer", return_value=canned):
+            res = self.client.post("/support/chat", json={"question": "구독 해지하고 환불받고 싶어요"})
+        body = res.json()
+        self.assertFalse(body["escalate"])
+        self.assertIn("추후 보완", body["answer"])
+
+    def test_confirmed_policy_source_no_notice(self):
+        """확정 정책(bill-002) 근거만 인용하면 고지 미부착."""
+        canned = "Premium은 월 9,900원, 매월 30크레딧입니다.\n[근거: faq-bill-002]"
+        with patch.object(chat_service, "generate_answer", return_value=canned):
+            res = self.client.post("/support/chat", json={"question": "프리미엄 요금 알려주세요"})
+        self.assertNotIn("추후 보완", res.json()["answer"])
+
     def test_uncited_answer_falls_back_to_escalation(self):
         """모델이 근거 인용 없이 답하면 무근거 답변으로 보고 에스컬레이션."""
         with patch.object(chat_service, "generate_answer", return_value="아마 그럴 겁니다."):
