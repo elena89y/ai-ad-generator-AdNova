@@ -1,9 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { apiFetch, getItemPlatformCopy, readApiError, readJsonSafely } from "@/lib/api";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import {
+  apiFetch,
+  getItemPlatformCopy,
+  historyToCard,
+  readApiError,
+  readJsonSafely,
+} from "@/lib/api";
 import { PLATFORM_NAMES, exportSnsPost } from "@/lib/sns";
 import { useStudio } from "@/components/studio/StudioProvider";
 import { Brand } from "@/components/studio/chrome";
@@ -16,12 +22,17 @@ const TABS = [
   { p: "threads", label: "Threads" },
 ];
 
-export default function SharePage() {
+function ShareContent() {
   const s = useStudio();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [platform, setPlatform] = useState(s.sharePlatform || "instagram");
   const [verifiedHistoryId, setVerifiedHistoryId] = useState<number | null>(null);
   const [verifying, setVerifying] = useState(false);
+  const requestedHistoryId = Number(searchParams.get("historyId"));
+  const historyId = Number.isInteger(requestedHistoryId) && requestedHistoryId > 0
+    ? requestedHistoryId
+    : null;
   const item = s.activeItem;
 
   useEffect(() => {
@@ -30,16 +41,14 @@ export default function SharePage() {
       router.replace("/login");
       return;
     }
-    if (!item) {
+    if (!historyId && !item) {
       router.replace("/studio");
       return;
     }
-      
-    if (!item.historyId || verifiedHistoryId === item.historyId) return;
+    if (historyId && item?.historyId !== historyId) {
+      let cancelled = false;
+      setVerifying(true);
 
-<<<<<<< Updated upstream
-    const historyId = item.historyId;
-=======
       async function loadSharedAd() {
         try {
           const response = await apiFetch(`/api/history/${historyId}`);
@@ -70,19 +79,18 @@ export default function SharePage() {
     if (!item) return;
     const itemHistoryId = item.historyId;
     if (!itemHistoryId || verifiedHistoryId === itemHistoryId) return;
->>>>>>> Stashed changes
 
     let cancelled = false;
     setVerifying(true);
 
     async function verifyOwnership() {
       try {
-        const response = await apiFetch(`/api/history/${historyId}`);
+        const response = await apiFetch(`/api/history/${itemHistoryId}`);
         const data = await readJsonSafely(response);
         if (!response.ok) {
           throw new Error(readApiError(data, "공유할 광고를 확인할 수 없습니다"));
         }
-        if (!cancelled) setVerifiedHistoryId(historyId);
+        if (!cancelled) setVerifiedHistoryId(itemHistoryId);
       } catch (error) {
         if (!cancelled) {
           s.toast(error instanceof Error ? error.message : "공유할 광고를 확인할 수 없습니다");
@@ -97,7 +105,7 @@ export default function SharePage() {
     return () => {
       cancelled = true;
     };
-  }, [item?.historyId, router, s.ready, s.token, s.toast, verifiedHistoryId]);
+  }, [historyId, item, item?.historyId, router, s, verifiedHistoryId]);
 
   if (!s.ready || !s.token || !item || verifying || (item.historyId && verifiedHistoryId !== item.historyId)) {
     return <div className="page">공유 정보를 확인하는 중입니다.</div>;
@@ -117,7 +125,11 @@ export default function SharePage() {
     <section>
       <div className="subbar">
         <Brand />
-        <Link href={s.shareFrom || "/studio"} className="back-link" style={{ margin: "0 0 0 6px" }}>
+        <Link
+          href={historyId ? `/detail?historyId=${historyId}` : s.shareFrom || "/studio"}
+          className="back-link"
+          style={{ margin: "0 0 0 6px" }}
+        >
           ← 뒤로
         </Link>
       </div>
@@ -272,5 +284,13 @@ export default function SharePage() {
         )}
       </div>
     </section>
+  );
+}
+
+export default function SharePage() {
+  return (
+    <Suspense fallback={<div className="page">공유 정보를 확인하는 중입니다.</div>}>
+      <ShareContent />
+    </Suspense>
   );
 }
