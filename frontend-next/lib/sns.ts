@@ -56,7 +56,7 @@ export async function exportSnsPost(
       },
       body: JSON.stringify({
         platform,
-        image_url: toAbsoluteUrl(item.img),
+        image_url: toFullUrl(item.img),
         product_name: item.productName || item.hl || "광고 상품",
         headline: item.copyHead || item.hl || null,
         description: item.copyBody || null,
@@ -299,4 +299,12 @@ function downloadShareImage(file: File): void {
   link.remove();
 
   URL.revokeObjectURL(objectUrl);
+}
+
+// 헬퍼 추가
+function toFullUrl(url: string): string {
+  if (/^https?:\/\//i.test(url)) return url;
+  const path = toAbsoluteUrl(url) || url;   // API base 경로 보정
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${window.location.origin}${path.startsWith("/") ? "" : "/"}${path}`;
 }
