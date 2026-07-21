@@ -37,7 +37,40 @@ export default function SharePage() {
       
     if (!item.historyId || verifiedHistoryId === item.historyId) return;
 
+<<<<<<< Updated upstream
     const historyId = item.historyId;
+=======
+      async function loadSharedAd() {
+        try {
+          const response = await apiFetch(`/api/history/${historyId}`);
+          const data = await readJsonSafely(response);
+          if (!response.ok) {
+            throw new Error(readApiError(data, "공유할 광고를 불러올 수 없습니다"));
+          }
+          if (!cancelled) {
+            s.openDetail(historyToCard(data as Parameters<typeof historyToCard>[0]));
+            setVerifiedHistoryId(historyId);
+          }
+        } catch (error) {
+          if (!cancelled) {
+            s.toast(error instanceof Error ? error.message : "공유할 광고를 불러올 수 없습니다");
+            router.replace("/my-ads");
+          }
+        } finally {
+          if (!cancelled) setVerifying(false);
+        }
+      }
+
+      void loadSharedAd();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (!item) return;
+    const itemHistoryId = item.historyId;
+    if (!itemHistoryId || verifiedHistoryId === itemHistoryId) return;
+>>>>>>> Stashed changes
 
     let cancelled = false;
     setVerifying(true);
