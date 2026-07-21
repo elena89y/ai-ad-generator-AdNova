@@ -141,7 +141,7 @@ export default function ChatWidget() {
                             href={`/support#${s}`}
                             className="rounded-full border border-accent/40 bg-accent/10 px-2.5 py-0.5 text-[11px] text-accent-deep transition-colors hover:bg-accent/20"
                           >
-                            근거 FAQ 보기 →
+                            FAQ에서 확인하기 →
                           </a>
                         ))}
                       </div>
