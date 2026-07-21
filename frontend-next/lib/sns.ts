@@ -301,6 +301,30 @@ function downloadShareImage(file: File): void {
   URL.revokeObjectURL(objectUrl);
 }
 
+export async function downloadImageUrl(
+  imageUrl: string,
+  toast: (msg: string) => void
+): Promise<void> {
+  try {
+    const res = await apiFetch(imageUrl);
+    if (!res.ok) {
+      throw new Error("광고 이미지를 다운로드하지 못했습니다");
+    }
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = "adnova-ad.png";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+    toast("이미지를 다운로드했어요");
+  } catch (err) {
+    toast(err instanceof Error ? err.message : "광고 이미지를 다운로드하지 못했습니다");
+  }
+}
+
 // 헬퍼 추가
 function toFullUrl(url: string): string {
   if (/^https?:\/\//i.test(url)) return url;
