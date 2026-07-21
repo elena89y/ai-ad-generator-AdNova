@@ -108,6 +108,48 @@ class ChatbotAdminTestCase(unittest.TestCase):
             promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, current_admin=self.admin_account)
         self.assertEqual(ctx.exception.status_code, 409)
 
+    def test_promote_after_approved_409(self):
+        """승인된 후보가 있는 문의를 다시 승격하면 중복 방지 (리뷰 지적 3b)."""
+        inq = self._add_inquiry()
+        cand = promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, current_admin=self.admin_account)
+        update_faq_candidate(
+            candidate_id=cand.id,
+            request=FaqCandidateStatusUpdateRequest(status="approved"),
+            db=self.session, current_admin=self.admin_account,
+        )
+        with self.assertRaises(HTTPException) as ctx:
+            promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, current_admin=self.admin_account)
+        self.assertEqual(ctx.exception.status_code, 409)
+
+    def test_promote_after_dismissed_allowed(self):
+        """기각된 후보만 있으면 재승격 허용 (재검토 여지)."""
+        inq = self._add_inquiry()
+        cand = promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, current_admin=self.admin_account)
+        update_faq_candidate(
+            candidate_id=cand.id,
+            request=FaqCandidateStatusUpdateRequest(status="dismissed"),
+            db=self.session, current_admin=self.admin_account,
+        )
+        again = promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, current_admin=self.admin_account)
+        self.assertEqual(again.status, "pending")
+
+    def test_update_already_reviewed_candidate_409(self):
+        """승인/기각된 후보의 상태 뒤집기 차단 (리뷰 지적 3a)."""
+        inq = self._add_inquiry()
+        cand = promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, current_admin=self.admin_account)
+        update_faq_candidate(
+            candidate_id=cand.id,
+            request=FaqCandidateStatusUpdateRequest(status="approved"),
+            db=self.session, current_admin=self.admin_account,
+        )
+        with self.assertRaises(HTTPException) as ctx:
+            update_faq_candidate(
+                candidate_id=cand.id,
+                request=FaqCandidateStatusUpdateRequest(status="dismissed"),
+                db=self.session, current_admin=self.admin_account,
+            )
+        self.assertEqual(ctx.exception.status_code, 409)
+
     def test_promote_rolls_back_when_audit_log_fails(self):
         inq = self._add_inquiry()
         with patch("app.api.admin.create_admin_audit_log", side_effect=RuntimeError("boom")):

@@ -32,7 +32,7 @@ from app.crud.chatbot_stats import get_chatbot_stats
 from app.crud.faq_candidate import (
     create_faq_candidate,
     get_faq_candidate_by_id,
-    has_open_candidate_for_inquiry,
+    has_active_candidate_for_inquiry,
     list_faq_candidates_for_admin,
     update_faq_candidate_status,
 )
@@ -1080,10 +1080,10 @@ def promote_inquiry_to_faq(
             status_code=status.HTTP_409_CONFLICT,
             detail="답변이 완료된 문의만 FAQ 후보로 등록할 수 있습니다.",
         )
-    if has_open_candidate_for_inquiry(db, inquiry.id):
+    if has_active_candidate_for_inquiry(db, inquiry.id):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="이미 이 문의로 대기 중인 FAQ 후보가 있습니다.",
+            detail="이미 이 문의로 등록되었거나 승인된 FAQ 후보가 있습니다.",
         )
     try:
         candidate = create_faq_candidate(
@@ -1137,6 +1137,12 @@ def update_faq_candidate(
     candidate = get_faq_candidate_by_id(db, candidate_id)
     if candidate is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="FAQ 후보를 찾을 수 없습니다.")
+    if candidate.status != "pending":
+        # 이미 검토된 후보의 상태 뒤집기 차단 (승인분 KB 반영과의 상태 불일치·중복삽입 방지)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="이미 검토된 FAQ 후보입니다.",
+        )
     try:
         candidate = update_faq_candidate_status(
             db,

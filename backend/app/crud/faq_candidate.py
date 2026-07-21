@@ -75,13 +75,16 @@ def update_faq_candidate_status(
     return candidate
 
 
-def has_open_candidate_for_inquiry(db: Session, inquiry_id: int) -> bool:
-    """같은 문의로 이미 대기(pending) 후보가 있으면 중복 승격 방지."""
+def has_active_candidate_for_inquiry(db: Session, inquiry_id: int) -> bool:
+    """같은 문의로 이미 대기(pending)·승인(approved) 후보가 있으면 중복 승격 방지.
+
+    기각(dismissed) 후보는 "이번엔 아니다"라는 판단이므로 재승격을 허용한다.
+    """
     return (
         db.query(FaqCandidate.id)
         .filter(
             FaqCandidate.source_inquiry_id == inquiry_id,
-            FaqCandidate.status == "pending",
+            FaqCandidate.status.in_(["pending", "approved"]),
         )
         .first()
         is not None

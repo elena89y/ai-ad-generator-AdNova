@@ -88,7 +88,10 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)) -> ChatResponse:
             cited_faq_id=result.sources[0] if result.sources else None,
         )
     except Exception:  # noqa: BLE001 — 통계 로깅이 상담 응답을 막으면 안 됨
-        db.rollback()
+        try:
+            db.rollback()
+        except Exception:  # noqa: BLE001 — DB 다운 시 rollback 재실패해도 응답은 나가야 함
+            pass
         logger.warning("챗봇 이벤트 기록 실패 (무시하고 응답 반환)", exc_info=True)
     draft = None
     if result.escalate and result.inquiry_draft_title:
