@@ -75,19 +75,20 @@ function ShareContent() {
         cancelled = true;
       };
     }
-    if (!item.historyId || verifiedHistoryId === item.historyId) return;
+    const itemHistoryId = item.historyId;
+    if (!itemHistoryId || verifiedHistoryId === itemHistoryId) return;
 
     let cancelled = false;
     setVerifying(true);
 
     async function verifyOwnership() {
       try {
-        const response = await apiFetch(`/api/history/${item.historyId}`);
+        const response = await apiFetch(`/api/history/${itemHistoryId}`);
         const data = await readJsonSafely(response);
         if (!response.ok) {
           throw new Error(readApiError(data, "공유할 광고를 확인할 수 없습니다"));
         }
-        if (!cancelled) setVerifiedHistoryId(item.historyId!);
+        if (!cancelled) setVerifiedHistoryId(itemHistoryId);
       } catch (error) {
         if (!cancelled) {
           s.toast(error instanceof Error ? error.message : "공유할 광고를 확인할 수 없습니다");
