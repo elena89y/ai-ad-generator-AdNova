@@ -1,3 +1,5 @@
+import { CATALOG } from "./catalog";
+
 /* 프로토타입(frontend/html/index.html)의 backend api 유틸 포팅 */
 
 /* 로그인 API와 같은 기준을 사용한다.
@@ -316,6 +318,12 @@ interface HistoryEntry {
   } | null;
 }
 
+/* template_id(서버 형식 tpl_NN_id) → 카탈로그 표시명 역매핑.
+   템플릿으로 생성한 광고는 히스토리 뱃지를 프리셋명이 아닌 템플릿 이름 그대로 표시한다. */
+const TEMPLATE_NAME_BY_ID: Record<string, string> = Object.fromEntries(
+  CATALOG.map((t) => [`tpl_${String(t.no).padStart(2, "0")}_${t.id}`, t.name]),
+);
+
 export function historyToCard(history: HistoryEntry): AdItem {
   const ad = history.advertisement || {};
   const outputImage = ad.output_image || {};
@@ -332,7 +340,11 @@ export function historyToCard(history: HistoryEntry): AdItem {
     /* malformed json in history row */
   }
   const copy = splitCopyText(ad.generated_text || (responseData.copy_text as string) || "");
-  const style = toStyleLabel(ad.style);
+  // 템플릿으로 생성한 광고(request_data.template_id 존재)는 프리셋 뱃지 대신 템플릿 이름을
+  // 표시한다. rawStyle 은 프리셋 필터용으로 원본 style 을 유지한다.
+  const templateId = typeof requestData.template_id === "string" ? requestData.template_id : "";
+  const templateName = templateId ? TEMPLATE_NAME_BY_ID[templateId] || "" : "";
+  const style = templateName || toStyleLabel(ad.style);
   return {
     historyId: history.id,
     advertisementId: ad.id,
