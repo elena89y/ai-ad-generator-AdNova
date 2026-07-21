@@ -8,7 +8,7 @@ import { FAQ_CATEGORIES, FAQ_ITEMS } from "@/lib/faq-data";
 
 /* FAQ 는 챗봇 지식 베이스(backend faq_ko.yaml → lib/faq-data.ts)와 단일 원본.
    기존 하드코딩 4문항은 KB 로 흡수됨(다운로드/충전은 정책 확정 전이라 비단정 문구).
-   confirming=true 항목은 '정책 확정 중' 배지 표시.
+   confirming=true 항목은 '추후 보완 필요' 배지 표시 (정책 확정 전 초안).
    챗봇(노바냥)의 근거 칩이 /support#faq-id 로 딥링크 — 해시로 자동 펼침. */
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -279,7 +279,7 @@ export default function SupportPage() {
                     color: "var(--gold)",
                   }}
                 >
-                  ⓘ 정책 확정 중
+                  ⓘ 추후 보완 필요 · 정책 확정 전 안내
                 </span>
               )}
             </p>
