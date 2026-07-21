@@ -36,6 +36,11 @@ ROLE_PROMPTS_BY_DOMAIN: dict[str, dict[str, str]] = {
 # 하위 호환: 기존 호출부(및 CLI 기본값)는 drink를 기본으로 쓴다.
 ROLE_PROMPTS = ROLE_PROMPTS_BY_DOMAIN["drink"]
 
+# FMT-BG 클린업(2026-07-22): 배경절 추가로 프롬프트가 CLIP 77토큰 초과 → 말미 가드가 잘렸다
+#   (함정 #2 재발, 실측 89/82토큰). 반복 가드("no added props, no hands, no text, no logo,
+#   no watermark")를 짧은 공용 상수로 압축해 전 프롬프트를 77 아래로. 핵심 3가드만 유지.
+_GUARD = "No hands, text or logos."
+
 # TOPVIEW-001(2026-07-20): 원본 사진이 이미 위에서 내려다본 각도로 찍힌 경우(예: 책상 위
 #   마우스), "정확히 90도"만 요구하면 원본과 거의 같은 결과가 나와 상세페이지 구조-유사도
 #   게이트(hero, top_view)에 걸려 5장 생성 후 실패한다(사물 도메인에서 실측). 90도 고정 대신
@@ -55,17 +60,16 @@ def top_view_prompt(domain: str, angle: int = 90) -> str:
     preserve = _TOP_VIEW_PRESERVE.get(domain, _TOP_VIEW_PRESERVE["food"])
     if angle >= 85:
         angle_clause = (
-            "Rotate the camera to an exact 90-degree bird's-eye view directly above the product. "
-            "The lens axis must be perpendicular to the tabletop."
+            "Exact 90-degree bird's-eye view directly above the product, lens perpendicular to the surface."
         )
     else:
         angle_clause = (
-            f"Rotate the camera to a steep downward angle, tilted about {angle} degrees from directly "
-            "overhead, clearly different from a straight-on side view."
+            f"Steep downward angle about {angle} degrees from overhead, clearly different from a side view."
         )
-    return (
-        f"{angle_clause} {preserve} Clean tabletop, no added props, no hands, no text, no logo, no watermark."
-    )
+    # FMT-BG(2026-07-22): 섹션별 배경 변주 — 육안 정본이 "4컷 배경 동일"을 포착(corr이 못 잡는 축).
+    #   top_view는 위에서 본 '매트 표면', side_profile(그라디언트)·texture(무배경)·lifestyle(실장면)과
+    #   구분. 소품 추가 금지(함정 #7). 가드는 _GUARD 로 압축(CLIP 77토큰, 함정 #2).
+    return f"{angle_clause} {preserve} On a smooth matte surface with soft shadow. {_GUARD}"
 
 
 # LIFESTYLE-001(2026-07-20): top_view와 같은 문제가 lifestyle에서도 재현됨(사물 도메인 실측,
@@ -95,12 +99,11 @@ def lifestyle_prompt(domain: str, angle: int = 0) -> str:
         )
     else:
         angle_clause = (
-            f"Edit into a restrained {scene}, camera tilted about {angle} degrees downward from eye level "
-            "with more surrounding tabletop visible, with the exact same product as the only hero."
+            f"Edit into a restrained {scene}, camera about {angle} degrees downward, more tabletop "
+            "visible, the same product as the only hero."
         )
     return (
-        f"{angle_clause} {preserve} Soft natural window light, empty copy space, no people, no hands, "
-        "no packages, no text, no logo, no watermark."
+        f"{angle_clause} {preserve} Soft natural light, empty copy space. No people, hands, text or logos."
     )
 
 
@@ -122,12 +125,15 @@ _TEXTURE_PRESERVE = {
     "food": "Preserve exact ingredients, color and material.",
     "object": "Preserve exact shape, color, label and material.",
 }
+# FMT-BG(2026-07-22): texture는 '프레임을 꽉 채운 무배경 매크로'로 강제 — 배경이 아예 없어
+#   다른 섹션(표면/그라디언트/실장면)과 최대로 구분되고, 원본 배경이 딸려오는 문제도 차단.
 _TEXTURE_CLOSEUP_FRAMINGS: tuple[str, ...] = (
-    "a tight macro detail crop of the product's real surface texture",
-    "an extremely tight macro crop filling the frame, offset to a different part of the product than a "
-    "straight front view",
-    "a medium macro close-up from a slightly different angle than a straight front view, with more "
-    "surrounding surface visible",
+    "a tight macro detail crop of the product's real surface texture that fills the entire frame "
+    "with no visible background",
+    "an extremely tight macro crop filling the whole frame with no visible background, offset to a "
+    "different part of the product than a straight front view",
+    "a medium macro close-up filling the frame with no visible background, from a slightly different "
+    "angle than a straight front view, with more surrounding surface visible",
 )
 
 
@@ -151,13 +157,12 @@ def side_profile_prompt(domain: str, angle: int = 90) -> str:
     """도메인 + 수직축 회전각(90=정측면)으로 side_profile 프롬프트를 만든다."""
     preserve = _SIDE_PROFILE_PRESERVE.get(domain, _SIDE_PROFILE_PRESERVE["food"])
     angle_clause = (
-        f"Rotate the camera {angle} degrees around the product's vertical axis relative to the original "
-        "framing, still at eye level, clearly different from the original angle."
+        f"Rotate {angle} degrees around the product's vertical axis, at eye level, clearly different "
+        "from the original."
     )
-    return (
-        f"{angle_clause} {preserve} Clean neutral background, no added props, no hands, no text, no logo, "
-        "no watermark."
-    )
+    # FMT-BG(2026-07-22): 평면 대신 부드러운 스튜디오 그라디언트 배경 — top_view(표면)·texture(무배경)·
+    #   lifestyle(실장면)과 배경축 구분. 소품 없이 배경 톤만 변주(환각 방지). 가드 _GUARD 압축(함정 #2).
+    return f"{angle_clause} {preserve} Against a soft studio gradient backdrop. {_GUARD}"
 
 
 def role_prompts_for(domain: str) -> dict[str, str]:
