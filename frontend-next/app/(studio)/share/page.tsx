@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { getItemPlatformCopy } from "@/lib/api";
+import { apiFetch, getItemPlatformCopy, readApiError, readJsonSafely } from "@/lib/api";
 import { PLATFORM_NAMES, exportSnsPost } from "@/lib/sns";
 import { useStudio } from "@/components/studio/StudioProvider";
 import { Brand } from "@/components/studio/chrome";
@@ -20,13 +20,52 @@ export default function SharePage() {
   const s = useStudio();
   const router = useRouter();
   const [platform, setPlatform] = useState(s.sharePlatform || "instagram");
+  const [verifiedHistoryId, setVerifiedHistoryId] = useState<number | null>(null);
+  const [verifying, setVerifying] = useState(false);
   const item = s.activeItem;
 
   useEffect(() => {
-    if (s.ready && !item) router.replace("/studio");
-  }, [s.ready, item, router]);
+    if (!s.ready) return;
+    if (!s.token) {
+      router.replace("/login");
+      return;
+    }
+    if (!item) {
+      router.replace("/studio");
+      return;
+    }
+    if (!item.historyId || verifiedHistoryId === item.historyId) return;
 
-  if (!item) return null;
+    let cancelled = false;
+    setVerifying(true);
+
+    async function verifyOwnership() {
+      try {
+        const response = await apiFetch(`/api/history/${item.historyId}`);
+        const data = await readJsonSafely(response);
+        if (!response.ok) {
+          throw new Error(readApiError(data, "공유할 광고를 확인할 수 없습니다"));
+        }
+        if (!cancelled) setVerifiedHistoryId(item.historyId!);
+      } catch (error) {
+        if (!cancelled) {
+          s.toast(error instanceof Error ? error.message : "공유할 광고를 확인할 수 없습니다");
+          router.replace("/my-ads");
+        }
+      } finally {
+        if (!cancelled) setVerifying(false);
+      }
+    }
+
+    void verifyOwnership();
+    return () => {
+      cancelled = true;
+    };
+  }, [item?.historyId, router, s.ready, s.token, s.toast, verifiedHistoryId]);
+
+  if (!s.ready || !s.token || !item || verifying || (item.historyId && verifiedHistoryId !== item.historyId)) {
+    return <div className="page">공유 정보를 확인하는 중입니다.</div>;
+  }
   const copy = getItemPlatformCopy(item, platform);
 
   async function shareNow() {
