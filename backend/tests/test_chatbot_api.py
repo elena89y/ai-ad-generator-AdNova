@@ -9,15 +9,36 @@ from unittest.mock import patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.api.chatbot import router
+from app.database.connection import Base, get_db
 from app.services.chatbot import chat_graph, chat_service
 
 
 def _make_client() -> TestClient:
     app = FastAPI()
     app.include_router(router)
-    return TestClient(app)
+    # /support/chat 이 이벤트 로깅용 db 를 쓰므로 인메모리 DB 로 오버라이드 (StaticPool=단일 커넥션 공유)
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    Base.metadata.create_all(bind=engine)
+    testing_session = sessionmaker(bind=engine)
+
+    def _override_get_db():
+        db = testing_session()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_db] = _override_get_db
+    client = TestClient(app)
+    client._engine = engine  # 참조 유지 (GC 방지)
+    return client
 
 
 class FaqEndpointTestCase(unittest.TestCase):

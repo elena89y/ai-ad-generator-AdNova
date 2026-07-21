@@ -11,13 +11,18 @@
 """
 from __future__ import annotations
 
+import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
+from app.crud.chatbot_stats import record_chatbot_event
+from app.database.connection import get_db
 from app.services.chatbot import chat_service, knowledge
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/support", tags=["support"])
 
 
@@ -71,8 +76,20 @@ def read_faqs(category: Optional[str] = Query(None, description="카테고리 �
 
 
 @router.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest) -> ChatResponse:
+def chat(request: ChatRequest, db: Session = Depends(get_db)) -> ChatResponse:
     result = chat_service.get_service().chat(request.question)
+    # 비식별 집계 이벤트 기록 (관리자 통계용). best-effort — 실패해도 답변은 정상 반환.
+    try:
+        record_chatbot_event(
+            db,
+            matched_category=result.matched_category,
+            escalated=result.escalate,
+            rewritten=result.rewritten,
+            cited_faq_id=result.sources[0] if result.sources else None,
+        )
+    except Exception:  # noqa: BLE001 — 통계 로깅이 상담 응답을 막으면 안 됨
+        db.rollback()
+        logger.warning("챗봇 이벤트 기록 실패 (무시하고 응답 반환)", exc_info=True)
     draft = None
     if result.escalate and result.inquiry_draft_title:
         draft = InquiryDraft(
