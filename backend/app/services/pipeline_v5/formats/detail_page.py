@@ -206,9 +206,14 @@ def _section_label(canvas, pal, y, number, title, light):
     draw = ImageDraw.Draw(canvas, "RGBA")
     fill = (*_PAPER, 232) if light else (*_INK, 205)
     text = (24, 24, 24) if light else (255, 255, 255)
-    draw.rectangle((44, y + 42, 520, y + 145), fill=fill)
+    # 라이브 실측(2026-07-21): '잔' 같은 짧은 라벨이 고정 폭 바에 떠 보임 → 텍스트 폭 맞춤.
+    label = _fit_line(title, 520 - 128 - 24, 27)
+    font = _font(27, True)
+    label_w = draw.textbbox((0, 0), label, font=font)[2]
+    right = max(320, min(520, 128 + label_w + 36))
+    draw.rectangle((44, y + 42, right, y + 145), fill=fill)
     draw.text((68, y + 67), number, font=_font(20, True), fill=pal["accent"])
-    draw.text((128, y + 63), _fit_line(title, 520 - 128 - 24, 27), font=_font(27, True), fill=text)
+    draw.text((128, y + 63), label, font=font, fill=text)
 
 
 def _split_section(canvas, path, copy: DetailPageCopy, pal, y, height, width, margin):
