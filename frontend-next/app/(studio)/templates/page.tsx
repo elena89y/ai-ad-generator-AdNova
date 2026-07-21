@@ -47,10 +47,9 @@ export default function TemplatesPage() {
   );
 
   const startWith = (t: CatalogTemplate) => {
-    const target = t.ledger_id
-      ? `/studio?template=${encodeURIComponent(t.ledger_id)}&tname=${encodeURIComponent(t.name)}`
-      : `/studio?style=${encodeURIComponent(t.style_label)}&use=${encodeURIComponent(t.use)}&tname=${encodeURIComponent(t.name)}`;
-    router.push(target);
+    // TEMPLATE-PIPE-V2: 전용 페이지로 진입 → 서버측 연출 레시피(template_id)로 생성.
+    // studio(스타일 프리셋) 경로로 흘려보내던 기존 배선 폐기.
+    router.push(`/templates/${encodeURIComponent(t.id)}`);
   };
 
   return (
