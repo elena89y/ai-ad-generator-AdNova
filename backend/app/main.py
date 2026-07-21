@@ -25,6 +25,11 @@ from app.database.connection import Base, engine
 init_langfuse()
 
 Base.metadata.create_all(bind=engine)
+# 리텐션 마이그레이션 자동 적용: create_all 이 못 하는 기존 테이블 컬럼 추가(anonymized_at)를
+# 기동 시 멱등하게 반영 → 배포 시 수동 마이그레이션 불필요 (한의정, 07-21).
+from app.scripts.migrate_retention import ensure_retention_columns  # noqa: E402
+
+ensure_retention_columns(engine)
 upload_dir = Path(settings.UPLOAD_DIR)
 upload_dir.mkdir(parents=True, exist_ok=True)
 
