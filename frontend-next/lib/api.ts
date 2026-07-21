@@ -106,6 +106,10 @@ export interface AdItem {
   createdAt?: string;
   inputImg: string;
   img: string;
+  /* [v6-1] 용도별 산출물(상세페이지/카드뉴스/배너 여러 장)과 그 purpose.
+     img 는 대표 히어로 1장(SNS 공유용) 유지 — 실제 포맷 결과는 여기로 렌더. */
+  formatOutputs?: string[];
+  purpose?: string;
   // [html-parity] 상세 화면 타이포 토글용 페어 — html buildCurrentOutputItem 이식 (Next 이관 시 누락)
   imageWithoutTypography?: string;
   imageWithTypography?: string;
@@ -318,6 +322,14 @@ interface HistoryEntry {
   } | null;
 }
 
+/* [v6-1] 용도(purpose) → 한글 라벨. studio 포맷 갤러리와 동일 어휘로 my-ads/detail 공용. */
+export const FORMAT_LABELS: Record<string, string> = {
+  sns: "이미지",
+  card_news: "카드뉴스",
+  banner: "배너 규격",
+  detail_page: "상세페이지",
+};
+
 /* template_id(서버 형식 tpl_NN_id) → 카탈로그 표시명 역매핑.
    템플릿으로 생성한 광고는 히스토리 뱃지를 프리셋명이 아닌 템플릿 이름 그대로 표시한다. */
 const TEMPLATE_NAME_BY_ID: Record<string, string> = Object.fromEntries(
@@ -360,6 +372,10 @@ export function historyToCard(history: HistoryEntry): AdItem {
     createdAt: history.created_at,
     inputImg: "",
     img: toAbsoluteUrl(outputImage.image_url || (responseData.image_url as string)),
+    formatOutputs: Array.isArray(responseData.format_outputs)
+      ? (responseData.format_outputs as string[]).map((u) => toAbsoluteUrl(u))
+      : [],
+    purpose: (responseData.purpose as string) || undefined,
     // [html-parity] history response_data 의 타이포 페어 매핑 (html 이식, Next 이관 시 누락)
     imageWithoutTypography: toAbsoluteUrl(responseData.image_without_typography_url as string),
     imageWithTypography: toAbsoluteUrl(responseData.image_with_typography_url as string),

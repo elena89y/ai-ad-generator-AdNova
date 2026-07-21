@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import {
+  FORMAT_LABELS,
   apiFetch,
   formatAdType,
   getItemPlatformCopy,
+  getToken,
   historyToCard,
   readApiError,
   readJsonSafely,
@@ -95,6 +97,32 @@ function DetailContent() {
       : item;
     s.openShare(shareItem, historyId ? `/detail?historyId=${historyId}` : "/detail", platform);
     router.push("/share");
+  }
+
+  // [v6-1] 포맷 갤러리 장별 다운로드 — studio downloadImage 이식(인증 헤더 + 프리미엄 게이트).
+  async function downloadFormat(url: string, filename: string) {
+    if (!s.isPremium) {
+      router.push("/billing");
+      return;
+    }
+    try {
+      const res = await fetch(url, {
+        headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
+      });
+      if (!res.ok) throw new Error("이미지를 불러오지 못했습니다");
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+      s.toast("고해상도 원본을 다운로드했어요");
+    } catch (err) {
+      s.toast(err instanceof Error ? err.message : "광고 이미지를 다운로드하지 못했습니다");
+    }
   }
 
   async function deleteAd() {
@@ -338,6 +366,85 @@ function DetailContent() {
             )}
           </div>
         </div>
+
+        {/* [v6-1] 포맷 갤러리 — 상세페이지/카드뉴스/배너의 실제 산출물(format_outputs)을
+            내 광고에서도 다시 볼 수 있게. studio 결과 갤러리와 동일 구성(보기+장별 다운로드).
+            기존엔 대표 히어로 1장만 렌더돼 정작 만든 상세페이지가 안 보이던 갭 해소. */}
+        {(item.formatOutputs?.length ?? 0) > 0 && (
+          <div style={{ marginTop: 24 }}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: ".06em",
+                textTransform: "uppercase",
+                color: "var(--ink-mute)",
+                marginBottom: 12,
+              }}
+            >
+              {FORMAT_LABELS[item.purpose ?? ""] || "결과"}
+              {(item.formatOutputs?.length ?? 0) > 1
+                ? ` · ${item.formatOutputs!.length}장`
+                : ""}
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+                gap: 12,
+              }}
+            >
+              {item.formatOutputs!.map((url, index) => {
+                const label = FORMAT_LABELS[item.purpose ?? ""] || "결과";
+                const alt =
+                  item.formatOutputs!.length > 1 ? `${label} ${index + 1}` : label;
+                return (
+                  <div
+                    key={`${url}-${index}`}
+                    style={{
+                      position: "relative",
+                      overflow: "hidden",
+                      border: "1px solid var(--line)",
+                      borderRadius: 12,
+                      background: "#0d0d10",
+                      minHeight: 180,
+                    }}
+                  >
+                    <AuthenticatedImage
+                      src={url}
+                      alt={alt}
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        height: "100%",
+                        minHeight: 180,
+                        objectFit: "contain",
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="oa download"
+                      style={{
+                        position: "absolute",
+                        right: 10,
+                        bottom: 10,
+                        background: "rgba(22,21,26,.88)",
+                      }}
+                      onClick={() =>
+                        downloadFormat(
+                          url,
+                          `adnova-${item.purpose || "format"}-${index + 1}.jpg`,
+                        )
+                      }
+                    >
+                      다운로드
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );
