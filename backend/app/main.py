@@ -39,6 +39,12 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# 리텐션 파기 배치를 인앱 스케줄러로 자동 실행 → 외부 cron 등록 불필요 (한의정, 07-21).
+# RETENTION_PURGE_ENABLED=0 이면 비활성(외부 cron 선택 시).
+from app.services.retention_scheduler import start_purge_scheduler  # noqa: E402
+
+start_purge_scheduler(app)
+
 app.add_middleware(
     SessionMiddleware,
     secret_key=os.getenv("SESSION_SECRET_KEY", "change-this-session-secret"),

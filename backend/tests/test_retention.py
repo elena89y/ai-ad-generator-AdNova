@@ -3,9 +3,12 @@
 전자상거래법 3년(문의)·5년(결제) 센티넬 가명처리-보존 + 파기 배치 검증.
 리뷰 지적 반영: ① 활성 회원 기록은 파기 금지(anonymized 가드) ② FK 안전성.
 """
+import os
 import unittest
 from datetime import timedelta
+from unittest.mock import patch
 
+from fastapi import FastAPI
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -172,6 +175,40 @@ class RetentionTestCase(unittest.TestCase):
         inquiry, user = rows[0]
         self.assertEqual(user.username, WITHDRAWN_USERNAME)  # "(탈퇴회원)"으로 표시
         self.assertEqual(inquiry.title, "dispute")
+
+
+class RetentionSchedulerTestCase(unittest.TestCase):
+    """파기 인앱 스케줄러 — 외부 cron 없이 자동 실행 (연정님 수동 단계 제거)."""
+
+    def test_run_purge_once_delegates_to_crud(self):
+        from app.services import retention_scheduler
+
+        with patch.object(retention_scheduler, "SessionLocal") as session_local, patch.object(
+            retention_scheduler, "purge_expired_records",
+            return_value={"inquiries": 2, "refunds": 0, "purchases": 1},
+        ) as purge:
+            result = retention_scheduler.run_purge_once()
+
+        purge.assert_called_once()
+        session_local.return_value.close.assert_called_once()  # 세션 반드시 닫힘
+        self.assertEqual(result["inquiries"], 2)
+
+    def test_scheduler_disabled_via_env(self):
+        from app.services import retention_scheduler
+
+        app = FastAPI()
+        with patch.dict(os.environ, {"RETENTION_PURGE_ENABLED": "0"}):
+            retention_scheduler.start_purge_scheduler(app)
+        # 비활성 시 startup 핸들러 미등록 → 스케줄러 루프 안 뜸
+        self.assertEqual(len(app.router.on_startup), 0)
+
+    def test_scheduler_enabled_registers_startup(self):
+        from app.services import retention_scheduler
+
+        app = FastAPI()
+        with patch.dict(os.environ, {"RETENTION_PURGE_ENABLED": "1"}):
+            retention_scheduler.start_purge_scheduler(app)
+        self.assertEqual(len(app.router.on_startup), 1)
 
 
 if __name__ == "__main__":
