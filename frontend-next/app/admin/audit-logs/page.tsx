@@ -132,7 +132,7 @@ export default function AdminAuditLogsPage() {
         </div>
 
         <div className="mt-7 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(14rem,0.8fr)_12rem]">
-          <section className="border border-white/10 bg-[#102039]/90 p-5">
+          <section className="rounded-2xl border border-white/10 bg-[#102039]/90 p-5">
             <div className="flex items-start justify-between gap-4">
               <p className="text-sm font-semibold text-white/60">검색 결과</p>
               <ShieldCheck size={19} className="text-[#a78bfa]" />
@@ -140,7 +140,7 @@ export default function AdminAuditLogsPage() {
             <strong className="mt-6 block text-3xl font-extrabold tabular-nums">{filteredLogs.length.toLocaleString("ko-KR")}건</strong>
             <p className="mt-2 text-xs text-white/40">불러온 {logs.length.toLocaleString("ko-KR")}건 / 전체 {total.toLocaleString("ko-KR")}건</p>
           </section>
-          <label className="relative border border-white/10 bg-[#102039]/90 p-4">
+          <label className="relative rounded-2xl border border-white/10 bg-[#102039]/90 p-4">
             <span className="mb-2 block text-xs font-bold text-white/50">텍스트 검색</span>
             <Search size={16} className="pointer-events-none absolute bottom-[1.45rem] left-7 text-white/35" />
             <input
@@ -151,7 +151,7 @@ export default function AdminAuditLogsPage() {
               className="h-10 w-full border border-white/15 bg-[#0b1729] pl-9 pr-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#a78bfa]"
             />
           </label>
-          <label className="border border-white/10 bg-[#102039]/90 p-4">
+          <label className="rounded-2xl border border-white/10 bg-[#102039]/90 p-4">
             <span className="mb-2 block text-xs font-bold text-white/50">작업 종류</span>
             <select
               value={action}
@@ -175,7 +175,7 @@ export default function AdminAuditLogsPage() {
           </p>
         )}
 
-        <div className="mt-7 overflow-hidden border border-white/10 bg-[#102039]/90">
+        <div className="mt-7 overflow-hidden rounded-2xl border border-white/10 bg-[#102039]/90">
           <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
             <div className="flex items-center gap-2">
               <ScrollText size={18} className="text-[#a78bfa]" />

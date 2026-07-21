@@ -44,9 +44,18 @@
   --color-accent-deep: var(--accent-deep);
   --color-berry: var(--berry);
   --color-ok: var(--ok);
-  --font-sans: var(--font-pretendard), -apple-system, sans-serif;
-  --font-display: var(--font-space-grotesk), var(--font-pretendard), sans-serif;
-  --font-serif: var(--font-instrument-serif), var(--font-pretendard), serif;
+  --font-sans:
+    var(--font-pretendard),
+    -apple-system,
+    sans-serif;
+  --font-display:
+    var(--font-space-grotesk),
+    var(--font-pretendard),
+    sans-serif;
+  --font-serif:
+    var(--font-instrument-serif),
+    var(--font-pretendard),
+    serif;
 }
 
 * {
@@ -139,6 +148,41 @@ body {
 .auth-input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 4px var(--auth-glow);
+}
+
+/* 관리자 페이지 공통 디자인 */
+.admin-shell
+  :where(
+    input:not([type="checkbox"]):not([type="radio"]),
+    select,
+    textarea,
+    button
+  ) {
+  border-radius: 0.75rem;
+}
+
+.admin-shell
+  :where(
+    [role="alert"],
+    [role="status"]
+  ) {
+  border-radius: 0.75rem;
+}
+
+.admin-shell input,
+.admin-shell select,
+.admin-shell textarea {
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.admin-shell input:focus,
+.admin-shell select:focus,
+.admin-shell textarea:focus {
+  border-color: #a78bfa;
+  box-shadow: 0 0 0 3px rgb(167 139 250 / 12%);
 }
 
 ::selection {
