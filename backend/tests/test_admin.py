@@ -28,7 +28,7 @@ from app.api.admin import (
 )
 from app.core.admin_security import get_current_admin, get_current_super_admin
 from app.core.security import create_access_token, get_current_user
-from app.database.admin_models import AdminAccount, AdminAuditLog
+from app.database.admin_models import AdminAccount, AdminAuditLog, AdminLoginFailureLog
 from app.database.billing_models import (
     PremiumCreditBalance,
     PurchaseHistory,
@@ -222,17 +222,23 @@ class AdminApiTestCase(unittest.TestCase):
             2,
         )
 
-    def test_super_admin_can_register_existing_user_as_operator(self) -> None:
+    def test_super_admin_can_create_new_operator_account(self) -> None:
         response = create_admin_account_by_super_admin(
             request=AdminAccountCreateRequest(
-                user_id=self.user.id,
+                username="newadmin",
+                email="newadmin@example.com",
+                password="Password1!",
+                name="새 관리자",
                 role="operator",
             ),
             db=self.session,
             current_admin=self.admin_account,
         )
 
-        self.assertEqual(response.user_id, self.user.id)
+        user = self.session.query(User).filter(User.id == response.user_id).one()
+        self.assertEqual(user.username, "newadmin")
+        self.assertEqual(user.email, "newadmin@example.com")
+        self.assertNotEqual(user.password_hash, "Password1!")
         self.assertEqual(response.role, "operator")
         self.assertTrue(response.is_active)
         self.assertEqual(
@@ -242,31 +248,37 @@ class AdminApiTestCase(unittest.TestCase):
             1,
         )
 
-    def test_existing_admin_account_cannot_be_registered_again(self) -> None:
-        with self.assertRaises(HTTPException) as context:
-            create_admin_account_by_super_admin(
-                request=AdminAccountCreateRequest(
-                    user_id=self.admin_user.id,
-                    role="operator",
-                ),
-                db=self.session,
-                current_admin=self.admin_account,
+    def test_audit_logs_include_admin_login_failures(self) -> None:
+        self.session.add(
+            AdminLoginFailureLog(
+                attempted_username="missinguser",
+                reason="아이디 또는 비밀번호 불일치",
             )
-
-        self.assertEqual(context.exception.status_code, 409)
-        self.assertEqual(
-            context.exception.detail,
-            "이미 관리자 계정으로 등록된 회원입니다.",
         )
-
-    def test_inactive_user_cannot_be_registered_as_admin(self) -> None:
-        self.user.is_active = False
         self.session.commit()
 
+        response = read_admin_audit_logs(
+            skip=0,
+            limit=50,
+            action=None,
+            db=self.session,
+            current_admin=self.admin_account,
+        )
+
+        login_failure = next(
+            item for item in response.items if item.action == "admin.login_failed"
+        )
+        self.assertEqual(login_failure.source, "login_failure")
+        self.assertEqual(login_failure.admin_username, "missinguser")
+        self.assertIsNone(login_failure.target_id)
+
+    def test_duplicate_admin_username_is_rejected(self) -> None:
         with self.assertRaises(HTTPException) as context:
             create_admin_account_by_super_admin(
                 request=AdminAccountCreateRequest(
-                    user_id=self.user.id,
+                    username=self.admin_user.username,
+                    email="another-admin@example.com",
+                    password="Password1!",
                     role="operator",
                 ),
                 db=self.session,
@@ -276,7 +288,26 @@ class AdminApiTestCase(unittest.TestCase):
         self.assertEqual(context.exception.status_code, 409)
         self.assertEqual(
             context.exception.detail,
-            "비활성 회원은 관리자로 지정할 수 없습니다.",
+            "이미 사용 중인 아이디입니다.",
+        )
+
+    def test_duplicate_admin_email_is_rejected(self) -> None:
+        with self.assertRaises(HTTPException) as context:
+            create_admin_account_by_super_admin(
+                request=AdminAccountCreateRequest(
+                    username="anotheradmin",
+                    email=self.admin_user.email,
+                    password="Password1!",
+                    role="operator",
+                ),
+                db=self.session,
+                current_admin=self.admin_account,
+            )
+
+        self.assertEqual(context.exception.status_code, 409)
+        self.assertEqual(
+            context.exception.detail,
+            "이미 사용 중인 이메일입니다.",
         )
 
     def test_admin_registration_rolls_back_when_audit_log_fails(self) -> None:
@@ -287,7 +318,9 @@ class AdminApiTestCase(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 create_admin_account_by_super_admin(
                     request=AdminAccountCreateRequest(
-                        user_id=self.user.id,
+                        username="rolladmin",
+                        email="rollbackadmin@example.com",
+                        password="Password1!",
                         role="operator",
                     ),
                     db=self.session,
@@ -295,9 +328,7 @@ class AdminApiTestCase(unittest.TestCase):
                 )
 
         self.assertIsNone(
-            self.session.query(AdminAccount)
-            .filter(AdminAccount.user_id == self.user.id)
-            .first()
+            self.session.query(User).filter(User.username == "rolladmin").first()
         )
 
     def test_super_admin_cannot_modify_own_admin_account(self) -> None:
