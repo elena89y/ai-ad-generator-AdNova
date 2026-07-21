@@ -269,7 +269,7 @@ export default function StudioProvider({ children }: { children: React.ReactNode
           return;
         }
 
-        if (!cancelled && data) {
+        if (!cancelled && data && token) {
           storeAuth(token, data);
           setAuthVersion((v) => v + 1);
         }
