@@ -75,6 +75,8 @@ function ShareContent() {
         cancelled = true;
       };
     }
+
+    if (!item) return;
     const itemHistoryId = item.historyId;
     if (!itemHistoryId || verifiedHistoryId === itemHistoryId) return;
 
@@ -103,7 +105,8 @@ function ShareContent() {
     return () => {
       cancelled = true;
     };
-  }, [historyId, item?.historyId, router, s, verifiedHistoryId]);
+
+  }, [historyId, item, item?.historyId, router, s, verifiedHistoryId]);
 
   if (!s.ready || !s.token || !item || verifying || (item.historyId && verifiedHistoryId !== item.historyId)) {
     return <div className="page">공유 정보를 확인하는 중입니다.</div>;
