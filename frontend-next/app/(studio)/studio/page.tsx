@@ -101,6 +101,7 @@ export default function StudioPage() {
   const s = useStudio();
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadStep, setLoadStep] = useState(GEN_STEPS[0]);
   const [activePlatform, setActivePlatform] = useState("instagram");
@@ -187,7 +188,7 @@ export default function StudioPage() {
     fileRef.current?.click();
   }
 
-  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     // 백엔드 MAX_IMAGE_SIZE_MB(15MB)와 동기 — 서버가 장변 2048로 정규화 저장하므로 폰 원본 OK
     const MAX_IMAGE_SIZE = 15 * 1024 * 1024;
@@ -202,31 +203,16 @@ export default function StudioPage() {
       e.target.value = "";
       return;
     }
-    const formData = new FormData();
-    formData.append("file", file);
-    try {
-      s.toast("이미지를 업로드하는 중입니다");
-      const res = await apiFetch("/api/images/upload", { method: "POST", body: formData });
-      const data = (await readJsonSafely(res)) as {
-        image_id?: number;
-        image_url?: string;
-        filename?: string;
-      } | null;
-      if (!res.ok || !data)
-        throw new Error(readApiError(data, "이미지 업로드에 실패했습니다"));
-      s.setDashboardState({
-        selectedImageId: data.image_id ?? null,
-        selectedImageUrl: data.image_url ?? null,
-        selectedImagePreview: URL.createObjectURL(file),
-      });
-      setUploadInfo(`업로드 완료: ${data.filename || file.name}`);
-      s.toast("이미지가 업로드되었습니다");
-    } catch (err) {
-      s.setDashboardState({ selectedImageId: null, selectedImageUrl: null });
-      s.toast(err instanceof Error ? err.message : "이미지 업로드에 실패했습니다");
-    } finally {
-      e.target.value = "";
-    }
+    setSelectedImageFile(file);
+    s.setDashboardState({
+      selectedImageId: null,
+      selectedImageUrl: null,
+      selectedImagePreview: URL.createObjectURL(file),
+      currentResult: null,
+    });
+    setUploadInfo(`선택한 이미지: ${file.name}`);
+    s.toast("이미지를 선택했습니다");
+    e.target.value = "";
   }
 
   function startLoadingSteps() {
@@ -255,7 +241,7 @@ export default function StudioPage() {
       router.push("/login");
       return;
     }
-    if (!s.selectedImageId) {
+    if (!selectedImageFile) {
       s.toast("먼저 제품 사진을 업로드해 주세요");
       return;
     }
@@ -268,7 +254,7 @@ export default function StudioPage() {
     setLoading(true);
     startLoadingSteps();
     const formData = new FormData();
-    formData.append("image_id", String(s.selectedImageId));
+    formData.append("image", selectedImageFile);
     formData.append("product_name", productName);
     formData.append("product_description", s.promptText.trim());
     formData.append("style", STYLE_PRESET_MAP[s.styleLabel] || "pop");
@@ -367,7 +353,7 @@ export default function StudioPage() {
       // [html-parity] 상세·공유로 넘어가도 타이포 토글이 되도록 페어 유지 (html 이식)
       imageWithoutTypography: toAbsoluteUrl(s.currentResult.image_without_typography_url),
       imageWithTypography: toAbsoluteUrl(s.currentResult.image_with_typography_url),
-      inputImg: toAbsoluteUrl(s.selectedImageUrl),
+      inputImg: "",
       assetId: s.currentResult.asset_id,
       seed: s.currentResult.seed,
       adType: s.currentResult.poster ? "poster" : "image",

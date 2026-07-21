@@ -28,10 +28,21 @@ from .prompt_service import build_image_prompt
 # asset_id 형식: preprocess 가 uuid4().hex[:12] 로 생성 → 12자리 hex 만 허용.
 # 경로 탈출(../, /, \) 차단 (백엔드 리뷰 5번).
 _ASSET_ID_RE = re.compile(r"^[a-f0-9]{12}$")
+TEMP_REGENERATE_TTL_SECONDS = 60 * 60
 
 
 def is_valid_asset_id(asset_id: str) -> bool:
     return bool(_ASSET_ID_RE.match(asset_id or ""))
+
+
+def _purge_expired_regeneration_inputs() -> None:
+    cutoff = time.time() - TEMP_REGENERATE_TTL_SECONDS
+    for source in image_service.PROCESSED_DIR.glob("*_v2input.*"):
+        try:
+            if source.stat().st_mtime < cutoff:
+                source.unlink()
+        except OSError:
+            continue
 
 
 def _next_seed(prev_seed: Optional[int]) -> int:
@@ -275,6 +286,7 @@ def run_from_upload_v2(
     # session_id=asset_id 로 묶는다. /ads/regenerate 는 같은 asset_id 로 rerun_v2 를 호출하므로,
     # Langfuse Sessions 뷰에서 최초 생성 트레이스와 재생성 트레이스가 하나의 세션으로 이어져 보인다.
     asset_id = uuid.uuid4().hex[:12]
+    _purge_expired_regeneration_inputs()
     import os as _os
     _bon = max(1, int(_os.environ.get("BEST_OF_N", "1") or "1"))
     _steps = int(_os.environ["BEST_OF_STEPS"]) if _os.environ.get("BEST_OF_STEPS") else None
@@ -306,7 +318,7 @@ def run_from_upload_v2(
                     f"사진과 상품명('{product.name}')이 서로 달라 보여요.{seen} "
                     "상품이 잘 보이는 사진인지 확인해 주세요.")
 
-            # regen 용으로 입력 원본 보존(v2 는 누끼/mask 없음 → 원본 재투입 방식)
+            # 현재 생성 화면에서만 재생성할 수 있도록 원본을 임시 보관한다.
             with run.stage("input_prepare"):
                 saved = image_service.PROCESSED_DIR / f"{asset_id}_v2input{_P(image_path).suffix}"
                 saved.parent.mkdir(parents=True, exist_ok=True)
@@ -366,6 +378,7 @@ def rerun_v2(
 
     if not is_valid_asset_id(asset_id):
         raise ValueError(f"잘못된 asset_id 형식: {asset_id!r}")
+    _purge_expired_regeneration_inputs()
 
     # session_id=asset_id — 최초 생성(run_from_upload_v2)이 같은 asset_id 로 연 세션에 합류.
     with propagate_attributes(session_id=asset_id):

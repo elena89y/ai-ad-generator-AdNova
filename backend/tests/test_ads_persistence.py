@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from app.api import ads
 from app.api.ads import _record_generated_result, get_result_image
 from app.database.connection import Base
 from app.database.models import Advertisement, History, Image, User
@@ -81,6 +82,17 @@ class AdsPersistenceTestCase(unittest.TestCase):
             self.assertEqual(self.session.query(Image).count(), 0)
             self.assertEqual(self.session.query(Advertisement).count(), 0)
             self.assertEqual(self.session.query(History).count(), 0)
+
+    def test_temporary_upload_is_removed_after_generation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temporary_dir = Path(temp_dir)
+            source = temporary_dir / "abcdef123456.png"
+            source.write_bytes(b"input")
+
+            with patch.object(ads, "TEMP_UPLOAD_DIR", temporary_dir):
+                ads._remove_temporary_upload(source)
+
+            self.assertFalse(source.exists())
 
     def test_generated_result_returns_saved_history_id(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
