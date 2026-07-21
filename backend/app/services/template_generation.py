@@ -30,7 +30,7 @@ import shutil
 import time
 from pathlib import Path
 
-from . import api_image_service, gpt_service, image_service, template_service
+from . import api_image_service, gpt_service, image_service, template_crop, template_service
 from .generation_service import GenerationOutput, _generate_copy, _stage
 from .prompt_service import ProductInfo
 from ..schemas.ads import StylePreset
@@ -130,6 +130,11 @@ def _generate_impl(
     # asset_id 규약 파일명으로 정착 (서빙·재생성 계약과 통일)
     final = image_service.RESULTS_DIR / f"{asset_id}_template.png"
     shutil.move(raw, final)
+    # 템플릿별 결정론적 후처리 크롭 (예: 단면 히어로 = 층 꽉 참 + 한쪽 끝 노출).
+    # 프롬프트로 풀 슬라이스를 여백과 함께 생성 → 여기서 구도를 확정한다(복불복 제거).
+    if t.post_crop:
+        with _stage(run, "post_crop"):
+            template_crop.apply(t.post_crop, str(final))
     gen_s = round(time.time() - t0, 2)
 
     # 문구 — 정상 경로와 동일한 _generate_copy 라우터(copy_graph 품질 게이트 공유). 실패해도 폴백.
