@@ -35,6 +35,8 @@ interface StudioState {
   isPremium: boolean;
   freeLeft: number;
   freeTotal: number;
+  premiumLeft: number;
+  premiumTotal: number;
   billingSummary: BillingSummary | null;
   billingPurchases: PurchaseHistory[];
   profileImageUrl: string | null;
@@ -327,6 +329,8 @@ export default function StudioProvider({ children }: { children: React.ReactNode
   const isPremium = Boolean(billingSummary?.is_premium);
   const freeLeft = billingSummary?.free_credits_remaining ?? 3;
   const freeTotal = billingSummary?.free_credit_limit ?? 3;
+  const premiumLeft = billingSummary?.premium_credits_remaining ?? 0;
+  const premiumTotal = billingSummary?.premium_credit_limit ?? 30;
 
   const value = useMemo<StudioState>(
     () => ({
@@ -336,6 +340,8 @@ export default function StudioProvider({ children }: { children: React.ReactNode
       isPremium,
       freeLeft,
       freeTotal,
+      premiumLeft,
+      premiumTotal,
       billingSummary,
       billingPurchases,
       profileImageUrl,
@@ -371,6 +377,8 @@ export default function StudioProvider({ children }: { children: React.ReactNode
       isPremium,
       freeLeft,
       freeTotal,
+      premiumLeft,
+      premiumTotal,
       billingSummary,
       billingPurchases,
       profileImageUrl,

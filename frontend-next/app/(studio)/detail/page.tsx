@@ -106,7 +106,7 @@ function DetailContent() {
   function openShare() {
     if (!item) return;
     s.openShare(item, historyId ? `/detail?historyId=${historyId}` : "/detail", platform);
-    router.push("/share");
+    router.push(historyId ? `/share?historyId=${historyId}` : "/share");
   }
 
   async function deleteAd() {

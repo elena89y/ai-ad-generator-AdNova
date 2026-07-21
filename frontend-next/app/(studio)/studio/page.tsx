@@ -242,6 +242,10 @@ export default function StudioPage() {
   }
 
   async function generate() {
+    if (s.isPremium && s.premiumLeft <= 0) {
+      s.toast("이번 달 프리미엄 크레딧을 모두 사용했습니다");
+      return;
+    }
     if (!s.isPremium && s.freeLeft <= 0) {
       s.setUpgradeOpen(true);
       return;
@@ -294,6 +298,10 @@ export default function StudioPage() {
   }
 
   async function regenerate() {
+    if (s.isPremium && s.premiumLeft <= 0) {
+      s.toast("이번 달 프리미엄 크레딧을 모두 사용했습니다");
+      return;
+    }
     if (!s.isPremium && s.freeLeft <= 0) {
       s.setUpgradeOpen(true);
       return;

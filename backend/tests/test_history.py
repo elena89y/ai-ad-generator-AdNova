@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -7,6 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.api.history import (
+    delete_generated_result,
     download_generated_result,
     read_histories,
     read_history_detail,
@@ -15,6 +17,7 @@ from app.database.billing_models import Subscription
 from app.database.connection import Base
 from app.database.models import Advertisement, History, Image, User
 from app.schemas.history import HistoryResponse
+from app.services import image_service
 
 
 class HistoryDownloadApiTestCase(unittest.TestCase):
@@ -227,6 +230,86 @@ class HistoryDownloadApiTestCase(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.status_code, 404)
+
+    def test_delete_removes_all_generated_variants_but_keeps_input_image(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            results_dir = Path(temp_dir) / "results"
+            results_dir.mkdir()
+            input_path = Path(temp_dir) / "product.png"
+            input_path.write_bytes(b"input")
+
+            filenames = ["ad.png", "ad-clean.png", "ad-type.png", "ad-banner.jpg"]
+            for filename in filenames:
+                (results_dir / filename).write_bytes(b"generated")
+
+            input_image = Image(
+                user_id=self.user.id,
+                image_type="upload",
+                original_filename="product.png",
+                stored_filename="product.png",
+                file_path=str(input_path),
+                image_url="/uploads/product.png",
+            )
+            generated_images = [
+                Image(
+                    user_id=self.user.id,
+                    image_type="generated",
+                    original_filename=filename,
+                    stored_filename=filename,
+                    file_path=str(results_dir / filename),
+                    image_url=f"/api/ads/image/{filename}",
+                )
+                for filename in filenames
+            ]
+            self.session.add_all([input_image, *generated_images])
+            self.session.flush()
+
+            advertisement = Advertisement(
+                user_id=self.user.id,
+                input_image_id=input_image.id,
+                output_image_id=generated_images[0].id,
+                ad_type="poster",
+                prompt="test prompt",
+                status="completed",
+            )
+            self.session.add(advertisement)
+            self.session.flush()
+            history = History(
+                user_id=self.user.id,
+                advertisement_id=advertisement.id,
+                action_type="ads.generate",
+                status="completed",
+                response_data=json.dumps(
+                    {
+                        "image_url": "/api/ads/image/ad.png",
+                        "image_without_typography_url": "/api/ads/image/ad-clean.png",
+                        "image_with_typography_url": "/api/ads/image/ad-type.png",
+                        "format_outputs": ["/api/ads/image/ad-banner.jpg"],
+                    }
+                ),
+            )
+            self.session.add(history)
+            self.session.commit()
+
+            original_results_dir = image_service.RESULTS_DIR
+            image_service.RESULTS_DIR = results_dir
+            try:
+                delete_generated_result(
+                    history_id=history.id,
+                    db=self.session,
+                    current_user=self.user,
+                )
+            finally:
+                image_service.RESULTS_DIR = original_results_dir
+
+            self.assertIsNotNone(self.session.get(Image, input_image.id))
+            self.assertTrue(input_path.is_file())
+            for image in generated_images:
+                self.assertIsNone(self.session.get(Image, image.id))
+            for filename in filenames:
+                self.assertFalse((results_dir / filename).exists())
+            self.assertIsNone(self.session.get(Advertisement, advertisement.id))
+            self.assertIsNone(self.session.get(History, history.id))
 
 
 if __name__ == "__main__":

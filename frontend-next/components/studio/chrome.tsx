@@ -114,12 +114,12 @@ export function ProfileMenu() {
 }
 
 export function UsagePill() {
-  const { isPremium, freeLeft, freeTotal } = useStudio();
+  const { isPremium, freeLeft, freeTotal, premiumLeft, premiumTotal } = useStudio();
   if (isPremium)
     return (
       <div className="usage">
         <span style={{ color: "var(--gold-deep)" }}>✦</span> 프리미엄{" "}
-        <b>광고 생성 가능</b>
+        <b>{premiumLeft}/{premiumTotal}회 남음</b>
       </div>
     );
   return (
