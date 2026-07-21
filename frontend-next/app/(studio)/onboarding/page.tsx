@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { Brand } from "@/components/studio/chrome";
+import { useStudio } from "@/components/studio/StudioProvider";
 
 const steps = [
   { n: "1", title: "제품 사진 올리기", desc: "배경은 자동으로 제거돼요", active: true },
@@ -15,6 +18,17 @@ const steps = [
 ];
 
 export default function OnboardingPage() {
+  const router = useRouter();
+  const studio = useStudio();
+
+  useEffect(() => {
+    if (studio.ready && !studio.token) router.replace("/login");
+  }, [router, studio.ready, studio.token]);
+
+  if (!studio.ready || !studio.token) {
+    return <main className="onb-wrap">로그인 정보를 확인하는 중입니다.</main>;
+  }
+
   return (
     <div className="onb-wrap">
       <div

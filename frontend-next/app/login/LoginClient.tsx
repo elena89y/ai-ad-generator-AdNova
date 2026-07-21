@@ -7,6 +7,7 @@ import { useState, type SyntheticEvent } from "react";
 
 import { authApi } from "@/lib/auth-api";
 import { loadUser, setToken } from "@/lib/auth";
+import { readApiError } from "@/lib/api";
 
 type OAuthProvider = "google" | "kakao" | "naver";
 
@@ -41,7 +42,7 @@ export default function LoginClient() {
     const loginId = username.trim();
 
     if (!loginId) {
-      setMessage("아이디 또는 이메일을 입력해 주세요.");
+      setMessage("아이디를 입력해 주세요.");
       return;
     }
 
@@ -87,27 +88,20 @@ export default function LoginClient() {
           ? error.message
           : "로그인에 실패했습니다.";
 
-      const apiError =
+      const apiErrorData =
         typeof error === "object" &&
         error !== null &&
         "response" in error
           ? (
               error as {
                 response?: {
-                  data?: {
-                    detail?: string;
-                    message?: string;
-                  };
+                  data?: unknown;
                 };
               }
             ).response?.data
           : undefined;
 
-      setMessage(
-        apiError?.detail ||
-          apiError?.message ||
-          fallbackMessage
-      );
+      setMessage(readApiError(apiErrorData, fallbackMessage));
     } finally {
       setIsLoading(false);
     }
@@ -182,14 +176,14 @@ export default function LoginClient() {
               htmlFor="loginUsername"
               className="mb-2 block text-sm font-semibold text-white/75"
             >
-              아이디 또는 이메일
+              아이디
             </label>
 
             <input
               id="loginUsername"
               type="text"
               autoComplete="username"
-              placeholder="아이디 또는 이메일을 입력하세요"
+              placeholder="아이디를 입력하세요"
               value={username}
               disabled={isLoading}
               onChange={(event) =>

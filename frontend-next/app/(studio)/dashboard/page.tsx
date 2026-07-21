@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { useStudio } from "@/components/studio/StudioProvider";
 
 const QUICK_LINKS = [
@@ -35,14 +36,18 @@ export default function DashboardPage() {
   const router = useRouter();
   const studio = useStudio();
 
+  useEffect(() => {
+    if (studio.ready && !studio.token) router.replace("/login");
+  }, [router, studio.ready, studio.token]);
+
   const ads = studio.ads ?? [];
   const recentAds = ads.slice(0, 3);
   const totalAds = ads.length;
 
-  if (!studio.ready) {
+  if (!studio.ready || !studio.token) {
     return (
       <main style={styles.loading}>
-        대시보드를 불러오는 중입니다.
+        로그인 정보를 확인하는 중입니다.
       </main>
     );
   }
