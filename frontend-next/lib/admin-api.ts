@@ -92,11 +92,12 @@ export interface AdminSubscription {
 
 export interface AdminAuditLog {
   id: number;
-  admin_user_id: number;
+  source: "admin_action" | "login_failure";
+  admin_user_id: number | null;
   admin_username: string;
   action: string;
   target_type: string;
-  target_id: number;
+  target_id: number | null;
   detail: string | null;
   created_at: string;
 }

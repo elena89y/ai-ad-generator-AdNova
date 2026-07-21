@@ -9,10 +9,9 @@ from app.core.security import get_current_user, hash_password, verify_password
 from app.crud.admin import (
     count_active_super_admins,
     count_advertisements_by_user,
-    create_admin_account,
     create_admin_audit_log,
+    create_admin_user_account,
     get_admin_account_by_id,
-    get_admin_account_by_user_id,
     get_purchase_history_for_admin,
     get_admin_summary,
     get_subscription_for_admin,
@@ -21,6 +20,7 @@ from app.crud.admin import (
     list_subscriptions_for_admin,
     list_purchase_histories_for_admin,
     list_admin_audit_logs,
+    list_admin_login_failure_logs,
     list_users_for_admin,
     refund_demo_purchase_for_admin,
     update_admin_account_active_status,
@@ -132,31 +132,25 @@ def create_admin_account_by_super_admin(
     db: Session = Depends(get_db),
     current_admin: AdminAccount = Depends(get_current_super_admin),
 ) -> AdminAccountResponse:
-    user_row = get_user_for_admin(db, request.user_id)
-    if user_row is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="회원을 찾을 수 없습니다.",
-        )
-
-    user, _ = user_row
-    if not user.is_active:
+    if db.query(User).filter(User.email == str(request.email)).first() is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="비활성 회원은 관리자로 지정할 수 없습니다.",
+            detail="이미 사용 중인 이메일입니다.",
         )
-    if get_admin_account_by_user_id(db, user.id) is not None:
+    if db.query(User).filter(User.username == request.username).first() is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="이미 관리자 계정으로 등록된 회원입니다.",
+            detail="이미 사용 중인 아이디입니다.",
         )
 
     try:
-        admin_account = create_admin_account(
+        user, admin_account = create_admin_user_account(
             db,
-            user_id=user.id,
+            email=str(request.email),
+            username=request.username,
+            password_hash=hash_password(request.password),
+            name=request.name,
             role=request.role,
-            commit=False,
         )
         create_admin_audit_log(
             db,
@@ -164,13 +158,13 @@ def create_admin_account_by_super_admin(
             action="admin.account_created",
             target_type="admin_account",
             target_id=admin_account.id,
-            detail=f"user_id={user.id}, role={request.role}",
+            detail=f"user_id={user.id}, username={user.username}, role={request.role}",
         )
     except IntegrityError as exc:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="이미 관리자 계정으로 등록된 회원입니다.",
+            detail="이미 사용 중인 이메일 또는 아이디입니다.",
         ) from exc
     except Exception:
         db.rollback()
@@ -405,6 +399,7 @@ def _build_admin_inquiry_response(inquiry, user: User) -> AdminInquiryResponse:
 def _build_admin_audit_log_response(audit_log, user: User) -> AdminAuditLogResponse:
     return AdminAuditLogResponse(
         id=audit_log.id,
+        source="admin_action",
         admin_user_id=audit_log.admin_user_id,
         admin_username=user.username,
         action=audit_log.action,
@@ -412,6 +407,20 @@ def _build_admin_audit_log_response(audit_log, user: User) -> AdminAuditLogRespo
         target_id=audit_log.target_id,
         detail=audit_log.detail,
         created_at=audit_log.created_at,
+    )
+
+
+def _build_admin_login_failure_log_response(login_failure_log) -> AdminAuditLogResponse:
+    return AdminAuditLogResponse(
+        id=login_failure_log.id,
+        source="login_failure",
+        admin_user_id=login_failure_log.user_id,
+        admin_username=login_failure_log.attempted_username,
+        action="admin.login_failed",
+        target_type="admin_login",
+        target_id=login_failure_log.user_id,
+        detail=login_failure_log.reason,
+        created_at=login_failure_log.created_at,
     )
 
 
@@ -611,18 +620,58 @@ def read_admin_audit_logs(
     current_admin: AdminAccount = Depends(get_current_admin),
 ) -> AdminAuditLogListResponse:
     del current_admin
-    total, rows = list_admin_audit_logs(
+    if action == "admin.login_failed":
+        total, login_failure_logs = list_admin_login_failure_logs(
+            db,
+            skip=skip,
+            limit=limit,
+        )
+        return AdminAuditLogListResponse(
+            total=total,
+            items=[
+                _build_admin_login_failure_log_response(login_failure_log)
+                for login_failure_log in login_failure_logs
+            ],
+        )
+
+    if action:
+        total, rows = list_admin_audit_logs(
+            db,
+            skip=skip,
+            limit=limit,
+            action=action,
+        )
+        return AdminAuditLogListResponse(
+            total=total,
+            items=[
+                _build_admin_audit_log_response(audit_log, user)
+                for audit_log, user in rows
+            ],
+        )
+
+    fetch_limit = skip + limit
+    admin_action_total, rows = list_admin_audit_logs(
         db,
-        skip=skip,
-        limit=limit,
-        action=action,
+        skip=0,
+        limit=fetch_limit,
     )
+    login_failure_total, login_failure_logs = list_admin_login_failure_logs(
+        db,
+        skip=0,
+        limit=fetch_limit,
+    )
+    combined_logs = [
+        _build_admin_audit_log_response(audit_log, user)
+        for audit_log, user in rows
+    ]
+    combined_logs.extend(
+        _build_admin_login_failure_log_response(login_failure_log)
+        for login_failure_log in login_failure_logs
+    )
+    combined_logs.sort(key=lambda log: log.created_at, reverse=True)
     return AdminAuditLogListResponse(
-        total=total,
-        items=[
-            _build_admin_audit_log_response(audit_log, user)
-            for audit_log, user in rows
-        ],
+        total=admin_action_total + login_failure_total,
+        items=combined_logs[skip : skip + limit],
     )
 
 

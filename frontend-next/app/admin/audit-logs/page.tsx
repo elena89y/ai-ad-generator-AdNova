@@ -17,6 +17,7 @@ const ACTION_LABELS: Record<string, string> = {
   "admin.role_updated": "관리자 권한 변경",
   "admin.status_updated": "관리자 계정 상태 변경",
   "admin.password_changed": "관리자 비밀번호 변경",
+  "admin.login_failed": "관리자 로그인 실패",
   "user.status_updated": "회원 계정 상태 변경",
   "user.subscription_updated": "회원 플랜 변경",
   "purchase.refunded": "결제 환불",
@@ -29,6 +30,7 @@ const ACTION_LABELS: Record<string, string> = {
 const TARGET_LABELS: Record<string, string> = {
   admin_account: "관리자 계정",
   admin: "관리자 계정",
+  admin_login: "관리자 로그인",
   user: "회원",
   purchase: "결제",
   refund: "환불 신청",
@@ -206,11 +208,11 @@ export default function AdminAuditLogsPage() {
                   </tr>
                 ) : (
                   filteredLogs.map((log) => (
-                    <tr key={log.id} className="transition hover:bg-white/[0.025]">
+                      <tr key={`${log.source}-${log.id}`} className="transition hover:bg-white/[0.025]">
                       <td className="px-5 py-4 font-semibold text-white">{getActionLabel(log.action)}</td>
                       <td className="px-5 py-4 text-white/75">{log.admin_username}</td>
                       <td className="px-5 py-4 text-white/65">
-                        {(TARGET_LABELS[log.target_type] || log.target_type)} #{log.target_id}
+                        {(TARGET_LABELS[log.target_type] || log.target_type)}{log.target_id ? ` #${log.target_id}` : ""}
                       </td>
                       <td className="max-w-72 break-all px-5 py-4 text-xs leading-5 text-white/45">{log.detail || "-"}</td>
                       <td className="px-5 py-4 text-white/55">{formatDate(log.created_at)}</td>
