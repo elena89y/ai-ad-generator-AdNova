@@ -90,7 +90,7 @@ function ShareContent() {
         if (!response.ok) {
           throw new Error(readApiError(data, "공유할 광고를 확인할 수 없습니다"));
         }
-        if (!cancelled) setVerifiedHistoryId(itemHistoryId);
+        if (!cancelled) setVerifiedHistoryId(itemHistoryId ?? null);
       } catch (error) {
         if (!cancelled) {
           s.toast(error instanceof Error ? error.message : "공유할 광고를 확인할 수 없습니다");
