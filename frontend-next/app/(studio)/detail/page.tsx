@@ -11,7 +11,7 @@ import {
   readApiError,
   readJsonSafely,
 } from "@/lib/api";
-import { deleteStoredAd, downloadHistoryResult } from "@/lib/sns";
+import { deleteStoredAd, downloadHistoryResult, downloadImageUrl } from "@/lib/sns";
 import { useStudio } from "@/components/studio/StudioProvider";
 import { AuthenticatedImage } from "@/components/studio/AuthenticatedImage";
 
@@ -105,8 +105,13 @@ function DetailContent() {
 
   function openShare() {
     if (!item) return;
-    s.openShare(item, historyId ? `/detail?historyId=${historyId}` : "/detail", platform);
-    router.push(historyId ? `/share?historyId=${historyId}` : "/share");
+    // 타이포 토글 상태를 공유 대상 이미지에 반영
+    // (historyId를 제거해야 sns.ts가 저장본 다운로드 API 대신 이 URL을 직접 사용)
+    const shareItem = hasTypographyPair
+      ? { ...item, img: detailImageSrc || item.img, historyId: undefined }
+      : item;
+    s.openShare(shareItem, historyId ? `/detail?historyId=${historyId}` : "/detail", platform);
+    router.push("/share");
   }
 
   async function deleteAd() {
@@ -234,7 +239,11 @@ function DetailContent() {
               {s.isPremium && (
                 <button
                   className="oa download"
-                  onClick={() => downloadHistoryResult(item.historyId, s.toast)}
+                  onClick={() =>
+                    hasTypographyPair
+                      ? downloadImageUrl(detailImageSrc || item.img, s.toast)
+                      : downloadHistoryResult(item.historyId, s.toast)
+                  }
                 >
                   ⬇ 다운로드
                 </button>
