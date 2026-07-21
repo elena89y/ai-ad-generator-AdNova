@@ -3,14 +3,13 @@ import Link from "next/link";
 
 const productLinks = [
   { label: "주요 기능", href: "/#features" },
-  { label: "작동 방식", href: "/#how-it-works" },
+  { label: "작동 방식", href: "/#how" },
   { label: "요금 안내", href: "/#pricing" },
-  { label: "광고 예시", href: "/#examples" },
+  { label: "광고 예시", href: "/#showcase" },
 ];
 
 const supportLinks = [
-  { label: "1:1 문의", href: "/support" },
-  { label: "자주 묻는 질문", href: "/faq" },
+  { label: "고객센터", href: "/support" },
   { label: "이용 가이드", href: "/guide" },
 ];
 
