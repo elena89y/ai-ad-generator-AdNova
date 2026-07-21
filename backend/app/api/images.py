@@ -4,13 +4,14 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.security import get_current_user
 from app.crud.image import create_image
 from app.database.connection import get_db
-from app.database.models import User
+from app.database.models import Image, User
 from app.schemas.image import ImageUploadResponse
 from app.services.upload_validation import read_image_upload_file
 
@@ -35,7 +36,6 @@ async def upload_image(
     stored_filename = f"{uuid4().hex}{suffix}"
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     upload_path = UPLOAD_DIR / stored_filename
-    image_url = f"/uploads/{stored_filename}"
 
     try:
         upload_path.write_bytes(content)
@@ -46,14 +46,18 @@ async def upload_image(
             original_filename=original_filename,
             stored_filename=stored_filename,
             file_path=str(upload_path),
-            image_url=image_url,
             # 업로드 정규화(2026-07-21) 후에는 저장 바이트의 실제 형식이 원본과 다를 수 있어
             # 확장자 기준으로 기록한다 (upload_validation.normalize_image_content 참조)
             content_type={".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
                           ".webp": "image/webp"}.get(suffix, file.content_type),
             file_size=len(content),
+            commit=False,
         )
+        image.image_url = f"{settings.API_PREFIX}/images/{image.id}"
+        db.commit()
+        db.refresh(image)
     except Exception as exc:
+        db.rollback()
         if upload_path.exists():
             upload_path.unlink()
         raise HTTPException(
@@ -67,5 +71,37 @@ async def upload_image(
         image_id=image.id,
         filename=original_filename,
         content_type=image.content_type or "",
-        image_url=image.image_url or image_url,
+        image_url=image.image_url or f"{settings.API_PREFIX}/images/{image.id}",
     )
+
+
+@router.get("/{image_id}")
+def read_uploaded_image(
+    image_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> FileResponse:
+    """로그인한 사용자가 본인 업로드 이미지만 조회한다."""
+    image = (
+        db.query(Image)
+        .filter(
+            Image.id == image_id,
+            Image.user_id == current_user.id,
+            Image.image_type == "upload",
+        )
+        .first()
+    )
+    upload_dir = UPLOAD_DIR.resolve()
+    file_path = Path(image.file_path).resolve() if image and image.file_path else None
+    if (
+        image is None
+        or file_path is None
+        or upload_dir not in file_path.parents
+        or not file_path.is_file()
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="업로드 이미지를 찾을 수 없습니다.",
+        )
+
+    return FileResponse(file_path, media_type=image.content_type or "application/octet-stream")
