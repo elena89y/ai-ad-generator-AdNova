@@ -82,6 +82,29 @@ class AdsPersistenceTestCase(unittest.TestCase):
             self.assertEqual(self.session.query(Advertisement).count(), 0)
             self.assertEqual(self.session.query(History).count(), 0)
 
+    def test_generated_result_returns_saved_history_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            results_dir = Path(temp_dir)
+            (results_dir / "result.png").write_bytes(b"image")
+
+            with patch.object(image_service, "RESULTS_DIR", results_dir):
+                history_id = _record_generated_result(
+                    self.session,
+                    user_id=self.user.id,
+                    input_image_id=None,
+                    product_name="상품",
+                    style=StylePreset.POP,
+                    poster=False,
+                    prompt_for_db="{}",
+                    result=self._result("result.png"),
+                    action_type="ads.generate",
+                    request_data="{}",
+                )
+
+            history = self.session.get(History, history_id)
+            self.assertIsNotNone(history)
+            self.assertEqual(history.advertisement_id, history.advertisement.id)
+
     def test_owner_can_read_generated_image(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             results_dir = Path(temp_dir)
