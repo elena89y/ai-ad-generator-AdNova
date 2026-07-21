@@ -63,18 +63,20 @@ def test_duplicate_content_cannot_claim_another_role(tmp_path):
         _render(tmp_path, tuple(cuts))
 
 
-def test_visually_similar_framing_is_rejected_even_when_files_differ(tmp_path):
-    # GATE-001(2026-07-20): hero가 낀 쌍은 전부 생성 단계 재시도를 신뢰해 예외 처리되므로,
-    # 이 회귀 테스트는 hero가 아닌 두 구도(top_view/texture_closeup)끼리 겹치는 걸로 검증한다
-    # — 그 조합은 여전히 최종 게이트에서 걸려야 한다(마우스 사진 실측 재현 케이스).
+def test_visually_similar_framing_is_accepted_with_warning(tmp_path):
+    """[2026-07-21 계약 개정] 생성 단계 재시도가 이미 '확정된 모든 컷'과 비교하며 전 변형
+    소진 시 최저상관 결과를 채택하므로, 최종 게이트가 비-히어로 유사 쌍을 다시 하드
+    실패시키면 안 된다(김치찌개 상세 561s 생성 → 400 전량 폐기 라이브 사고). 유사
+    구도는 경고 로그로 강등되고 렌더는 성공해야 한다. 완전 동일(해시 중복)만 하드 실패."""
     paths = _paths(tmp_path)
     original = Image.open(paths[1]).convert("RGB")
     shifted = tmp_path / "same_framing_brighter.png"
     original.point(lambda value: min(255, value + 5)).save(shifted)
     cuts = list(_cuts(paths))
     cuts[2] = DetailCut(str(shifted), DetailCutRole.TEXTURE_CLOSEUP)
-    with pytest.raises(ValueError, match="구도가 너무 유사"):
-        _render(tmp_path, tuple(cuts))
+    result = _render(tmp_path, tuple(cuts))
+    image = Image.open(result.outputs[0])
+    assert image.width == 860 and image.height >= 4000
 
 
 def test_hero_and_top_view_similarity_is_exempt(tmp_path):
