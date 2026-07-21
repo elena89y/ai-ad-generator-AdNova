@@ -136,7 +136,7 @@ def _redirect_oauth_error(error_code: str, message: str) -> RedirectResponse:
         }
     )
     return RedirectResponse(
-        url=f"{FRONTEND_URL}/?{error_query}",
+        url=f"{FRONTEND_URL}/login?{error_query}",
         status_code=status.HTTP_302_FOUND,
     )
 
@@ -161,8 +161,8 @@ def naver_login(request: Request):
     )
 
     return RedirectResponse(
-    url=f"{FRONTEND_URL}/login?{error_query}",
-    status_code=status.HTTP_302_FOUND,
+        url=f"{NAVER_AUTHORIZE_URL}?{authorize_query}",
+        status_code=status.HTTP_302_FOUND,
     )
 
 
