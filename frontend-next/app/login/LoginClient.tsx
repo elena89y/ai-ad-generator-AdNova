@@ -31,6 +31,8 @@ export default function LoginClient() {
      * localhost:3000에서 프록시 설정 없이 실행하면
      * /api/auth/... 주소는 404가 나오는 것이 정상입니다.
      */
+    if (isLoading) return;
+    setIsLoading(true);
     window.location.href = `/api/auth/${provider}/login`;
   }
 
