@@ -6,7 +6,11 @@ from sqlalchemy.orm import Session
 from app.crud.billing import expire_ended_subscriptions
 from app.crud.credits import grant_premium_credits
 from app.crud.retention import WITHDRAWN_USERNAME
-from app.database.admin_models import AdminAccount, AdminAuditLog
+from app.database.admin_models import (
+    AdminAccount,
+    AdminAuditLog,
+    AdminLoginFailureLog,
+)
 from app.database.billing_models import PurchaseHistory, Subscription, utc_now
 from app.database.models import Advertisement, SupportInquiry, User
 
@@ -98,6 +102,40 @@ def list_admin_audit_logs(
     )
 
 
+def create_admin_login_failure_log(
+    db: Session,
+    *,
+    attempted_username: str,
+    reason: str,
+    user_id: int | None = None,
+) -> AdminLoginFailureLog:
+    login_failure_log = AdminLoginFailureLog(
+        attempted_username=attempted_username,
+        user_id=user_id,
+        reason=reason,
+    )
+    db.add(login_failure_log)
+    db.commit()
+    db.refresh(login_failure_log)
+    return login_failure_log
+
+
+def list_admin_login_failure_logs(
+    db: Session,
+    *,
+    skip: int,
+    limit: int,
+) -> tuple[int, list[AdminLoginFailureLog]]:
+    query = db.query(AdminLoginFailureLog)
+    return (
+        query.count(),
+        query.order_by(AdminLoginFailureLog.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all(),
+    )
+
+
 def list_admin_accounts(
     db: Session,
     *,
@@ -170,6 +208,35 @@ def create_admin_account(
         db.flush()
     db.refresh(admin_account)
     return admin_account
+
+
+def create_admin_user_account(
+    db: Session,
+    *,
+    email: str,
+    username: str,
+    password_hash: str,
+    name: str | None,
+    role: str,
+) -> tuple[User, AdminAccount]:
+    user = User(
+        email=email,
+        username=username,
+        password_hash=password_hash,
+        name=name,
+        is_active=True,
+    )
+    db.add(user)
+    db.flush()
+
+    admin_account = AdminAccount(
+        user_id=user.id,
+        role=role,
+        is_active=True,
+    )
+    db.add(admin_account)
+    db.flush()
+    return user, admin_account
 
 
 def count_active_super_admins(db: Session) -> int:

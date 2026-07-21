@@ -127,14 +127,14 @@
    "head_font": "display_round",
    "key": "pastel_float",
    "mood": "몽환·부유·산뜻, 소프트 물결 에테리얼 하이키",
-   "negative": "cluttered background, scattered crumbs, excessive props, long sentences, busy infographic, harsh shadows, watermark, logo, cropped, placeholder text, lorem ipsum",
+   "negative": "distorted product, melted edges, warped shape, blurred subject, floating in water, submerged, cluttered background, scattered crumbs, excessive props, long sentences, busy infographic, harsh shadows, watermark, logo, cropped, placeholder text, lorem ipsum",
    "palette": [
     "#F6D8E4",
     "#E5DCF2",
     "#D9F0E6"
    ],
    "production": "hybrid",
-   "scene_prompt": "dreamy pastel floating scene of {subject}, soft rippling water surface, ethereal high-key light, gentle reflections, pastel pink and lavender, --ar 4:5",
+   "scene_prompt": "soft pastel studio still life of {subject} as the clear sharp-focus hero, product kept crisp and true to its real shape, outline and color, gentle pastel gradient backdrop in blush pink and lavender, soft diffused high-key light, one subtle soft shadow on a clean minimal surface, airy premium dreamy pastel mood, --ar 4:5",
    "sub_font": "gothic"
   },
   "pop": {

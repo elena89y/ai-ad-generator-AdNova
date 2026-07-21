@@ -77,7 +77,7 @@ function ShareContent() {
     }
 
     if (!item) return;
-    const itemHistoryId = item.historyId;
+    const itemHistoryId = item.historyId ?? null;
     if (!itemHistoryId || verifiedHistoryId === itemHistoryId) return;
 
     let cancelled = false;

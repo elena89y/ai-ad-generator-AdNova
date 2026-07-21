@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { AdItem, normalizePlatformCopy } from "@/lib/api";
+import { AdItem, FORMAT_LABELS, normalizePlatformCopy } from "@/lib/api";
 import { SNS_LIST, deleteStoredAd, exportSnsPost } from "@/lib/sns";
 import { useStudio } from "@/components/studio/StudioProvider";
 import { AppBar } from "@/components/studio/chrome";
@@ -109,8 +109,20 @@ export default function MyAdsPage() {
               >
                 <div className="cpic" style={{ background: a.g }}>
                   <span className="st-tag">{a.style}</span>
-                  {a.img ? (
-                    <AuthenticatedImage className="cimg" src={a.img} alt={a.hl} />
+                  {/* [v6-1] 상세페이지/카드뉴스/배너는 대표 히어로가 아니라 실제 산출물(첫 장)을
+                      썸네일로 — 포맷별 카드 구분이 되게. 배지로 용도·장수 표기. */}
+                  {a.purpose && a.purpose !== "sns" && (a.formatOutputs?.length ?? 0) > 0 && (
+                    <span className="fmt-tag">
+                      {FORMAT_LABELS[a.purpose] || "결과"}
+                      {(a.formatOutputs?.length ?? 0) > 1 ? ` ${a.formatOutputs!.length}장` : ""}
+                    </span>
+                  )}
+                  {a.formatOutputs?.[0] || a.img ? (
+                    <AuthenticatedImage
+                      className="cimg"
+                      src={a.formatOutputs?.[0] || a.img}
+                      alt={a.hl}
+                    />
                   ) : (
                     <>
                       <div className="prod" style={{ background: a.prod }}>

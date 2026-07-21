@@ -183,7 +183,7 @@ export default function AdminInquiriesPage() {
           </button>
         </div>
 
-        <form onSubmit={handleFilterSubmit} className="mt-7 grid gap-3 border border-white/10 bg-[#102039]/90 p-4 lg:grid-cols-[minmax(0,1fr)_10rem_auto]">
+        <form onSubmit={handleFilterSubmit} className="mt-7 grid gap-3 rounded-2xl border border-white/10 bg-[#102039]/90 p-4 lg:grid-cols-[minmax(0,1fr)_10rem_auto]">
           <label className="relative block">
             <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/35" />
             <input
@@ -228,7 +228,7 @@ export default function AdminInquiriesPage() {
         )}
 
         <div className="mt-7 grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
-          <section className="overflow-hidden border border-white/10 bg-[#102039]/90">
+          <section className="overflow-hidden rounded-2xl border border-white/10 bg-[#102039]/90">
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <div className="flex items-center gap-2">
                 <MessageSquareMore size={18} className="text-[#a78bfa]" />
@@ -269,7 +269,7 @@ export default function AdminInquiriesPage() {
             </div>
           </section>
 
-          <section className="border border-white/10 bg-[#102039]/90">
+          <section className="rounded-2xl border border-white/10 bg-[#102039]/90">
             {!selected ? (
               <div className="grid min-h-80 place-items-center px-5 text-center text-sm text-white/45">
                 확인할 문의를 선택해 주세요.

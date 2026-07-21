@@ -8,7 +8,6 @@ import { useAdmin } from "@/components/admin/AdminProvider";
 import {
   type AdminAccount,
   type AdminListResponse,
-  type AdminManagedUser,
   type AdminRole,
   adminApiFetch,
 } from "@/lib/admin-api";
@@ -33,12 +32,13 @@ export default function AdminAccountsPage() {
   const [total, setTotal] = useState(0);
   const [accountSearch, setAccountSearch] = useState("");
   const [appliedAccountSearch, setAppliedAccountSearch] = useState("");
-  const [memberSearch, setMemberSearch] = useState("");
-  const [candidates, setCandidates] = useState<AdminManagedUser[]>([]);
-  const [selectedMember, setSelectedMember] = useState<AdminManagedUser | null>(null);
+  const [newUsername, setNewUsername] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState<AdminRole>("operator");
   const [loadingAccounts, setLoadingAccounts] = useState(false);
-  const [loadingCandidates, setLoadingCandidates] = useState(false);
+  const [creatingAccount, setCreatingAccount] = useState(false);
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [message, setMessage] = useState("");
   const [messageKind, setMessageKind] = useState<"success" | "error" | null>(null);
@@ -81,67 +81,52 @@ export default function AdminAccountsPage() {
     setAppliedAccountSearch(accountSearch);
   }
 
-  async function searchMembers(event: FormEvent<HTMLFormElement>) {
+  async function createAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const keyword = memberSearch.trim();
-    if (!keyword) {
-      setCandidates([]);
-      setSelectedMember(null);
-      return;
-    }
+    const username = newUsername.trim();
+    const email = newEmail.trim();
+    const password = newPassword.trim();
 
-    setLoadingCandidates(true);
-    setMessage("");
-    setMessageKind(null);
-    try {
-      const response = await adminApiFetch(`/admin/users?${new URLSearchParams({ limit: "10", search: keyword }).toString()}`);
-      const data = (await readJsonSafely(response)) as AdminListResponse<AdminManagedUser> | null;
-      if (!response.ok || !data) {
-        throw new Error(readApiError(data, "회원을 찾지 못했습니다."));
-      }
-      setCandidates(data.items);
-      setSelectedMember(null);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "회원을 찾지 못했습니다.");
-      setMessageKind("error");
-    } finally {
-      setLoadingCandidates(false);
-    }
-  }
-
-  async function createAccount() {
-    if (!selectedMember) {
-      setMessage("관리자로 지정할 회원을 먼저 선택해 주세요.");
+    if (!username || !email || !password) {
+      setMessage("아이디, 이메일, 비밀번호를 모두 입력해 주세요.");
       setMessageKind("error");
       return;
     }
-    if (!window.confirm(`${selectedMember.username}님을 ${roleLabel(newRole)}로 지정할까요?`)) return;
+    if (!window.confirm(`${username} 계정을 ${roleLabel(newRole)}로 생성할까요?`)) return;
 
-    setProcessingId(selectedMember.id);
+    setCreatingAccount(true);
     setMessage("");
     setMessageKind(null);
     try {
       const response = await adminApiFetch("/admin/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: selectedMember.id, role: newRole }),
+        body: JSON.stringify({
+          username,
+          email,
+          password,
+          name: newName.trim() || null,
+          role: newRole,
+        }),
       });
       const data = (await readJsonSafely(response)) as AdminAccount | null;
       if (!response.ok || !data) {
-        throw new Error(readApiError(data, "관리자 계정을 지정하지 못했습니다."));
+        throw new Error(readApiError(data, "관리자 계정을 만들지 못했습니다."));
       }
       setAccounts((current) => [data, ...current]);
       setTotal((current) => current + 1);
-      setCandidates([]);
-      setSelectedMember(null);
-      setMemberSearch("");
-      setMessage(`${data.username}님을 ${roleLabel(data.role)}로 지정했습니다.`);
+      setNewUsername("");
+      setNewEmail("");
+      setNewPassword("");
+      setNewName("");
+      setNewRole("operator");
+      setMessage(`${data.username} 관리자 계정을 만들었습니다.`);
       setMessageKind("success");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "관리자 계정을 지정하지 못했습니다.");
+      setMessage(error instanceof Error ? error.message : "관리자 계정을 만들지 못했습니다.");
       setMessageKind("error");
     } finally {
-      setProcessingId(null);
+      setCreatingAccount(false);
     }
   }
 
@@ -202,78 +187,83 @@ export default function AdminAccountsPage() {
         </div>
 
         {!canManageAccounts ? (
-          <section className="mt-7 border border-[#a78bfa]/30 bg-[#8b5cf6]/10 px-5 py-6 text-sm leading-6 text-[#ddd6fe]">
+          <section className="mt-7 rounded-2xl border border-[#a78bfa]/30 bg-[#8b5cf6]/10 px-5 py-6 text-sm leading-6 text-[#ddd6fe]">
             관리자 계정 관리 기능은 최고 관리자만 사용할 수 있습니다.
           </section>
         ) : (
           <>
             <div className="mt-7 grid gap-3 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-              <section className="border border-white/10 bg-[#102039]/90 p-5">
+              <section className="rounded-2xl border border-white/10 bg-[#102039]/90 p-5">
                 <div className="flex items-center gap-2">
                   <ShieldCheck size={18} className="text-[#a78bfa]" />
-                  <h2 className="text-sm font-bold">관리자 지정</h2>
+                  <h2 className="text-sm font-bold">새 관리자 계정 만들기</h2>
                 </div>
-                <form onSubmit={searchMembers} className="mt-5 flex gap-2">
-                  <input
-                    type="search"
-                    value={memberSearch}
-                    onChange={(event) => setMemberSearch(event.target.value)}
-                    placeholder="아이디 또는 이메일로 회원 찾기"
-                    className="h-10 min-w-0 flex-1 border border-white/15 bg-[#0b1729] px-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#a78bfa]"
-                  />
+                <p className="mt-2 text-xs leading-5 text-white/45">일반 회원을 승격하지 않고, 관리자 전용 로그인 계정을 새로 만듭니다.</p>
+                <form onSubmit={createAccount} className="mt-5 grid gap-3 sm:grid-cols-2">
+                  <label className="grid gap-1.5 text-xs font-semibold text-white/55">
+                    아이디
+                    <input
+                      value={newUsername}
+                      onChange={(event) => setNewUsername(event.target.value)}
+                      placeholder="영문·숫자 7~12자"
+                      autoComplete="username"
+                      className="h-10 rounded-xl border border-white/15 bg-[#0b1729] px-3 text-sm font-normal text-white outline-none placeholder:text-white/30 focus:border-[#a78bfa]"
+                    />
+                  </label>
+                  <label className="grid gap-1.5 text-xs font-semibold text-white/55">
+                    이메일
+                    <input
+                      type="email"
+                      value={newEmail}
+                      onChange={(event) => setNewEmail(event.target.value)}
+                      placeholder="admin@example.com"
+                      autoComplete="email"
+                      className="h-10 rounded-xl border border-white/15 bg-[#0b1729] px-3 text-sm font-normal text-white outline-none placeholder:text-white/30 focus:border-[#a78bfa]"
+                    />
+                  </label>
+                  <label className="grid gap-1.5 text-xs font-semibold text-white/55">
+                    비밀번호
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(event) => setNewPassword(event.target.value)}
+                      placeholder="8~20자, 영문·숫자·특수문자"
+                      autoComplete="new-password"
+                      className="h-10 rounded-xl border border-white/15 bg-[#0b1729] px-3 text-sm font-normal text-white outline-none placeholder:text-white/30 focus:border-[#a78bfa]"
+                    />
+                  </label>
+                  <label className="grid gap-1.5 text-xs font-semibold text-white/55">
+                    이름 <span className="font-normal text-white/35">선택</span>
+                    <input
+                      value={newName}
+                      onChange={(event) => setNewName(event.target.value)}
+                      placeholder="관리자 이름"
+                      autoComplete="name"
+                      className="h-10 rounded-xl border border-white/15 bg-[#0b1729] px-3 text-sm font-normal text-white outline-none placeholder:text-white/30 focus:border-[#a78bfa]"
+                    />
+                  </label>
+                  <label className="grid gap-1.5 text-xs font-semibold text-white/55 sm:col-span-2">
+                    권한
+                    <select
+                      value={newRole}
+                      onChange={(event) => setNewRole(event.target.value as AdminRole)}
+                      className="h-10 rounded-xl border border-white/15 bg-[#0b1729] px-3 text-sm font-normal text-white outline-none focus:border-[#a78bfa]"
+                    >
+                      <option value="operator">운영자</option>
+                      <option value="super_admin">최고 관리자</option>
+                    </select>
+                  </label>
                   <button
                     type="submit"
-                    disabled={loadingCandidates}
-                    className="inline-flex h-10 items-center gap-1.5 border border-[#a78bfa]/50 px-3 text-sm font-bold text-[#ddd6fe] transition hover:bg-[#8b5cf6]/15 disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={creatingAccount}
+                    className="h-10 rounded-xl bg-[#8b5cf6] px-4 text-sm font-extrabold text-white transition hover:bg-[#a78bfa] disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
                   >
-                    <Search size={16} />
-                    찾기
+                    {creatingAccount ? "관리자 계정을 만드는 중..." : "관리자 계정 만들기"}
                   </button>
                 </form>
-
-                <div className="mt-3 max-h-40 divide-y divide-white/10 overflow-y-auto border border-white/10">
-                  {loadingCandidates ? (
-                    <p className="px-3 py-4 text-sm text-white/45">회원을 찾고 있습니다.</p>
-                  ) : candidates.length === 0 ? (
-                    <p className="px-3 py-4 text-sm text-white/45">검색한 회원이 여기에 표시됩니다.</p>
-                  ) : (
-                    candidates.map((member) => (
-                      <button
-                        key={member.id}
-                        type="button"
-                        onClick={() => setSelectedMember(member)}
-                        className={`w-full px-3 py-3 text-left text-sm transition hover:bg-white/[0.025] ${
-                          selectedMember?.id === member.id ? "bg-[#8b5cf6]/10" : ""
-                        }`}
-                      >
-                        <span className="block font-bold text-white">{member.username}</span>
-                        <span className="mt-1 block text-xs text-white/45">{member.email}{member.is_active ? "" : " · 비활성 회원"}</span>
-                      </button>
-                    ))
-                  )}
-                </div>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-                  <select
-                    value={newRole}
-                    onChange={(event) => setNewRole(event.target.value as AdminRole)}
-                    className="h-10 border border-white/15 bg-[#0b1729] px-3 text-sm text-white outline-none focus:border-[#a78bfa]"
-                  >
-                    <option value="operator">운영자</option>
-                    <option value="super_admin">최고 관리자</option>
-                  </select>
-                  <button
-                    type="button"
-                    onClick={createAccount}
-                    disabled={!selectedMember || processingId !== null}
-                    className="h-10 bg-[#8b5cf6] px-4 text-sm font-extrabold text-white transition hover:bg-[#a78bfa] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    관리자 지정
-                  </button>
-                </div>
               </section>
 
-              <section className="border border-white/10 bg-[#102039]/90 p-5">
+              <section className="rounded-2xl border border-white/10 bg-[#102039]/90 p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2">
@@ -288,9 +278,9 @@ export default function AdminAccountsPage() {
                       value={accountSearch}
                       onChange={(event) => setAccountSearch(event.target.value)}
                       placeholder="관리자 검색"
-                      className="h-10 min-w-0 flex-1 border border-white/15 bg-[#0b1729] px-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#a78bfa]"
+                      className="h-10 min-w-0 flex-1 rounded-xl border border-white/15 bg-[#0b1729] px-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#a78bfa]"
                     />
-                    <button type="submit" className="grid size-10 place-items-center border border-white/15 text-white/70 transition hover:border-[#a78bfa]/60 hover:text-white" aria-label="관리자 검색" title="관리자 검색">
+                    <button type="submit" className="grid size-10 place-items-center rounded-xl border border-white/15 text-white/70 transition hover:border-[#a78bfa]/60 hover:text-white" aria-label="관리자 검색" title="관리자 검색">
                       <Search size={16} />
                     </button>
                   </form>
@@ -301,7 +291,7 @@ export default function AdminAccountsPage() {
             {message && (
               <p
                 role={messageKind === "error" ? "alert" : "status"}
-                className={`mt-5 border px-4 py-3 text-sm ${
+                className={`mt-5 rounded-xl border px-4 py-3 text-sm ${
                   messageKind === "error"
                     ? "border-[#f87171]/35 bg-[#f87171]/10 text-[#fecaca]"
                     : "border-[#a78bfa]/30 bg-[#8b5cf6]/10 text-[#ddd6fe]"
@@ -311,7 +301,7 @@ export default function AdminAccountsPage() {
               </p>
             )}
 
-            <section className="mt-7 overflow-hidden border border-white/10 bg-[#102039]/90">
+            <section className="mt-7 overflow-hidden rounded-2xl border border-white/10 bg-[#102039]/90">
               <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
                 <h2 className="text-sm font-bold">관리자 목록</h2>
                 <span className="text-sm text-white/50">최근 100명까지 표시</span>

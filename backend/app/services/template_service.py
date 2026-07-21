@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -116,3 +117,60 @@ def get_template(tid: str) -> TemplatePreset:
     if tid not in presets:
         raise KeyError(f"미지 템플릿 id: {tid}")
     return presets[tid]
+
+
+# --- 프롬프트 원장 (TEMPLATE-PIPE-V2, 2026-07-21) --------------------------------
+# catalog_v1.json = 50종 카탈로그의 서버측 프롬프트 원장. templates.yaml(6항목 style프리셋)과
+# 별개 — 이쪽은 template_id → 고유 연출 프롬프트 + identity_grade 를 담는다.
+# ⚠️ prompt 본문은 서버측 전용. API 응답·클라이언트에 노출하지 않는다(모노브 반면교사).
+_CATALOG_PATH = Path(__file__).resolve().parents[1] / "templates" / "catalog_v1.json"
+
+
+@dataclass(frozen=True)
+class CatalogTemplate:
+    id: str
+    no: int
+    name: str
+    family: str
+    finish: str
+    tags: tuple[str, ...]
+    identity_grade: str          # strict | standard | loose
+    engine_hint: str             # cutout_composite | edit
+    size: str
+    prompt: str                  # 서버측 전용
+
+
+@lru_cache(maxsize=1)
+def load_catalog() -> dict[str, CatalogTemplate]:
+    """catalog_v1.json → {id: CatalogTemplate}. 기동 시 1회 로드·검증."""
+    data = json.loads(_CATALOG_PATH.read_text(encoding="utf-8"))
+    out: dict[str, CatalogTemplate] = {}
+    for raw in data["templates"]:
+        if raw["identity_grade"] not in ("strict", "standard", "loose"):
+            raise ValueError(f"catalog {raw['id']}: 미지 identity_grade '{raw['identity_grade']}'")
+        if not raw.get("prompt"):
+            raise ValueError(f"catalog {raw['id']}: prompt 비어있음")
+        out[raw["id"]] = CatalogTemplate(
+            id=raw["id"], no=raw["no"], name=raw["name"], family=raw["family"],
+            finish=raw["finish"], tags=tuple(raw.get("tags", [])),
+            identity_grade=raw["identity_grade"], engine_hint=raw["engine_hint"],
+            size=raw["size"], prompt=raw["prompt"],
+        )
+    return out
+
+
+def get_catalog_template(catalog_id: str) -> CatalogTemplate:
+    """template_id → 프롬프트·연출 레시피. 미지 id 는 KeyError(호출부가 404)."""
+    cat = load_catalog()
+    if catalog_id not in cat:
+        raise KeyError(f"미지 카탈로그 template_id: {catalog_id}")
+    return cat[catalog_id]
+
+
+def list_catalog_meta() -> list[dict]:
+    """클라이언트 노출용 메타(프롬프트 제외). 갤러리/전용페이지 표시 데이터."""
+    return [
+        {"id": t.id, "no": t.no, "name": t.name, "family": t.family,
+         "finish": t.finish, "tags": list(t.tags), "identity_grade": t.identity_grade}
+        for t in sorted(load_catalog().values(), key=lambda x: x.no)
+    ]

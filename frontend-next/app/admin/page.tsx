@@ -93,7 +93,7 @@ export default function AdminDashboardPage() {
 
         <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {summaryCards.map(({ key, label, icon: Icon, suffix }) => (
-            <article key={key} className="border border-white/10 bg-[#102039]/90 p-5">
+            <article key={key} className="rounded-2xl border border-white/10 bg-[#102039]/90 p-5">
               <div className="flex items-start justify-between gap-4">
                 <span className="text-sm font-semibold text-white/60">{label}</span>
                 <Icon size={19} className="text-[#a78bfa]" />
@@ -106,7 +106,7 @@ export default function AdminDashboardPage() {
         </div>
 
         <div className="mt-8 grid gap-3 lg:grid-cols-2">
-          <section className="border border-white/10 bg-[#102039]/90 p-5">
+          <section className="rounded-2xl border border-white/10 bg-[#102039]/90 p-5">
             <p className="text-sm font-semibold text-white/60">이번 달 결제액</p>
             <strong className="mt-4 block text-3xl font-extrabold tabular-nums">
               {summary ? formatAmount(summary.monthly_paid_purchase_amount) : "-"}
@@ -115,7 +115,7 @@ export default function AdminDashboardPage() {
               완료된 결제 {summary?.paid_purchase_count.toLocaleString("ko-KR") ?? "-"}건 기준
             </p>
           </section>
-          <section className="border border-white/10 bg-[#102039]/90 p-5">
+          <section className="rounded-2xl border border-white/10 bg-[#102039]/90 p-5">
             <p className="text-sm font-semibold text-white/60">관리자 권한</p>
             <strong className="mt-4 block text-2xl font-extrabold">
               {admin.role === "super_admin" ? "최고 관리자" : "운영자"}

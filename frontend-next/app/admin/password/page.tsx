@@ -80,7 +80,7 @@ export default function AdminPasswordPage() {
         <h1 className="mt-2 text-3xl font-extrabold tracking-normal">비밀번호 변경</h1>
         <p className="mt-2 text-sm text-white/50">관리자 계정의 비밀번호를 변경합니다.</p>
 
-        <form onSubmit={handleSubmit} className="mt-7 border border-white/10 bg-[#102039]/90 p-5 sm:p-6">
+        <form onSubmit={handleSubmit} className="mt-7 rounded-2xl border border-white/10 bg-[#102039]/90 p-5 sm:p-6">
           <div className="flex items-start gap-3 border-b border-white/10 pb-5">
             <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#8b5cf6]/15 text-[#c4b5fd]">
               <ShieldCheck size={20} />

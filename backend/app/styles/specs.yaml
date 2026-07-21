@@ -76,10 +76,13 @@ specs:
     - 150
     - 190
     production: hybrid
-    scene_prompt: dreamy pastel floating scene of {subject}, soft rippling water surface, ethereal high-key
-      light, gentle reflections, pastel pink and lavender, --ar 4:5
-    negative: cluttered background, scattered crumbs, excessive props, long sentences, busy infographic,
-      harsh shadows, watermark, logo, cropped, placeholder text, lorem ipsum
+    scene_prompt: soft pastel studio still life of {subject} as the clear sharp-focus hero,
+      product kept crisp and true to its real shape, outline and color, gentle pastel gradient
+      backdrop in blush pink and lavender, soft diffused high-key light, one subtle soft shadow
+      on a clean minimal surface, airy premium dreamy pastel mood, --ar 4:5
+    negative: distorted product, melted edges, warped shape, blurred subject, floating in water,
+      submerged, cluttered background, scattered crumbs, excessive props, long sentences, busy
+      infographic, harsh shadows, watermark, logo, cropped, placeholder text, lorem ipsum
   monotone:
     mood: 모노크롬 톤온톤(단일 색계열) 볼드 미니멀 임팩트
     palette:

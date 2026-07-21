@@ -41,3 +41,13 @@ class AdminAuditLog(Base):
     target_id = Column(Integer, nullable=False, index=True)
     detail = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class AdminLoginFailureLog(Base):
+    __tablename__ = "admin_login_failure_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    attempted_username = Column(String(50), nullable=False, index=True)
+    user_id = Column(Integer, nullable=True, index=True)
+    reason = Column(String(100), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)

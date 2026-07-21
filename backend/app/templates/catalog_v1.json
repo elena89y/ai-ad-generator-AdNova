@@ -1,0 +1,821 @@
+{
+  "version": "v1",
+  "frozen": "2026-07-21",
+  "source": "Desktop/AdNova/템플릿/catalog.json",
+  "note": "서버측 전용 — 클라이언트/API 응답에 prompt 노출 금지",
+  "templates": [
+    {
+      "id": "tpl_01_menu_poster",
+      "no": 1,
+      "name": "오늘의 메뉴 포스터",
+      "family": "poster_typo",
+      "finish": "graphic",
+      "tags": [
+        "#포스터",
+        "#음식",
+        "#인스타피드",
+        "#매장포스터"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "세로 포스터. 김이 오르는 김치찌개 뚝배기를 하단 중앙에 크게 배치하고, 배경은 찌개의 붉은색에서 파생한 진한 주황 단색 1도로 가득 채운다. 상단 40%는 비워 두고 그 자리에 아주 굵은 한글 고딕으로 '오늘의 메뉴'라고 크게 적는다. 음식은 사실적인 사진 질감, 접촉 그림자 하나만.\n\n그래픽 요소(단색 배경·띠·도형)는 그라데이션과 질감이 전혀 없는 완전한 플랫 단색으로, 벡터 인쇄물처럼. 음식·제품 사진 영역만 사실적인 사진 질감을 유지한다. 지정된 문구 외의 텍스트는 절대 넣지 않고, 문구는 철자 그대로 정확하게. 워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_02_drink_twopanel",
+      "no": 2,
+      "name": "시그니처 음료 2단 컷",
+      "family": "multi_panel",
+      "finish": "photographic",
+      "tags": [
+        "#포스터",
+        "#카페음료",
+        "#여름",
+        "#인스타피드"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "업로드한 원본 음료 사진 한 장을 기반으로 고해상도 실사 스타일의 4:5\n세로형 인스타그램 피드 이미지를 제작한다.\n최종 결과물은 반드시 4:5 세로형 비율이다.\n기준 캔버스 크기는 1080px × 1350px이다.\n정사각형 1:1, 3:4, 2:3, 9:16, 가로형 비율로 출력하지 않는다.\n가장 중요한 레이아웃 규칙:\n이미지는 정확히 두 개의 가로 패널로만 구성한다.\n상단 패널과 하단 패널의 높이는 반드시 완전히 동일해야 한다.\n상단 50%, 하단 50% 비율을 절대 어기지 않는다.\n캔버스 구조:\n- 전체 캔버스: 1080px × 1350px\n- 상단 패널: y=0px부터 y=675px까지\n- 상단 패널 크기: 1080px × 675px\n- 하단 패널: y=675px부터 y=1350px까지\n- 하단 패널 크기: 1080px × 675px\n50:50 분할 규칙:\n- 상단 이미지는 정확히 y=675px에서 끝난다.\n- 하단 이미지는 정확히 y=675px에서 시작한다.\n- 상단과 하단은 같은 높이다.\n- 60:40, 55:45, 45:55, 40:60 비율은 실패다.\n- 두 패널은 빈틈 없이 맞닿아야 한다.\n- 두 패널은 겹치면 안 된다.\n- 중앙에 흰 선, 검은 선, 테두리, 프레임, 그림자, 밝은 틈, 그라데이션\n경계가 보이면 실패다.\n- 구조적으로는 정확히 나뉘되, 시각적으로는 자연스럽고 매끄럽게 이어져야\n한다.\n원본 음료 분석:\n먼저 업로드한 원본 음료 사진을 분석한다.\n음료의 종류, 색감, 질감, 얼음, 유리컵 형태, 테이블, 조명 방향, 그림자,\n카메라 각도, 배경 분위기를 파악한다.\n원본 음료의 정체성을 유지한다.\n커피는 커피답게, 라떼는 라떼답게, 말차는 말차답게, 에이드는 에이드답게\n유지한다.\n원본에 없는 과일, 장식, 빨대, 손, 사람, 추가 음료, 디저트, 꽃, 불필요한\n소품을 추가하지 않는다.\n현재 업로드한 음료가 말차라떼라면 하단 레터링 문구는 반드시 “MATCHA\nLATTE”를 사용한다.\n현재 업로드한 음료가 아이스라떼라면 “ICE LATTE”를 사용한다.\n현재 업로드한 음료가 아이스커피라면 “ICE COFFEE” 또는 “ICE AMERICANO” 중\n원본에 가장 어울리는 문구를 사용한다.\n문구를 직접 지정받은 경우에는 사용자가 지정한 정확한 문구를 사용한다.\n색감 보존:\n- 원본 음료의 대표 색상을 유지한다.\n- 말차라떼라면 자연스러운 말차 그린과 크림 톤을 유지한다.\n- 라떼라면 브라운, 크림, 앰버, 우유 마블링을 유지한다.\n- 진한 커피 음료라면 다크 브라운, 앰버, 콜드브루 같은 투명한 커피 톤을\n유지한다.\n- 과일 에이드라면 원본 과일색과 투명한 탄산감을 유지한다.\n- 원본과 다른 색으로 음료를 바꾸지 않는다.\n- 전체 톤은 미니멀하고 고급스러운 카페 광고 분위기로 만든다.\n상단 패널 — 시원하고 생동감 있는 디테일컷:\n상단 50% 패널에는 원본 음료의 핵심 질감을 바탕으로 새롭게 구성한 초근접\n디테일컷을 만든다.\n상단 패널에는 어떤 글씨도 넣지 않는다.\n로고, 브랜드명, 아이콘, 스티커, 하트, 별, 장식 문구를 넣지 않는다.\n상단에는 컵 전체를 보여주지 않는다.\n컵 외곽선, 컵 벽, 컵 전체 형태, 테이블, 배경은 보이지 않게 한다.\n오직 음료 표면, 얼음, 액체 질감, 거품, 반사만 화면을 가득 채운다.\n상단 디테일 표현:\n- 얼음이 크고 투명하며 차갑게 느껴지도록 표현한다.\n- 얼음 표면의 반짝임, 투명한 굴절, 날카로운 하이라이트를 강조한다.\n- 얼음 사이로 액체가 흐르는 듯한 생동감을 만든다.\n- 작은 기포, 미세한 거품, 차가운 물방울 느낌, 표면 반사를 살린다.\n- 액체가 막 움직이는 듯한 자연스러운 흐름을 표현한다.\n- 너무 흐릿하거나 밋밋하지 않게 선명하고 생생하게 만든다.\n- 시원한 느낌을 위해 파란색을 과하게 넣지 않는다.\n- 원본 음료의 색감과 분위기를 유지한다.\n상단 카메라 느낌:\n- 극단적인 매크로 클로즈업\n- 음료 표면 바로 위에서 찍은 듯한 시점\n- 얕은 심도\n- 선명한 얼음 반사\n- 차갑고 생동감 있는 액체 질감\n- 고해상도 실사 광고 사진 느낌\n하단 패널 — 원본 사진 기반 상품컷:\n하단 50% 패널에는 업로드한 원본 음료 사진을 최대한 충실하게 유지한다.\n하단은 새 카페 장면을 만들지 않는다.\n원본의 구도, 카메라 각도, 조명 방향, 테이블, 트레이, 코스터, 그림자,\n배경 분위기, 컵 위치를 최대한 보존한다.\n하단 패널 규칙:\n- 원본에 음료가 1잔이면 반드시 1잔만 유지한다.\n- 추가 컵, 추가 음료, 사람, 손, 디저트, 꽃, 장식 소품을 넣지 않는다.\n- 컵의 비율과 형태를 바꾸지 않는다.\n- 원본의 유리컵 질감, 얼음, 액체층, 코스터, 트레이, 테이블 질감,\n그림자를 유지한다.\n- 1080px × 675px 하단 패널에 맞추기 위한 최소한의 크롭과 스케일 조정만\n허용한다.\n- 음료 위치를 과하게 이동시키지 않는다.\n- 그림자를 지나치게 새로 만들거나 과하게 바꾸지 않는다.\n하단 레터링 — 음료 뒤 한 줄 배경 글씨:\n하단 패널에만 큰 배경 레터링을 넣는다.\n레터링은 원본 음료 종류에 맞는 영어 대문자 문구로 만든다.\n레터링 문구 규칙:\n- 글씨는 반드시 영어 대문자만 사용한다.\n- 한 줄로만 배치한다.\n- 두 줄로 나누지 않는다.\n- 원본 음료에 맞는 짧고 명확한 메뉴명으로 쓴다.\n- 예시: ICE LATTE, ICE COFFEE, ICE AMERICANO, MATCHA LATTE, LEMON ADE,\nGRAPEFRUIT ADE\n- 오타, 잘못된 대소문자, 깨진 글자는 실패다.\n레터링 폰트 스타일:\n- 참고 이미지의 “ICE LATTE”처럼 아주 굵고 큰 광고용 블록 산세리프 폰트로\n만든다.\n- 얇은 폰트, 세리프체, 손글씨체, 둥근 귀여운 폰트, 장식체는 사용하지\n않는다.\n- Anton, Bebas Neue Pro Bold, Helvetica Neue Condensed Black, Gotham\nCondensed Ultra, Impact와 유사한 느낌의 굵고 단단한 대문자 폰트로\n만든다.\n- 글자는 세로로 길고 묵직해야 한다.\n- 획 두께가 매우 두꺼워야 한다.\n- 글자 간격은 너무 벌리지 않고, 참고 이미지처럼 단단하고 밀도 있게\n배치한다.\n- 글씨는 배경 장식이 아니라 한눈에 읽히는 메인 타이포그래피처럼 보여야\n한다.\n레터링 크기:\n- 글씨의 전체 폭은 하단 패널 가로폭의 약 80~88%를 차지하게 한다.\n- 글씨 높이는 하단 패널 높이의 약 24~30% 정도로 크게 만든다.\n- 글씨는 작으면 실패다.\n- 글씨가 너무 얇거나 존재감이 약하면 실패다.\n- 단, 글씨가 좌우 또는 위아래로 잘리면 실패다.\n- 글씨의 왼쪽 끝과 오른쪽 끝은 반드시 하단 패널 안에 완전히 들어와야\n한다.\n레터링 위치:\n- 글씨는 하단 패널의 배경 중앙에 가로로 길게 배치한다.\n- 글씨는 하단 패널의 정중앙보다 위쪽에 둔다.\n- 1080px × 1350px 기준으로 글씨 중심은 대략 y=790px~830px 부근에 오게\n한다.\n- 글씨의 위쪽 끝은 중앙 경계선 y=675px에서 최소 45~70px 아래에 있어야\n한다.\n- 글씨의 아래쪽은 컵 윗부분과 자연스럽게 겹쳐 보이게 한다.\n- 컵, 유리, 얼음, 액체, 거품, 코스터가 글씨보다 앞에 와야 한다.\n- 글씨는 컵 뒤쪽 배경에 깔린 대형 타이포그래피처럼 보여야 한다.\n- 글씨는 컵 위에 붙은 스티커처럼 보이면 안 된다.\n- 글씨의 중앙 일부는 컵과 얼음에 의해 자연스럽게 가려져야 한다.\n- 투명한 유리컵 뒤로 지나가는 부분은 살짝 흐려지거나 왜곡되거나 액체에\n의해 자연스럽게 가려진 듯 표현한다.\n레터링 안전 여백:\n- 글씨의 왼쪽 끝은 하단 패널 왼쪽 가장자리에서 최소 50px 이상 안쪽에\n있어야 한다.\n- 글씨의 오른쪽 끝은 하단 패널 오른쪽 가장자리에서 최소 50px 이상 안쪽에\n있어야 한다.\n- 글씨의 위쪽 끝은 중앙 경계선 y=675px보다 최소 45px 아래에 있어야 한다.\n- 글씨의 아래쪽 끝은 캔버스 하단보다 충분히 위에 있어야 한다.\n- 글씨는 절대 상단 패널로 넘어가면 안 된다.\n- 글씨가 좌우 또는 위아래로 잘리면 실패다.\n레터링 색상:\n- 크림 화이트, 웜 아이보리, 소프트 베이지, 샌드 베이지 계열을 사용한다.\n- 순백색이나 형광색처럼 튀는 색은 사용하지 않는다.\n- 배경과 자연스럽게 어우러지되, 한눈에 읽을 수 있을 만큼 선명해야 한다.\n- 불투명도는 너무 낮지 않게 한다.\n- 흐릿하거나 거의 안 보이는 글씨는 실패다.\n- 고급 카페 광고 포스터처럼 미니멀하고 세련되게 보이게 한다.\n전체 분위기:\n고해상도 실사 사진 스타일.\n미니멀하고 감각적인 인스타그램 피드 이미지.\n프리미엄 카페 광고, 에디토리얼 상업 사진, 자연광 제품 사진 분위기.\n상단은 시원하고 생동감 있는 음료 디테일컷.\n하단은 원본 사진의 분위기를 살린 상품 광고컷.\n자연광, 부드러운 그림자, 투명한 얼음, 액체의 질감, 유리 반사, 고급스러운\n여백을 강조한다.\n최종 체크:\n- 최종 이미지는 반드시 4:5 세로형이다.\n- 전체 캔버스는 1080px × 1350px이다.\n- 상단과 하단은 정확히 50:50이다.\n- 중앙에 보이는 구분선, 흰 선, 검은 선, 밝은 틈, 테두리가 없어야 한다.\n- 상단에는 텍스트가 없어야 한다.\n- 하단 레터링은 반드시 한 줄이어야 한다.\n- 하단 레터링은 참고 이미지처럼 굵고 큰 블록 산세리프 폰트여야 한다.\n- 하단 레터링은 음료 뒤에 있어야 한다.\n- 글씨는 잘리지 않아야 한다.\n- 컵, 얼음, 액체, 코스터는 글씨보다 앞에 있어야 한다.\n- 하단 사진은 원본 구도와 분위기를 최대한 유지해야 한다.\n- 원본에 없는 불필요한 요소를 추가하지 않는다.\nDo not include:\n- 상단 텍스트\n- 두 줄 레터링\n- 작은 글씨\n- 얇은 글씨\n- 손글씨체\n- 세리프체\n- 잘린 글씨\n- 컵 위에 붙은 스티커 같은 글씨\n- 중앙 분할선\n- 로고\n- 워터마크\n- 앱 UI\n- 검색 아이콘\n- 하트\n- 별 장식\n- 사람\n- 손\n- 얼굴\n- 추가 음료\n- 불필요한 소품\n- 원본과 다른 음료 색상\n- 새롭게 꾸민 카페 장면\n- 50:50이 아닌 분할 비율"
+    },
+    {
+      "id": "tpl_03_brand_studio",
+      "no": 3,
+      "name": "브랜드 컬러 스튜디오 컷",
+      "family": "studio",
+      "finish": "photographic",
+      "tags": [
+        "#스튜디오컷",
+        "#미니멀",
+        "#스마트스토어",
+        "#생활용품"
+      ],
+      "identity_grade": "strict",
+      "engine_hint": "cutout_composite",
+      "size": "1024x1536",
+      "prompt": "딥 그린 계열의 어두운 그라데이션 스튜디오. 낮은 원형 받침대 위에 라벨이 없는 무광 화장품 보틀 하나가 중앙에 서 있다. 위에서 떨어지는 은은한 스포트라이트, 바닥에 부드러운 반사와 접촉 그림자. 미니멀하고 프리미엄한 광고 컷.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_04_cream_engrave",
+      "no": 4,
+      "name": "크림 각인 타이포",
+      "family": "material_typo",
+      "finish": "photographic",
+      "tags": [
+        "#타이포그래피",
+        "#뷰티",
+        "#감성",
+        "#디저트"
+      ],
+      "identity_grade": "loose",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "부드러운 화장품 크림이 스월 무늬로 펼쳐진 표면의 초근접 매크로. 크림 한가운데에 'SOFT GLOW'라는 영문이 도장으로 눌러 새긴 듯한 음각으로 정확히 새겨져 있다. 각인 문구는 이 두 단어뿐, 오탈자 없이. 아이보리-웜톤, 부드러운 스튜디오 조명.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_05_steam_closeup",
+      "no": 5,
+      "name": "국물 김서림 클로즈업",
+      "family": "scene",
+      "finish": "photographic",
+      "tags": [
+        "#연출컷",
+        "#국물요리",
+        "#음식",
+        "#인스타피드"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "검은 뚝배기에 담긴 김치찌개가 다크 우드 테이블 위에서 김을 뿜는 클로즈업. 측면 창에서 들어오는 자연광이 김을 역광으로 비춘다. 국물의 기름막과 건더기 질감이 살아 있고, 배경은 어둡게 가라앉는다.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_06_charcoal_grill",
+      "no": 6,
+      "name": "숯불 직화 무드",
+      "family": "scene",
+      "finish": "photographic",
+      "tags": [
+        "#연출컷",
+        "#구이",
+        "#음식"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "숯불 그릴 위에서 집게가 소고기 한 점을 올리는 순간. 붉은 숯과 작은 불꽃, 피어오르는 연기. 어두운 배경에 고기와 불만 밝게 떠오른다. 고기 표면의 마블링과 그릴 자국이 사실적으로.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_07_bunsik_pop",
+      "no": 7,
+      "name": "분식 세트 팝 포스터",
+      "family": "poster_typo",
+      "finish": "graphic",
+      "tags": [
+        "#포스터",
+        "#분식",
+        "#키치",
+        "#인스타피드"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "떡볶이·김말이튀김·순대가 담긴 접시를 중앙에 두고, 배경은 비비드한 레드와 옐로 두 색의 플랫 컬러 블록. 상단에 두툼하고 둥근 한글 레터링으로 '분식 세트'라고 크게. 키치하고 경쾌한 팝 무드, 음식 사진은 사실적으로.\n\n그래픽 요소(단색 배경·띠·도형)는 그라데이션과 질감이 전혀 없는 완전한 플랫 단색으로, 벡터 인쇄물처럼. 음식·제품 사진 영역만 사실적인 사진 질감을 유지한다. 지정된 문구 외의 텍스트는 절대 넣지 않고, 문구는 철자 그대로 정확하게. 워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_08_ingredient_callout",
+      "no": 8,
+      "name": "재료 콜아웃 오버레이",
+      "family": "graphic_layout",
+      "finish": "photographic",
+      "tags": [
+        "#레이아웃그래픽",
+        "#음식",
+        "#인스타피드"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "비빔밥 한 그릇의 탑뷰 사진 위에 분석 그래픽을 얹는다: 밥 위 재료 세 곳(고사리, 당근, 계란노른자)에 작은 흰 점을 찍고, 각 점에서 가는 흰 실선이 바깥 여백의 흰 테두리 원형 박스로 이어지며, 박스 안에는 해당 재료의 클로즈업이 들어 있다. 선과 박스는 겹치지 않게. 글자 없음.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_09_delivery_thumb",
+      "no": 9,
+      "name": "배달앱 썸네일",
+      "family": "studio",
+      "finish": "photographic",
+      "tags": [
+        "#스튜디오컷",
+        "#배달앱메뉴",
+        "#음식"
+      ],
+      "identity_grade": "strict",
+      "engine_hint": "cutout_composite",
+      "size": "1024x1024",
+      "prompt": "배달앱 메뉴 썸네일용 정사각 클린 컷. 밝은 크림색 단색 배경 위 흰 접시에 담긴 후라이드 치킨, 살짝 위에서 내려다본 각도. 튀김옷의 바삭한 질감이 또렷하고 여백이 넉넉하다.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_10_menu_trio",
+      "no": 10,
+      "name": "메뉴판 3종 세트",
+      "family": "multi_panel",
+      "finish": "photographic",
+      "tags": [
+        "#멀티팩",
+        "#음식",
+        "#매장포스터"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "세로 이미지를 3단으로 나눠 같은 식당의 메뉴 3종(된장찌개, 제육볶음, 계란말이)을 위에서 아래로 배치. 세 컷 모두 동일한 원목 테이블, 동일한 조명, 동일한 각도로 촬영한 것처럼 톤이 완벽히 일치해야 한다. 경계는 가는 흰 여백.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_11_cafe_goldenhour",
+      "no": 11,
+      "name": "카페 창가 골든아워",
+      "family": "scene",
+      "finish": "photographic",
+      "tags": [
+        "#연출컷",
+        "#카페음료",
+        "#감성"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "오후 늦은 햇살이 비스듬히 들어오는 카페 창가. 라떼 한 잔이 원목 테이블 위에 놓여 있고, 잔과 소서의 긴 그림자가 테이블을 가로지른다. 역광에 김이 살짝 비치고, 배경 창밖은 부드럽게 흐려진다.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_12_latteart_topview",
+      "no": 12,
+      "name": "라떼아트 탑뷰",
+      "family": "studio",
+      "finish": "photographic",
+      "tags": [
+        "#스튜디오컷",
+        "#카페음료",
+        "#탑뷰"
+      ],
+      "identity_grade": "strict",
+      "engine_hint": "cutout_composite",
+      "size": "1024x1024",
+      "prompt": "라떼아트(로제타)가 선명한 라떼 잔의 정확한 수직 탑뷰. 원목 트레이 위, 옆에 티스푼 하나. 부드러운 확산광, 크레마의 미세 거품 질감.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_13_season_banner",
+      "no": 13,
+      "name": "시즌 신메뉴 배너",
+      "family": "graphic_layout",
+      "finish": "graphic",
+      "tags": [
+        "#배너",
+        "#카페음료",
+        "#여름"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1536x1024",
+      "prompt": "가로 배너. 오른쪽 1/3에 얼음 가득한 청량한 에이드 유리잔 사진, 왼쪽 2/3는 민트색 플랫 단색 배경. 왼쪽 여백에 굵은 한글로 '여름 신메뉴' 한 줄만. 시원하고 깔끔한 시즌 프로모션 배너.\n\n그래픽 요소(단색 배경·띠·도형)는 그라데이션과 질감이 전혀 없는 완전한 플랫 단색으로, 벡터 인쇄물처럼. 음식·제품 사진 영역만 사실적인 사진 질감을 유지한다. 지정된 문구 외의 텍스트는 절대 넣지 않고, 문구는 철자 그대로 정확하게. 워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_14_ice_macro",
+      "no": 14,
+      "name": "아이스 텍스처 매크로",
+      "family": "scene",
+      "finish": "photographic",
+      "tags": [
+        "#연출컷",
+        "#카페음료",
+        "#여름",
+        "#질감"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "자몽 에이드 유리잔 속을 채운 얼음과 과육의 초근접 매크로. 탄산 기포가 얼음 사이로 올라오고, 유리 표면에 결로가 맺혀 있다. 밝은 자연광, 청량한 투명감.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_15_dessert_crosssection",
+      "no": 15,
+      "name": "디저트 단면 히어로",
+      "family": "scene",
+      "finish": "photographic",
+      "tags": [
+        "#연출컷",
+        "#디저트",
+        "#질감"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "딸기 생크림 케이크 한 조각의 단면을 눈높이 정면에서 담은 매크로. 시트-크림-딸기 층이 칼로 자른 듯 선명하고, 크림의 공기감과 딸기 과육의 촉촉함이 보인다. 배경은 연한 크림색으로 부드럽게 흐림.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_16_pastel_studio",
+      "no": 16,
+      "name": "파스텔 소프트 스튜디오",
+      "family": "studio",
+      "finish": "photographic",
+      "tags": [
+        "#스튜디오컷",
+        "#뷰티",
+        "#파스텔"
+      ],
+      "identity_grade": "strict",
+      "engine_hint": "cutout_composite",
+      "size": "1024x1536",
+      "prompt": "파우더 핑크 파스텔 단색 스튜디오. 라벨 없는 무광 튜브형 화장품이 낮은 석고 받침대에 기대어 있고, 부드러운 확산광이 긴 파스텔 그림자를 만든다.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_17_ripple_reflection",
+      "no": 17,
+      "name": "물결 리플렉션 컷",
+      "family": "scene",
+      "finish": "photographic",
+      "tags": [
+        "#연출컷",
+        "#뷰티",
+        "#감성"
+      ],
+      "identity_grade": "strict",
+      "engine_hint": "cutout_composite",
+      "size": "1024x1536",
+      "prompt": "얕은 물 위에 세워진 라벨 없는 유리 세럼 보틀. 잔잔한 물결이 만든 반사와 일렁이는 커스틱 빛이 보틀 아래에 퍼진다. 새벽빛 같은 차분한 블루-그레이 톤.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_18_mini_showcase",
+      "no": 18,
+      "name": "미니어처 진열장",
+      "family": "playful",
+      "finish": "photographic",
+      "tags": [
+        "#연출컷",
+        "#뷰티",
+        "#미니어처"
+      ],
+      "identity_grade": "strict",
+      "engine_hint": "cutout_composite",
+      "size": "1024x1536",
+      "prompt": "인형 집 크기의 미니어처 나무 진열장 안 선반에 실물 크기 화장품 보틀 하나가 주인공처럼 놓여 있다. 주변 선반엔 미니어처 화분과 소품들. 스케일 대비가 주는 귀여움, 따뜻한 진열장 조명.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_19_cozy_fabric",
+      "no": 19,
+      "name": "코지 패브릭 정물",
+      "family": "scene",
+      "finish": "photographic",
+      "tags": [
+        "#연출컷",
+        "#뷰티",
+        "#내추럴"
+      ],
+      "identity_grade": "strict",
+      "engine_hint": "cutout_composite",
+      "size": "1024x1536",
+      "prompt": "아침 햇살이 드는 침구 위, 구김이 자연스러운 아이보리 린넨 사이에 무지 화장품 용기가 반쯤 파묻혀 있다. 옆에 무지 도자기 접시 하나. 포근하고 느린 아침 무드.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_20_citrus_fresh",
+      "no": 20,
+      "name": "시트러스 프레시 컷",
+      "family": "scene",
+      "finish": "photographic",
+      "tags": [
+        "#연출컷",
+        "#뷰티",
+        "#내추럴"
+      ],
+      "identity_grade": "strict",
+      "engine_hint": "cutout_composite",
+      "size": "1024x1536",
+      "prompt": "밝은 스톤 표면 위 무지 세럼 보틀 옆에 반으로 자른 레몬과 자몽이 놓여 있고, 과육에 과즙이 맺혀 있다. 강한 정오 햇살과 또렷한 그림자, 상큼하고 청량한 톤.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_21_desk_setup",
+      "no": 21,
+      "name": "데스크 셋업 컷",
+      "family": "scene",
+      "finish": "photographic",
+      "tags": [
+        "#연출컷",
+        "#전자제품",
+        "#라이프스타일"
+      ],
+      "identity_grade": "strict",
+      "engine_hint": "cutout_composite",
+      "size": "1024x1536",
+      "prompt": "정돈된 원목 데스크 위 무선 이어폰과 충전 케이스. 뒤로는 흐릿한 모니터 불빛과 키보드 보케. 창가 자연광에 금속 표면 하이라이트가 은은하다.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_22_unwrap_moment",
+      "no": 22,
+      "name": "포장을 여는 순간",
+      "family": "scene",
+      "finish": "photographic",
+      "tags": [
+        "#연출컷",
+        "#감성",
+        "#내추럴",
+        "#인스타피드"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "빛바랜 원목 테이블 위, 방금 연 크라프트 포장. 구겨진 유산지가 둥지처럼 수제 쿠키 꾸러미를 받치고, 풀린 린넨 리본이 흐른다. 옆에 작은 무지 스탬프 카드 한 장(글자 없음). 창가의 부드러운 오후광.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_23_color_split",
+      "no": 23,
+      "name": "컬러 블록 그래픽",
+      "family": "graphic_layout",
+      "finish": "graphic",
+      "tags": [
+        "#레이아웃그래픽",
+        "#미니멀",
+        "#생활용품"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "화면을 대각선으로 가르는 두 개의 플랫 컬러 블록(테라코타/크림). 경계선 위에 무광 텀블러가 서 있고 블록마다 다른 색 그림자가 진다. 글자 없음, 구성만으로 완결되는 그래픽 컷.\n\n그래픽 요소(단색 배경·띠·도형)는 그라데이션과 질감이 전혀 없는 완전한 플랫 단색으로, 벡터 인쇄물처럼. 음식·제품 사진 영역만 사실적인 사진 질감을 유지한다. 지정된 문구 외의 텍스트는 절대 넣지 않고, 문구는 철자 그대로 정확하게. 워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_24_giant_mini",
+      "no": 24,
+      "name": "자이언트 제품 미니 씬",
+      "family": "playful",
+      "finish": "photographic",
+      "tags": [
+        "#연출컷",
+        "#키치",
+        "#생활용품"
+      ],
+      "identity_grade": "strict",
+      "engine_hint": "cutout_composite",
+      "size": "1024x1536",
+      "prompt": "사람 키만큼 거대해진 핸드크림 튜브가 공원 잔디밭에 기념비처럼 서 있고, 그 아래 미니어처 벤치와 가로등이 놓인 스케일 반전 연출. 맑은 하늘, 낮 햇살, 진지하게 촬영한 광고처럼.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_25_white_standard",
+      "no": 25,
+      "name": "흰 배경 정석 컷",
+      "family": "studio",
+      "finish": "photographic",
+      "tags": [
+        "#흰배경",
+        "#스마트스토어",
+        "#생활용품"
+      ],
+      "identity_grade": "strict",
+      "engine_hint": "cutout_composite",
+      "size": "1024x1024",
+      "prompt": "순백 무배경 위 스테인리스 텀블러 정면 단독 컷. 균일한 소프트박스 조명, 바닥에 옅은 접촉 그림자만. 커머스 등록용 정석 화이트컷.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_26_gradient_studio",
+      "no": 26,
+      "name": "그라데이션 스튜디오 팩",
+      "family": "studio",
+      "finish": "photographic",
+      "tags": [
+        "#스튜디오컷",
+        "#미니멀",
+        "#뷰티"
+      ],
+      "identity_grade": "strict",
+      "engine_hint": "cutout_composite",
+      "size": "1024x1536",
+      "prompt": "딥 블루에서 밝은 하늘빛으로 이어지는 세로 그라데이션 스튜디오. 유리 화장품 보틀이 중앙, 표면에 그라데이션이 비친다. 시리즈로 색만 바꿔 쓸 수 있는 구성.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_27_summer_vacance",
+      "no": 27,
+      "name": "여름 바캉스 연출",
+      "family": "scene",
+      "finish": "photographic",
+      "tags": [
+        "#연출컷",
+        "#여름",
+        "#뷰티"
+      ],
+      "identity_grade": "strict",
+      "engine_hint": "cutout_composite",
+      "size": "1024x1536",
+      "prompt": "햇빛 쏟아지는 수영장 가장자리 젖은 타일 위에 선크림 튜브가 비스듬히 놓여 있고, 물방울이 튜브에 맺혀 있다. 뒤로 일렁이는 터쿼이즈 수면 보케.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_28_seollal_bojagi",
+      "no": 28,
+      "name": "설날 선물세트 보자기",
+      "family": "scene",
+      "finish": "photographic",
+      "tags": [
+        "#연출컷",
+        "#설날",
+        "#감성"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "낮은 원목 소반 위, 붉은 명주 보자기로 정갈하게 매듭지은 선물 상자. 옆에 노리개 장식과 한지 카드(글자 없음). 창호지 너머로 들어오는 은은한 아침빛, 단정한 한국식 명절 무드.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_29_christmas_ornament",
+      "no": 29,
+      "name": "크리스마스 오너먼트",
+      "family": "scene",
+      "finish": "photographic",
+      "tags": [
+        "#연출컷",
+        "#크리스마스",
+        "#감성"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "전나무 가지와 유리 오너먼트, 흐릿한 전구 보케 사이에 무지 향수 보틀이 놓인 따뜻한 홀리데이 정물. 딥그린과 골드 톤, 촛불 같은 웜라이트.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_30_butter_engrave",
+      "no": 30,
+      "name": "버터 각인 타이포",
+      "family": "material_typo",
+      "finish": "photographic",
+      "tags": [
+        "#타이포그래피",
+        "#질감",
+        "#감성",
+        "#디저트"
+      ],
+      "identity_grade": "loose",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "매끈하게 스프레드된 버터 표면의 매크로. 중앙에 'BUTTER GLOW' 영문이 깔끔한 음각으로 새겨져 있다. 문구는 이 두 단어뿐. 따뜻한 옐로 톤, 부드러운 광택.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_31_doodle_mood",
+      "no": 31,
+      "name": "손글씨 낙서 무드",
+      "family": "playful",
+      "finish": "graphic",
+      "tags": [
+        "#연출컷",
+        "#키치",
+        "#인스타피드"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "폴라로이드 프레임 안에 담긴 크로플 사진 주위로, 흰 마커 손그림 낙서(별, 하트, 물결 화살표)가 사진 밖 파스텔 배경까지 이어진다. 글자는 없고 그림 낙서만. 발랄한 스크랩북 무드.\n\n그래픽 요소(단색 배경·띠·도형)는 그라데이션과 질감이 전혀 없는 완전한 플랫 단색으로, 벡터 인쇄물처럼. 음식·제품 사진 영역만 사실적인 사진 질감을 유지한다. 지정된 문구 외의 텍스트는 절대 넣지 않고, 문구는 철자 그대로 정확하게. 워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_32_story_pack",
+      "no": 32,
+      "name": "인스타 스토리 세로 팩",
+      "family": "multi_panel",
+      "finish": "photographic",
+      "tags": [
+        "#멀티팩",
+        "#인스타피드",
+        "#카페음료"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "9:16 스토리 규격의 세로 구성: 상단 1/3은 민트 단색 여백(글자 없음), 중앙에 아이스티 유리잔 연출컷, 하단은 테이블 질감이 자연스럽게 이어진다. 스토리에 바로 올릴 수 있는 세로 리듬.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_33_cheese_pull",
+      "no": 33,
+      "name": "치즈 풀링 클로즈업",
+      "family": "scene",
+      "finish": "photographic",
+      "tags": [
+        "#연출컷",
+        "#음식",
+        "#질감"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "피자 한 조각을 들어 올리는 순간 길게 늘어나는 모차렐라 치즈의 클로즈업. 치즈 실의 광택과 탄력, 도우의 눌은 자국. 어두운 배경에 음식만 밝게.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_34_hansang_topview",
+      "no": 34,
+      "name": "김 오르는 한 상 탑뷰",
+      "family": "scene",
+      "finish": "photographic",
+      "tags": [
+        "#연출컷",
+        "#음식",
+        "#탑뷰",
+        "#국물요리"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "정갈한 한식 한상차림의 수직 탑뷰 — 중앙 된장찌개 뚝배기에서 김이 오르고, 공기밥과 반찬 다섯 그릇이 리듬감 있게 배열돼 있다. 어두운 무쇠·도기 그릇과 원목 상, 따뜻한 자연광.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_35_midnight_spotlight",
+      "no": 35,
+      "name": "야식 스팟라이트",
+      "family": "scene",
+      "finish": "photographic",
+      "tags": [
+        "#연출컷",
+        "#음식",
+        "#감성"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "칠흑 같은 배경에 스팟라이트 하나가 김이 오르는 라면 냄비만 비춘다. 면발을 젓가락으로 살짝 들어 올린 순간, 국물의 반짝임. 늦은 밤의 몰입감.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_36_newmenu_notice",
+      "no": 36,
+      "name": "신메뉴 공지 포스터",
+      "family": "poster_typo",
+      "finish": "graphic",
+      "tags": [
+        "#포스터",
+        "#음식",
+        "#매장포스터"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "밝은 아이보리 플랫 배경의 세로 포스터. 중앙에 크림 파스타 접시 사진, 그 위 상단에 굵은 한글 '신메뉴 출시'와 작은 원형 뱃지 모양의 'NEW' 마크 하나. 문구는 이 둘뿐. 깔끔한 공지 포스터.\n\n그래픽 요소(단색 배경·띠·도형)는 그라데이션과 질감이 전혀 없는 완전한 플랫 단색으로, 벡터 인쇄물처럼. 음식·제품 사진 영역만 사실적인 사진 질감을 유지한다. 지정된 문구 외의 텍스트는 절대 넣지 않고, 문구는 철자 그대로 정확하게. 워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_37_half_compare",
+      "no": 37,
+      "name": "세트/반반 비교 2분할",
+      "family": "multi_panel",
+      "finish": "photographic",
+      "tags": [
+        "#멀티팩",
+        "#음식"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "화면을 좌우 정확히 반으로 나눠 왼쪽엔 후라이드 치킨, 오른쪽엔 양념 치킨 클로즈업. 두 쪽의 조명과 접시 톤은 동일하고, 경계는 가는 흰 세로 여백 하나. 글자 없음.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_38_honest_ingredient",
+      "no": 38,
+      "name": "원재료 정직 컷",
+      "family": "scene",
+      "finish": "photographic",
+      "tags": [
+        "#연출컷",
+        "#음식",
+        "#내추럴"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "나무 도마 위 왼쪽엔 손질 전 생재료(통마늘, 대파, 생 삼겹살), 오른쪽엔 완성된 김치찜 한 그릇. 같은 조명 아래 재료와 완성품이 나란히 놓여 정직한 조리 과정을 말해준다. 글자 없음.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_39_spicy_gauge",
+      "no": 39,
+      "name": "매운맛 단계 그래픽",
+      "family": "graphic_layout",
+      "finish": "graphic",
+      "tags": [
+        "#레이아웃그래픽",
+        "#음식",
+        "#키치"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "붉은 플랫 단색 배경 하단에 불닭볶음면 스타일의 매운 요리 사진, 상단에 고추 아이콘 세 개가 나란한 단계 게이지 그래픽(하나만 채워짐, 둘은 윤곽선). 아이콘은 플랫 벡터 스타일. 글자 없음.\n\n그래픽 요소(단색 배경·띠·도형)는 그라데이션과 질감이 전혀 없는 완전한 플랫 단색으로, 벡터 인쇄물처럼. 음식·제품 사진 영역만 사실적인 사진 질감을 유지한다. 지정된 문구 외의 텍스트는 절대 넣지 않고, 문구는 철자 그대로 정확하게. 워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_40_takeout_info",
+      "no": 40,
+      "name": "포장·배달 안내 컷",
+      "family": "graphic_layout",
+      "finish": "graphic",
+      "tags": [
+        "#레이아웃그래픽",
+        "#배달앱메뉴",
+        "#매장포스터"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "크림색 플랫 배경에 크라프트 포장 용기와 종이 캐리어에 담긴 도시락 사진, 하단 여백에 굵은 한글 '포장·배달 가능' 한 줄. 문구는 이것뿐. 단정한 안내 포스터.\n\n그래픽 요소(단색 배경·띠·도형)는 그라데이션과 질감이 전혀 없는 완전한 플랫 단색으로, 벡터 인쇄물처럼. 음식·제품 사진 영역만 사실적인 사진 질감을 유지한다. 지정된 문구 외의 텍스트는 절대 넣지 않고, 문구는 철자 그대로 정확하게. 워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_41_season_limited",
+      "no": 41,
+      "name": "계절 한정 무드",
+      "family": "scene",
+      "finish": "photographic",
+      "tags": [
+        "#연출컷",
+        "#음식",
+        "#여름"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "살얼음이 낀 놋그릇 물냉면의 클로즈업. 얼음 결정과 육수의 투명함, 고명의 색 대비. 시원한 쿨톤과 결로 맺힌 그릇 표면. 여름 한정 메뉴의 청량감.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_42_dessert_showcase",
+      "no": 42,
+      "name": "디저트 쇼케이스 진열",
+      "family": "scene",
+      "finish": "photographic",
+      "tags": [
+        "#연출컷",
+        "#디저트",
+        "#카페음료"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "카페 유리 쇼케이스 안 조명 아래 진열된 조각 케이크 네 종. 유리에 은은한 반사, 케이크마다 다른 색과 질감. 앞줄의 딸기 케이크에 초점, 뒤는 부드럽게 흐림.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_43_review_event",
+      "no": 43,
+      "name": "리뷰 이벤트 안내",
+      "family": "poster_typo",
+      "finish": "graphic",
+      "tags": [
+        "#포스터",
+        "#인스타피드",
+        "#매장포스터"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "연노랑 플랫 배경 세로 포스터. 중앙에 아이스 아메리카노와 쿠키가 놓인 사진, 상단에 굵은 한글 '리뷰 이벤트', 그 아래 작은 글씨 '자세한 내용은 매장에서'. 문구는 이 둘뿐. 밝고 친근한 안내 톤.\n\n그래픽 요소(단색 배경·띠·도형)는 그라데이션과 질감이 전혀 없는 완전한 플랫 단색으로, 벡터 인쇄물처럼. 음식·제품 사진 영역만 사실적인 사진 질감을 유지한다. 지정된 문구 외의 텍스트는 절대 넣지 않고, 문구는 철자 그대로 정확하게. 워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_44_morning_windowlight",
+      "no": 44,
+      "name": "아침 정식 창가 무드",
+      "family": "scene",
+      "finish": "photographic",
+      "tags": [
+        "#연출컷",
+        "#음식",
+        "#내추럴"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "아침 햇살이 낮게 드는 창가 테이블의 백반 정식 — 갓 지은 밥에서 김이 오르고, 계란후라이와 미역국, 소반 위 그림자가 길다. 조용하고 따뜻한 아침의 공기.\n\n실제 상업 촬영 사진처럼 보여야 한다: 자연스러운 렌즈 심도, 미세한 필름 그레인, 물리적으로 그럴듯한 재질 질감, 단일 광원의 자연광 논리와 부드러운 접촉 그림자, 절제된 채도의 따뜻한 톤. 인위적으로 완벽한 배치는 금지 — 미세한 비대칭과 자연스러운 흐트러짐을 남긴다. CGI 느낌, 3D 렌더, 플라스틱 광택, 과도한 스무딩, 과채도 금지. 텍스트·워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_45_diagonal_band",
+      "no": 45,
+      "name": "사선 밴드 메뉴 포스터",
+      "family": "graphic_layout",
+      "finish": "graphic",
+      "tags": [
+        "#포스터",
+        "#레이아웃그래픽",
+        "#미니멀",
+        "#음식"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "# PRIMARY OBJECTIVE\n\nCreate a premium vertical commercial food poster using only the exact food subject or subjects found in the uploaded food photograph(s).\n\nPrecisely isolate the original food and integrate it into a refined editorial layout featuring:\n\n- photorealistic commercial food photography\n- separate diagonal rectangular bands filled with completely flat solid colors\n- band dimensions matched to the size of each paired plate or food subject\n- a strict tone-on-tone monochromatic palette\n- a stepped lower-left-to-upper-right composition\n- generous negative space\n- elegant serif-led typography\n- clean professional food-poster art direction\n\nDo not replace, redraw, reinterpret, or regenerate the uploaded food as a different dish.\n\nAspect ratio: vertical 4:5.\nResolution: 4K, ultra-high resolution.\nQuality: premium commercial food advertising.\n\n# FOOD IDENTITY PRESERVATION\n\nUse only the food genuinely visible in the uploaded photograph(s).\n\nPreserve:\n\n- the exact food type\n- the number of complete dishes\n- the visible ingredients\n- the original portion size\n- the plating arrangement\n- the food shapes and proportions\n- the garnishes\n- the cooking texture\n- the natural food colors\n- the original plate, bowl, tray, cup, cone, wrapper, or serving vessel\n\nDo not add, remove, duplicate, merge, or replace food, ingredients, toppings, garnishes, or side dishes.\n\nTreat each complete plated or standalone food composition as one food subject. Ingredients arranged together on one plate must remain one subject.\n\n# FOOD CUTOUT AND TABLEWARE\n\nCreate a clean professional cutout of every food subject.\n\nWhen the original food includes a necessary serving vessel:\n\n- preserve the entire original vessel\n- keep the full outer rim visible\n- retain its original shape, proportions, and perspective\n- do not crop, distort, replace, or extend it\n\nThe cutout must have crisp natural edges with no white halo, rough fringe, missing sections, or warped geometry.\n\nFor naturally standalone foods such as bread, pastries, cookies, croissants, ice cream cones, or handheld desserts, keep them without a plate when tableware is unnecessary.\n\nDo not invent empty dishes, extra tableware, utensils, napkins, glasses, or decorative props.\n\n# ADAPTIVE COMPOSITION\n\nAutomatically detect the number of complete food subjects.\n\n## ONE FOOD SUBJECT\n\nWhen there is one food subject:\n\n- place it prominently near the center\n- keep it large but fully visible\n- maintain balanced negative space\n- create one dedicated diagonal rectangular band leading toward it from the upper-left direction\n- match the band width to the visual width of the plate or food\n- reserve a clean lower-right area for typography\n\n## MULTIPLE FOOD SUBJECTS\n\nWhen there are multiple food subjects:\n\n- arrange them in a stepped sequence from the lower-left toward the upper-right\n- place each subject at a different horizontal and vertical position\n- keep clear visual spacing between dishes\n- maintain balanced scale and visual weight\n- keep every dish completely visible\n- give each food subject one separately sized diagonal band\n- reserve the lower-right area for typography\n\nDo not form a rigid grid, straight vertical stack, horizontal row, or overlapping composition.\n\nThe diagonal rhythm must come from subject placement, not from rotating the food.\n\n# HORIZONTAL LEVELING\n\nKeep every plate, bowl, tray, bread base, and serving surface visually level with a 0-degree roll.\n\nPreserve the natural photographic viewing angle while removing unwanted sideways tilt.\n\nDo not distort circular or oval rims or rotate individual dishes to follow the diagonal layout.\n\n# INDEPENDENT DIAGONAL BAND SYSTEM\n\nAssign exactly one separate rectangular band to each food subject.\n\nEach band must:\n\n- approach its paired food from the upper-left direction\n- begin at the upper-left or left canvas boundary at the appropriate height\n- form one wide, solid rectangular lane\n- have sharp square corners\n- use clean hard-edged vector geometry\n- remain visually proportional to its paired plate or food\n- exist only in the visual lane leading to that specific food subject\n- terminate at the nearest outer edge of that food subject\n\nThe separate bands must not connect, merge, overlap, or form one continuous stripe pattern.\n\nMaintain clearly visible background space between neighboring bands so that every band reads as an independent graphic shape.\n\nDo not generate decorative bands in areas without a corresponding food subject.\n\nEvery visible band must have one direct food destination.\n\n# BAND COUNT AND ANCHOR ENFORCEMENT (CRITICAL)\n\nThe total number of bands must exactly equal the total number of detected food subjects. Not one more, not one less.\n\nBefore drawing any band, first mentally mark the exact contact point (the nearest outer edge) of each food subject. A band may only exist if it has a real, specific food-edge contact point as its destination.\n\nEach band must form one unbroken, continuous diagonal shape from its starting boundary all the way to its paired food's contact edge, with no gap, no floating segment, and no portion of the band ending in empty background space.\n\nIf a diagonal path from the upper-left does not lead directly into a food subject, do not draw a band along that path at all — leave that area as plain background.\n\nDo not create a band \"above\" or \"near\" a food subject without full edge contact. Partial proximity is not sufficient; only direct, flush contact counts as a valid band.\n\n# BAND SEPARATION AND GAP ENFORCEMENT (CRITICAL)\n\nEvery band must be surrounded by visible background on both of its long sides, with no shared border, no touching edge, and no direct adjacency to any other band.\n\nMaintain a clearly visible gap of open background space between every pair of neighboring bands at every point along their length, not only near the canvas edge.\n\nTwo bands must never share a boundary line, sit flush against each other, overlap, or visually merge into what reads as one continuous shape, even when they run in a similar diagonal direction or are close in tone.\n\nBefore finalizing, individually check each pair of neighboring bands and confirm that plain background is clearly visible between them along their entire length, from the start of the bands to their terminal edges.\n\n# ABSOLUTELY FLAT SOLID-COLOR BANDS\n\nEach individual band must use one completely uniform solid fill color.\n\nThe color inside a single band must remain identical:\n\n- from its starting edge to its terminal edge\n- from its upper boundary to its lower boundary\n- across the entire visible surface of the shape\n\nThere must be no variation inside an individual band.\n\nDo not apply:\n\n- gradients\n- tonal transitions\n- directional color fading\n- edge darkening\n- center highlights\n- light-to-dark shading\n- color drift\n- transparency\n- translucency\n- glow\n- beveling\n- embossing\n- texture\n- grain\n- shadows inside the band\n- lighting effects on the band\n- three-dimensional surface effects\n\nTreat every band as a flat opaque vector rectangle filled with one exact color value.\n\nDifferent bands may use different lightness or saturation levels of the same base hue, but each individual band must remain one perfectly flat, uniform tone.\n\n# BAND WIDTH MATCHING\n\nMatch the thickness of every band to the visible width of its paired plate, vessel, or standalone food subject.\n\nBand thickness means the distance between the two long parallel sides of the rectangular band, measured perpendicular to the direction in which the band travels.\n\nFor plated food:\n\n- measure the visible span of the plate perpendicular to the band direction\n- make the band thickness approximately equal to that plate span\n- keep the difference within approximately 10 percent\n- visually align the central axis of the band toward the central area of the plate\n- make the band feel like a fitted graphic lane created specifically for that plate\n\nThe band must not appear dramatically narrower or wider than its paired plate.\n\nFor an oval or elongated plate:\n\n- use the plate dimension that runs perpendicular to the band direction\n- do not automatically use the plate's longest dimension\n- match the band to the actual cross-sectional width visible at the contact zone\n\nFor standalone food:\n\n- match the band thickness to the visible width of the food silhouette measured perpendicular to the band direction\n\nA small dish must receive a correspondingly narrow band.\n\nA large dish must receive a correspondingly wide band.\n\nDo not use one generic band width for every food subject.\n\n# BAND LENGTH AND PLACEMENT\n\nDetermine the length and position of every band from the actual position of its paired food subject.\n\nEach band must:\n\n- begin from the upper-left or left boundary\n- travel only far enough to reach its paired dish\n- end at the first contact point with the nearest outer plate or food edge\n- remain confined to the lane occupied by that dish\n\nDo not use:\n\n- generic full-canvas stripes\n- identical band lengths for differently positioned dishes\n- excessively long bands unrelated to food placement\n- band segments placed in empty visual areas\n- decorative stripe patterns covering the composition\n\nThe dimensions of each band must be individually calculated from its paired food subject.\n\n# BAND-TO-PLATE ALIGNMENT ENFORCEMENT (CRITICAL)\n\nThe position, angle, and central axis of each band must be derived directly from the actual position of its paired plate or food subject in the composed layout, not from a generic evenly-spaced diagonal grid.\n\nBefore drawing a band, locate the exact center point and outer edge of its paired plate first, then construct the band's path and terminal edge to align precisely with that specific plate's real position and height on the canvas.\n\nThe band's terminal (contact) end must match the actual vertical and horizontal position of the plate it serves — do not place a band's ending at a height or position that does not correspond to where that plate actually sits.\n\nIf a plate is positioned high on the canvas, its band must terminate high on the canvas at that same height. If a plate is positioned lower or further right, its band must shift accordingly to still originate reasonably from the upper-left while ending exactly at that plate's real location.\n\nDo not reuse one identical band angle or evenly-spaced, symmetrical band positions for all subjects if the actual plate positions are irregular — recalculate each band's path individually based on that dish's true placement in the final composition.\n\nAfter placing all bands, visually re-check each band against its paired plate: the band's terminal edge and central axis must land exactly where that plate sits, not near it, not offset from it.\n\n# BAND TERMINATION AND NO-OVERSHOOT ENFORCEMENT (CRITICAL)\n\nA band's visible boundary — on all sides, not only its terminal end — must stay strictly within the lane actually occupied by its paired plate. A band must never extend into open background where no part of the paired plate exists.\n\nBefore finalizing, trace the outer silhouette of the paired plate and treat that silhouette as a hard stop wall. The band's rectangular shape must be cut off completely at the point where it first touches that silhouette — it must not visually poke past, overshoot, widen beyond, or drift to the side of the actual plate edge.\n\nThis applies even when there is only one food subject: a single band must still be measured and clipped against that one plate's real edge, not drawn as a generic long diagonal shape that happens to end somewhere near the plate.\n\nIf, after drawing a band, any part of it is visible in an area where the paired plate is not present — including areas beside, above, or past the plate — that band must be corrected before the image is considered complete.\n\nThe band's terminal edge line must be tangent to and flush with the plate's actual outer rim curve at the specific contact zone, not floating near it, not crossing over it, and not stopping short of it.\n\n# EXACT BAND-TO-FOOD CONTACT\n\nEach band must end exactly at the nearest outer contour of its paired plate, bowl, tray, vessel, or standalone food.\n\nFor plated food:\n\n- position the terminal edge of the rectangular band flush against the nearest outer plate rim\n- create direct edge-to-edge contact between the band and the plate\n- leave zero visible gap\n- use the plate rim as a hard stopping boundary\n- position the plate immediately after the terminal edge rather than placing it on top of the band\n- preserve the full visible plate silhouette\n\nThe band must not continue:\n\n- underneath the plate\n- behind the plate\n- through the plate\n- around the plate\n- beyond the far side of the plate\n- past any portion of the outer plate contour\n\nThe band must not reappear on the opposite side of the plate.\n\nFor standalone food:\n\n- place the terminal band edge flush against the nearest outer food silhouette\n- stop the band exactly at the first contact point\n- do not continue the band beneath or past the food\n\nThe final relationship must read as one rectangular path coming from the upper-left and ending precisely when it touches the paired plate or food.\n\n# BASE HUE SELECTION\n\nBefore choosing any color, analyze the uploaded food photograph and identify the single most visually dominant color actually present in the food, sauce, garnish, or serving vessel.\n\nExtract the base hue directly from that dominant color in the source image. Do not default to orange, beige, or any preset warm palette regardless of what the uploaded food actually looks like.\n\nThe chosen base hue must visibly relate to the true color of the food or plate in the uploaded photo. For example: a dish with a colored serving plate should produce a palette based on that plate's color; a green herb-heavy dish should produce a green-based palette; a red salsa or tomato-forward dish should produce a red-based palette.\n\nIf multiple strong colors are present across the food subjects, choose the single hue that is most dominant across the full composition as a whole, not the hue of only one small ingredient or one minor accent.\n\nApply this extracted hue consistently to the background, all bands, and typography per the hierarchy defined in the next section. Do not fall back to a default or previously used palette from unrelated example imagery.\n\n# STRICT TONE-ON-TONE COLOR SYSTEM\n\nUse one single base hue for the entire graphic system, selected according to BASE HUE SELECTION above.\n\nAll bands must remain within that exact hue family.\n\nCreate visual variation between separate bands only through:\n\n- lightness\n- brightness\n- saturation\n- tonal depth\n\nDo not assign a different hue to each food subject.\n\nFor example, when the chosen base hue is orange, all graphic colors must remain orange-based:\n\n- deep orange\n- medium orange\n- muted orange\n- pale orange\n\nDo not mix the selected base hue with visibly separate red, yellow, green, blue, or other hues.\n\nAll bands must clearly appear as tonal variations of the same color rather than a multicolored or analogous palette.\n\nTone-on-tone variation applies between different bands, never as a gradient within one band.\n\n# BACKGROUND COLOR\n\nUse the same base hue for the background.\n\nThe background must be the palest and brightest tint in the entire composition.\n\nColor hierarchy:\n\n1. background: palest tint of the selected hue\n2. lighter bands: flat light tones of the same hue\n3. medium bands: flat medium tones of the same hue\n4. darker bands: flat deeper tones of the same hue\n5. typography: darkest coordinated tone or refined dark neutral\n\nThe background must also use one completely uniform solid fill color.\n\nDo not use:\n\n- gradients\n- corner darkening\n- vignettes\n- uneven lighting\n- photographic environments\n- tables\n- marble\n- wood\n- paper grain\n- fabric\n- surface texture\n\n# FOOD LIGHTING AND DETAIL\n\nEnhance the food with premium professional studio lighting while preserving its original identity.\n\nUse:\n\n- soft directional key lighting\n- balanced fill light\n- controlled highlights\n- realistic depth and dimensional contrast\n- consistent lighting direction\n- accurate food colors\n- crisp ingredient and surface texture\n- clean edge definition\n- natural appetizing saturation\n- commercial food-photography sharpness\n\nAll food subjects must appear to belong to the same professional studio session.\n\nLighting and dimensional shading may affect only the photographic food and its serving vessel.\n\nThe flat graphic bands and flat background must remain unaffected by the food lighting.\n\nAvoid harsh flash, excessive HDR, plastic-looking texture, artificial gloss, oversaturation, or inconsistent lighting.\n\n# CONTACT SHADOWS\n\nCreate a realistic soft contact shadow directly beneath every plate, bowl, tray, vessel, or standalone food subject.\n\nEach shadow must:\n\n- begin immediately beneath the object\n- follow its actual footprint\n- visually anchor it to the background\n- use a soft controlled blur\n- remain subtle and commercially polished\n- follow one consistent light direction\n\nKeep the contact shadow visually separate from the flat color treatment of the bands.\n\nThe shadow must not make the band itself appear gradient-filled.\n\nThe shadow must not obscure the exact band-to-plate contact point.\n\nNo food or tableware may appear to float.\n\n# TYPOGRAPHY POSITION\n\nPlace one refined text block in the lower-right negative-space area.\n\nMaintain generous margins from the right and bottom canvas edges.\n\nDo not overlap typography with food, serving vessels, bands, or shadows.\n\n# MAIN TITLE\n\nText:\n[MENU NAME]\n\nUse:\n\n- bold editorial display serif\n- elegant high-contrast serif letterforms\n- refined café or food-magazine character\n- strong readability\n- premium commercial typography\n\nUse uppercase or strong title case according to the language.\n\nUse the darkest coordinated tone or a deep neutral brown-black that harmonizes with the palette.\n\nUse only a refined serif category for the main title. Do not substitute sans-serif, script, handwritten, blackletter, or novelty typography.\n\n# SUBTITLE\n\nText:\n[TWO-LINE MENU DESCRIPTION]\n\nUse:\n\n- elegant handwritten script\n- refined cursive letterforms\n- natural fluid strokes\n- clearly readable text\n- a noticeably smaller scale than the main title\n- approximately two concise lines\n\nThe subtitle must describe only the visible food without inventing unverifiable ingredients, flavors, or preparation methods.\n\nWhen exact wording is supplied, reproduce it exactly.\n\nWhen no wording is supplied:\n\n- identify the menu only from visibly recognizable food\n- create one concise menu title\n- write a short two-line description based only on visible characteristics\n\nFor multiple dishes, use one collective title and one description representing the complete selection.\n\n# TEXT RESTRICTIONS\n\nDo not add restaurant names, logos, prices, discounts, hashtags, dates, websites, social-media handles, promotional badges, or text inside the graphic bands unless explicitly requested.\n\n# VISUAL STYLE\n\nPremium contemporary food advertising.\nMinimal editorial café poster.\nPhotorealistic food cutouts.\nSeparate fitted diagonal rectangular band motifs.\nPerfectly flat opaque solid-color graphics.\nStrict monochromatic tone-on-tone palette.\nStrong lower-left-to-upper-right rhythm.\nGenerous negative space.\nElegant serif headline.\nRefined handwritten subtitle.\nClean, balanced, asymmetrical composition.\nProfessional commercial art direction.\n\n# ESSENTIAL PROHIBITIONS\n\nDo not change the original food identity or dish count.\n\nDo not add unrelated ingredients, food, tableware, props, or decorative objects.\n\nDo not connect the individual graphic bands.\n\nDo not place a band where there is no paired food subject.\n\nDo not make a band significantly narrower or wider than its paired plate.\n\nDo not apply any gradient, shading, lighting variation, transparency, or texture inside a band.\n\nDo not allow a band to continue beneath, behind, through, or beyond its paired plate or food.\n\nDo not use multiple different hues for the bands.\n\nDo not default to orange or any preset palette instead of extracting the hue from the actual uploaded food.\n\nDo not let neighboring bands touch, share a border, or merge together.\n\nDo not let a band's position drift away from the actual real position of its paired plate.\n\nDo not let any band extend, poke, widen, or drift into open background beyond the actual outer edge of its paired plate, even by a small margin.\n\nDo not tilt dishes, crop serving vessels, place text over food, or create floating objects.\n\nDo not include social-media interfaces, usernames, icons, counters, carousel indicators, buttons, watermarks, or platform branding.\n\n# FINAL QUALITY CHECK\n\nBefore completing the image, verify that:\n\n- the base hue was extracted from the actual dominant color of the uploaded food, plate, or garnish, not defaulted to orange or any preset palette\n- the number of bands exactly matches the number of food subjects, with zero extra or floating bands\n- every neighboring pair of bands has clearly visible background space between them, with no shared border or touching edge anywhere along their length\n- every band's terminal edge and central axis align with the real position of its paired plate, not a generic evenly-spaced grid position\n- no part of any band is visible in open background where the paired plate does not actually exist, including beside, above, or past the plate\n- the band's terminal edge is tangent to and flush with the plate's real outer rim, not floating near it, crossing over it, or stopping short\n- all food comes directly from the uploaded photograph\n- the original food identity, ingredients, dish count, and serving vessels are preserved\n- all food subjects are fully visible and horizontally level\n- multiple dishes follow a lower-left-to-upper-right stepped arrangement\n- each food subject has exactly one separate diagonal band\n- every band corresponds directly to a real food subject\n- no band appears in an empty area\n- neighboring bands remain visually disconnected\n- every band thickness closely matches the visible width of its paired plate or food\n- the band width difference remains within approximately 10 percent of the paired subject's relevant cross-sectional width\n- every band uses one perfectly uniform flat solid color\n- no band contains a gradient, fade, highlight, shadow, transparency, texture, or internal color variation\n- every band touches and stops exactly at the nearest outer plate or food edge\n- no band continues beneath, behind, through, around, or beyond its paired subject\n- all graphic colors use one identical base hue\n- separate bands vary only through flat differences in brightness and saturation\n- the background is a uniform solid fill using the palest tint of the same hue\n- every food subject has a realistic contact shadow\n- the main title uses a refined editorial serif\n- the subtitle uses elegant handwritten script\n- the final image has a polished premium commercial food-poster finish"
+    },
+    {
+      "id": "tpl_46_sketch_board",
+      "no": 46,
+      "name": "스케치 보드 2분할",
+      "family": "multi_panel",
+      "finish": "graphic",
+      "tags": [
+        "#멀티팩",
+        "#레이아웃그래픽",
+        "#음식"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "세로 이미지를 상하로 나눈 스케치 보드 구성. 상단: 흰 배경에 깔끔하게 누끼 딴 햄버거의 사실적 사진. 하단: 같은 햄버거를 연필 선으로 그린 제도 스케치 — 구성 재료를 분해한 도면 느낌, 옅은 연필 해칭. 종이 질감의 밝은 배경, 글자 없음.\n\n그래픽 요소(단색 배경·띠·도형)는 그라데이션과 질감이 전혀 없는 완전한 플랫 단색으로, 벡터 인쇄물처럼. 음식·제품 사진 영역만 사실적인 사진 질감을 유지한다. 지정된 문구 외의 텍스트는 절대 넣지 않고, 문구는 철자 그대로 정확하게. 워터마크·브랜드 로고 금지."
+    },
+    {
+      "id": "tpl_47_cake_crosssection_macro",
+      "no": 47,
+      "name": "케익 단면 클로즈업",
+      "family": "scene",
+      "finish": "photographic",
+      "tags": [
+        "#디저트",
+        "#연출컷",
+        "#질감",
+        "#인스타피드"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "🍓스트로베리 쇼트 케이크(Strawberry Shortcake)\nExtreme macro texture fidelity, hyper-realistic food photography, razor-sharp edge-to-edge structural details. Front-facing macro cross section view, camera positioned at exact eye-level, perpendicular to the perfectly sliced vertical plane of the cake, 0-degree angle. High-end commercial food advertising photography, premium luxury pâtisserie campaign aesthetic, focus stacked, maximum depth of field, no bokeh. All ingredients are perfectly sheared and cut flat on a single continuous geometric plane. \n\n\n 🍫초콜릿 헤이즐넛 케이크(Chocolate Hazelnut Cake)\nExtreme macro texture fidelity, hyper-realistic food photography, razor-sharp edge-to-edge structural details. Front-facing macro cross section view, camera positioned at exact eye-level, perpendicular to the perfectly sliced vertical plane of the cake, 0-degree angle. High-end commercial food advertising photography, premium luxury pâtisserie campaign aesthetic, focus stacked, maximum depth of field, no bokeh. All ingredients are perfectly sheared and cut flat on a single continuous geometric plane. \n\nCross section layers arranged from bottom to top:\n- Layer 1: Dense chocolate biscuit sheet with a rich, velvety micro-crumb texture.\n- Layer 2: Crunchy layer of hazelnut praline mixed with crisp feuilletine shards, snapped level to reveal multi-layered crunchy structures.\n- Layer 3: Thick, dense dark chocolate ganache layer with heavy cocoa viscosity and a glossy level line.\n- Layer 4: Light and airy chocolate mousse layer showing microscopic air pockets and velvety smoothness.\n- Layer 5: A flawlessly reflective, high-gloss dark chocolate mirror glaze cutting a sharp horizontal boundary.\n\nTop decoration: A thin dark chocolate slab with a clean snapped edge, leaning flush against a roasted whole hazelnut that is sliced perfectly in half.\n\nEvery element is cleanly sliced flush with zero smudging. ONLY the sliced vertical cross section fills the entire frame. Zero negative space. NOT a whole cake. NOT three-quarter view. NOT angled view. NOT isometric. Do not show cake top or outer sides. --v 6.1 --ar 4:5\n\n\n3. 💚피스타치오 라즈베리 케이크(Pistachio Raspberry Cake)\n\nExtreme macro texture fidelity, hyper-realistic food photography, razor-sharp edge-to-edge structural details. Front-facing macro cross section view, camera positioned at exact eye-level, perpendicular to the perfectly sliced vertical plane of the cake, 0-degree angle. High-end commercial food advertising photography, premium luxury pâtisserie campaign aesthetic, focus stacked, maximum depth of field, no bokeh. All ingredients are perfectly sheared and cut flat on a single continuous geometric plane. \n\nCross section layers arranged from bottom to top:\n- Layer 1: Chewy pistachio dacquoise cake layer with a rustic, dense granular nut structure.\n- Layer 2: A thin, crisp layer of pistachio praline feuilletine crunch, sheared level along the cut line.\n- Layer 3: Thick, slow-bleeding bright ruby-red raspberry confit layer with visible tiny seeds and glossy fruit pulp.\n- Layer 4: Smooth, pastel-green pistachio mousse layer, dense and velvety with rich dairy texture.\n- Layer 5: A vibrant green pistachio mirror glaze forming an ultra-smooth, laser-cut horizontal line.\n\nTop decoration: A perfectly level dusting of crushed green pistachio bits embedded flush into the glaze boundary, with a tiny touch of gold leaf.\n\nEvery element is cleanly sliced flush with zero smudging. ONLY the sliced vertical cross section fills the entire frame. Zero negative space. NOT a whole cake. NOT three-quarter view. NOT angled view. NOT isometric. Do not show cake top or outer sides. --v 6.1 --ar 4:5\n\n——\n\nCross section layers arranged from bottom to top:\n- Layer 1: Moist vanilla genoise sponge sheet with visible airy, porous cellular structures.\n- Layer 2: Silky, aerated white chantilly cream layer with microscopic dairy fluffiness and soft moisture.\n- Layer 3: Fresh, vibrant strawberry halves sheared perfectly flat, revealing detailed red interior flesh, core patterns, and tiny seeds.\n- Layer 4: Another layer of fluffy white chantilly cream embedded flush with fine vanilla bean flecks.\n- Layer 5: A second layer of moist vanilla genoise sponge cake sheet.\n\nTop decoration: Cleanly piped chantilly cream rosettes topped with a razor-cut half of a glossy fresh strawberry, sliced exactly along the vertical plane.\n\nEvery element is cleanly sliced flush with zero smudging. ONLY the sliced vertical cross section fills the entire frame. Zero negative space. NOT a whole cake. NOT three-quarter view. NOT angled view. NOT isometric. Do not show cake top or outer sides. --v 6.1 --ar 4:5\n\n\n\n\n\n실제 호텔 케익은 단순히 좋아하는 재료를 쌓는 것이 아니라 맛의 균형, 식감을 고려하여 설계됩니다. AI에게 먼저 레시피를 검증받으면,\n✅ 실제로 존재할 법한 케이크가 되고\n✅ 자연스러운 레이어 구성이 만들어지며\n✅ Ai도 훨씬 정확하게 이해합니다.\n따라서 실제처럼 자연스럽고 정교한 퀄리티를 위해, 내가 작성한 케이크 아이디어를 Chat GPT나 Gemini와 같은 LLM모델에게 다음과 같이 요청하세요.\n\n<aside> 💡\n요청1) 너는 10년 경력의 호텔 파티쉐이자 미슐랭 레스토랑 디저트 셰프야.\n내가 작성한 아이디어를 실제 판매 가능한 호텔 케이크 레시피로 재구성해줘. 식감의 대비와 레이어 구조를 고려해서 만들어줘.\n</aside>\n\n→ 내가 기획한 케익 아이디어가 실제로 조리할 수 있는 아이디어인지 검증해주세요.\n\n<aside> 💡\n요청2) 영문으로 케익의 주재료를 본연의 물성과 함께 작성해줘.\n각 재료는 수분감, 점성, 광택, 공기감, 향, 질감까지 광고 사진 수준으로 묘사해줘. 레이어는 반드시 Bottom → Top 순서로 작성해줘.\n</aside>\n\n이때, 재료별 정교한 묘사는 선택이 아닌 필수입니다.\n\n\nDark chocolate ganache:\n\ndense,\n\nvelvety,\n\nglossy,\n\nrich viscosity,\n\nslow settling.\n\n\n\n아래 템플릿을 복사한 뒤, [ ] 표시된 부분만 여러분이 원하는 재료로 바꾸세요!\n직접 기재할 필요 없이, Step 2의 LLM 요청 프롬프트에 **\"이 양식(Step 3 템플릿)의 빈칸을 최종적으로 채워서 통 프롬프트로 완성해줘\"**라고 지시하시면 됩니다!\n\n\n\nExtreme macro texture fidelity.\n\n[Ingredient 1]:\n[Texture description].\n\n[Ingredient 2]:\n[Texture description].\n\n[Ingredient 3]:\n[Texture description].\n\n[Ingredient 4]:\n[Texture description].\n\nHigh end commercial food photography by a Michelin level pastry chef and senior food stylist.\n\nLuxury editorial pâtisserie campaign.\n\n\nCross section layers (bottom to top):\n\n[Layer 1],\n\n[Layer 2],\n\n[Layer 3],\n\n[Layer 4],\n\n[Layer 5],\n\n[Layer 6].\n\n[Ingredient 1]:\n[Detailed texture, moisture, aroma, appearance].\n\n[Ingredient 2]:\n[Detailed texture, moisture, aroma, appearance].\n\n[Ingredient 3]:\n[Detailed texture, moisture, aroma, appearance].\n\n[Ingredient 4]:\n[Detailed texture, moisture, aroma, appearance].\n\nTop decoration:\n[Decoration].\n\nEverything freshly sliced.\n\nONLY the sliced cross section fills the frame.\n\nNOT a whole cake.\n\nNOT three-quarter view.\n\nNOT angled view.\n\nNOT isometric.\n\nDo not show cake top or outer sides.--ar 4:5\n\n\n커스텀 가능한 영역:\n[Ingredient 1~4]: 주재료(예: Strawberry, Pistachio Mousse, Dark Chocolate Ganache)\n[Texture description]: 해당 재료의 물성(촉촉함, 점성, 공기감, 광택 등)\n[Layer 1~6]: 실제 레시피 기준의 레이어를 아래에서 위(Bottom → Top) 순서로 작성\n[Detailed texture, moisture, aroma, appearance]: 재료별 세부 묘사\n[Decoration]: 케이크 상단 장식(과일, 크림, 초콜릿 장식, 견과류 등)\n\n\n\n📚부록. 맛별 단어장 🍰 호텔 파티셰 레시피 라이브러리 원하는 재료를 자유롭게 조합해 나만의 케이크를 설계해보세요. 아래 재료들은 실제 호텔 파티세리에서 자주 사용하는 구성입니다.   🍞 Sponge (시트)\n재료\n특징\nVanilla Genoise\n촉촉하고 가벼운 바닐라 스펀지\nChocolate Genoise\n진한 카카오 풍미의 촉촉한 초콜릿 시트\nJoconde Sponge\n아몬드 풍미가 풍부한 부드러운 시트\nPistachio Dacquoise\n쫀득하고 고소한 피스타치오 다쿠아즈\nHazelnut Dacquoise\n헤이즐넛 향이 진한 다쿠아즈\nAlmond Dacquoise\n고소한 아몬드 다쿠아즈\nChocolate Biscuit\n밀도 있는 초콜릿 비스퀴\nMatcha Sponge\n은은한 말차 향의 스펀지\nEarl Grey Sponge\n홍차 향이 퍼지는 촉촉한 시트\nCoffee Sponge\n에스프레소 향의 커피 시트\nLemon Sponge\n상큼한 레몬 제스트가 들어간 시트\nHoney Sponge\n꿀 향이 은은한 부드러운 스펀지\n 🥛 Cream & Mousse (크림 · 무스)\n재료\n특징\nChantilly Cream\n가볍고 부드러운 생크림\nVanilla Mousse\n실키한 바닐라 무스\nChocolate Mousse\n진한 초콜릿 무스\nWhite Chocolate Mousse\n부드럽고 달콤한 화이트초콜릿 무스\nPistachio Mousse\n고소한 피스타치오 무스\nHazelnut Mousse\n진한 헤이즐넛 무스\nMatcha Mousse\n깊은 말차 풍미\nCoffee Mousse\n에스프레소 향의 무스\nLemon Mousse\n상큼한 시트러스 무스\nRaspberry Mousse\n산뜻한 라즈베리 무스\nStrawberry Mousse\n부드러운 딸기 무스\nCheesecake Mousse\n크림치즈 풍미의 무스\nDiplomat Cream\n커스터드와 생크림을 섞은 크림\nMousseline Cream\n버터가 들어간 진한 커스터드 크림\nPastry Cream\n클래식 바닐라 커스터드\n 🍓 Fruit Insert (과일 인서트)\n재료\n특징\nStrawberry Confit\n진한 딸기 풍미\nRaspberry Confit\n새콤한 라즈베리\nBlueberry Compote\n과육이 살아있는 블루베리\nCherry Compote\n진한 체리 과육\nPeach Compote\n부드러운 복숭아\nMango Compote\n달콤한 망고\nPassion Fruit Curd\n상큼한 패션프루트\nLemon Curd\n진한 레몬 커드\nOrange Marmalade\n오렌지 껍질이 살아있는 마멀레이드\nApricot Confit\n살구 풍미\nMixed Berry Confit\n여러 베리의 산미\nApple Compote\n시나몬 향을 더한 사과 콩포트\n 🍫 Ganache & Caramel\n재료\n특징\nDark Chocolate Ganache\n진한 다크초콜릿\nMilk Chocolate Ganache\n부드러운 밀크초콜릿\nWhite Chocolate Ganache\n달콤한 화이트초콜릿\nSalted Caramel\n솔티드 캐러멜\nVanilla Caramel\n바닐라 캐러멜\nCoffee Caramel\n커피 캐러멜\nCaramel Ganache\n초콜릿과 캐러멜의 조합\n 🌰 Praline & Crunch\n재료\n특징\nHazelnut Praline\n헤이즐넛 프랄린\nPistachio Praline\n피스타치오 프랄린\nAlmond Praline\n아몬드 프랄린\nPecan Praline\n피칸 프랄린\nFeuilletine Crunch\n바삭한 크레이프 크런치\nChocolate Crispy Pearl\n초콜릿 크리스피\nCookie Crumble\n버터 쿠키 크럼블\nCocoa Crumble\n초콜릿 크럼블\nRoasted Almond Crunch\n구운 아몬드 크런치\nCaramelized Hazelnut Crunch\n캐러멜 헤이즐넛 크런치\n ✨ Glaze (글레이즈)\n재료\n특징\nNeutral Glaze\n투명 글레이즈\nDark Chocolate Mirror Glaze\n다크 미러 글레이즈\nMilk Chocolate Mirror Glaze\n밀크초콜릿 글레이즈\nWhite Mirror Glaze\n화이트 미러 글레이즈\nRaspberry Mirror Glaze\n라즈베리 글레이즈\nStrawberry Mirror Glaze\n딸기 글레이즈\nPistachio Mirror Glaze\n피스타치오 글레이즈\nMatcha Mirror Glaze\n말차 글레이즈\nCaramel Mirror Glaze\n캐러멜 글레이즈\nCoffee Mirror Glaze\n커피 글레이즈\n 🍓 Decoration (장식)\n재료\n특징\nFresh Strawberries\n통딸기\nFresh Raspberries\n라즈베리\nFresh Blueberries\n블루베리\nFresh Cherries\n체리\nFresh Peach Wedges\n복숭아 슬라이스\nFresh Mango Cubes\n망고\nPistachio Cream Rosettes\n피스타치오 크림\nChantilly Rosettes\n생크림 로제트\nChocolate Shavings\n초콜릿 컬\nChocolate Curls\n초콜릿 컬 장식\nGold Leaf\n금박\nCrushed Pistachios\n피스타치오 분태\nToasted Hazelnuts\n구운 헤이즐넛\nFreeze-dried Raspberry\n동결건조 라즈베리\nEdible Flowers\n식용 꽃\nMint Leaves\n민트\nVanilla Bean\n바닐라 빈\nMacarons\n미니 마카롱\nMeringue Kisses\n미니 머랭\nCocoa Powder Dusting\n코코아 파우더\n 💡 추천 레이어 조합 🍓 Strawberry Shortcake Vanilla Genoise ↓ Chantilly Cream ↓ Fresh Strawberries ↓ Chantilly Cream ↓ Vanilla Genoise  🍫 Chocolate Hazelnut Cake Chocolate Biscuit ↓ Hazelnut Praline Feuilletine Crunch ↓ Dark Chocolate Ganache ↓ Chocolate Mousse ↓ Dark Chocolate Mirror Glaze  💚 Pistachio Raspberry Cake Pistachio Dacquoise ↓ Pistachio Praline Feuilletine Crunch ↓ Raspberry Confit ↓ Pistachio Mousse ↓ Green Mirror Glaze  🍮 Salted Caramel Cake Hazelnut Dacquoise ↓ Hazelnut Praline Feuilletine Crunch ↓ Salted Caramel ↓ Vanilla Mousse ↓ Caramel Mirror Glaze\n\n\n너는 10년 경력의 호텔 파티쉐이자 미슐랭 레스토랑 디저트 셰프, 그리고 상업 음식 사진 전문 비주얼 디렉터야. 내가 작성한 아이디어를 실제 판매 가능한 프리미엄 호텔 케이크 레시피로 재구성하고, 미드저니 프롬프트까지 최종 조립해줘.\n\n[내가 구상한 아이디어]\n- 케이크 이름: (여기에 직접 입력하세요)\n- 시트: (여기에 직접 입력하세요)\n- 크림 및 인서트 재료들: (여기에 직접 입력하세요)\n\n[수행 과제]\n단계 1: 위 재료를 식감의 대비와 레이어 구조를 고려한 실제 호텔 제과 레시피(Bottom to Top)로 재구성해줘.\n단계 2: 아래 제공하는 [미드저니 템플릿]의 괄호 [ ] 파트를 광고 사진 수준의 정교한 영문 물성 묘사(수분감, 점성, 광택, 공기감, 질감)로 완벽히 채워서, 수강생이 그대로 복사할 수 있는 '최종 완성형 영문 프롬프트 코드 블록'을 출력해줘.\n\n[미드저니 템플릿]\nExtreme macro texture fidelity, hyper-realistic food photography, razor-sharp edge-to-edge structural details. Front-facing macro cross section view, camera positioned at exact eye-level, perpendicular to the perfectly sliced vertical plane of the cake, 0-degree angle. High-end commercial food advertising photography, premium luxury pâtisserie campaign aesthetic, focus stacked, maximum depth of field, no bokeh. All ingredients are perfectly sheared and cut flat on a single continuous geometric plane. \n\nCross section layers arranged from bottom to top:\n- Layer 1: [LLM이 채울 곳: 최하단 시트 질감 영문 묘사]\n- Layer 2: [LLM이 채울 곳: 크림 또는 인서트 질감 영문 묘사]\n- Layer 3: [LLM이 채울 곳: 중간 레이어 질감 영문 묘사]\n- Layer 4: [LLM이 채울 곳: 상단 레이어 질감 영문 묘사]\n\nTop decoration: [LLM이 채울 곳: 맨 위 데코레이션 원물 영문 묘사]\n\nEvery element is cleanly sliced flush with zero smudging. ONLY the sliced vertical cross section fills the entire frame. Zero negative space. NOT a whole cake. NOT three-quarter view. NOT angled view. NOT isometric. Do not show cake top or outer sides. --ar 4:5"
+    },
+    {
+      "id": "tpl_48_partial_closeup_callout",
+      "no": 48,
+      "name": "부분 클로즈업 오버레이",
+      "family": "graphic_layout",
+      "finish": "photographic",
+      "tags": [
+        "#디저트",
+        "#레이아웃그래픽",
+        "#음식"
+      ],
+      "identity_grade": "standard",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "첨부한 음식 사진을 원본 그대로 유지하면서, 그 위에 음식 재료 분석형 그래픽 요소를 합성한 이미지를 생성하세요.\n\n원본 사진의 구도, 색감, 피사체, 음식, 접시, 도구, 배경은 절대 수정하지 마세요.\n원본 사진 위에 흰색 시작점, 흰색 실선, 흰색 테두리 박스만 추가하세요.\n\n가장 중요한 규칙:\n각 그래픽 세트는 반드시 하나의 동일한 음식 재료만 연결해야 합니다.\n시작점이 놓인 원본 재료와 박스 안에 생성되는 재료는 반드시 같은 음식 종류여야 합니다.\n선의 시작점과 박스 내부 이미지가 서로 다른 음식이면 실패입니다.\n\n[작업 순서]\n\n1. 원본 사진에서 명확히 구분되는 음식 재료 3개만 선택하세요.\n   접시, 컵, 포크, 나이프, 스푼, 냅킨, 테이블, 그릇, 병, 소품은 선택하지 마세요.\n   음식이 아닌 것은 절대 선택하지 마세요.\n\n2. 선택한 각 재료마다 내부적으로 하나의 세트 ID를 부여하세요.\n   각 세트 ID는 작업 끝까지 절대 바꾸지 마세요.\n\n   Set A = 원본 사진 속 선택 재료 A\n   Set B = 원본 사진 속 선택 재료 B\n   Set C = 원본 사진 속 선택 재료 C\n\n3. 각 세트마다 원본 사진 속 해당 재료의 실제 보이는 영역을 먼저 확인하세요.\n   시작점은 반드시 해당 재료의 실제 표면 안쪽에 놓으세요.\n   시작점은 재료의 경계선, 접촉부, 겹침부, 그림자, 접시, 도구, 다른 음식 위에 놓으면 안 됩니다.\n\n4. 각 재료 위에 작은 흰 점으로 시작점을 찍으세요.\n   이 흰 점은 해당 세트의 고정 시작점입니다.\n   시작점이 잘못된 재료 위에 있으면 해당 세트 전체를 다시 만드세요.\n\n5. 각 시작점에서 가는 흰색 실선을 하나만 그리세요.\n   실선은 반드시 해당 시작점에서 출발해야 합니다.\n   실선은 다른 음식, 접시, 도구, 배경, 그림자에서 출발하면 안 됩니다.\n\n6. 각 실선 끝에 흰색 테두리의 사각형 박스를 배치하세요.\n   실선은 박스의 바깥쪽 테두리에서 정확히 끝나야 합니다.\n   실선이 박스 내부로 들어가거나 박스 안 이미지를 가로지르면 안 됩니다.\n\n7. 박스 내부 이미지는 원본 사진의 확대나 크롭이 아닙니다.\n   박스 내부 이미지는 해당 세트의 시작점 재료와 같은 음식 종류를 새롭게 생성한 독립 클로즈업 이미지입니다.\n\n   허용:\n   - 새로운 촬영 각도\n   - 새로운 거리\n   - 새로운 조명 방향\n   - 더 선명한 표면 질감\n   - 더 가까운 클로즈업 표현\n\n   금지:\n   - 원본 픽셀 확대\n   - 원본 영역 크롭\n   - 원본 텍스처 복제\n   - 시작점 재료와 다른 음식 생성\n   - 같은 접시의 다른 음식으로 대체\n   - 가까운 다른 음식에 임의로 연결\n\n8. 박스 안에는 반드시 해당 세트 ID의 재료만 보여주세요.\n   시작점이 특정 재료 위에 있으면, 박스 안에도 반드시 그 재료만 생성하세요.\n   새롭게 생성해도 되는 것은 시점과 디테일뿐입니다.\n   음식 종류는 절대 바꾸면 안 됩니다.\n\n9. 최종 검증:\n   각 세트마다 아래를 확인하세요.\n\n   - 시작점이 원본 사진 속 선택 재료 위에 있는가\n   - 실선이 정확히 그 시작점에서 출발하는가\n   - 박스 내부 이미지가 시작점 재료와 같은 음식 종류인가\n   - 박스 내부 이미지가 다른 접시나 다른 음식의 재료로 바뀌지 않았는가\n   - 실선이 박스 테두리에서 끝나는가\n   - 실선이 박스 내부로 들어가지 않는가\n   - 박스들이 서로 겹치지 않는가\n   - 박스가 이미지 밖으로 잘리지 않는가\n\n   하나라도 틀리면 해당 세트 전체를 다시 생성하세요.\n   선만 수정하지 말고, 시작점-실선-박스 이미지를 하나의 세트로 다시 맞추세요.\n\n[박스 배치 규칙]\n\n박스는 이미지 주변 공간에 균형 있게 분산 배치하세요.\n\n모든 박스를 한쪽 방향(예: 오른쪽 또는 왼쪽 또는 위쪽 또는 아래쪽)에 몰아서 배치하면 안 됩니다.\n\n가능하면 박스를 서로 다른 방향에 배치하세요.\n\n예:\n\n한 개는 오른쪽\n\n한 개는 위쪽\n\n한 개는 아래쪽\n\n또는\n\n한 개는 오른쪽 위\n\n한 개는 오른쪽 아래\n\n한 개는 왼쪽\n\n처럼 이미지 주변 영역을 넓게 사용하세요.\n\n\n박스는 서로 겹치지 않게 배치하세요.\n\n박스는 이미지 밖으로 잘리지 않게 배치하세요.\n\n박스는 이미지 가장자리에서 최소 30% 안쪽에 배치하세요.\n\n\n박스 배치 전에 다음을 확인하세요:\n\n이미지 주변에 사용 가능한 빈 공간을 먼저 분석하세요.\n\n각 박스는 서로 다른 방향의 빈 공간에 분산 배치하세요.\n\n같은 방향에 두 개 이상 연속 배치하지 마세요.\n\n\n세 개 이상의 박스를 배치할 경우\n\n최소 두 개 이상은 서로 다른 방향에 배치해야 합니다.\n\n\n[스타일 규칙]\n\n실선: 가는 흰색\n박스 테두리: 가는 흰색\n시작점 표시: 작은 흰 점\n텍스트 추가 금지\n라벨 추가 금지\n설명 문구 추가 금지\n장식 요소 추가 금지\n\n[절대 금지]\n\n시작점과 박스 내부 재료 불일치 금지\n시작점이 다른 음식 위에 놓이는 것 금지\n박스 내부 이미지가 다른 음식으로 대체되는 것 금지\n선만 맞고 재료가 다른 세트 금지\n원본 이미지 확대 박스 금지\n원본 이미지 크롭 박스 금지\n원본 사진 자체 수정 금지\n접시, 도구, 배경, 테이블을 재료로 선택 금지"
+    },
+    {
+      "id": "tpl_49_circular_typo_poster",
+      "no": 49,
+      "name": "원형 타이포 포스터",
+      "family": "poster_typo",
+      "finish": "graphic",
+      "tags": [
+        "#타이포그래피",
+        "#포스터",
+        "#디저트",
+        "#음식"
+      ],
+      "identity_grade": "loose",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "# CORE OBJECTIVE\n\nUsing the attached source image, create a premium vertical 4:5 editorial poster in the style of a high-fashion food or product campaign.\n\nThe final image must feature:\n\n- One precisely isolated dominant subject from the source image\n\n- A clean, textureless solid-color background\n\n- One refined subject-name headline in the upper empty space\n\n- One continuous circular typography ring surrounding the subject\n\n- A circular text ring printed flat on the horizontal background plane\n\n- Strong ground-plane perspective, making the circular text appear as a flattened ellipse\n\n- Elegant Vogue-inspired Didone serif typography\n\n- A refined commercial studio finish\n\nThis prompt must work for food, drinks, desserts, furniture, fashion items, packaged goods, cosmetics, accessories, and other photographed subjects.\n\n# SOURCE IMAGE ANALYSIS\n\nAnalyze the attached source image first.\n\nIdentify:\n\n- The single most visually dominant subject\n\n- Its visible category, material, ingredients, surface qualities, and defining details\n\n- Its silhouette, proportions, natural orientation, and most reliable horizontal reference\n\n- The most visually dominant color in the image\n\n- The most accurate common name of the subject\n\n- A short circular typography phrase related to the subject\n\nWhen multiple objects are present, keep only the main subject based on size, centrality, sharpness, contrast, lighting, and visual importance.\n\nRemove unrelated props, people, packaging, scenery, plates, utensils, backgrounds, labels, and decorative objects unless they are physically integral to the main subject.\n\n# FINAL FORMAT\n\nCreate an exact vertical 4:5 poster composition.\n\nRecommended resolution:\n\n- 2048 × 2560 pixels\n\n- 3072 × 3840 pixels\n\n- Or any higher resolution preserving the exact 4:5 ratio\n\nDesign directly for the final 4:5 canvas.\n\nDo not crop, pad, letterbox, extend, or later reframe the image.\n\n# CAMERA AND GROUND-PLANE PERSPECTIVE\n\nBuild the composition as if the camera is looking down at a flat horizontal studio surface from a slightly elevated oblique angle.\n\nThe background must behave like a flat tabletop or floor plane.\n\nThe circular typography must be placed on this horizontal plane, not on the camera-facing image plane.\n\nThe circular typography ring must look physically printed on the surface underneath and around the subject.\n\nThe ring must be a true circle on the ground plane, but from the camera view it must appear as a low, flattened ellipse.\n\nThe perspective must show:\n\n- A wide horizontal major axis\n\n- A compressed vertical minor axis\n\n- The upper arc receding away from the viewer\n\n- The lower arc appearing closer to the viewer\n\n- Side arcs naturally following the same surface plane\n\n- Letter rotation, spacing, and baseline curvature following the ground plane\n\nDo not create:\n\n- A front-facing circular halo\n\n- A perfect camera-facing circle\n\n- An upright logo seal or badge\n\n- A floating graphic overlay\n\n- A text ring standing behind the subject\n\n- A tall decorative oval stretched only to fill the 4:5 canvas\n\n# BACKGROUND\n\nReplace the original background with one seamless, completely solid flat color.\n\nThe background color must be derived from the most dominant visual color in the attached source image.\n\nUse a single uninterrupted color from edge to edge.\n\nThe background must have:\n\n- No texture\n\n- No gradient\n\n- No vignette\n\n- No paper grain\n\n- No noise\n\n- No pattern\n\n- No material surface\n\n- No duplicate subject imagery\n\nThe surface may receive only subtle natural contact shadow from the isolated subject.\n\nIf the dominant color is too pale or too close to the subject, preserve the same hue family but slightly deepen the tone enough to create clear separation.\n\n# SUBJECT EXTRACTION\n\nCreate a precise professional cutout of the dominant subject.\n\nRemove the original background completely while preserving:\n\n- Accurate silhouette\n\n- Natural proportions\n\n- Fine edge details\n\n- Gloss, crumbs, fibers, sauce, fabric, metal, plastic, glass, or other material-specific edges\n\n- Authentic texture and color\n\n- Natural dimensional depth\n\nDo not redesign, simplify, replace, reconstruct, stretch, warp, or stylize the subject.\n\nAvoid masking halos, jagged cutout edges, missing parts, duplicated fragments, sticker outlines, invented props, and floating debris.\n\n# SUBJECT HORIZONTAL LEVELING\n\nBefore placing the subject, correct its overall orientation.\n\nIdentify the most reliable horizontal reference, such as:\n\n- Bottom edge of a product\n\n- Plate or bowl rim\n\n- Cake base\n\n- Furniture base\n\n- Shoe sole\n\n- Bag bottom\n\n- Packaging bottom\n\n- Natural supporting plane\n\nRotate the entire isolated subject as one unified object until this reference is visually parallel to the horizontal axis of the final composition.\n\nDo not rotate individual ingredients, parts, decorations, toppings, handles, or attached components separately.\n\nDo not skew, stretch, or warp the subject to force alignment.\n\n# SUBJECT PLACEMENT AND LIGHTING\n\nPlace the leveled subject near the visual center of the 4:5 canvas.\n\nThe subject should sit visually on or slightly above the same flat background plane where the typography is printed.\n\nScale the subject so that:\n\n- It is the clear hero object\n\n- It sits inside the flattened perspective ring\n\n- It leaves enough clean space above for the subject-name headline\n\n- It does not touch or cover the circular typography\n\n- Its silhouette remains fully readable\n\n- It does not feel too small inside the vertical 4:5 frame\n\nUse refined commercial studio relighting:\n\n- Soft key light from the upper-left\n\n- Controlled highlights\n\n- Gentle dimensional shadows\n\n- Realistic material response\n\n- Subtle contact shadow beneath the subject\n\n- Clean contrast without looking artificial or CGI\n\nThe contact shadow must reinforce that the subject and typography share the same horizontal surface plane.\n\n# TOP SUBJECT NAME HEADLINE\n\nAdd one refined subject-name headline in the upper empty area of the vertical 4:5 poster.\n\nThe headline must be automatically generated by analyzing the visible dominant subject in the attached source image.\n\nThe headline must show the actual common name of the subject, not a vague editorial label.\n\nThe headline naming logic must be:\n\n- If the subject is food, display the menu name or dish name\n\n- If the subject is a dessert, display the dessert name\n\n- If the subject is a drink, display the drink name\n\n- If the subject is furniture, display the furniture name\n\n- If the subject is fashion, display the fashion item name\n\n- If the subject is a product or object, display the product or object name\n\n- If the subject has a clearly visible material, ingredient, color, or defining feature, include it only when it helps identify the subject accurately\n\nThe headline must:\n\n- Be in English\n\n- Use uppercase letters\n\n- Use 2 to 5 words\n\n- Be specific enough to identify the subject\n\n- Be based only on visible or safely inferable qualities\n\n- Avoid vague phrases such as DESSERT STUDY, SWEET EDITION, OBJECT STUDY, DESIGN NOTE, or MATERIAL STUDY\n\n- Avoid slogans, poetic phrases, brand names, unsupported origins, health claims, prices, certifications, or invented facts\n\nExamples of correct headline behavior:\n\n- A strawberry chocolate cake should become STRAWBERRY CHOCOLATE CAKE\n\n- A blueberry cheesecake should become BLUEBERRY CHEESECAKE\n\n- A tomato pasta dish should become TOMATO PASTA\n\n- A wooden chair should become WOODEN LOUNGE CHAIR or WOODEN CHAIR\n\n- A leather sofa should become LEATHER SOFA\n\n- A ceramic mug should become CERAMIC COFFEE CUP\n\n- A black handbag should become BLACK LEATHER BAG\n\n- A glass perfume bottle should become GLASS PERFUME BOTTLE\n\nIf the exact item name is uncertain, use the most visually accurate common category name instead of inventing a specific name.\n\n# TOP SUBJECT NAME PLACEMENT\n\nPlace the subject-name headline at the upper center of the canvas.\n\nPosition it between 7% and 13% from the top edge of the vertical 4:5 frame.\n\nThe headline must sit clearly above the subject and above the circular typography ring.\n\nKeep generous negative space around the headline.\n\nThe headline must not touch, overlap, or visually merge with:\n\n- The subject\n\n- The circular typography ring\n\n- The canvas edges\n\n- Shadows\n\n- Decorative elements\n\nKeep the headline flat, front-facing, and horizontally centered.\n\nDo not curve, tilt, warp, or perspective-distort the headline.\n\nOnly the circular typography ring should follow the ground-plane perspective.\n\n# TOP SUBJECT NAME TYPOGRAPHY\n\nUse a refined Didot-inspired or Bodoni-inspired Didone serif typeface.\n\nThe headline typography must have:\n\n- Thin to regular weight\n\n- Tall uppercase letterforms\n\n- Strong thick-and-thin contrast\n\n- Fine hairline serifs\n\n- Elegant vertical stress\n\n- Moderate-to-wide letter spacing\n\n- Clean luxury magazine proportions\n\nThe headline should feel like a premium menu title or product name in a fashion editorial poster.\n\nUse the same solid warm ivory or soft white color as the circular typography.\n\nThe headline must be flat, solid, and printed.\n\nDo not use:\n\n- Gradients\n\n- Metallic effects\n\n- Gold foil\n\n- Gloss\n\n- Bevels\n\n- Embossing\n\n- Drop shadows\n\n- Outlines\n\n- Texture fills\n\n- Pattern fills\n\n- 3D extrusion\n\n- Neon effects\n\n# TOP SUBJECT NAME SIZE\n\nSet the headline as a refined upper title, not an oversized main poster title.\n\nThe headline should occupy approximately 42% to 62% of the canvas width.\n\nUse a font size equivalent to approximately 3.4% to 4.8% of the canvas height.\n\nFor a 2048 × 2560 canvas, the headline capital height should feel approximately 85 to 120 pixels tall.\n\nFor a 3072 × 3840 canvas, the headline capital height should feel approximately 130 to 185 pixels tall.\n\nUse letter spacing equivalent to approximately 6% to 12% of the font size.\n\nIf the headline is short, increase letter spacing slightly instead of making the text too large.\n\nIf the headline is longer than 3 words, split it into two centered lines with tight, elegant line spacing.\n\nThe headline must remain readable, elegant, and clearly secondary to the hero subject.\n\n# CIRCULAR TYPOGRAPHY CONTENT\n\nAutomatically generate one circular text phrase based on the visible subject.\n\nThe phrase must:\n\n- Be in English\n\n- Use uppercase letters\n\n- Use 4 to 8 words\n\n- Be relevant to the identified subject\n\n- Feel editorial, premium, and concise\n\n- Be suitable for repeating around a circular ring\n\n- Be fully readable and correctly spelled\n\n- Avoid brand names, unsupported claims, origins, prices, health claims, or invented facts\n\nRepeat the same phrase continuously around the circle as needed to complete the ring.\n\nThe circular phrase should be more atmospheric or descriptive than the top subject-name headline.\n\nFor example, if the top headline is STRAWBERRY CHOCOLATE CAKE, the circular text may be:\n\nSTRAWBERRY CHOCOLATE INDULGENCE\n\nFor furniture, if the top headline is WOODEN LOUNGE CHAIR, the circular text may be:\n\nWARM WOOD MODERN COMFORT\n\nFor a product, if the top headline is GLASS PERFUME BOTTLE, the circular text may be:\n\nCLEAR GLASS SOFT REFLECTION\n\nDo not add any other text outside the top headline and circular ring.\n\n# CIRCULAR TYPOGRAPHY STYLE\n\nUse a refined high-fashion Didone serif typeface inspired by classic Vogue-era editorial typography.\n\nThe circular typography must have:\n\n- Regular to medium visual weight\n\n- Elegant tall uppercase characters\n\n- Strong thick-and-thin contrast\n\n- Fine hairline serifs\n\n- Graceful curves\n\n- Moderate letter spacing\n\n- Clean editorial refinement\n\nDo not copy or trace the exact Vogue logo or any existing publication wordmark.\n\nUse a single solid warm ivory or soft white color with high contrast against the solid background.\n\nThe typography must be flat, solid, and printed.\n\nDo not use:\n\n- Metallic effects\n\n- Gloss\n\n- Bevels\n\n- Embossing\n\n- Shadows inside letters\n\n- Gradients\n\n- Texture fills\n\n- Pattern fills\n\n- Outlines\n\n- 3D extrusion\n\n- Neon effects\n\n# CIRCULAR TYPOGRAPHY SIZE AND PLACEMENT\n\nPlace one continuous, unbroken circular typography ring around the subject.\n\nThe ring should occupy the central area of the poster, leaving clean empty background space above and below.\n\nThe circular typography should feel visually stronger than the top headline.\n\nThe lower front arc letter height should be approximately 4.8% to 6.5% of the canvas height.\n\nFor a 2048 × 2560 canvas, the lower front arc letters should feel approximately 120 to 165 pixels tall.\n\nFor a 3072 × 3840 canvas, the lower front arc letters should feel approximately 180 to 250 pixels tall.\n\nThe upper receding arc may appear slightly smaller due to perspective, but it must remain legible.\n\nMaintain enough distance between the subject and the circular letters so the subject does not cover or interrupt the text.\n\nThe full circular path must close perfectly.\n\nDo not allow:\n\n- Broken gaps\n\n- Missing sections\n\n- Cropped letters\n\n- Random symbols\n\n- Placeholder text\n\n- Mirrored glyphs\n\n- Nonsensical spelling\n\n- Overlapping words\n\n- Deformed letterforms\n\n# 4:5 VERTICAL COMPOSITION BALANCE\n\nThe final image must feel intentionally designed for a vertical editorial poster, not like a square design placed inside a taller canvas.\n\nMaintain:\n\n- Refined subject-name headline in the upper empty area\n\n- Strong centered hero composition\n\n- Clean negative space above the ring\n\n- Clean negative space below the ring\n\n- Balanced side margins\n\n- A complete flattened perspective typography ring fully contained inside the frame\n\n- Clear subject dominance\n\n- Deliberate minimal empty space at the top and bottom\n\nThe subject and circular typography should form one unified central ground-plane graphic system.\n\nThe top headline should identify the subject clearly while remaining visually secondary to the hero subject.\n\n# COMPOSITION STYLE\n\nThe overall look should feel like:\n\n- Minimal high-fashion editorial poster\n\n- Premium food or product campaign\n\n- Bold solid-color art direction\n\n- Refined subject-name headline at the top\n\n- Centered hero cutout\n\n- Circular serif typography printed on the ground plane\n\n- Flattened perspective ellipse typography\n\n- Clean, luxurious, modern, and surreal but still photographic\n\nNo ivory card.\n\nNo extra captions.\n\nNo logos.\n\nNo barcode.\n\nNo magazine cover lines.\n\nNo decorative props.\n\nNo secondary objects.\n\nNo texture background.\n\nNo border.\n\nNo frame.\n\n# QUALITY CONTROL\n\nBefore finalizing, ensure:\n\n- The canvas is exactly vertical 4:5\n\n- The background is one solid dominant color\n\n- The top headline shows the actual common name of the dominant subject\n\n- The top headline is specific, centered, elegant, and placed in the upper empty area\n\n- The top headline uses a thin-to-regular Didone serif style\n\n- The dominant subject is precisely cut out\n\n- The subject is horizontally leveled\n\n- The subject is centered and fully visible\n\n- The typography ring is a true circle on the ground plane\n\n- The typography ring appears as a flattened ellipse due to perspective\n\n- The typography clearly looks laid down on the background surface\n\n- The circular text ring is complete and unbroken\n\n- The circular text uses correct spelling\n\n- The circular text is related to the analyzed subject\n\n- The typography ring is fully contained inside the 4:5 frame\n\n- The final image does not look like a front-facing circular badge\n\n- The final image looks polished, commercial, sharp, and premium"
+    },
+    {
+      "id": "tpl_50_curve_banner_poster",
+      "no": 50,
+      "name": "곡선 배너 포스터",
+      "family": "poster_typo",
+      "finish": "graphic",
+      "tags": [
+        "#타이포그래피",
+        "#포스터",
+        "#음식",
+        "#디저트"
+      ],
+      "identity_grade": "loose",
+      "engine_hint": "edit",
+      "size": "1024x1536",
+      "prompt": "# OUTPUT FORMAT — ABSOLUTE PRIORITY\n\nCreate one finished vertical commercial food poster in an exact 4:5 aspect ratio.\n\nThe final canvas must be portrait 4:5 only.\n\n- Do not generate 1:1, 3:4, 2:3, 9:16, landscape, square, cropped, extended, or any other aspect ratio.\n- Do not add borders, mockup frames, margins outside the poster, split layouts, multiple poster variations, or extra canvases.\n- The entire finished artwork must fill one single vertical 4:5 canvas.\n\n# INPUT IMAGE ANALYSIS\n\nUse the attached food photograph as the sole visual source for the featured food subject.\n\nAnalyze the attached photograph and identify the single most visually dominant and commercially appealing main food subject.\n\nIf the source image contains multiple foods, plates, bowls, trays, packages, props, utensils, ingredients, hands, or background objects:\n\n- Select only one primary food subject.\n- Choose the food that most clearly appears to be the intended hero product.\n- Preserve the essential components required for that food to remain visually complete and physically plausible.\n- Determine whether the original plate, bowl, tray, or serving vessel is structurally necessary for the selected food.\n- Remove unrelated dishes, duplicate foods, supporting props, utensils, hands, packaging, tables, cups, glasses, napkins, and background elements.\n- Do not create a collage.\n- Do not display several separate foods as equally important subjects.\n- Do not combine elements from separate dishes into one invented meal.\n\nPrecisely isolate the selected hero subject from its original background with a clean, professional cutout.\n\nDepending on the food's physical structure, the isolated hero subject may consist of:\n\n- The food alone, when it can be naturally and cleanly separated.\n- The food together with its single essential original serving vessel, when the vessel is required to preserve the food's structure, ingredients, support, or natural presentation.\n\nPreserve the selected food's real:\n\n- Appearance\n- Proportions\n- Ingredients\n- Surface details\n- Layers\n- Textures\n- Moisture\n- Browning\n- Crumbs\n- Glaze\n- Sauce\n- Garnish\n- Natural photographic realism\n\nDo not:\n\n- Redesign the food.\n- Change its recipe.\n- Simplify its structure.\n- Replace ingredients.\n- Combine separate foods.\n- Transform the food into an illustration.\n\n# ADAPTIVE SERVING VESSEL RETENTION\n\nDo not automatically remove every plate, bowl, tray, or serving vessel.\n\nDetermine whether the original serving vessel is visually and structurally necessary for the natural and complete presentation of the selected hero food.\n\n# REMOVE THE SERVING VESSEL WHEN APPROPRIATE\n\nRemove the plate, bowl, tray, or serving vessel and isolate only the food when all or most of the following conditions apply:\n\n- The food has a clear, continuous, and self-contained outer silhouette.\n- The food is firm enough to remain physically plausible without the vessel.\n- The food can be cleanly separated from the vessel without losing essential ingredients.\n- Removing the vessel does not destroy the recognizable shape of the food.\n- Removing the vessel does not produce incomplete, cut-off, unsupported, or floating components.\n- The food remains commercially appealing and visually complete as a standalone cutout.\n\nThis generally applies to foods such as:\n\n- Bread\n- Cakes\n- Cake slices with a stable base\n- Pastries\n- Cookies\n- Doughnuts\n- Muffins\n- Croissants\n- Sandwiches\n- Burgers\n- Firm pizza slices\n- Whole baked goods\n- Other solid and self-supporting foods with clearly defined edges\n\nThese examples are guidance only. Base the final decision on the actual visual and physical structure of the food in the attached image.\n\n# RETAIN THE SERVING VESSEL WHEN NECESSARY\n\nRetain the original plate, bowl, tray, or serving vessel as part of the hero subject when removing it would:\n\n- Destroy or weaken the recognizable shape of the food.\n- Remove sauce, broth, dressing, cream, grains, loose garnish, or ingredients resting directly on the vessel.\n- Leave irregular, incomplete, or visibly cut-off lower edges.\n- Make food components appear to float, spill, collapse, or become unsupported.\n- Separate components that are naturally presented as one composed dish.\n- Make accurate background removal unreliable.\n- Reduce the food's physical plausibility or commercial presentation.\n\nThis generally applies to foods such as:\n\n- Pasta\n- Risotto\n- Salads\n- Brunch plates\n- Breakfast platters\n- Composed plated meals\n- Saucy dishes\n- Curries\n- Soups\n- Stews\n- Grain bowls\n- Noodle dishes\n- Foods made from multiple loose, scattered, or overlapping components\n\nThese examples are guidance only. Base the final decision on the actual visual and physical structure of the food in the attached image.\n\n# SERVING VESSEL HANDLING RULES\n\nWhen a serving vessel is retained:\n\n- Retain only the single original plate, bowl, tray, or vessel directly containing the selected hero food.\n- Treat the food and essential serving vessel as one unified hero subject for cutout, alignment, scaling, placement, outline, and shadow.\n- Preserve the vessel's original shape, material, color, proportions, perspective, rim, depth, and visible design.\n- Keep the complete essential silhouette of the vessel without accidental cropping.\n- Ensure that the food remains visually more dominant than the vessel.\n- Remove all unrelated dishes, side plates, cutlery, cups, glasses, napkins, table surfaces, additional trays, packaging, hands, and background props.\n- Do not retain a large table area or unnecessary surface around the vessel.\n- Do not replace the vessel with a different plate, bowl, or tray.\n- Do not redesign, recolor, resize, simplify, decorate, or invent a new serving vessel.\n- Do not add a serving vessel when the original food does not require one.\n- Do not remove parts of the food merely to create a cleaner vessel-free silhouette.\n\nWhen the food can be naturally and cleanly isolated without its serving vessel:\n\n- Remove the vessel completely.\n- Preserve the complete natural silhouette of the food.\n- Do not leave plate fragments, rim fragments, table fragments, or background residue.\n\nWhen uncertain:\n\n- Prioritize visual completeness.\n- Prioritize physical plausibility.\n- Prioritize clean isolation.\n- Prioritize ingredient preservation.\n- Prioritize natural food presentation.\n- Do not force a food-only cutout when the serving vessel is necessary.\n\n# HERO SUBJECT ORIENTATION AND HORIZONTAL ALIGNMENT\n\nCorrect the orientation of the isolated hero subject before placing it into the poster.\n\nThe hero subject must appear visually level, stable, upright, and horizontally balanced.\n\nThe term \"hero subject\" means:\n\n- The selected food alone when the serving vessel has been removed.\n- The selected food and its retained essential serving vessel together when the vessel is necessary.\n\nAutomatically identify the most reliable horizontal reference within the complete hero subject, such as:\n\n- The food's natural base line\n- The food's resting surface\n- A cake layer\n- A sandwich layer\n- A pastry base\n- A plate rim\n- A bowl rim\n- A tray edge\n- A container edge\n- The principal structural axis of the complete subject\n\nWhen a serving vessel is retained, use the upper rim or bottom base line of the plate or bowl as the primary horizontal reference and align it level with the horizontal canvas axis.\n\nRotate the complete isolated hero subject only as much as necessary to correct accidental camera roll or unintended diagonal presentation.\n\nEnsure that:\n\n- The complete hero subject is not unintentionally tilted clockwise or counterclockwise.\n- The natural bottom or resting line appears level with the horizontal canvas axis.\n- Cakes, sandwiches, pastries, bowls, plates, trays, and plated dishes have visually level structural lines where applicable.\n- The subject appears stable, upright, and professionally aligned.\n- All physically connected parts rotate together as one unified subject.\n- When a serving vessel is retained, the food and vessel rotate together without changing their relationship.\n- The subject's internal proportions and original camera perspective remain unchanged.\n- The food and vessel are not stretched, skewed, warped, flattened, widened, narrowed, or geometrically distorted.\n- Natural asymmetry within the food is preserved.\n- A naturally elliptical plate or bowl remains naturally elliptical rather than being forced into a straight or front-facing shape.\n\nFor irregular foods without an obvious straight base:\n\n- Infer the most visually stable natural resting orientation.\n- Balance the overall visual weight horizontally.\n- Preserve the food's natural organic shape.\n\nFor top-down photographs:\n\n- Preserve the original top-down perspective.\n- Correct only accidental rotational tilt.\n- Do not convert the subject into a front-facing perspective.\n\nDo not:\n\n- Force naturally upright, vertical, curved, asymmetrical, or organically shaped food into an unnatural orientation.\n- Apply decorative rotation after leveling.\n- Use diagonal presentation for visual styling.\n- Distort the subject to create artificial horizontal alignment.\n\n# HERO SUBJECT PLACEMENT\n\nPlace the horizontally aligned isolated hero subject at the exact geometric center of the poster.\n\nThe center of the complete visible hero-subject silhouette must align with:\n\n- The vertical center axis of the canvas.\n- The horizontal center axis of the canvas.\n\nWhen a serving vessel is retained:\n\n- Calculate the central placement using the complete combined silhouette of the food and vessel.\n- Do not center only the food while leaving the plate or bowl visually off-center.\n- Keep the vessel and food balanced as one unified visual object.\n\nThe hero subject must remain the unmistakable visual focal point.\n\nEnsure that:\n\n- The hero subject is positioned in the exact center.\n- The hero subject is visually level.\n- The hero subject is large enough to be prominent.\n- The hero subject retains generous breathing room.\n- The complete subject remains fully inside the canvas.\n- No part of the food or essential serving vessel is unintentionally cropped.\n- The subject is not placed off-center.\n- Typography and decorative graphics do not cover or obscure the subject.\n\n# GROUNDING SHADOW\n\nAdd a soft and subtle grounding shadow directly beneath the hero subject so that it feels physically supported rather than floating.\n\nThe grounding shadow must:\n\n- Follow the corrected horizontal orientation of the hero subject.\n- Sit directly beneath the natural base of the food or retained serving vessel.\n- Correspond to the complete subject's actual width and shape.\n- Be soft, diffused, restrained, and realistic.\n- Remain visually secondary.\n- Avoid a harsh cutout or sticker appearance.\n\nWhen a plate, bowl, or tray is retained:\n\n- Place the shadow beneath the serving vessel rather than directly beneath individual food components.\n- Match the shadow to the vessel's contact area.\n- Keep the complete subject visually grounded.\n\nDo not use:\n\n- Harsh black shadows\n- Long directional shadows\n- Floating shadows\n- Glow effects\n- Drop-shadow sticker effects\n- Multiple conflicting shadows\n\n# HAND-DRAWN SUBJECT OUTLINE\n\nCreate one continuous hand-drawn-style outline closely following the complete outer silhouette of the isolated hero subject.\n\nWhen the food is isolated without a serving vessel:\n\n- Follow the complete outer silhouette of the food.\n\nWhen an essential serving vessel is retained:\n\n- Follow the combined outer silhouette of the entire food-and-vessel subject.\n- Do not draw separate competing outlines around every individual food component.\n- Do not place an additional outline inside the plate or bowl.\n- Treat the combined subject as one unified outlined object.\n\nThe outline must:\n\n- Visually resemble a manually drawn contour.\n- Have a consistent approximate thickness of 5 px at final output resolution.\n- Remain clearly visible without becoming excessively bold.\n- Follow the subject silhouette accurately.\n- Stay immediately outside the subject rather than cutting into it.\n- Rotate and align consistently with the horizontally corrected subject.\n- Maintain a subtly imperfect handcrafted character.\n- Remain clean enough for commercial poster use.\n\nDo not create:\n\n- Duplicated outlines\n- Offset outlines\n- Multiple layered outlines\n- Glowing outlines\n- Sticker-style borders\n- Thick cartoon borders\n- White cutout halos\n- Irregular gaps between the subject and outline\n\n# DOMINANT COLOR SELECTION\n\nAutomatically sample one visually dominant signature color from the selected food itself.\n\nThe selected signature color must:\n\n- Come from the actual food.\n- Represent the food's most visually central, recognizable, or commercially appealing color.\n- Remain clearly distinguishable against the bright ivory background.\n- Be used consistently throughout the poster.\n\nWhen a plate, bowl, tray, or serving vessel is retained:\n\n- Do not select the dominant color from the serving vessel.\n- Do not select white, cream, black, metallic, transparent, glass, or neutral ceramic colors from the vessel unless that color is also genuinely dominant within the food itself.\n- Ignore the serving vessel when analyzing the food's dominant signature color.\n- Extract the signature color only from the edible food components.\n\nUse the same signature color family for:\n\n- The hand-drawn subject outline\n- The thick organic curve\n- The menu-description typography\n\n# BACKGROUND\n\nUse a bright, warm ivory background similar to softly aged cream paper.\n\nThe background must feel:\n\n- Bright\n- Warm\n- Minimal\n- Spacious\n- Clean\n- Commercially polished\n\nApply an extremely subtle fine paper grain across the background.\n\nThe paper texture must be:\n\n- Very delicate\n- Evenly distributed\n- Low contrast\n- Visible only on close inspection\n- Refined rather than distressed\n- Consistent across the full canvas\n\nDo not include:\n\n- Stains\n- Tears\n- Heavy fibers\n- Deep wrinkles\n- Dirty marks\n- Water damage\n- Fold marks\n- Vintage damage\n- Rough recycled-paper effects\n- Strong speckling\n- Heavy grain\n- Grunge\n- Uneven discoloration\n\n# THICK ORGANIC CURVE GRAPHIC\n\nCreate one large flowing organic curve or ribbon-like graphic around the central hero subject.\n\nThe graphic should reflect a bold retro editorial food-poster style while remaining adaptable to any type of food.\n\nThe curve must:\n\n- Be made from smooth, continuous, asymmetrical curves.\n- Feel spontaneous, playful, and visually dynamic.\n- Vary naturally in placement and direction for each generation.\n- Be thick enough to contain the menu-name typography comfortably.\n- Occupy a meaningful portion of the poster without dominating the hero subject.\n- Travel through the surrounding negative space.\n- Frame or visually guide the eye toward the central subject.\n- Remain visually connected as one principal curve.\n- Remain fully contained inside the 4:5 canvas.\n\nThe curve must never:\n\n- Cross the food.\n- Cross the retained plate, bowl, or tray.\n- Overlap the complete hero subject.\n- Touch the complete hero-subject silhouette.\n- Touch the hand-drawn outline.\n- Cover any edible component.\n- Slice through the subject.\n- Pass behind the visible subject in a way that creates an overlap illusion.\n- Create the impression that the food or vessel has been cut off.\n- Obstruct the grounding shadow excessively.\n\nMaintain a clear safety gap between:\n\n- The curve and the complete hero subject\n- The curve and the 5 px hand-drawn outline\n- The curve and the canvas edges\n- The curve and the menu-description text\n\n# CURVE COLOR AND TEXTURE\n\nUse the same dominant signature color selected from the food as the solid base color of the curve.\n\nThe curve and hand-drawn outline must use the same coordinated color family.\n\nApply an extremely subtle fine paper grain to the colored curve.\n\nThe curve texture should feel:\n\n- Lightly screen-printed\n- Gently inked onto paper\n- Tactile but refined\n- Consistent with the ivory paper background\n- Subtle enough to preserve a clean graphic silhouette\n\nDo not use:\n\n- Gradients\n- Metallic effects\n- Glossy plastic\n- Neon glow\n- Glass effects\n- Three-dimensional ribbons\n- Liquid splashes\n- Photorealistic fabric\n- Heavy brush texture\n- Strong noise\n\n# MENU NAME TYPOGRAPHY\n\nPlace the menu name inside the thick colored curve.\n\nMenu name:\n\n\"[MENU NAME]\"\n\nThe menu-name text must:\n\n- Use the same bright warm ivory tone as the background.\n- Be clearly readable against the colored curve.\n- Follow the direction or flow of the curve where appropriate.\n- Use a bold hand-lettered type style.\n- Feel playful, organic, slightly imperfect, and manually drawn.\n- Retain strong commercial legibility.\n- Be large enough to function as the primary headline.\n- Remain entirely inside the colored curve.\n- Maintain sufficient internal padding from the edges of the curve.\n- Never overlap the hero subject.\n- Never touch the food outline.\n- Never extend outside the poster.\n\nDo not use:\n\n- Formal serif typography\n- Elegant luxury calligraphy\n- Thin script fonts\n- Futuristic fonts\n- Condensed corporate fonts\n- Glossy 3D lettering\n- Beveled lettering\n- Drop-shadow lettering\n- Neon lettering\n- Random placeholder text\n\nRender the menu name exactly as written. Do not alter its spelling, translate it, abbreviate it, duplicate it, or invent additional menu names.\n\n# MENU DESCRIPTION TYPOGRAPHY\n\nPlace one concise menu description directly on the bright ivory background and outside the colored curve.\n\nMenu description:\n\n\"[MENU DESCRIPTION]\"\n\nThe menu description must be visually secondary to the hero subject and the menu-name headline.\n\nUse a clean, friendly, lightly handmade display typeface or a simple rounded typeface that complements the hand-lettered headline while remaining highly readable.\n\nThe description text must:\n\n- Appear only on the ivory background.\n- Use the dominant signature color sampled from the food.\n- Remain clearly separated from the hero subject and the colored curve.\n- Use a smaller scale than the menu name.\n- Be arranged in one short line or a compact two-line block.\n- Maintain generous letter and line spacing.\n- Remain easy to read at Instagram feed size.\n- Avoid excessive rotation or dramatic distortion.\n- Never overlap the food, the retained serving vessel, or touch the subject outline.\n- Never leave the canvas.\n\nRender the description exactly as written. Do not invent tasting notes, prices, ingredients, slogans, contact details, addresses, social-media handles, logos, or additional copy.\n\n# VISUAL STYLE\n\nCreate a retro-modern bakery and café editorial poster with:\n\n- Bold organic graphic shapes\n- Playful hand-lettered typography\n- Clean central product emphasis\n- Restrained two-color visual logic derived from the food\n- Warm ivory negative space\n- Subtle printed-paper character\n- Slightly imperfect handcrafted charm\n- Polished contemporary commercial art direction\n\nThe final design should feel inspired by:\n\n- Vintage screen-printed food advertising\n- Modern independent bakery branding\n- Contemporary café posters\n- Editorial food-design graphics\n\n# VISUAL HIERARCHY\n\nMaintain the following visual hierarchy:\n\n1. The horizontally aligned central isolated hero subject\n2. The menu name inside the thick colored curve\n3. The concise menu description on the ivory background\n4. The subtle paper texture and supporting graphic rhythm\n\nThe food must remain more visually dominant than the plate or bowl, the curve, the typography, the shadow, and the paper texture.\n\n# COLOR SYSTEM\n\nUse a restrained adaptive palette consisting of:\n\n- Bright warm ivory for the background\n- One dominant signature color sampled only from the edible food\n- The same dominant signature color for the thick curve\n- The same dominant signature color for the hand-drawn subject outline\n- The same dominant signature color for the description typography\n- Bright warm ivory for the menu name inside the curve\n\nDo not introduce unrelated accent colors unless they naturally exist within the original food photograph and are necessary for preserving the food's photographic appearance.\n\nAvoid:\n\n- Rainbow palettes\n- Conflicting complementary colors\n- Black-heavy layouts\n- Muddy beige backgrounds\n- Excessive saturation\n- Fluorescent tones\n- Unrelated brand colors\n- Colors sampled from the serving vessel instead of the food\n\n# COMPOSITION SAFETY\n\nMaintain clear visual separation between all elements.\n\nEnsure that:\n\n- The complete hero subject stays exactly centered and visually level.\n- The natural base and structural lines remain horizontal where applicable.\n- The retained plate, bowl, or tray is aligned together with the food.\n- The curve avoids the complete hero subject and the hand-drawn outline.\n- The menu name stays fully inside the curve.\n- The menu description stays outside the curve on the ivory background.\n- No element is clipped by the canvas.\n- No text is hidden behind the food or the serving vessel.\n- The composition remains readable at Instagram feed size.\n\n# IMAGE QUALITY\n\nProduce a high-resolution, sharp, professionally art-directed commercial poster.\n\nThe food must retain:\n\n- Realistic photographic detail\n- Accurate ingredients\n- Appetizing texture\n- Natural moisture\n- Realistic browning\n- Crisp edges\n- Authentic color\n- Original photographic depth\n\nThe graphic elements must have:\n\n- Clean edges\n- Subtle handcrafted irregularity\n- Controlled print texture\n- Commercial clarity\n\nTypography must be:\n\n- Legible\n- Correctly spelled\n- Properly contained\n- Free from malformed letters\n- Free from duplicated characters\n- Free from random text\n\nThe paper grain must remain delicate and consistent without reducing clarity or contaminating the food photograph.\n\nThe cutout must have clean professional edges, free from background remnants, color fringing, halos, or missing food details.\n\n# FINAL VALIDATION\n\nBefore producing the final poster, verify all of the following:\n\n- The canvas is exactly vertical 4:5.\n- Only one main food subject has been selected.\n- The serving vessel has been removed when unnecessary.\n- The original serving vessel has been retained when structurally necessary.\n- No unnecessary plate, bowl, tray, or tableware remains.\n- No essential food component has been removed.\n- The complete hero subject is horizontally level.\n- The complete hero subject is placed at the exact geometric center.\n- The food remains visually dominant over the vessel.\n- The 5 px hand-drawn outline follows the complete hero-subject silhouette.\n- The dominant signature color has been sampled only from the edible food.\n- The curve uses the selected food color.\n- The curve does not cross, touch, cover, or pass through the hero subject.\n- The menu name appears only inside the colored curve.\n- The menu description appears only on the ivory background.\n- The menu name and description are correctly spelled.\n- No unrequested text or decorative objects have been added.\n- The background and curve contain only extremely subtle paper texture.\n- The final poster is visually readable at Instagram feed size.\n\n# PROHIBITED RESULTS\n\nDo not generate:\n\n- Any aspect ratio other than vertical 4:5\n- Multiple poster options\n- A poster mockup or framed poster\n- Several equally important food subjects\n- A collage or newly invented food\n- Combined elements from separate meals\n- Background remnants from the source photograph\n- Unnecessary plates, bowls, or serving vessels when the food can remain complete without them\n- Removal of an essential serving vessel when doing so would damage the food's structure or completeness\n- Invented, replaced, redesigned, or recolored serving vessels\n- Unrelated tableware, utensils, cups, glasses, napkins, hands, table surfaces, or packaging\n- An unintentionally tilted, warped, skewed, or perspective-distorted hero subject\n- Decorative rotation of the hero subject\n- Curves crossing through or touching the food or its outline\n- Text covering the food or serving vessel\n- An off-center hero subject\n- Floating food or vessel without a grounding shadow\n- Sticker-style borders or thick cartoon outlines\n- Heavy grunge, coarse paper fibers, or distressed vintage damage\n- Gradients, glow effects, or photorealistic liquid graphics\n- Logos, contact information, addresses, social-media handles, or prices\n- Invented slogans, additional captions, or meaningless letters\n- Misspelled text, duplicated words, or watermarks"
+    }
+  ]
+}

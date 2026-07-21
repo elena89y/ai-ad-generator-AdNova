@@ -163,14 +163,14 @@ export default function AdminRefundsPage() {
         )}
 
         <div className="mt-7 grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem]">
-          <section className="border border-white/10 bg-[#102039]/90 p-5">
+          <section className="rounded-2xl border border-white/10 bg-[#102039]/90 p-5">
             <div className="flex items-start justify-between gap-4">
               <p className="text-sm font-semibold text-white/60">검색 결과</p>
               <RotateCcw size={19} className="text-[#a78bfa]" />
             </div>
             <strong className="mt-6 block text-3xl font-extrabold tabular-nums">{total.toLocaleString("ko-KR")}건</strong>
           </section>
-          <label className="border border-white/10 bg-[#102039]/90 p-4">
+          <label className="rounded-2xl border border-white/10 bg-[#102039]/90 p-4">
             <span className="mb-2 block text-xs font-bold text-white/50">환불 상태</span>
             <select
               value={status}
@@ -202,7 +202,7 @@ export default function AdminRefundsPage() {
         )}
 
         <div className="mt-7 grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
-          <section className="overflow-hidden border border-white/10 bg-[#102039]/90">
+          <section className="overflow-hidden rounded-2xl border border-white/10 bg-[#102039]/90">
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <div className="flex items-center gap-2">
                 <RotateCcw size={18} className="text-[#a78bfa]" />
@@ -242,7 +242,7 @@ export default function AdminRefundsPage() {
             </div>
           </section>
 
-          <section className="border border-white/10 bg-[#102039]/90">
+          <section className="rounded-2xl border border-white/10 bg-[#102039]/90">
             {!selected ? (
               <div className="grid min-h-80 place-items-center px-5 text-center text-sm text-white/45">처리할 환불 신청을 선택해 주세요.</div>
             ) : (
