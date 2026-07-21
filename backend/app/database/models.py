@@ -181,6 +181,8 @@ class SupportInquiry(Base):
     __tablename__ = "support_inquiries"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 탈퇴 시 가명처리-보존(전자상거래법 3년): user_id 를 "탈퇴회원" 센티넬로 재지정해
+    # 개인 식별 링크를 끊는다(crud/retention.py). NOT NULL 유지 → FK·기존 INNER JOIN 무결.
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     category = Column(String(50), default="general", nullable=False)
     title = Column(String(255), nullable=False)
@@ -189,6 +191,7 @@ class SupportInquiry(Base):
     answer = Column(Text, nullable=True)
     answered_by_admin_id = Column(Integer, nullable=True)
     answered_at = Column(DateTime(timezone=True), nullable=True)
+    anonymized_at = Column(DateTime(timezone=True), nullable=True)  # 탈퇴 익명화 시각 (감사용)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at = Column(
         DateTime(timezone=True),
