@@ -5,6 +5,7 @@ import {
   getToken,
   readApiError,
   readJsonSafely,
+  toAbsoluteUrl,
 } from "./api";
 
 export const SNS_LIST = [
@@ -55,7 +56,7 @@ export async function exportSnsPost(
       },
       body: JSON.stringify({
         platform,
-        image_url: item.img,
+        image_url: toAbsoluteUrl(item.img),
         product_name: item.productName || item.hl || "광고 상품",
         headline: item.copyHead || item.hl || null,
         description: item.copyBody || null,
