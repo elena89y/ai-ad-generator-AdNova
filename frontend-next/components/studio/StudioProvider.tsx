@@ -13,6 +13,7 @@ import {
 import {
   AdItem,
   AdnovaUser,
+  AUTH_EXPIRED_EVENT,
   BillingSummary,
   GenerateResult,
   PurchaseHistory,
@@ -250,6 +251,12 @@ export default function StudioProvider({ children }: { children: React.ReactNode
       currentResult: null,
     }));
   }, []);
+
+  useEffect(() => {
+    const handleAuthExpired = () => clearAuth();
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+  }, [clearAuth]);
 
   useEffect(() => {
     if (!ready || !token) return;

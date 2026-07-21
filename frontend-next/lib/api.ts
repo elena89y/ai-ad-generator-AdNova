@@ -9,6 +9,7 @@ export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? "/api").replace(
 
 const ACCESS_TOKEN_KEY = "access_token";
 const USER_KEY = "user";
+export const AUTH_EXPIRED_EVENT = "adnova:auth-expired";
 
 function buildApiUrl(path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -177,13 +178,20 @@ export function isSocialAuthUser(): boolean {
 /* ---------- fetch ---------- */
 export async function apiFetch(path: string, options: RequestInit = {}) {
   const token = getToken();
-  return fetch(buildApiUrl(path), {
+  const response = await fetch(buildApiUrl(path), {
     ...options,
     headers: {
       ...(options.headers || {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
+
+  if (response.status === 401 && typeof window !== "undefined") {
+    clearStoredAuth();
+    window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+  }
+
+  return response;
 }
 
 interface ValidationItem {

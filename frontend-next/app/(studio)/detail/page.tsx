@@ -38,6 +38,10 @@ function DetailContent() {
 
   useEffect(() => {
     if (!s.ready) return;
+    if (!s.token) {
+      router.replace("/login");
+      return;
+    }
     if (!historyId && !item) {
       router.replace("/my-ads");
       return;
@@ -71,6 +75,9 @@ function DetailContent() {
     };
   }, [historyId, item?.historyId, router, s]);
 
+  if (!s.ready || !s.token) {
+    return <div className="page">로그인 정보를 확인하는 중입니다.</div>;
+  }
   if (!item) return loading ? <div className="page">광고 정보를 불러오는 중입니다.</div> : null;
   const copy = getItemPlatformCopy(item, platform);
   // [html-parity] 페어가 모두 있을 때만 토글 노출, 없으면 item.img 폴백 (html getDetailImageUrl 이식)
