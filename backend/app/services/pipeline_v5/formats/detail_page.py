@@ -53,10 +53,10 @@ def render(hero: HeroAsset, spec: FormatSpec, output_dir: str) -> list[str]:
         y += heights[2]
 
     top = _cover(Image.open(cuts[DetailCutRole.TOP_VIEW]).convert("RGB"), (width, heights[3]))
-    canvas.paste(top, (0, y)); _section_label(canvas, pal, y, "01", copy.top_view_label, light=False); y += heights[3]
+    canvas.paste(top, (0, y)); _section_label(canvas, y, copy.top_view_label); y += heights[3]
 
     closeup = _cover(Image.open(cuts[DetailCutRole.TEXTURE_CLOSEUP]).convert("RGB"), (width, heights[4]))
-    canvas.paste(closeup, (0, y)); _section_label(canvas, pal, y, "02", copy.closeup_caption, light=True); y += heights[4]
+    canvas.paste(closeup, (0, y)); _section_label(canvas, y, copy.closeup_caption); y += heights[4]
 
     _split_section(canvas, cuts[DetailCutRole.SIDE_PROFILE], copy, pal, y, heights[5], width, margin); y += heights[5]
 
@@ -144,6 +144,35 @@ def _select_role_cuts(hero: HeroAsset) -> list[DetailCut]:
     return [by_role[role] for role in REQUIRED_ROLES]
 
 
+# FMT-TYPO(2026-07-22): 조판 하드코딩 제거(육안 정본 지시). 문구 뒤 스크림을 고정 _INK·고정
+#   위치 대신 밑 이미지 영역 휘도에 맞춰 세기·톤을 정한다 — 상품 사진마다 스크림이 달라져
+#   '동일 템플릿' 룩을 깬다. 번호(01~04)는 제거(_section_label number 옵션).
+def _region_luma(canvas: Image.Image, box) -> float:
+    """box=(x0,y0,x1,y1) 영역 평균 휘도(0~255). 캔버스 밖 좌표는 클램프. 다운샘플로 빠르게."""
+    x0, y0, x1, y1 = (int(v) for v in box)
+    x0, y0 = max(0, x0), max(0, y0)
+    x1, y1 = min(canvas.width, x1), min(canvas.height, y1)
+    if x1 <= x0 or y1 <= y0:
+        return 128.0
+    region = canvas.crop((x0, y0, x1, y1)).convert("L")
+    region.thumbnail((48, 48))
+    data = list(region.getdata())
+    return sum(data) / len(data) if data else 128.0
+
+
+def _adaptive_scrim(draw, canvas, box, light_text: bool = True) -> None:
+    """밑 영역 휘도에 맞춰 텍스트 대비를 보장하는 스크림. 고정 alpha 대신 이미지 적응:
+    흰 텍스트(light_text)면 어두운 스크림 — 배경이 밝을수록 진하게(대비 확보), 이미 어두우면
+    옅게(뭉갬 방지). 어두운 텍스트면 반대(밝은 스크림)."""
+    luma = _region_luma(canvas, box)
+    if light_text:
+        alpha = int(min(238, max(70, luma * 0.92 + 34)))
+        draw.rectangle(box, fill=(*_INK, alpha))
+    else:
+        alpha = int(min(238, max(70, (255 - luma) * 0.92 + 34)))
+        draw.rectangle(box, fill=(*_PAPER, alpha))
+
+
 def _cover(image: Image.Image, size: tuple[int, int]) -> Image.Image:
     w, h = size
     scale = max(w / image.width, h / image.height)
@@ -155,7 +184,8 @@ def _cover(image: Image.Image, size: tuple[int, int]) -> Image.Image:
 def _title_overlay(canvas, copy: DetailPageCopy, pal, y, height, width):
     draw = ImageDraw.Draw(canvas, "RGBA")
     draw.rectangle((0, y, width, y + 104), fill=(*_PAPER, 242))
-    draw.rectangle((0, y + int(height * .68), width, y + height), fill=(*_INK, 220))
+    # FMT-TYPO: 고정 (*_INK,220) 대신 밑 이미지(히어로 하단) 휘도 적응 스크림 — 상품마다 세기 다름.
+    _adaptive_scrim(draw, canvas, (0, y + int(height * .68), width, y + height), light_text=True)
     margin = int(width * .07)
     draw.text((margin, y + 37), copy.product_name or "ADNOVA SELECT", font=_font(22, True), fill=(24, 24, 24))
     draw.line((width - margin - 100, y + 52, width - margin, y + 52), fill=pal["accent"], width=4)
@@ -202,18 +232,21 @@ def _benefits(canvas, copy: DetailPageCopy, pal, y, height, margin, width):
                   _fit_line(bullet, width - margin * 2 - 56, 27), font=_font(27, True), fill=(30, 30, 30))
 
 
-def _section_label(canvas, pal, y, number, title, light):
+def _section_label(canvas, y, title):
+    """섹션 라벨 바. FMT-TYPO: 번호(01/02)·표식 점 제거 → 문구만. 바 톤·글자색은 밑 이미지
+    휘도에 맞춰 자동(밝으면 어두운 바+흰 글자, 어두우면 밝은 바+검은 글자)."""
     draw = ImageDraw.Draw(canvas, "RGBA")
-    fill = (*_PAPER, 232) if light else (*_INK, 205)
-    text = (24, 24, 24) if light else (255, 255, 255)
-    # 라이브 실측(2026-07-21): '잔' 같은 짧은 라벨이 고정 폭 바에 떠 보임 → 텍스트 폭 맞춤.
-    label = _fit_line(title, 520 - 128 - 24, 27)
     font = _font(27, True)
+    # 라이브 실측(2026-07-21): '잔' 같은 짧은 라벨이 고정 폭 바에 떠 보임 → 텍스트 폭 맞춤.
+    label = _fit_line(title, 520 - 68 - 24, 27)
     label_w = draw.textbbox((0, 0), label, font=font)[2]
-    right = max(320, min(520, 128 + label_w + 36))
+    right = max(280, min(520, 68 + label_w + 32))
+    luma = _region_luma(canvas, (44, y + 42, right, y + 145))
+    dark_bar = luma >= 128
+    fill = (*_INK, 205) if dark_bar else (*_PAPER, 232)
+    text = (255, 255, 255) if dark_bar else (24, 24, 24)
     draw.rectangle((44, y + 42, right, y + 145), fill=fill)
-    draw.text((68, y + 67), number, font=_font(20, True), fill=pal["accent"])
-    draw.text((128, y + 63), label, font=font, fill=text)
+    draw.text((68, y + 63), label, font=font, fill=text)
 
 
 def _split_section(canvas, path, copy: DetailPageCopy, pal, y, height, width, margin):
@@ -222,7 +255,7 @@ def _split_section(canvas, path, copy: DetailPageCopy, pal, y, height, width, ma
     draw = ImageDraw.Draw(canvas)
     draw.rectangle((image_w, y, width, y + height), fill=pal["deep"])
     x = image_w + margin
-    draw.text((x, y + 85), "03 / PROFILE", font=_font(19, True), fill=pal["tint"])
+    draw.text((x, y + 85), "PROFILE", font=_font(19, True), fill=pal["tint"])
     draw.text((x, y + 150), copy.profile_title, font=_font(39, True), fill="white", spacing=8)
     if copy.profile_caption:
         for index, line in enumerate(_wrap_px(copy.profile_caption, _font(21), width - x - margin)[:3]):
@@ -231,8 +264,9 @@ def _split_section(canvas, path, copy: DetailPageCopy, pal, y, height, width, ma
 
 def _lifestyle_overlay(canvas, copy: DetailPageCopy, pal, y, height, width, margin):
     draw = ImageDraw.Draw(canvas, "RGBA")
-    draw.rectangle((0, y + int(height * .67), width, y + height), fill=(*_INK, 205))
-    draw.text((margin, y + int(height * .72)), "04 / MOMENT", font=_font(20, True), fill=pal["tint"])
+    # FMT-TYPO: 고정 스크림 → 라이프스타일 컷 하단 휘도 적응. 번호 "04 / " 제거.
+    _adaptive_scrim(draw, canvas, (0, y + int(height * .67), width, y + height), light_text=True)
+    draw.text((margin, y + int(height * .72)), "MOMENT", font=_font(20, True), fill=pal["tint"])
     draw.text((margin, y + int(height * .79)), copy.lifestyle_line,
               font=_fit(copy.lifestyle_line, width - margin * 2, 43, 29), fill="white")
 
