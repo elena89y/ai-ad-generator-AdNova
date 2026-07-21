@@ -77,6 +77,7 @@ def test_generate_releases_gpu_lock_after_failure(tmp_path, monkeypatch):
 
     assert exc_info.value.status_code == 500
     assert generation_app.kontext_service._GPU_LOCK.locked() is False
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_health_reports_ready_and_busy():

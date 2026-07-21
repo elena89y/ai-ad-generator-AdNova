@@ -61,7 +61,17 @@ from ..services.upload_validation import read_image_upload_file_sync
 
 router = APIRouter(prefix="/ads", tags=["ads"])
 
-UPLOAD_DIR = Path(__file__).resolve().parents[2] / "uploads"
+TEMP_UPLOAD_DIR = Path(__file__).resolve().parents[2] / "temp_uploads"
+
+
+def _remove_temporary_upload(path: Path | None) -> None:
+    if path is None:
+        return
+    try:
+        if path.parent.resolve() == TEMP_UPLOAD_DIR.resolve():
+            path.unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 def _consume_generation_credit(db: Session, user_id: int) -> str:
@@ -332,6 +342,7 @@ def generate_ad(
     """
     current_user_id = current_user.id
     input_image_id: Optional[int] = None
+    temporary_source_path: Path | None = None
     request_data = json.dumps(
         {
             "image_id": image_id,
@@ -358,8 +369,9 @@ def generate_ad(
         input_image_id = row.id
     elif image is not None:
         _, suffix, content = read_image_upload_file_sync(image)
-        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-        src_path = UPLOAD_DIR / f"{uuid.uuid4().hex[:12]}{suffix}"
+        TEMP_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        temporary_source_path = TEMP_UPLOAD_DIR / f"{uuid.uuid4().hex[:12]}{suffix}"
+        src_path = temporary_source_path
         src_path.write_bytes(content)
     else:
         raise HTTPException(status_code=400, detail="image 파일 또는 image_id 중 하나가 필요합니다")
@@ -430,6 +442,8 @@ def generate_ad(
             error_message=str(e),
         )
         raise HTTPException(status_code=500, detail=f"광고 생성 실패: {e}") from e
+    finally:
+        _remove_temporary_upload(temporary_source_path)
 
 
 @router.post("/regenerate", response_model=GenerateAdResponse)

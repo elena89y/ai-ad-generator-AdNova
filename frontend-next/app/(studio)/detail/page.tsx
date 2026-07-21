@@ -86,23 +86,6 @@ function DetailContent() {
     ? (typographyOn ? item.imageWithTypography : item.imageWithoutTypography)
     : item.img;
 
-  function reuse() {
-    if (!item?.inputImageId || !item.inputImg) {
-      s.toast("이 광고의 입력 이미지를 다시 사용할 수 없습니다");
-      return;
-    }
-    s.setDashboardState({
-      selectedImageId: item.inputImageId,
-      selectedImageUrl: item.inputImg,
-      selectedImagePreview: item.inputImg,
-      prodName: item.productName || "",
-      promptText: item.productDescription || "",
-      styleLabel: item.style || "웜 빈티지",
-    });
-    router.push("/studio");
-    s.toast("이전 광고 설정을 불러왔습니다");
-  }
-
   function openShare() {
     if (!item) return;
     s.openShare(item, historyId ? `/detail?historyId=${historyId}` : "/detail", platform);
@@ -164,28 +147,6 @@ function DetailContent() {
               >
                 AI 생성
               </span>
-              {item.inputImg && (
-                <div
-                  style={{
-                    position: "absolute",
-                    left: 12,
-                    bottom: 12,
-                    width: 82,
-                    aspectRatio: "1",
-                    border: "2px solid rgba(255,255,255,.7)",
-                    borderRadius: 9,
-                    overflow: "hidden",
-                    background: "#16151A",
-                  }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={item.inputImg}
-                    alt="입력 이미지"
-                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                  />
-                </div>
-              )}
             </div>
             {/* [html-parity] 타이포 토글 — html #detailTypographyOption 이식 (Next 이관 시 누락) */}
             {hasTypographyPair && (
@@ -225,9 +186,6 @@ function DetailContent() {
               </div>
             )}
             <div className="detail-actions">
-              <button className="oa" onClick={reuse}>
-                🔄 이 광고로 다시 만들기
-              </button>
               <button className="oa" onClick={openShare}>
                 ↗ 공유
               </button>

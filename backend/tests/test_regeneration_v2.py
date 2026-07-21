@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import time
 from types import SimpleNamespace
 
 from PIL import Image
@@ -112,3 +114,17 @@ def test_initial_v2_generation_reports_seed_used_by_pipeline(monkeypatch, tmp_pa
 
     assert captured["seed"] == 42
     assert result.seed == 42
+
+
+def test_expired_regeneration_input_is_removed(monkeypatch, tmp_path) -> None:
+    source = tmp_path / "abc123def456_v2input.png"
+    source.write_bytes(b"temporary input")
+    expired_at = time.time() - 2
+    os.utime(source, (expired_at, expired_at))
+
+    monkeypatch.setattr(image_service, "PROCESSED_DIR", tmp_path)
+    monkeypatch.setattr(generation_service, "TEMP_REGENERATE_TTL_SECONDS", 1)
+
+    generation_service._purge_expired_regeneration_inputs()
+
+    assert not source.exists()
