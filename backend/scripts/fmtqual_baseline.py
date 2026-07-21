@@ -187,6 +187,15 @@ def cmd_run(args: argparse.Namespace) -> None:
     if args.only:
         wanted = {s.strip() for s in args.only.split(",")}
         items = [i for i in items if i["file"] in wanted]
+    if args.sample:  # 모드별 앞 N개(3모드 균형 커버) — ascii 인자라 중첩 셸 안전
+        seen: dict = {}
+        picked = []
+        for i in items:
+            m = i["expected_mode"]
+            if seen.get(m, 0) < args.sample:
+                picked.append(i)
+                seen[m] = seen.get(m, 0) + 1
+        items = picked
     if args.limit:
         items = items[: args.limit]
 
@@ -245,7 +254,9 @@ def cmd_summary(args: argparse.Namespace) -> None:
     if not runs_path.is_file():
         print(f"원장 없음(아직 실측 전): {runs_path}")
         return
-    rows: dict[str, list[dict]] = {f: [] for f in FORMATS}
+    # last-wins: 같은 (포맷, 입력)은 최신 행만 채택 — 재실측(코드 스테일 무효분 등)이
+    #   구행을 이중집계하지 않게. 원장은 append-only 유지, 집계에서만 dedup.
+    latest: dict[tuple, dict] = {}
     for line in runs_path.read_text(encoding="utf-8").splitlines():
         try:
             rec = json.loads(line)
@@ -254,8 +265,11 @@ def cmd_summary(args: argparse.Namespace) -> None:
         if rec.get("phase") != "FMT-QUAL":
             continue
         fmt = rec.get("params", {}).get("format")
-        if fmt in rows:
-            rows[fmt].append(rec)
+        if fmt in FORMATS:
+            latest[(fmt, rec.get("input", ""))] = rec  # 원장 순서=시간순 → 뒤가 최신
+    rows: dict[str, list[dict]] = {f: [] for f in FORMATS}
+    for rec in latest.values():
+        rows[rec["params"]["format"]].append(rec)
 
     lines = ["# FMT-QUAL — 포맷 조판 품질 (자동: fmtqual_baseline.py summary)", "",
              "| 포맷 | n | 실패 | p50 gen_s | 컷 corr median | would-reject율 | 폴백율 |",
@@ -296,6 +310,7 @@ def main() -> None:
                     help="쉼표구분 (detail,cardnews,banner). 기본 detail,banner")
     pr.add_argument("--style", default="editorial", help="고정 스타일(포맷 비교 일관성)")
     pr.add_argument("--only", help="쉼표구분 파일명만")
+    pr.add_argument("--sample", type=int, help="expected_mode별 앞 N개(3모드 균형)")
     pr.add_argument("--limit", type=int, help="앞 N개만(GPU 예산)")
     pr.add_argument("--dry-run", action="store_true")
     pr.set_defaults(fn=cmd_run)
