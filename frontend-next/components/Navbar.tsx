@@ -94,7 +94,7 @@ export default function Navbar() {
       </div>
 
       {open && (
-        <div className="mx-5 mt-2 rounded-2xl glass p-4 md:hidden">
+        <div className="mx-5 mt-2 rounded-2xl bg-surface border border-border p-4 shadow-xl md:hidden">
           <nav className="flex flex-col gap-4 text-sm">
             {links.map((l) => (
               <a
@@ -112,6 +112,13 @@ export default function Navbar() {
               className="text-muted transition-colors hover:text-foreground"
             >
               고객센터
+            </a>
+            <a
+              href="/login"
+              onClick={() => setOpen(false)}
+              className="text-muted transition-colors hover:text-foreground"
+            >
+              로그인
             </a>
             <a
               href="/signup"

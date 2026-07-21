@@ -34,19 +34,22 @@ export default function SharePage() {
       router.replace("/studio");
       return;
     }
+      
     if (!item.historyId || verifiedHistoryId === item.historyId) return;
+
+    const historyId = item.historyId;
 
     let cancelled = false;
     setVerifying(true);
 
     async function verifyOwnership() {
       try {
-        const response = await apiFetch(`/api/history/${item.historyId}`);
+        const response = await apiFetch(`/api/history/${historyId}`);
         const data = await readJsonSafely(response);
         if (!response.ok) {
           throw new Error(readApiError(data, "공유할 광고를 확인할 수 없습니다"));
         }
-        if (!cancelled) setVerifiedHistoryId(item.historyId!);
+        if (!cancelled) setVerifiedHistoryId(historyId);
       } catch (error) {
         if (!cancelled) {
           s.toast(error instanceof Error ? error.message : "공유할 광고를 확인할 수 없습니다");
