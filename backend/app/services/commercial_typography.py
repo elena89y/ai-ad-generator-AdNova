@@ -289,6 +289,7 @@ def render_typography_variants(
     kicker: str = "",
     cta: str = "",
     subject_en: str = "",
+    domain: str = "food",
 ) -> TypographyRenderResult:
     """GPU 재생성 없이 OFF/ON을 함께 만들고 토글에 맞는 경로를 선택한다.
 
@@ -310,6 +311,7 @@ def render_typography_variants(
     Image.open(image_path).convert("RGB").save(off_path)
     used_style = typography_system.render_typography(
         image_path, str(on_path), product_name, copy.headline, subject_en=subject_en,
+        domain=domain,
     )
     selected = on_path if typography_enabled else off_path
     return TypographyRenderResult(
