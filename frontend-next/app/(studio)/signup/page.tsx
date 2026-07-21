@@ -121,18 +121,17 @@ export default function SignupPage() {
 
       /*
        * 2. 회원가입 직후 자동 로그인
-       * FastAPI 로그인은 application/x-www-form-urlencoded 방식
+       * FastAPI 로그인은 JSON 요청
        */
-      const loginBody = new URLSearchParams();
-      loginBody.set("username", name);
-      loginBody.set("password", password);
-
       const loginResponse = await apiFetch("/api/auth/login", {
         method: "POST",
         headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
+          "Content-Type": "application/json",
         },
-        body: loginBody,
+        body: JSON.stringify({
+          username: name,
+          password,
+        }),
       });
 
       const loginData = (await readJsonSafely(loginResponse)) as {

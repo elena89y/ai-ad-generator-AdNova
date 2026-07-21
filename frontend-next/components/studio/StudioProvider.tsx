@@ -252,6 +252,40 @@ export default function StudioProvider({ children }: { children: React.ReactNode
   }, []);
 
   useEffect(() => {
+    if (!ready || !token) return;
+
+    let cancelled = false;
+
+    async function restoreAuth() {
+      try {
+        const res = await apiFetch("/api/account/me");
+        const data = (await readJsonSafely(res)) as AdnovaUser | null;
+
+        if (!res.ok) {
+          if (!cancelled && (res.status === 401 || res.status === 403)) {
+            clearStoredAuth();
+            setAuthVersion((v) => v + 1);
+          }
+          return;
+        }
+
+        if (!cancelled && data) {
+          storeAuth(token, data);
+          setAuthVersion((v) => v + 1);
+        }
+      } catch {
+        // 일시적인 네트워크 오류에서는 기존 로그인 정보를 유지합니다.
+      }
+    }
+
+    void restoreAuth();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, token]);
+
+  useEffect(() => {
     if (!token) return;
     /* 마운트/로그인 직후 서버 상태 동기화 — setState는 fetch 완료 후(비동기)에만 발생 */
     queueMicrotask(() => {

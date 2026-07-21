@@ -54,14 +54,9 @@ export default function LoginClient() {
     setMessage("");
 
     try {
-      const body = new URLSearchParams();
-      body.set("username", loginId);
-      body.set("password", password);
-
-      const response = await authApi.post("/auth/login", body, {
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
+      const response = await authApi.post("/auth/login", {
+        username: loginId,
+        password,
       });
 
       const accessToken = response.data?.access_token;
