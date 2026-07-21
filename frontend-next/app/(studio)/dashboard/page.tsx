@@ -3,6 +3,7 @@
 import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { AuthenticatedImage } from "@/components/studio/AuthenticatedImage";
 import { useStudio } from "@/components/studio/StudioProvider";
 
 const QUICK_LINKS = [
@@ -209,8 +210,7 @@ export default function DashboardPage() {
                     }}
                   >
                     <div style={styles.imageWrap}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
+                      <AuthenticatedImage
                         src={item.img}
                         alt={item.productName || "생성된 광고"}
                         style={styles.image}

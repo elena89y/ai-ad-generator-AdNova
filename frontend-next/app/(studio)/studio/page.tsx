@@ -242,6 +242,10 @@ export default function StudioPage() {
   }
 
   async function generate() {
+    if (s.isPremium && s.premiumLeft <= 0) {
+      s.toast("이번 달 프리미엄 크레딧을 모두 사용했습니다");
+      return;
+    }
     if (!s.isPremium && s.freeLeft <= 0) {
       s.setUpgradeOpen(true);
       return;
@@ -294,6 +298,10 @@ export default function StudioPage() {
   }
 
   async function regenerate() {
+    if (s.isPremium && s.premiumLeft <= 0) {
+      s.toast("이번 달 프리미엄 크레딧을 모두 사용했습니다");
+      return;
+    }
     if (!s.isPremium && s.freeLeft <= 0) {
       s.setUpgradeOpen(true);
       return;
@@ -346,6 +354,7 @@ export default function StudioPage() {
     const productName = s.prodName.trim() || "광고 상품";
     const copy = currentCopyFor(activePlatform, s.currentResult);
     return {
+      historyId: s.currentResult.history_id,
       emoji: "✦",
       hl: copy.head || productName,
       copyHead: copy.head || productName,
@@ -376,7 +385,9 @@ export default function StudioPage() {
       return;
     }
     s.openShare(item, "/studio", activePlatform);
-    router.push("/share");
+    router.push(
+      item.historyId ? `/share?historyId=${item.historyId}` : "/share"
+    );
   }
 
   // [html-parity] html downloadImageFile 이식 — 기존 downloadResult 본문과 통합해

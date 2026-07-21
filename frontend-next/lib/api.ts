@@ -70,6 +70,7 @@ export interface PlatformCopy {
 }
 
 export interface GenerateResult {
+  history_id?: number;
   asset_id?: string;
   seed?: number;
   style?: string;
@@ -120,6 +121,9 @@ export interface BillingSummary {
   free_credits_remaining: number;
   free_credit_limit: number;
   next_free_credit_at?: string | null;
+  premium_credits_remaining?: number | null;
+  premium_credit_limit?: number;
+  next_premium_credit_at?: string | null;
   subscription?: {
     plan?: string;
     status?: string;

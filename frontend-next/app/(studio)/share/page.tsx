@@ -105,6 +105,7 @@ function ShareContent() {
     return () => {
       cancelled = true;
     };
+
   }, [historyId, item, item?.historyId, router, s, verifiedHistoryId]);
 
   if (!s.ready || !s.token || !item || verifying || (item.historyId && verifiedHistoryId !== item.historyId)) {
