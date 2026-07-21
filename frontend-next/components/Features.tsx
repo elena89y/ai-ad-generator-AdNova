@@ -24,7 +24,7 @@ const features = [
   {
     icon: Palette,
     title: "6가지 스타일 프리셋",
-    desc: "모노톤, 웜빈티지, 팝, 에디토리얼, 레트로 페이퍼, 파스텔 플로팅.",
+    desc: "모노톤, 웜빈티지, 팝, 에디토리얼, 리얼리즘, 파스텔 플로팅.",
     span: "md:col-span-1",
   },
   {
@@ -42,8 +42,7 @@ const features = [
   {
     icon: Share2,
     title: "채널별 용도 최적화",
-    // [html-parity] 전단지 폐기 결정 반영 — 이관본에 구버전 문구가 남아 있었음
-    desc: "SNS, 카드뉴스, 배너, 상세페이지 — 용도에 맞게 내보내기.",
+    desc: "SNS, 카드뉴스, 배너, 상세페이지, 전단지 — 용도에 맞게 내보내기.",
     span: "md:col-span-2",
   },
 ];

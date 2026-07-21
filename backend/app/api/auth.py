@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.security import create_access_token, hash_password, verify_password
+from app.crud.admin import create_admin_login_failure_log
 from app.database.connection import get_db
 from app.database.admin_models import AdminAccount
 from app.database.models import User
@@ -45,6 +46,24 @@ def _authenticate_credentials(user_data: UserLogin, db: Session) -> User:
 
 def _get_admin_account(db: Session, user_id: int) -> AdminAccount | None:
     return db.query(AdminAccount).filter(AdminAccount.user_id == user_id).first()
+
+
+def _record_admin_login_failure(
+    db: Session,
+    *,
+    username: str,
+    reason: str,
+    user_id: int | None = None,
+) -> None:
+    try:
+        create_admin_login_failure_log(
+            db,
+            attempted_username=username,
+            user_id=user_id,
+            reason=reason,
+        )
+    except Exception:
+        db.rollback()
 
 
 def _create_login_response(db: Session, user: User) -> dict:
@@ -135,19 +154,54 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
 
 @router.post("/admin-login")
 def admin_login(user_data: UserLogin, db: Session = Depends(get_db)):
-    user = _authenticate_credentials(user_data, db)
+    try:
+        user = _authenticate_credentials(user_data, db)
+    except HTTPException as exc:
+        matched_user = (
+            db.query(User).filter(User.username == user_data.username).first()
+        )
+        _record_admin_login_failure(
+            db,
+            username=user_data.username,
+            user_id=matched_user.id if matched_user else None,
+            reason=(
+                "비활성화된 계정"
+                if exc.status_code == status.HTTP_403_FORBIDDEN
+                else "아이디 또는 비밀번호 불일치"
+            ),
+        )
+        raise
+
     admin_account = _get_admin_account(db, user.id)
     if admin_account is None:
+        _record_admin_login_failure(
+            db,
+            username=user.username,
+            user_id=user.id,
+            reason="일반 사용자 계정으로 관리자 로그인을 시도함",
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="일반 사용자 계정은 관리자 페이지에서 로그인할 수 없습니다.",
         )
     if not admin_account.is_active:
+        _record_admin_login_failure(
+            db,
+            username=user.username,
+            user_id=user.id,
+            reason="비활성화된 관리자 계정",
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="비활성화된 관리자 계정입니다.",
         )
     if admin_account.role not in {"operator", "super_admin"}:
+        _record_admin_login_failure(
+            db,
+            username=user.username,
+            user_id=user.id,
+            reason="유효하지 않은 관리자 역할",
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="유효한 관리자 역할이 없습니다.",

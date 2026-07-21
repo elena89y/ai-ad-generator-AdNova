@@ -2,6 +2,8 @@
 
 import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { AuthenticatedImage } from "@/components/studio/AuthenticatedImage";
 import { useStudio } from "@/components/studio/StudioProvider";
 
 const QUICK_LINKS = [
@@ -35,26 +37,93 @@ export default function DashboardPage() {
   const router = useRouter();
   const studio = useStudio();
 
+  useEffect(() => {
+    if (studio.ready && !studio.token) router.replace("/login");
+  }, [router, studio.ready, studio.token]);
+
   const ads = studio.ads ?? [];
   const recentAds = ads.slice(0, 3);
   const totalAds = ads.length;
 
-  if (!studio.ready) {
+  if (!studio.ready || !studio.token) {
     return (
       <main style={styles.loading}>
-        대시보드를 불러오는 중입니다.
+        로그인 정보를 확인하는 중입니다.
       </main>
     );
   }
 
   return (
-    <main style={styles.page}>
+    <main style={styles.page} className="dash-page">
+      {/* 반응형 그리드 규칙 — 인라인 스타일은 media query를 지원하지 않아
+          레이아웃 관련 속성만 클래스로 분리 */}
+      <style>{`
+        .dash-page {
+          padding: 48px 32px 72px;
+        }
+        .dash-hero {
+          display: flex;
+          align-items: flex-end;
+          justify-content: space-between;
+          gap: 32px;
+          margin-bottom: 36px;
+          padding: 12px 4px;
+          flex-wrap: wrap;
+        }
+        .dash-stats {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 18px;
+          margin-bottom: 22px;
+        }
+        .dash-content {
+          display: grid;
+          grid-template-columns: minmax(0, 1.65fr) minmax(280px, 0.85fr);
+          gap: 22px;
+          align-items: stretch;
+        }
+        .dash-recent {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+          gap: 16px;
+        }
+        @media (max-width: 1024px) {
+          .dash-content {
+            grid-template-columns: 1fr;
+          }
+        }
+        @media (max-width: 768px) {
+          .dash-page {
+            padding: 28px 16px 56px;
+          }
+          .dash-hero {
+            align-items: flex-start;
+            flex-direction: column;
+            gap: 20px;
+            margin-bottom: 24px;
+          }
+          .dash-stats {
+            grid-template-columns: 1fr;
+            gap: 12px;
+          }
+          .dash-recent {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+          }
+        }
+        @media (max-width: 420px) {
+          .dash-recent {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
+
       <div style={styles.backgroundGlowOne} />
       <div style={styles.backgroundGlowTwo} />
 
       <div style={styles.container}>
         {/* 상단 인사말 */}
-        <section style={styles.hero}>
+        <section className="dash-hero">
           <div>
             <div style={styles.eyebrow}>ADNOVA DASHBOARD</div>
 
@@ -80,7 +149,7 @@ export default function DashboardPage() {
         </section>
 
         {/* 통계 */}
-        <section style={styles.statsGrid}>
+        <section className="dash-stats">
           <article style={styles.statCard}>
             <span style={styles.statLabel}>전체 광고</span>
             <strong style={styles.statNumber}>{totalAds}</strong>
@@ -105,7 +174,7 @@ export default function DashboardPage() {
         </section>
 
         {/* 하단 콘텐츠 */}
-        <section style={styles.contentGrid}>
+        <section className="dash-content">
           {/* 최근 광고 */}
           <article style={styles.panel}>
             <div style={styles.panelHeader}>
@@ -124,7 +193,7 @@ export default function DashboardPage() {
             </div>
 
             {recentAds.length > 0 ? (
-              <div style={styles.recentGrid}>
+              <div className="dash-recent">
                 {recentAds.map((item, index) => (
                   <button
                     type="button"
@@ -141,8 +210,7 @@ export default function DashboardPage() {
                     }}
                   >
                     <div style={styles.imageWrap}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
+                      <AuthenticatedImage
                         src={item.img}
                         alt={item.productName || "생성된 광고"}
                         style={styles.image}
@@ -234,7 +302,6 @@ const styles: Record<string, CSSProperties> = {
     background:
       "linear-gradient(145deg, #07111f 0%, #0b1729 48%, #101328 100%)",
     color: "#f8fafc",
-    padding: "48px 32px 72px",
   },
 
   loading: {
@@ -277,16 +344,6 @@ const styles: Record<string, CSSProperties> = {
     width: "100%",
     maxWidth: "1240px",
     margin: "0 auto",
-  },
-
-  hero: {
-    display: "flex",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    gap: "32px",
-    marginBottom: "36px",
-    padding: "12px 4px",
-    flexWrap: "wrap",
   },
 
   eyebrow: {
@@ -335,13 +392,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: "18px",
   },
 
-  statsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
-    gap: "18px",
-    marginBottom: "22px",
-  },
-
   statCard: {
     minHeight: "150px",
     padding: "24px",
@@ -381,13 +431,6 @@ const styles: Record<string, CSSProperties> = {
     marginTop: "12px",
     color: "#64748b",
     fontSize: "12px",
-  },
-
-  contentGrid: {
-    display: "grid",
-    gridTemplateColumns: "minmax(0, 1.65fr) minmax(280px, 0.85fr)",
-    gap: "22px",
-    alignItems: "stretch",
   },
 
   panel: {
@@ -432,12 +475,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: "13px",
     fontWeight: 700,
     cursor: "pointer",
-  },
-
-  recentGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
-    gap: "16px",
   },
 
   adCard: {

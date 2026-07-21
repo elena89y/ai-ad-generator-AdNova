@@ -81,7 +81,8 @@ export const CATALOG: CatalogTemplate[] = [
     "tags": [
       "#타이포그래피",
       "#뷰티",
-      "#감성"
+      "#감성",
+      "#디저트"
     ],
     "img": "/tpl/04_cream_engrave.jpg",
     "style_label": "파스텔",
@@ -527,7 +528,8 @@ export const CATALOG: CatalogTemplate[] = [
     "tags": [
       "#타이포그래피",
       "#질감",
-      "#감성"
+      "#감성",
+      "#디저트"
     ],
     "img": "/tpl/30_butter_engrave.jpg",
     "style_label": "파스텔",
@@ -806,5 +808,76 @@ export const CATALOG: CatalogTemplate[] = [
     "style_label": "리얼리즘",
     "use": "sns",
     "ledger_id": null
+  },
+  {
+    "no": 47,
+    "id": "cake_crosssection_macro",
+    "name": "케익 단면 클로즈업",
+    "desc": "단면의 층이 프레임을 가득 채우는 초근접 케이크 화보",
+    "family": "scene",
+    "finish": "photographic",
+    "tags": [
+      "#디저트",
+      "#연출컷",
+      "#질감",
+      "#인스타피드"
+    ],
+    "style_label": "리얼리즘",
+    "use": "sns",
+    "ledger_id": null,
+    "img": "/tpl/47_cake_crosssection_macro.jpg"
+  },
+  {
+    "no": 48,
+    "id": "partial_closeup_callout",
+    "name": "부분 클로즈업 오버레이",
+    "desc": "재료를 선과 박스로 짚어주는 부분 클로즈업 오버레이",
+    "family": "graphic_layout",
+    "finish": "photographic",
+    "tags": [
+      "#디저트",
+      "#레이아웃그래픽",
+      "#음식"
+    ],
+    "style_label": "리얼리즘",
+    "use": "sns",
+    "ledger_id": null,
+    "img": "/tpl/48_partial_closeup_callout.jpg"
+  },
+  {
+    "no": 49,
+    "id": "circular_typo_poster",
+    "name": "원형 타이포 포스터",
+    "desc": "바닥에 새긴 원형 타이포가 디저트를 감싸는 포스터",
+    "family": "poster_typo",
+    "finish": "graphic",
+    "tags": [
+      "#타이포그래피",
+      "#포스터",
+      "#디저트",
+      "#음식"
+    ],
+    "style_label": "팝 비비드",
+    "use": "sns",
+    "ledger_id": null,
+    "img": "/tpl/49_circular_typo_poster.jpg"
+  },
+  {
+    "no": 50,
+    "id": "curve_banner_poster",
+    "name": "곡선 배너 포스터",
+    "desc": "곡선 리본 속 손글씨 메뉴명이 살아있는 포스터",
+    "family": "poster_typo",
+    "finish": "graphic",
+    "tags": [
+      "#타이포그래피",
+      "#포스터",
+      "#음식",
+      "#디저트"
+    ],
+    "style_label": "팝 비비드",
+    "use": "sns",
+    "ledger_id": null,
+    "img": "/tpl/50_curve_banner_poster.jpg"
   }
 ];

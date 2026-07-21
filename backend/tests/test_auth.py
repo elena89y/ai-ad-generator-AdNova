@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.api.auth import admin_login, find_username, login
 from app.core.security import hash_password
-from app.database.admin_models import AdminAccount
+from app.database.admin_models import AdminAccount, AdminLoginFailureLog
 from app.database.connection import Base
 from app.database.models import User
 from app.schemas.auth import UserLogin, UsernameFindRequest
@@ -132,6 +132,26 @@ class AuthApiTestCase(unittest.TestCase):
             context.exception.detail,
             "일반 사용자 계정은 관리자 페이지에서 로그인할 수 없습니다.",
         )
+        login_failure = self.session.query(AdminLoginFailureLog).one()
+        self.assertEqual(login_failure.attempted_username, "regularuser")
+        self.assertEqual(login_failure.user_id, regular_user.id)
+        self.assertEqual(
+            login_failure.reason,
+            "일반 사용자 계정으로 관리자 로그인을 시도함",
+        )
+
+    def test_unknown_admin_login_failure_is_audited(self) -> None:
+        with self.assertRaises(HTTPException) as context:
+            admin_login(
+                user_data=UserLogin(username="missinguser", password="Password1!"),
+                db=self.session,
+            )
+
+        self.assertEqual(context.exception.status_code, 401)
+        login_failure = self.session.query(AdminLoginFailureLog).one()
+        self.assertEqual(login_failure.attempted_username, "missinguser")
+        self.assertIsNone(login_failure.user_id)
+        self.assertEqual(login_failure.reason, "아이디 또는 비밀번호 불일치")
 
     def test_username_can_be_found_by_email(self) -> None:
         result = find_username(

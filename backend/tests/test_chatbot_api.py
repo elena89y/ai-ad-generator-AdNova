@@ -58,18 +58,59 @@ class ChatEndpointTestCase(unittest.TestCase):
         body = res.json()
         self.assertFalse(body["escalate"])
         self.assertEqual(body["sources"], ["faq-bill-002"])
+        # 근거 태그는 내부 장치 — 사용자 표시 답변에선 제거 (연정님 피드백 07-21)
+        self.assertNotIn("[근거", body["answer"])
         self.assertIsNone(body["inquiry_draft"])
         gen.assert_called_once()
 
-    def test_offtopic_question_escalates_without_llm(self):
-        """지식 밖 질문 → LLM 호출 없이 1:1 문의 초안 반환 (비용 0)."""
-        with patch.object(chat_service, "generate_answer") as gen:
+    def test_offtopic_question_escalates_without_answer_llm(self):
+        """지식 밖 질문 → 리라이팅 1회(OFFTOPIC 판정) 후 답변 생성 없이 문의 초안 반환."""
+        with patch.object(chat_service, "generate_answer") as gen, \
+             patch.object(chat_service, "rewrite_query", return_value="OFFTOPIC") as rw:
             res = self.client.post("/support/chat", json={"question": "오늘 로또 번호 추천해줘"})
         gen.assert_not_called()
+        rw.assert_called_once()
         body = res.json()
         self.assertTrue(body["escalate"])
         self.assertIsNotNone(body["inquiry_draft"])
         self.assertIn("로또", body["inquiry_draft"]["content"])
+
+    def test_rewrite_rescues_colloquial_question(self):
+        """구어체 저신뢰 질문 → 리라이팅 재검색으로 답변 경로 구제 (CHAT-003)."""
+        canned = "4단계로 사용해요.\n[근거: faq-svc-002]"
+        with patch.object(chat_service, "generate_answer", return_value=canned), \
+             patch.object(chat_service, "rewrite_query", return_value="서비스 사용법 이용 방법") as rw:
+            res = self.client.post(
+                "/support/chat", json={"question": "이거 어떻게 쓰는 거예요? 처음이라 모르겠어요"}
+            )
+        rw.assert_called_once()
+        body = res.json()
+        self.assertFalse(body["escalate"])
+        self.assertEqual(body["sources"], ["faq-svc-002"])
+
+    def test_rewrite_failure_falls_back_to_escalation(self):
+        """리라이팅 API 오류 시 조용히 에스컬레이션 (가용성 우선)."""
+        with patch.object(chat_service, "generate_answer") as gen, \
+             patch.object(chat_service, "rewrite_query", side_effect=RuntimeError("no key")):
+            res = self.client.post("/support/chat", json={"question": "내일 서울 날씨 알려줘"})
+        gen.assert_not_called()
+        self.assertTrue(res.json()["escalate"])
+
+    def test_pending_policy_source_appends_notice(self):
+        """미확정 정책(needs_confirmation) 근거 인용 시 '추후 보완' 고지가 코드로 부착."""
+        canned = "환불 규정 안내입니다.\n[근거: faq-bill-004]"
+        with patch.object(chat_service, "generate_answer", return_value=canned):
+            res = self.client.post("/support/chat", json={"question": "구독 해지하고 환불받고 싶어요"})
+        body = res.json()
+        self.assertFalse(body["escalate"])
+        self.assertIn("추후 보완", body["answer"])
+
+    def test_confirmed_policy_source_no_notice(self):
+        """확정 정책(bill-002) 근거만 인용하면 고지 미부착."""
+        canned = "Premium은 월 9,900원, 매월 30크레딧입니다.\n[근거: faq-bill-002]"
+        with patch.object(chat_service, "generate_answer", return_value=canned):
+            res = self.client.post("/support/chat", json={"question": "프리미엄 요금 알려주세요"})
+        self.assertNotIn("추후 보완", res.json()["answer"])
 
     def test_uncited_answer_falls_back_to_escalation(self):
         """모델이 근거 인용 없이 답하면 무근거 답변으로 보고 에스컬레이션."""

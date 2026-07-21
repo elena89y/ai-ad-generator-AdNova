@@ -127,7 +127,7 @@ cases:
     expected: [faq-acct-001]
   - q: 히스토리에서 다운로두 안 돼요
     type: typo
-    expected: [faq-svc-006]
+    expected: [faq-svc-006, faq-svc-007]  # v1.2: 다운로드 트러블슈팅 FAQ 신설 — 양쪽 다 정답
   - q: 카카오 로그은이 안 돼요
     type: typo
     expected: [faq-acct-002]

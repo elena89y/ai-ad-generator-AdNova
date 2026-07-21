@@ -114,12 +114,12 @@ export function ProfileMenu() {
 }
 
 export function UsagePill() {
-  const { isPremium, freeLeft, freeTotal } = useStudio();
+  const { isPremium, freeLeft, freeTotal, premiumLeft, premiumTotal } = useStudio();
   if (isPremium)
     return (
       <div className="usage">
         <span style={{ color: "var(--gold-deep)" }}>✦</span> 프리미엄{" "}
-        <b>광고 생성 가능</b>
+        <b>{premiumLeft}/{premiumTotal}회 남음</b>
       </div>
     );
   return (
@@ -150,6 +150,12 @@ export function AppBar() {
         </Link>
       </nav>
       <div className="right">
+        <Link
+          href="/support"
+          style={{ fontSize: 13, color: "var(--muted)", textDecoration: "none" }}
+        >
+          💬 <span className="txt">고객센터</span>
+        </Link>
         <UsagePill />
         <ProfileMenu />
       </div>
@@ -186,6 +192,7 @@ export function SubBar({
   showProfile?: boolean;
   right?: React.ReactNode;
 }) {
+  const pathname = usePathname();
   return (
     <div className="subbar">
       <Brand />
@@ -193,6 +200,14 @@ export function SubBar({
         ← {backLabel}
       </Link>
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+        {pathname !== "/support" && (
+          <Link
+            href="/support"
+            style={{ fontSize: 13, color: "var(--muted)", textDecoration: "none" }}
+          >
+            💬 고객센터
+          </Link>
+        )}
         {right}
         {showProfile && <ProfileMenu />}
       </div>

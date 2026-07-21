@@ -54,6 +54,7 @@ from ..services import (
     gpt_service,
     image_service,
     style_service,
+    template_generation,
     template_service,
 )
 from ..services.prompt_service import build_image_prompt
@@ -61,7 +62,17 @@ from ..services.upload_validation import read_image_upload_file_sync
 
 router = APIRouter(prefix="/ads", tags=["ads"])
 
-UPLOAD_DIR = Path(__file__).resolve().parents[2] / "uploads"
+TEMP_UPLOAD_DIR = Path(__file__).resolve().parents[2] / "temp_uploads"
+
+
+def _remove_temporary_upload(path: Path | None) -> None:
+    if path is None:
+        return
+    try:
+        if path.parent.resolve() == TEMP_UPLOAD_DIR.resolve():
+            path.unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 def _consume_generation_credit(db: Session, user_id: int) -> str:
@@ -172,7 +183,7 @@ def _record_generated_result(
     result: GenerateAdResponse,
     action_type: str,
     request_data: str,
-) -> None:
+) -> int:
     output_filename = Path(result.image_url).name
     output_path = image_service.RESULTS_DIR / output_filename
     try:
@@ -246,7 +257,7 @@ def _record_generated_result(
             status="completed",
             commit=False,
         )
-        create_history(
+        history = create_history(
             db,
             user_id=user_id,
             advertisement_id=advertisement.id,
@@ -257,6 +268,7 @@ def _record_generated_result(
             commit=False,
         )
         db.commit()
+        return history.id
     except Exception:
         db.rollback()
         raise
@@ -312,7 +324,8 @@ def generate_ad(
     image_id: Optional[int] = Form(None),
     product_name: str = Form(...),
     product_description: str = Form(""),
-    style: StylePreset = Form(...),
+    style: Optional[StylePreset] = Form(None),
+    template_id: Optional[str] = Form(None),  # TEMPLATE-PIPE-V2: 카탈로그 연출 레시피 id
     use_vision: bool = Form(False),
     poster: bool = Form(False),
     seed: Optional[int] = Form(None),
@@ -331,13 +344,18 @@ def generate_ad(
     """
     current_user_id = current_user.id
     input_image_id: Optional[int] = None
+    temporary_source_path: Path | None = None
+    # 계약: template_id 없으면 style 필수(기존), 있으면 서버측 연출 레시피로 생성(style 무시).
+    if template_id is None and style is None:
+        raise HTTPException(status_code=422, detail="style 또는 template_id 중 하나가 필요합니다")
     request_data = json.dumps(
         {
             "image_id": image_id,
             "filename": image.filename if image else None,
             "product_name": product_name,
             "product_description": product_description,
-            "style": style.value,
+            "style": style.value if style else None,
+            "template_id": template_id,
             "use_vision": use_vision,
             "poster": poster,
             "seed": seed,
@@ -357,18 +375,22 @@ def generate_ad(
         input_image_id = row.id
     elif image is not None:
         _, suffix, content = read_image_upload_file_sync(image)
-        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-        src_path = UPLOAD_DIR / f"{uuid.uuid4().hex[:12]}{suffix}"
+        TEMP_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        temporary_source_path = TEMP_UPLOAD_DIR / f"{uuid.uuid4().hex[:12]}{suffix}"
+        src_path = temporary_source_path
         src_path.write_bytes(content)
     else:
         raise HTTPException(status_code=400, detail="image 파일 또는 image_id 중 하나가 필요합니다")
 
     product = ProductInfo(name=product_name, description=product_description or None)
-    prompt = build_image_prompt(product, style)
-    prompt_for_db = json.dumps(
-        {"positive": prompt.positive, "negative": prompt.negative},
-        ensure_ascii=False,
-    )
+    if template_id is not None:
+        prompt_for_db = json.dumps({"template_id": template_id}, ensure_ascii=False)  # 프롬프트 본문 미저장(서버측 전용)
+    else:
+        prompt = build_image_prompt(product, style)
+        prompt_for_db = json.dumps(
+            {"positive": prompt.positive, "negative": prompt.negative},
+            ensure_ascii=False,
+        )
     credit_type = _consume_generation_credit(db, current_user_id)
 
     try:
@@ -376,7 +398,13 @@ def generate_ad(
         # (원격 GPU 서비스 경로는 별도 프로세스라 이 컨텍스트가 넘어가지 않고, 그쪽 프로세스가
         #  자체적으로 트레이싱한다 — generation_client.is_remote() 분기 참고.)
         with propagate_attributes(user_id=str(current_user_id), tags=["ads.generate"]):
-            if generation_client.is_remote():
+            if template_id is not None:
+                # TEMPLATE-PIPE-V2: 카탈로그 연출 레시피 + identity_grade 보존 (서버측 프롬프트)
+                out = template_generation.generate_from_template(
+                    str(src_path), template_id, product, use_vision=use_vision
+                )
+                result = _to_response(out)
+            elif generation_client.is_remote():
                 result = generation_client.generate_remote(
                     str(src_path), product, style, seed, use_vision, poster, purpose
                 )
@@ -386,26 +414,26 @@ def generate_ad(
                 )
                 result = _to_response(out)
 
-        if purpose == AdPurpose.BANNER:
+        if template_id is None and purpose == AdPurpose.BANNER:
             requested_sizes = [value.strip() for value in sizes.split(",") if value.strip()]
             result = _compose_banner_response(result, product_name, requested_sizes or None)
-        elif purpose in (AdPurpose.CARD_NEWS, AdPurpose.DETAIL_PAGE):
+        elif template_id is None and purpose in (AdPurpose.CARD_NEWS, AdPurpose.DETAIL_PAGE):
             if not generation_client.is_remote():
                 raise ValueError("카드뉴스·상세페이지는 GPU 생성 서비스 연결이 필요합니다")
 
-        _record_generated_result(
+        history_id = _record_generated_result(
             user_id=current_user_id,
             db=db,
             input_image_id=input_image_id,
             product_name=product_name,
-            style=style,
+            style=result.style,
             action_type="ads.generate",
             poster=poster,
             prompt_for_db=prompt_for_db,
             result=result,
             request_data=request_data,
         )
-        return result
+        return result.model_copy(update={"history_id": history_id})
     except ValueError as e:
         _restore_generation_credit(db, current_user_id, credit_type)
         create_history(
@@ -429,6 +457,8 @@ def generate_ad(
             error_message=str(e),
         )
         raise HTTPException(status_code=500, detail=f"광고 생성 실패: {e}") from e
+    finally:
+        _remove_temporary_upload(temporary_source_path)
 
 
 @router.post("/regenerate", response_model=GenerateAdResponse)
@@ -488,7 +518,7 @@ def regenerate_ad(
         elif req.purpose != AdPurpose.SNS:
             raise ValueError("상세페이지·카드뉴스는 5구도 생성 API 연결 후 사용할 수 있습니다")
 
-        _record_generated_result(
+        history_id = _record_generated_result(
             db=db,
             user_id=current_user_id,
             input_image_id=input_image_id,
@@ -500,7 +530,7 @@ def regenerate_ad(
             action_type="ads.regenerate",
             request_data=request_data,
         )
-        return result
+        return result.model_copy(update={"history_id": history_id})
     except ValueError as e:
         _restore_generation_credit(db, current_user_id, credit_type)
         create_history(

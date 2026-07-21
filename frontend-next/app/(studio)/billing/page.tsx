@@ -69,7 +69,7 @@ export default function BillingPage() {
           <span className="credits">
             {isPremium ? (
               <>
-                플랜 <b>프리미엄</b>
+                크레딧 <b>{s.premiumLeft}/{s.premiumTotal}</b>
               </>
             ) : (
               <>
@@ -303,6 +303,12 @@ export default function BillingPage() {
                       : subscription?.plan || "무료"}
                   </b>
                 </div>
+                {isPremium && (
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "var(--ink-mute)" }}>이번 달 남은 생성</span>
+                    <b>{s.premiumLeft}/{s.premiumTotal}회</b>
+                  </div>
+                )}
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ color: "var(--ink-mute)" }}>
                     {cancelPending || subscription?.status !== "active"

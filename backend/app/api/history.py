@@ -154,14 +154,6 @@ def delete_generated_result(
             detail="본인 생성 결과만 삭제할 수 있습니다.",
         )
 
-    output_image = advertisement.output_image
-    output_file_path = None
-    if (
-        output_image is not None
-        and output_image.image_type == "generated"
-        and output_image.user_id == current_user.id
-    ):
-        output_file_path = output_image.file_path
-
-    delete_generated_result_by_history(db, history)
-    _delete_generated_image_file(output_file_path)
+    generated_file_paths = delete_generated_result_by_history(db, history)
+    for file_path in generated_file_paths:
+        _delete_generated_image_file(file_path)
