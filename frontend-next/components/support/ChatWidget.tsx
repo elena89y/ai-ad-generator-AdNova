@@ -6,6 +6,7 @@
    에스컬레이션 응답은 1:1 문의 초안을 포함 — /support 문의 폼으로 유도. */
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { API_BASE_URL } from "@/lib/api";
 import CatIcon from "./CatIcon";
 
@@ -45,6 +46,7 @@ function draftHref(draft: InquiryDraft): string {
 }
 
 export default function ChatWidget() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -54,6 +56,8 @@ export default function ChatWidget() {
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, open]);
+
+  if (pathname.startsWith("/admin")) return null;
 
   async function send() {
     const question = input.trim();
