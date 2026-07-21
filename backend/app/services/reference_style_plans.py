@@ -193,6 +193,33 @@ _IDENTITY_LOCKS = {
         "Change the background, table surface, camera framing and environmental lighting to match the requested "
         "scene. "
     ),
+    # 디저트(케이크·타르트·베이커리 등): 접시는 '상품'이 아니라 '연출(용기)' → 예쁜 디저트 접시로
+    #   재플레이팅 허용(사용자 지시 2026-07-21 "예쁜 그릇 써 디저트잖아"). product-understanding
+    #   상품=보존/용기=조정. 단 BUG-KTX-001(접시→컵)·PLATING-001(붕뜸/기울어짐) 가드는 그대로 유지:
+    #   디저트는 여전히 컵/음료 아님, 평평히 접지. 케이크 자체(층·크림·토핑·색)는 완전 보존.
+    "food_dessert": (
+        "This is a plated dessert photograph resting flat on a table, photographed from above or at a gentle "
+        "angle — never standing upright or propped on its edge. It is a slice or piece of cake or dessert lying "
+        "flat on its widest base, the same way it was photographed. There is no cup, mug, tumbler, lid or straw "
+        "anywhere in this image. "
+        "Edit this exact dessert photograph. Keep the dessert itself completely unchanged: its exact shape, "
+        "layers, cream, frosting, toppings, fruit, crumb, texture and true colors — do not add, remove, redraw, "
+        "resize, recolor or rearrange any part of the dessert. "
+        # 핵심 개정: '접시 고정'을 풀되 대상은 '용기(접시)'로 한정, 케이크는 위에서 보존한다.
+        "You MAY replace the plate underneath with a single beautiful, elegant dessert plate befitting a premium "
+        "patisserie — for example fine white porcelain or a clean matte ceramic with a tasteful rim — chosen to "
+        "flatter the dessert. Restyle only the plate, not the dessert. "
+        # BUG-KTX-001 가드 유지: 재플레이팅이 접시를 컵/그릇으로 변형시키지 않도록 명시.
+        "Never turn the dessert or its plate into a cup, mug, takeaway container, drinking glass, bowl of liquid "
+        "or any different kind of object — it must remain a solid plated dessert on a flat dessert plate, never a "
+        "beverage. "
+        # PLATING-001 가드 유지: 붕뜸/기울어짐 방지.
+        "The dessert must rest fully and flatly on the new plate with its whole base in contact, casting a single "
+        "realistic contact shadow as if simply set down under normal gravity. Never leave it floating, tilted "
+        "upright, propped up, leaned back or resting on a thin cut edge. "
+        "Change the background, table surface, camera framing and environmental lighting to match the requested "
+        "scene. "
+    ),
     "drink": (
         "Edit this exact drink photograph. Preserve every source pixel belonging to the drink and its vessel. "
         "Keep the exact vessel silhouette, rim, base, wall shape, material, transparency and proportions, including "
@@ -402,6 +429,23 @@ def get_reference_plan(style_key: str, domain: str | None) -> ReferenceStylePlan
     return _PLANS[(normalize_domain(domain), style)]
 
 
+# 디저트 판정(2026-07-21): food 도메인 안에서 케이크·타르트류를 골라 접시 재플레이팅 잠금을
+#   적용한다. subject_en(analyze_menu 영문)만으로 판정 → build_reference_instruction 단일 지점
+#   결정(별도 배선 불필요). vessel(유리 디저트 용기) 분류가 우선이므로 빙수·파르페는 해당 없음.
+_DESSERT_HINTS = (
+    "cake", "cheesecake", "cupcake", "shortcake", "gateau", "tart", "tarte", "pie",
+    "macaron", "macaroon", "pastry", "croissant", "cookie", "brownie", "waffle",
+    "pancake", "muffin", "scone", "pudding", "mousse", "tiramisu", "eclair", "donut",
+    "doughnut", "parfait", "dessert", "roll cake",
+)
+
+
+def _is_dessert_subject(subject_en: str) -> bool:
+    """subject_en(영문 상품 설명)이 케이크·베이커리 디저트인지. 접시 재플레이팅 대상 판정용."""
+    low = (subject_en or "").lower()
+    return any(hint in low for hint in _DESSERT_HINTS)
+
+
 def build_reference_instruction(style_key: str, domain: str | None, subject_en: str,
                                 container_desc: str | None = None,
                                 container_opacity: str | None = None) -> str | None:
@@ -425,6 +469,10 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         container_clause = _prompts.fmt(_NS, "container.realism_clause_vessel",
                                         container=container)
     else:
+        # 디저트(케이크류)는 접시를 상품이 아닌 연출요소로 보고 예쁜 접시로 재플레이팅한다.
+        #   vessel(유리 디저트 용기)이 아닐 때만 — 굽 유리볼 빙수 등은 위에서 이미 보존 처리.
+        if plan.domain == "food" and _is_dessert_subject(subject):
+            identity_lock = _IDENTITY_LOCKS["food_dessert"]
         hero = _prompts.get(_NS, "container.hero_default")
         container_clause = _prompts.get(_NS, "container.realism_clause_default")
     direction = plan.direction
