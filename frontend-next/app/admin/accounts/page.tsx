@@ -202,13 +202,13 @@ export default function AdminAccountsPage() {
         </div>
 
         {!canManageAccounts ? (
-          <section className="mt-7 border border-[#a78bfa]/30 bg-[#8b5cf6]/10 px-5 py-6 text-sm leading-6 text-[#ddd6fe]">
+          <section className="mt-7 rounded-2xl border border-[#a78bfa]/30 bg-[#8b5cf6]/10 px-5 py-6 text-sm leading-6 text-[#ddd6fe]">
             관리자 계정 관리 기능은 최고 관리자만 사용할 수 있습니다.
           </section>
         ) : (
           <>
             <div className="mt-7 grid gap-3 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-              <section className="border border-white/10 bg-[#102039]/90 p-5">
+              <section className="rounded-2xl border border-white/10 bg-[#102039]/90 p-5">
                 <div className="flex items-center gap-2">
                   <ShieldCheck size={18} className="text-[#a78bfa]" />
                   <h2 className="text-sm font-bold">관리자 지정</h2>
@@ -219,19 +219,19 @@ export default function AdminAccountsPage() {
                     value={memberSearch}
                     onChange={(event) => setMemberSearch(event.target.value)}
                     placeholder="아이디 또는 이메일로 회원 찾기"
-                    className="h-10 min-w-0 flex-1 border border-white/15 bg-[#0b1729] px-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#a78bfa]"
+                    className="h-10 min-w-0 flex-1 rounded-xl border border-white/15 bg-[#0b1729] px-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#a78bfa]"
                   />
                   <button
                     type="submit"
                     disabled={loadingCandidates}
-                    className="inline-flex h-10 items-center gap-1.5 border border-[#a78bfa]/50 px-3 text-sm font-bold text-[#ddd6fe] transition hover:bg-[#8b5cf6]/15 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-[#a78bfa]/50 px-3 text-sm font-bold text-[#ddd6fe] transition hover:bg-[#8b5cf6]/15 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Search size={16} />
                     찾기
                   </button>
                 </form>
 
-                <div className="mt-3 max-h-40 divide-y divide-white/10 overflow-y-auto border border-white/10">
+                <div className="mt-3 max-h-40 divide-y divide-white/10 overflow-y-auto rounded-xl border border-white/10">
                   {loadingCandidates ? (
                     <p className="px-3 py-4 text-sm text-white/45">회원을 찾고 있습니다.</p>
                   ) : candidates.length === 0 ? (
@@ -257,7 +257,7 @@ export default function AdminAccountsPage() {
                   <select
                     value={newRole}
                     onChange={(event) => setNewRole(event.target.value as AdminRole)}
-                    className="h-10 border border-white/15 bg-[#0b1729] px-3 text-sm text-white outline-none focus:border-[#a78bfa]"
+                    className="h-10 rounded-xl border border-white/15 bg-[#0b1729] px-3 text-sm text-white outline-none focus:border-[#a78bfa]"
                   >
                     <option value="operator">운영자</option>
                     <option value="super_admin">최고 관리자</option>
@@ -266,14 +266,14 @@ export default function AdminAccountsPage() {
                     type="button"
                     onClick={createAccount}
                     disabled={!selectedMember || processingId !== null}
-                    className="h-10 bg-[#8b5cf6] px-4 text-sm font-extrabold text-white transition hover:bg-[#a78bfa] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="h-10 rounded-xl bg-[#8b5cf6] px-4 text-sm font-extrabold text-white transition hover:bg-[#a78bfa] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     관리자 지정
                   </button>
                 </div>
               </section>
 
-              <section className="border border-white/10 bg-[#102039]/90 p-5">
+              <section className="rounded-2xl border border-white/10 bg-[#102039]/90 p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2">
@@ -288,9 +288,9 @@ export default function AdminAccountsPage() {
                       value={accountSearch}
                       onChange={(event) => setAccountSearch(event.target.value)}
                       placeholder="관리자 검색"
-                      className="h-10 min-w-0 flex-1 border border-white/15 bg-[#0b1729] px-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#a78bfa]"
+                      className="h-10 min-w-0 flex-1 rounded-xl border border-white/15 bg-[#0b1729] px-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#a78bfa]"
                     />
-                    <button type="submit" className="grid size-10 place-items-center border border-white/15 text-white/70 transition hover:border-[#a78bfa]/60 hover:text-white" aria-label="관리자 검색" title="관리자 검색">
+                    <button type="submit" className="grid size-10 place-items-center rounded-xl border border-white/15 text-white/70 transition hover:border-[#a78bfa]/60 hover:text-white" aria-label="관리자 검색" title="관리자 검색">
                       <Search size={16} />
                     </button>
                   </form>
@@ -301,7 +301,7 @@ export default function AdminAccountsPage() {
             {message && (
               <p
                 role={messageKind === "error" ? "alert" : "status"}
-                className={`mt-5 border px-4 py-3 text-sm ${
+                className={`mt-5 rounded-xl border px-4 py-3 text-sm ${
                   messageKind === "error"
                     ? "border-[#f87171]/35 bg-[#f87171]/10 text-[#fecaca]"
                     : "border-[#a78bfa]/30 bg-[#8b5cf6]/10 text-[#ddd6fe]"
@@ -311,7 +311,7 @@ export default function AdminAccountsPage() {
               </p>
             )}
 
-            <section className="mt-7 overflow-hidden border border-white/10 bg-[#102039]/90">
+            <section className="mt-7 overflow-hidden rounded-2xl border border-white/10 bg-[#102039]/90">
               <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
                 <h2 className="text-sm font-bold">관리자 목록</h2>
                 <span className="text-sm text-white/50">최근 100명까지 표시</span>

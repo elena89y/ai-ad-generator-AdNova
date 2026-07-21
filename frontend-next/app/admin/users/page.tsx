@@ -202,7 +202,7 @@ export default function AdminUsersPage() {
           </p>
         )}
 
-        <form onSubmit={handleFilterSubmit} className="mt-7 grid gap-3 border border-white/10 bg-[#102039]/90 p-4 lg:grid-cols-[minmax(0,1fr)_10rem_10rem_auto]">
+        <form onSubmit={handleFilterSubmit} className="mt-7 grid gap-3 rounded-2xl border border-white/10 bg-[#102039]/90 p-4 lg:grid-cols-[minmax(0,1fr)_10rem_10rem_auto]">
           <label className="relative block">
             <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/35" />
             <input
@@ -253,7 +253,7 @@ export default function AdminUsersPage() {
           </p>
         )}
 
-        <div className="mt-7 overflow-hidden border border-white/10 bg-[#102039]/90">
+        <div className="mt-7 overflow-hidden rounded-2xl border border-white/10 bg-[#102039]/90">
           <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
             <div className="flex items-center gap-2">
               <UsersRound size={18} className="text-[#a78bfa]" />
