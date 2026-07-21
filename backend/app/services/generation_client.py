@@ -15,9 +15,12 @@ from ..core.config import settings
 from ..schemas.ads import AdPurpose, GenerateAdResponse, ProductInfo, StylePreset
 from . import image_service
 
-# 600s (2026-07-21 실측 상향): 워커 콜드로드 ~240s + 상세 4컷 최소 232s + 예산 내 재시도
-#   + 조판 ≈ 최악 ~570s. nginx /api/ read timeout(660s)보다 작아야 502 대신 유의미한 응답.
-_MIN_TIMEOUT_S = 600
+# 780s (2026-07-21 재상향): 570s 추정은 낙관적이었다 — 라이브 실측에서 웜 card_news 가
+#   601s(워커는 200 완료했으나 웹→워커 클라이언트가 600s 에 먼저 포기 → 사용자 500).
+#   카드뉴스 조판이 상세보다 ~80s 무겁고, 콜드(모델 로드)까지 겹치면 더 늘어난다.
+#   실측 웜 601s 위에 콜드·변동 여유를 얹어 780s. **nginx /api/ read timeout(840s)보다 작아야**
+#   502 대신 유의미한 응답이 나간다. (근본 단축은 하이브리드/API 경로 = FMT-001, 별도 트랙)
+_MIN_TIMEOUT_S = 780
 
 
 def _request_timeout() -> int:
