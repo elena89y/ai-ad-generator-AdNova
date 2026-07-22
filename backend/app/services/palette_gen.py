@@ -259,9 +259,9 @@ def _phrase(hsv: tuple[float, float, float]) -> str:
         return "soft warm grey" if 20 <= h <= 60 else "soft grey"
     name = _hue_name(h)
     if s >= 0.72 and v >= 0.6:
-        qual = "saturated"
+        qual = "vivid saturated"   # PAL 강화(07-22): 팝 배경 대담화 (adaptive 경로만)
     elif s >= 0.5 and v < 0.45:
-        qual = "deep"
+        qual = "rich deep"
     elif s < 0.45 and v >= 0.8:
         qual = "soft"
     elif s < 0.58:

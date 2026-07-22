@@ -35,11 +35,12 @@ class ReferenceStylePlan:
 _FINISH_CLAUSES: dict[str, str] = {
     "none": "",
     "photographic": (
-        "Render it with true-to-life photographic realism: soft single-source window light "
-        "with gentle contact shadows and natural highlight rolloff, accurate untouched material "
-        "texture, and restrained natural color in a warm balanced grade. Keep the subject clearly "
-        "grounded in a believable real setting with only gentle background falloff, not dissolved "
-        "into a blurred bokeh void. "
+        "Strongly regrade this into a true-to-life photograph: pronounced soft directional window "
+        "light with clear contact shadows and bright natural highlight rolloff, crisp accurate "
+        "material texture with visible fine surface detail, and a rich warm natural color grade — "
+        "deeper, punchier tones that still read as a real photograph, never plastic, CGI or "
+        "oversaturated. Keep the subject firmly grounded in a real physical setting with a softly "
+        "defined background, never a flat studio void or a blurred bokeh blur. "
     ),
 }
 
@@ -360,9 +361,11 @@ _IDENTITY_LOCKS = {
         "layers, cream, frosting, toppings, fruit, crumb, texture and true colors — do not add, remove, redraw, "
         "resize, recolor or rearrange any part of the dessert. "
         # 핵심 개정: '접시 고정'을 풀되 대상은 '용기(접시)'로 한정, 케이크는 위에서 보존한다.
-        "You MAY replace the plate underneath with a single beautiful, elegant dessert plate befitting a premium "
-        "patisserie — for example fine white porcelain or a clean matte ceramic with a tasteful rim — chosen to "
-        "flatter the dessert. Restyle only the plate, not the dessert. "
+        "You SHOULD replace the plain plate underneath with a distinctly beautiful designer dessert plate worthy "
+        "of a high-end patisserie — an artisanal ceramic with a refined sculpted or scalloped rim, a delicate "
+        "handcrafted texture or a subtle elegant tone (soft blush, sage, matte charcoal or gold-rimmed), "
+        "thoughtfully styled to elevate the dessert like a fine-dining plated course. Make the plate itself a "
+        "clearly premium, considered element, not a plain white dish. Restyle only the plate, not the dessert. "
         # BUG-KTX-001 가드 유지: 재플레이팅이 접시를 컵/그릇으로 변형시키지 않도록 명시.
         "Never turn the dessert or its plate into a cup, mug, takeaway container, drinking glass, bowl of liquid "
         "or any different kind of object — it must remain a solid plated dessert on a flat dessert plate, never a "
