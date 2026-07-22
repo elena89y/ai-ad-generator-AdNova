@@ -6,9 +6,9 @@ import Reveal from "./Reveal";
 /* 예시 섹션 아래 템플릿 무한 마퀴.
    두 줄이 반대 방향으로 흘러 밀도감을 주고, 각 카드는 스튜디오로 연결. */
 
-function studioHref(t: (typeof CATALOG)[number]): string {
-  if (t.ledger_id) return `/studio?template=${t.ledger_id}`;
-  return "/studio";
+function templateHref(t: (typeof CATALOG)[number]): string {
+  // 갤러리와 동일하게 템플릿 전용 페이지로 (스튜디오 생성으로 가지 않음)
+  return `/templates/${encodeURIComponent(t.id)}`;
 }
 
 function Row({
@@ -34,7 +34,7 @@ function Row({
         {doubled.map((t, i) => (
           <Link
             key={`${t.id}-${i}`}
-            href={studioHref(t)}
+            href={templateHref(t)}
             aria-hidden={i >= items.length}
             tabIndex={i >= items.length ? -1 : 0}
             className="group relative aspect-[3/4] w-40 flex-none overflow-hidden rounded-2xl border border-border bg-surface shadow-lg shadow-black/20 transition sm:w-48 hover:-translate-y-1 hover:border-accent/50"
