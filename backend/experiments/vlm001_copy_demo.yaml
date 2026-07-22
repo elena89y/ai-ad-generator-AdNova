@@ -1,0 +1,9 @@
+# VLM-001 ② 데모: 배치3 완성 광고 이미지(VM lm-track 결과) → 로컬 카피
+items:
+  - {image: /home/spai0820/lm-track/backend/results/ai/real001/realism/treat/김치찌개_kontext.png, name: 김치찌개}
+  - {image: /home/spai0820/lm-track/backend/results/ai/real001/realism/treat/까르보나라_kontext.png, name: 까르보나라}
+  - {image: /home/spai0820/lm-track/backend/results/ai/real001/realism/treat/핑크레모네이드_kontext.png, name: 핑크레모네이드}
+  - {image: /home/spai0820/lm-track/backend/results/ai/scene_env_ab/dessert-ab/after/딸기롤케이크_kontext.png, name: 딸기롤케이크}
+  - {image: /home/spai0820/lm-track/backend/results/ai/scene_env_ab/dessert-ab/after/딸기생크림케이크_kontext.png, name: 딸기생크림케이크}
+  - {image: /home/spai0820/lm-track/backend/results/ai/scene_env_ab/pal-ab/after/떡볶이_kontext.png, name: 떡볶이}
+  - {image: /home/spai0820/lm-track/backend/results/ai/scene_env_ab/pal-ab/after/김치찌개_kontext.png, name: 김치찌개}

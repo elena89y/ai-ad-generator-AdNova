@@ -271,3 +271,43 @@ def analyze_menu_local(name: str):
     logger.info("[VLM-001 route] %s → domain=%s food_mode=%s subject=%s (raw_ok=%s)",
                 name, ma.domain, ma.food_mode, ma.subject_en, bool(m))
     return ma
+
+
+# --- VLM-001 ② 로컬 광고 카피 (완성 광고 이미지 → 어울리는 한국어 문구) ---------------
+#   VLM 본연의 목적: 완성된 광고 이미지를 '보고' 어울리는 카피를 붙인다(이미지 그라운딩).
+#   describe/inspect 가 캘리브레이션서 신뢰 O였던 개방형 지각 강점을 카피에 사용. 무-API.
+_COPY_Q = (
+    "너는 감각적인 한국 광고 카피라이터다. 아래 '완성된 광고 이미지'를 자세히 보고, 이 이미지에 "
+    "가장 어울리는 한국어 광고 문구를 지어라. 이미지의 분위기·색감·질감·연출과 제품을 반영해라. "
+    "제품명: {name}.\n"
+    "규칙: 헤드라인은 짧고 임팩트 있게(공백 포함 {hmax}자 이내), 서브카피는 헤드라인을 받쳐주는 "
+    "한 문장({smax}자 이내). 과장·허위 표현(최고·1위·100%·무조건) 금지. 이미지에 없는 사실 지어내지 말 것.\n"
+    'JSON 하나만 출력: {{"headline":"...", "subcopy":"..."}}'
+)
+
+
+def generate_copy_local(image_path: str, product_name: str) -> dict:
+    """Qwen3-VL 로컬 이미지 그라운딩 광고 카피(VLM-001 ②) — gpt_service.generate_copy 무-API 대체.
+
+    완성 광고 이미지 + 제품명 → 한국어 {headline, subcopy}. 기존 규칙 게이트(copy_graph.
+    validate_copy: 길이·과장어)를 그대로 태워 품질 하한 강제. 위반은 반환에 실어 육안 판정에 노출.
+    """
+    from .copy_graph import HEADLINE_MAX, SUBCOPY_MAX, validate_copy
+    q = _COPY_Q.format(name=(product_name or "상품").strip(), hmax=HEADLINE_MAX, smax=SUBCOPY_MAX)
+    messages = [{"role": "user", "content": [
+        {"type": "image", "image": str(image_path)},
+        {"type": "text", "text": q}]}]
+    raw = _generate(messages, max_new=220)
+    headline, subcopy = "", ""
+    m = re.search(r"\{.*\}", raw, re.DOTALL)
+    if m:
+        try:
+            d = json.loads(m.group(0))
+            headline = str(d.get("headline", "")).strip()
+            subcopy = str(d.get("subcopy", "")).strip()
+        except json.JSONDecodeError:
+            pass
+    violations = validate_copy(f"{headline}\n{subcopy}") if headline else ["헤드라인 파싱 실패"]
+    logger.info("[VLM-001 copy] %s → '%s' / '%s' (위반 %d)",
+                product_name, headline, subcopy, len(violations))
+    return {"headline": headline, "subcopy": subcopy, "violations": violations, "raw": raw}
