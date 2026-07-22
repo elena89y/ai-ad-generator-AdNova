@@ -2,10 +2,12 @@
 
 from sqlalchemy import inspect, text
 
-from app.database.connection import admin_engine
+from app.database import admin_models  # noqa: F401 - 테이블 메타데이터 등록
+from app.database.connection import AdminBase, admin_engine
 
 
 def main() -> None:
+    AdminBase.metadata.create_all(bind=admin_engine)
     columns = {
         column["name"]
         for column in inspect(admin_engine).get_columns("admin_users")
