@@ -139,6 +139,7 @@ class CatalogTemplate:
     size: str
     prompt: str                  # 서버측 전용
     post_crop: str = ""          # 생성 후 결정론적 크롭 레시피 (예: "layers_oneside"), 비면 없음
+    quality: str = "low"         # gpt-image-2 품질(low|medium|high). 질감 중요한 음식 템플릿만 medium
 
 
 @lru_cache(maxsize=1)
@@ -156,6 +157,7 @@ def load_catalog() -> dict[str, CatalogTemplate]:
             finish=raw["finish"], tags=tuple(raw.get("tags", [])),
             identity_grade=raw["identity_grade"], engine_hint=raw["engine_hint"],
             size=raw["size"], prompt=raw["prompt"], post_crop=raw.get("post_crop", ""),
+            quality=raw.get("quality", "low"),
         )
     return out
 
