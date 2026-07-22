@@ -1037,7 +1037,7 @@ def change_admin_password(
 @router.get("/chatbot/stats", response_model=AdminChatbotStatsResponse)
 def read_chatbot_stats(
     db: Session = Depends(get_db),
-    current_admin: AdminAccount = Depends(get_current_admin),
+    current_admin: AdminUser = Depends(get_current_admin),
 ) -> AdminChatbotStatsResponse:
     del current_admin
     return AdminChatbotStatsResponse(**get_chatbot_stats(db))
@@ -1065,7 +1065,7 @@ def _build_faq_candidate_response(candidate) -> AdminFaqCandidateResponse:
 def promote_inquiry_to_faq(
     inquiry_id: int,
     db: Session = Depends(get_db),
-    current_admin: AdminAccount = Depends(get_current_admin),
+    current_admin: AdminUser = Depends(get_current_admin),
 ) -> AdminFaqCandidateResponse:
     inquiry = get_inquiry_by_id(db, inquiry_id)
     if inquiry is None:
@@ -1110,7 +1110,7 @@ def read_faq_candidates(
     limit: int = Query(50, ge=1, le=100),
     candidate_status: str | None = Query(None, min_length=1, max_length=20),
     db: Session = Depends(get_db),
-    current_admin: AdminAccount = Depends(get_current_admin),
+    current_admin: AdminUser = Depends(get_current_admin),
 ) -> AdminFaqCandidateListResponse:
     del current_admin
     total, rows = list_faq_candidates_for_admin(
@@ -1127,7 +1127,7 @@ def update_faq_candidate(
     candidate_id: int,
     request: FaqCandidateStatusUpdateRequest,
     db: Session = Depends(get_db),
-    current_admin: AdminAccount = Depends(get_current_admin),
+    current_admin: AdminUser = Depends(get_current_admin),
 ) -> AdminFaqCandidateResponse:
     candidate = get_faq_candidate_by_id(db, candidate_id)
     if candidate is None:
