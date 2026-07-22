@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -794,21 +795,32 @@ export default function StudioPage() {
                     AFTER
                   </span>
                   {!s.isPremium && (
-                    <span
+                    <div
+                      aria-label="AdNova 무료 버전 워터마크"
                       style={{
                         position: "absolute",
-                        right: 12,
-                        bottom: 12,
-                        background: "rgba(0,0,0,.6)",
-                        color: "var(--ink-soft)",
-                        fontSize: 9,
-                        fontWeight: 700,
-                        padding: "4px 8px",
-                        borderRadius: 6,
+                        right: 16,
+                        bottom: 16,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        pointerEvents: "none",
+                        userSelect: "none",
                       }}
                     >
-                      🔖 워터마크
-                    </span>
+                      <Image
+                        src="/brand/brand-logo.png"
+                        alt="AdNova"
+                        width={120}
+                        height={38}
+                        style={{
+                          width: 104,
+                          height: "auto",
+                          opacity: 0.82,
+                          filter: "drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35))",
+                        }}
+                      />
+                    </div>
                   )}
                 </div>
               </div>

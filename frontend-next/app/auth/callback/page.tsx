@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { loadUser, setToken } from "@/lib/auth";
+import { clearStoredAuth } from "@/lib/api";
 
 export default function OAuthCallbackPage() {
   const router = useRouter();
@@ -49,8 +50,7 @@ export default function OAuthCallbackPage() {
       } catch (error) {
         console.error("[OAuth Callback Error]", error);
 
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("user");
+        clearStoredAuth();
 
         router.replace(
           `/login?error=${encodeURIComponent(

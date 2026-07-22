@@ -67,9 +67,9 @@ def delete_user_account(db: Session, user: User) -> list[str]:
     ]
 
     try:
-        # 법정 보존 기록(문의 3년·구매/환불 5년)은 삭제하지 않고 익명화-보존한다.
-        # user_id 를 NULL 로 끊으므로 아래 db.delete(user) 시 FK 위반 없음.
-        # (전자상거래법 시행령 제6조 + 개인정보보호법 제21조 — retention.py 참조)
+        # 법정 보존 기록(문의 3년·구매/환불 5년)은 삭제하지 않고 가명처리-보존한다.
+        # user_id 를 "탈퇴회원" 센티넬 계정으로 재지정(NOT NULL 유지)하므로 개인 식별
+        # 링크만 끊긴다. (전자상거래법 시행령 제6조 + 개인정보보호법 제21조 — retention.py 참조)
         anonymize_legal_records_for_user(db, user_id)
 
         # 운영 데이터는 종전대로 즉시 파기.

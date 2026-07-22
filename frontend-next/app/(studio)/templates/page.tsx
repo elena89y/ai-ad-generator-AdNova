@@ -11,12 +11,6 @@ import { CATALOG, CatalogTemplate } from "@/lib/catalog";
 import { useStudio } from "@/components/studio/StudioProvider";
 import { AppBar, WorkspaceNav } from "@/components/studio/chrome";
 
-const FINISH_LABEL: Record<string, string> = {
-  photographic: "실사 마감",
-  graphic: "그래픽 마감",
-  stylized: "무드 연출",
-};
-
 export default function TemplatesPage() {
   const s = useStudio();
   const router = useRouter();
@@ -250,9 +244,6 @@ export default function TemplatesPage() {
                     {tg}
                   </button>
                 ))}
-              </div>
-              <div style={{ fontSize: 11.5, color: "var(--ink-mute)" }}>
-                {FINISH_LABEL[picked.finish] ?? picked.finish}
               </div>
               <button className="btn-gen" style={{ marginTop: "auto" }} onClick={() => startWith(picked)}>
                 ✦ 이 템플릿으로 광고 만들기

@@ -138,6 +138,7 @@ class CatalogTemplate:
     engine_hint: str             # cutout_composite | edit
     size: str
     prompt: str                  # 서버측 전용
+    post_crop: str = ""          # 생성 후 결정론적 크롭 레시피 (예: "layers_oneside"), 비면 없음
 
 
 @lru_cache(maxsize=1)
@@ -154,7 +155,7 @@ def load_catalog() -> dict[str, CatalogTemplate]:
             id=raw["id"], no=raw["no"], name=raw["name"], family=raw["family"],
             finish=raw["finish"], tags=tuple(raw.get("tags", [])),
             identity_grade=raw["identity_grade"], engine_hint=raw["engine_hint"],
-            size=raw["size"], prompt=raw["prompt"],
+            size=raw["size"], prompt=raw["prompt"], post_crop=raw.get("post_crop", ""),
         )
     return out
 

@@ -8,10 +8,12 @@ import {
   KeyRound,
   LayoutDashboard,
   LogOut,
+  MessageCircleQuestion,
   MessageSquareMore,
   ReceiptText,
   RotateCcw,
   ScrollText,
+  ShieldCheck,
   UserCog,
   UsersRound,
 } from "lucide-react";
@@ -40,6 +42,11 @@ const navigationItems = [
     icon: MessageSquareMore,
   },
   {
+    href: "/admin/faq",
+    label: "FAQ 관리",
+    icon: MessageCircleQuestion,
+  },
+  {
     href: "/admin/subscriptions",
     label: "구독 현황",
     icon: CreditCard,
@@ -58,6 +65,11 @@ const navigationItems = [
     href: "/admin/password",
     label: "비밀번호 변경",
     icon: KeyRound,
+  },
+  {
+    href: "/admin/security",
+    label: "2단계 인증",
+    icon: ShieldCheck,
   },
   {
     href: "/admin/refunds",

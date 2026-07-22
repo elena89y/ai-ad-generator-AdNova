@@ -30,7 +30,7 @@ import shutil
 import time
 from pathlib import Path
 
-from . import api_image_service, gpt_service, image_service, template_service
+from . import api_image_service, gpt_service, image_service, template_crop, template_service
 from .generation_service import GenerationOutput, _generate_copy, _stage
 from .prompt_service import ProductInfo
 from ..schemas.ads import StylePreset
@@ -61,11 +61,18 @@ _FINISH_STYLE = {"photographic": StylePreset.EDITORIAL, "graphic": StylePreset.P
 _GRADE_DOMAIN = {"strict": "object", "standard": "food", "loose": "object"}
 
 
-def build_instruction(catalog_id: str, product_name: str = "") -> tuple[str, str, str]:
-    """template_id → (지시문, identity_grade, size). 지시문 = 프리앰블 + (제품명) + 원장 프롬프트."""
+def build_instruction(catalog_id: str, product_name: str = "",
+                      extra_request: str = "") -> tuple[str, str, str]:
+    """template_id → (지시문, identity_grade, size). 지시문 = 프리앰블 + (제품명) + 원장 프롬프트 (+추가요청)."""
     t = template_service.get_catalog_template(catalog_id)
     name_line = f"제품/메뉴명: {product_name}\n\n" if product_name.strip() else ""
     instruction = _PREAMBLE.get(t.identity_grade, "") + name_line + t.prompt
+    if extra_request and extra_request.strip():
+        # 사용자 추가 요청은 연출·분위기·구도 참고용. 제품/음식의 정체성·라벨·형태는 위 지침이 우선.
+        instruction += (
+            f"\n\n[사용자 추가 요청 — 연출·분위기·구도 참고] {extra_request.strip()}\n"
+            "단, 업로드한 제품/음식의 형태·색·라벨·정체성은 위 지침을 우선하며 이 요청으로 왜곡하지 않는다."
+        )
     return instruction, t.identity_grade, t.size
 
 
@@ -75,15 +82,17 @@ def generate_from_template(
     product: ProductInfo,
     use_vision: bool = False,
     quality: str = "low",
+    extra_request: str = "",
     run=None,  # noqa: ANN001 — 상위가 이미 RunLogger 를 열었으면 전달, 아니면 자체 개설
 ) -> GenerationOutput:
     """업로드 이미지 + 템플릿 연출로 광고 1장 생성 → GenerationOutput.
 
     strict 등급은 프리앰블이 라벨·형태 보존을 강제한다. 이미지 엔진 gpt-image-2 edit.
+    extra_request = 사용자 추가 요청(연출·분위기 참고, 정체성은 프리앰블 우선).
     run 이 없으면 자체 RunLogger 를 열어 KPI 원장·Langfuse·usage 를 정상 경로와 동일하게 적재.
     """
     if run is not None:  # 상위 원장에 합류
-        return _generate_impl(image_path, catalog_id, product, use_vision, quality, run)
+        return _generate_impl(image_path, catalog_id, product, use_vision, quality, extra_request, run)
 
     try:
         from ..harness.run_logger import RunLogger
@@ -91,15 +100,16 @@ def generate_from_template(
         rl = RunLogger(
             phase="TPL", mode="pending", engine=f"template:{catalog_id}",
             input=image_path, seed=0,
-            params={"catalog_id": catalog_id, "name": product.name,
-                    "quality": quality, "request": "generate", "template": True},
+            params={"catalog_id": catalog_id, "name": product.name, "quality": quality,
+                    "request": "generate", "template": True,
+                    "extra_request": extra_request or None},
         )
     except Exception as exc:  # noqa: BLE001 — 트레이싱 장애가 생성을 막으면 안 됨
         logger.warning("RunLogger 초기화 실패 — 원장 없이 진행: %s", exc)
-        return _generate_impl(image_path, catalog_id, product, use_vision, quality, None)
+        return _generate_impl(image_path, catalog_id, product, use_vision, quality, extra_request, None)
 
     with rl:
-        out = _generate_impl(image_path, catalog_id, product, use_vision, quality, rl)
+        out = _generate_impl(image_path, catalog_id, product, use_vision, quality, extra_request, rl)
         # API edit = GPU 미점유. 명시해야 KPI 가 GPU 비용을 오계상하지 않음(하이브리드 공정성).
         rl.set_meta(mode=out.domain, engine=f"template:{catalog_id}", gpu_used=False, seed=0)
         rl.set_output(out.final_image_path)
@@ -112,11 +122,12 @@ def _generate_impl(
     product: ProductInfo,
     use_vision: bool,
     quality: str,
+    extra_request: str,
     run,  # noqa: ANN001 — RunLogger | None
 ) -> GenerationOutput:
     """실제 생성 본체 — RunLogger 컨텍스트(있으면) 안에서 edit·문구를 단계별로 계측한다."""
     t = template_service.get_catalog_template(catalog_id)
-    instruction, grade, size = build_instruction(catalog_id, product.name)
+    instruction, grade, size = build_instruction(catalog_id, product.name, extra_request)
     style_badge = _FINISH_STYLE.get(t.finish, StylePreset.EDITORIAL)
     asset_id = secrets.token_hex(6)  # 12자리 hex (^[a-f0-9]{12}$)
     logger.info("template 생성: id=%s grade=%s asset=%s", catalog_id, grade, asset_id)
@@ -130,6 +141,11 @@ def _generate_impl(
     # asset_id 규약 파일명으로 정착 (서빙·재생성 계약과 통일)
     final = image_service.RESULTS_DIR / f"{asset_id}_template.png"
     shutil.move(raw, final)
+    # 템플릿별 결정론적 후처리 크롭 (예: 단면 히어로 = 층 꽉 참 + 한쪽 끝 노출).
+    # 프롬프트로 풀 슬라이스를 여백과 함께 생성 → 여기서 구도를 확정한다(복불복 제거).
+    if t.post_crop:
+        with _stage(run, "post_crop"):
+            template_crop.apply(t.post_crop, str(final))
     gen_s = round(time.time() - t0, 2)
 
     # 문구 — 정상 경로와 동일한 _generate_copy 라우터(copy_graph 품질 게이트 공유). 실패해도 폴백.

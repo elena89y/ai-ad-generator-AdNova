@@ -2,7 +2,7 @@
 
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, MessageSquareMore, RefreshCw, Search, Send } from "lucide-react";
+import { Check, MessageCircleQuestion, MessageSquareMore, RefreshCw, Search, Send } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { useAdmin } from "@/components/admin/AdminProvider";
 import {
@@ -54,7 +54,7 @@ export default function AdminInquiriesPage() {
   const [draftStatus, setDraftStatus] = useState<AdminInquiryStatus>("pending");
   const [answerDraft, setAnswerDraft] = useState("");
   const [loading, setLoading] = useState(false);
-  const [processing, setProcessing] = useState<"status" | "answer" | null>(null);
+  const [processing, setProcessing] = useState<"status" | "answer" | "faq" | null>(null);
   const [message, setMessage] = useState("");
   const [messageKind, setMessageKind] = useState<"success" | "error" | null>(null);
 
@@ -157,6 +157,29 @@ export default function AdminInquiriesPage() {
       return;
     }
     void updateInquiry("answer", { answer }, "문의 답변을 저장했습니다.");
+  }
+
+  async function promoteToFaq() {
+    if (!selected) return;
+    setProcessing("faq");
+    setMessage("");
+    setMessageKind(null);
+    try {
+      const response = await adminApiFetch(`/admin/inquiries/${selected.id}/promote-faq`, {
+        method: "POST",
+      });
+      const data = await readJsonSafely(response);
+      if (!response.ok) {
+        throw new Error(readApiError(data, "FAQ 후보로 등록하지 못했습니다."));
+      }
+      setMessage("FAQ 후보로 등록했습니다. FAQ 관리에서 검토할 수 있어요.");
+      setMessageKind("success");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "FAQ 후보로 등록하지 못했습니다.");
+      setMessageKind("error");
+    } finally {
+      setProcessing(null);
+    }
   }
 
   if (!ready || !admin) {
@@ -337,7 +360,18 @@ export default function AdminInquiriesPage() {
                     placeholder="회원에게 전달할 답변을 입력해 주세요."
                     className="min-h-40 w-full resize-y border border-white/15 bg-[#0b1729] px-3 py-3 text-sm leading-6 text-white outline-none placeholder:text-white/30 focus:border-[#a78bfa] disabled:cursor-not-allowed disabled:opacity-60"
                   />
-                  <div className="mt-3 flex justify-end">
+                  <div className="mt-3 flex justify-end gap-2">
+                    {selected.status === "answered" && selected.answer && (
+                      <button
+                        type="button"
+                        onClick={promoteToFaq}
+                        disabled={processing !== null}
+                        className="inline-flex h-10 items-center gap-2 border border-[#a78bfa]/40 px-4 text-sm font-bold text-[#c4b5fd] transition hover:border-[#a78bfa] hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <MessageCircleQuestion size={16} />
+                        {processing === "faq" ? "등록 중..." : "FAQ 후보로 등록"}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={saveAnswer}

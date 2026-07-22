@@ -8,10 +8,11 @@ import {
   RefreshCw,
   UsersRound,
   MessageSquareMore,
+  Bot,
 } from "lucide-react";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { useAdmin } from "@/components/admin/AdminProvider";
-import { type AdminSummary, adminApiFetch } from "@/lib/admin-api";
+import { type AdminChatbotStats, type AdminSummary, adminApiFetch } from "@/lib/admin-api";
 import { readApiError, readJsonSafely } from "@/lib/api";
 
 const summaryCards = [
@@ -33,6 +34,7 @@ export default function AdminDashboardPage() {
   const router = useRouter();
   const { admin, ready } = useAdmin();
   const [summary, setSummary] = useState<AdminSummary | null>(null);
+  const [chatbot, setChatbot] = useState<AdminChatbotStats | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -40,12 +42,18 @@ export default function AdminDashboardPage() {
     setLoading(true);
     setMessage("");
     try {
-      const response = await adminApiFetch("/admin/summary");
-      const data = (await readJsonSafely(response)) as AdminSummary | null;
-      if (!response.ok || !data) {
+      const [summaryRes, chatbotRes] = await Promise.all([
+        adminApiFetch("/admin/summary"),
+        adminApiFetch("/admin/chatbot/stats"),
+      ]);
+      const data = (await readJsonSafely(summaryRes)) as AdminSummary | null;
+      if (!summaryRes.ok || !data) {
         throw new Error(readApiError(data, "관리자 대시보드를 불러오지 못했습니다."));
       }
       setSummary(data);
+      // 챗봇 통계는 부가정보 — 실패해도 대시보드 자체는 표시
+      const chatbotData = (await readJsonSafely(chatbotRes)) as AdminChatbotStats | null;
+      setChatbot(chatbotRes.ok ? chatbotData : null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "관리자 대시보드를 불러오지 못했습니다.");
     } finally {
@@ -121,6 +129,73 @@ export default function AdminDashboardPage() {
               {admin.role === "super_admin" ? "최고 관리자" : "운영자"}
             </strong>
             <p className="mt-3 text-sm text-white/45">{admin.email}</p>
+          </section>
+        </div>
+
+        {/* 챗봇 상담 통계 (한의정) — 개인정보 없는 집계 */}
+        <div className="mt-8 flex items-center gap-2">
+          <Bot size={18} className="text-[#a78bfa]" />
+          <h2 className="text-sm font-bold tracking-[0.12em] text-[#a78bfa]">챗봇 상담</h2>
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <article className="rounded-2xl border border-white/10 bg-[#102039]/90 p-5">
+            <span className="text-sm font-semibold text-white/60">누적 상담</span>
+            <strong className="mt-7 block text-3xl font-extrabold tabular-nums">
+              {chatbot ? `${chatbot.total_chats.toLocaleString("ko-KR")}건` : "-"}
+            </strong>
+          </article>
+          <article className="rounded-2xl border border-white/10 bg-[#102039]/90 p-5">
+            <span className="text-sm font-semibold text-white/60">자동 응답</span>
+            <strong className="mt-7 block text-3xl font-extrabold tabular-nums">
+              {chatbot ? `${chatbot.answered_chats.toLocaleString("ko-KR")}건` : "-"}
+            </strong>
+          </article>
+          <article className="rounded-2xl border border-white/10 bg-[#102039]/90 p-5">
+            <span className="text-sm font-semibold text-white/60">1:1 문의 이관율</span>
+            <strong className="mt-7 block text-3xl font-extrabold tabular-nums">
+              {chatbot ? `${Math.round(chatbot.escalation_rate * 100)}%` : "-"}
+            </strong>
+            <p className="mt-2 text-sm text-white/45">
+              이관 {chatbot?.escalated_chats.toLocaleString("ko-KR") ?? "-"}건
+            </p>
+          </article>
+          <article className="rounded-2xl border border-white/10 bg-[#102039]/90 p-5">
+            <span className="text-sm font-semibold text-white/60">리라이팅 구제</span>
+            <strong className="mt-7 block text-3xl font-extrabold tabular-nums">
+              {chatbot ? `${chatbot.rewritten_chats.toLocaleString("ko-KR")}건` : "-"}
+            </strong>
+          </article>
+        </div>
+        <div className="mt-3 grid gap-3 lg:grid-cols-2">
+          <section className="rounded-2xl border border-white/10 bg-[#102039]/90 p-5">
+            <p className="text-sm font-semibold text-white/60">많이 인용된 FAQ</p>
+            {chatbot && chatbot.top_cited_faqs.length > 0 ? (
+              <ul className="mt-4 space-y-2">
+                {chatbot.top_cited_faqs.map((f) => (
+                  <li key={f.faq_id} className="flex items-center justify-between text-sm">
+                    <span className="font-mono text-white/70">{f.faq_id}</span>
+                    <span className="tabular-nums text-white/50">{f.count.toLocaleString("ko-KR")}회</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-4 text-sm text-white/45">아직 데이터가 없습니다.</p>
+            )}
+          </section>
+          <section className="rounded-2xl border border-white/10 bg-[#102039]/90 p-5">
+            <p className="text-sm font-semibold text-white/60">카테고리 분포</p>
+            {chatbot && chatbot.by_category.length > 0 ? (
+              <ul className="mt-4 space-y-2">
+                {chatbot.by_category.slice(0, 5).map((c) => (
+                  <li key={c.category} className="flex items-center justify-between text-sm">
+                    <span className="text-white/70">{c.category}</span>
+                    <span className="tabular-nums text-white/50">{c.count.toLocaleString("ko-KR")}건</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-4 text-sm text-white/45">아직 데이터가 없습니다.</p>
+            )}
           </section>
         </div>
       </section>
