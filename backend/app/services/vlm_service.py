@@ -340,7 +340,9 @@ def generate_platform_copy_local(image_path: str, product_name: str, description
                 "중국어·영어 문장이나 단어를 절대 쓰지 마라.\n"
                 f"[필수] 재료·토핑은 오직 다음만 근거로 삼아라: {allow_txt}. 이 목록에 없는 재료·토핑"
                 "(예: 펄·타피오카·시럽·견과 등 이미지에 안 보이는 것)을 headline·body·hashtag 어디에도 "
-                "지어내지 마라. 확실하지 않으면 재료를 언급하지 마라.\n\n")
+                "지어내지 마라. 확실하지 않으면 재료를 언급하지 마라.\n"
+                "[필수] 재료를 카피에 쓸 때는 반드시 한국어 이름으로 번역해서 써라(예: kimchi→김치, "
+                "pork→돼지고기, cream→크림). 영어 재료명을 문장에 그대로 노출하지 마라.\n\n")
         messages = [{"role": "user", "content": [
             {"type": "image", "image": str(image_path)},
             {"type": "text", "text": "아래는 완성된 광고 이미지다. 이 이미지를 직접 보고 작성해라.\n" + lock + instr}]}]
