@@ -49,6 +49,135 @@ def _finish_clause(profile: str | None) -> str:
     return _FINISH_CLAUSES.get((profile or "none"), "")
 
 
+# --- DIV-2: 사진-톤 매칭 표면·배경 풀 ------------------------------------------
+# 설계메모 §3 DIV-2: "스타일당 1문장 → 템플릿+슬롯, 무드별 표면/배경 풀에서 사진 톤 매칭".
+#   다양성의 원천을 프리셋 6개가 아니라 유저 입력 사진으로 옮긴다 — image_service.
+#   classify_scene_tone(픽셀 통계, API 0)이 warm/cool/neutral 을 주면 조화되는 버킷에서 고른다.
+#
+# 방식(BYTE-IDENTITY): scene_tone 미지정(OFF/기본)이면 direction 문자열을 건드리지 않는다 →
+#   기존 스냅샷·회귀와 완전 동일(무위험). 지정 시에만 v0 스팬을 톤-매칭 후보로 str.replace.
+#   후보는 관사·명사(table/wall/surface/tabletop/sweep)까지 포함한 완결 구로 문법 파손 없음.
+# 적용 대상 = 표면/배경이 고정된 editorial·realism·warm_organic (pop/pastel/monotone 은 이미
+#   {palette}로 subject별 변동). object/editorial 배경은 구조적 프롭이라 표면만 슬롯.
+_SCENE_SPANS: dict[tuple[str, str], dict[str, str]] = {
+    ("food", "editorial"): {"surface": "a muted cream stone table",
+                            "background": "a pale warm-gray background"},
+    ("food", "realism"): {"surface": "a dark charcoal stone table",
+                         "background": "a softly blurred neutral dining background"},
+    ("food", "warm_organic"): {"surface": "a pale travertine table",
+                              "background": "a softly textured beige wall"},
+    ("drink", "editorial"): {"surface": "a pale cream stone table",
+                            "background": "a very light cool-gray background"},
+    ("drink", "realism"): {"surface": "a clean warm-gray stone tabletop",
+                          "background": "a softly sunlit neutral wall"},
+    ("drink", "warm_organic"): {"surface": "a pale travertine table",
+                               "background": "a softly textured beige wall"},
+    ("object", "editorial"): {"surface": "a cool off-white studio sweep"},
+    ("object", "realism"): {"surface": "a light gray limestone surface",
+                           "background": "a softly sunlit neutral wall"},
+    ("object", "warm_organic"): {"surface": "a pale travertine surface",
+                                "background": "a softly textured beige wall"},
+}
+
+# 각 (domain, mood, slot) → {warm/cool/neutral: [후보...]}. v0(현행 스팬)은 자기 톤 버킷 선두.
+#   trailing 명사는 스팬과 일치(문법 유지). 빈 버킷은 neutral→v0 순으로 폴백.
+_SCENE_POOLS: dict[tuple[str, str], dict[str, dict[str, list[str]]]] = {
+    ("food", "editorial"): {
+        "surface": {"neutral": ["a muted cream stone table", "a soft greige microcement table"],
+                    "warm": ["a warm oak wood table", "a honey travertine table"],
+                    "cool": ["a cool pale concrete table", "a light grey terrazzo table"]},
+        "background": {"neutral": ["a pale warm-gray background", "a soft stone-white background"],
+                       "warm": ["a soft ecru background", "a warm sand-beige background"],
+                       "cool": ["a very light cool-gray background", "a pale slate-gray background"]},
+    },
+    ("food", "realism"): {
+        "surface": {"neutral": ["a dark charcoal stone table", "a honed slate table"],
+                    "warm": ["a weathered walnut wood table", "a warm terracotta tiled table"],
+                    "cool": ["a cool grey concrete table"]},
+        "background": {"neutral": ["a softly blurred neutral dining background"],
+                       "warm": ["a softly blurred warm restaurant background",
+                                "a blurred amber-lit dining background"],
+                       "cool": ["a softly blurred cool grey dining background"]},
+    },
+    ("food", "warm_organic"): {
+        "surface": {"warm": ["a pale travertine table", "a raw oak table"],
+                    "neutral": ["a limewash concrete table"], "cool": []},
+        "background": {"warm": ["a softly textured beige wall", "a warm clay-plaster wall"],
+                       "neutral": ["a soft sand-toned wall"], "cool": []},
+    },
+    ("drink", "editorial"): {
+        "surface": {"neutral": ["a pale cream stone table", "a soft greige microcement table"],
+                    "warm": ["a warm oak wood table"], "cool": ["a cool pale concrete table"]},
+        "background": {"cool": ["a very light cool-gray background", "a pale slate-gray background"],
+                       "neutral": ["a soft stone-white background"], "warm": ["a soft ecru background"]},
+    },
+    ("drink", "realism"): {
+        "surface": {"neutral": ["a clean warm-gray stone tabletop", "a honed pale concrete tabletop"],
+                    "warm": ["a warm oak wood tabletop"], "cool": ["a cool grey stone tabletop"]},
+        "background": {"warm": ["a softly sunlit neutral wall", "a soft warm plaster wall"],
+                       "neutral": ["a soft pale grey wall"], "cool": ["a cool morning-lit wall"]},
+    },
+    ("drink", "warm_organic"): {
+        "surface": {"warm": ["a pale travertine table", "a raw oak table"],
+                    "neutral": ["a limewash concrete table"], "cool": []},
+        "background": {"warm": ["a softly textured beige wall", "a warm clay-plaster wall"],
+                       "neutral": ["a soft sand-toned wall"], "cool": []},
+    },
+    ("object", "editorial"): {
+        "surface": {"neutral": ["a cool off-white studio sweep", "a soft warm-white studio sweep"],
+                    "warm": ["a soft sand studio sweep"], "cool": ["a cool light-grey studio sweep"]},
+    },
+    ("object", "realism"): {
+        "surface": {"neutral": ["a light gray limestone surface", "a honed pale concrete surface"],
+                    "warm": ["a pale oak plank surface"], "cool": ["a cool grey stone surface"]},
+        "background": {"warm": ["a softly sunlit neutral wall", "a soft warm plaster wall"],
+                       "neutral": ["a soft pale grey wall"], "cool": ["a cool morning-lit wall"]},
+    },
+    ("object", "warm_organic"): {
+        "surface": {"warm": ["a pale travertine surface", "a raw oak surface"],
+                    "neutral": ["an unglazed stoneware surface"], "cool": []},
+        "background": {"warm": ["a softly textured beige wall", "a warm clay-plaster wall"],
+                       "neutral": ["a soft sand-toned wall"], "cool": []},
+    },
+}
+
+
+def _scene_pick(pool_slot: dict[str, list[str]], tone: str, subject: str, seed: int) -> str | None:
+    """톤 버킷에서 결정론적 선택. 매칭 톤 → neutral 순 폴백. subject·seed 로 가게별·재생성별 변동.
+
+    seed 를 선형 가산이 아니라 해시에 접는다 — subject 에 slot salt(_apply_scene_tone)가 이미
+    붙어 있어 "subject:slot:seed" 해시가 되므로 surface·background 가 slot·seed 양축으로 독립
+    선택된다(동조 방지, 무대 조합↑). 파이썬 내장 hash()는 프로세스마다 달라 결정론 깨짐 → hashlib.
+    """
+    import hashlib
+
+    base = int(hashlib.md5(f"{subject}:{seed}".encode("utf-8")).hexdigest()[:8], 16)
+    for t in (tone, "neutral"):
+        cands = pool_slot.get(t) or []
+        if cands:
+            return cands[base % len(cands)]
+    return None
+
+
+def _apply_scene_tone(domain: str, mood: str, direction: str, tone: str,
+                      subject: str, seed: int) -> str:
+    """direction 의 표면/배경 스팬을 입력 톤에 맞춰 교체(DIV-2). 스팬 미발견·후보 없음은 무변경."""
+    spans = _SCENE_SPANS.get((domain, mood))
+    pools = _SCENE_POOLS.get((domain, mood))
+    if not spans or not pools:
+        return direction
+    for slot in ("surface", "background"):
+        span = spans.get(slot)
+        pool = pools.get(slot)
+        if not span or not pool or span not in direction:
+            continue
+        # slot 별로 subject 를 salt → surface·background 가 독립 선택(동조 방지, 무대 조합↑).
+        pick = _scene_pick(pool, tone, f"{subject}:{slot}", seed)
+        if pick and pick != span:
+            direction = direction.replace(span, pick, 1)
+    return direction
+
+
 _STYLE_ALIASES = {
     "editorial": "editorial",
     "pop": "pop",
@@ -475,7 +604,9 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
                                 container_desc: str | None = None,
                                 container_opacity: str | None = None,
                                 finish_profile: str | None = None,
-                                palette_override: str | None = None) -> str | None:
+                                palette_override: str | None = None,
+                                scene_tone: str | None = None,
+                                scene_seed: int = 0) -> str | None:
     """StylePlan을 Kontext용 정체성 보존 편집 지시로 변환한다.
 
     container_desc·container_opacity(analyze_photo Vision 산출)가 유리 디저트 용기(vessel)로
@@ -503,6 +634,11 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         hero = _prompts.get(_NS, "container.hero_default")
         container_clause = _prompts.get(_NS, "container.realism_clause_default")
     direction = plan.direction
+    # DIV-2: scene_tone 미지정(기본)이면 무변경 → 바이트 동일. 지정 시에만 표면/배경 스팬을
+    #   입력 사진 톤에 맞춰 교체(다양성의 원천 = 유저 사진). 자리표시자 치환보다 먼저 수행.
+    if scene_tone is not None:
+        direction = _apply_scene_tone(plan.domain, plan.style_key, direction,
+                                      scene_tone, subject, scene_seed)
     # 자리표시자는 한 번에 치환 — {palette}+{hero} 동시 보유 플랜(food pop)에서 str.format이
     # 누락 키로 KeyError를 내지 않게 한다.
     fmt_args: dict[str, str] = {}
@@ -610,7 +746,9 @@ def build_recompose_instruction(style_key: str, subject_en: str,
                                 temperature: str | None = None,
                                 text_zone: str | None = None,
                                 flexible_parts: list[str] | None = None,
-                                finish_profile: str | None = None) -> str | None:
+                                finish_profile: str | None = None,
+                                scene_tone: str | None = None,
+                                scene_seed: int = 0) -> str | None:
     """P5 음료 재연출 지시 — 보존 편집이 아니라 같은 음료의 '새 연출'을 만든다.
 
     재연출 계약(원본 승계): 같은 음료·토핑 / 앵글·구도 자유 / 외래 재료·손·글자 금지 /
@@ -647,6 +785,10 @@ def build_recompose_instruction(style_key: str, subject_en: str,
     # 재연출 계약의 "identical ice/toppings as photographed"와 충돌한다(그 음료의 진짜 얼음까지
     # 지우라는 뜻으로 읽힘). 씬 묘사만 취하고 금지는 아래 계약 문장이 일원화해서 담당한다.
     raw_direction = plan.direction
+    # DIV-2: scene_tone 미지정이면 무변경(바이트 동일). 지정 시 표면/배경을 입력 톤에 맞춰 교체.
+    if scene_tone is not None:
+        raw_direction = _apply_scene_tone(plan.domain, plan.style_key, raw_direction,
+                                          scene_tone, subject, scene_seed)
     if "{palette}" in raw_direction:  # PALETTE-001: build_reference_instruction과 동일 치환
         raw_direction = raw_direction.format(palette=_style_palette_clause(plan.style_key, plan.domain, subject))
     scene_direction = ". ".join(
