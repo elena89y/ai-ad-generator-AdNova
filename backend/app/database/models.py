@@ -257,3 +257,16 @@ class FaqCandidate(Base):
         onupdate=utc_now,
         nullable=False,
     )
+
+
+class EmailVerification(Base):
+    """이메일 가입 인증번호(OTP). 코드 원문은 저장하지 않고 해시만 보관."""
+    __tablename__ = "email_verifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, index=True, nullable=False)
+    code_hash = Column(String, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    verified_at = Column(DateTime(timezone=True), nullable=True)
+    attempts = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)

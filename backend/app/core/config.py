@@ -48,4 +48,12 @@ class Settings:
     USE_COPY_GATE: bool = os.getenv("USE_COPY_GATE", "1") == "1"
 
 
+    # 이메일 발송 (AWS SES SMTP)
+    SMTP_HOST: str = os.getenv("SMTP_HOST", "email-smtp.ap-northeast-2.amazonaws.com")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USER: str = os.getenv("SMTP_USER", "")
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
+    SMTP_FROM: str = os.getenv("SMTP_FROM", "AdNova <noreply@iridescentseraphim.org>")
+
+
 settings = Settings()
