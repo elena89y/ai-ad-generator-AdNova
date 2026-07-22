@@ -37,6 +37,10 @@ export default function SignupPage() {
   const [modal, setModal] = useState<"terms" | "privacy" | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [codeSent, setCodeSent] = useState(false);
+  const [code, setCode] = useState("");
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
 
   useEffect(() => {
     const mail = email.trim();
@@ -92,6 +96,50 @@ export default function SignupPage() {
     return () => clearTimeout(timer);
   }, [username]);
 
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown(cooldown - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  async function handleSendCode() {
+    const mail = email.trim();
+    if (!EMAIL_PATTERN.test(mail)) {
+      toast("이메일 형식이 올바르지 않습니다");
+      return;
+    }
+    const res = await apiFetch("/api/auth/send-verification-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: mail }),
+    });
+    const data = await readJsonSafely(res);
+    if (!res.ok) {
+      toast(readApiError(data, "인증번호 발송에 실패했습니다"));
+      return;
+    }
+    setCodeSent(true);
+    setCooldown(60);
+    toast("인증번호가 발송되었습니다");
+  }
+
+
+  async function handleVerifyCode() {
+    const res = await apiFetch("/api/auth/verify-email-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim(), code: code.trim() }),
+    });
+    const data = await readJsonSafely(res);
+    if (!res.ok) {
+      toast(readApiError(data, "인증에 실패했습니다"));
+      return;
+    }
+    setEmailVerified(true);
+    toast("이메일 인증이 완료되었습니다");
+  }
+
+
   function startOAuth(provider: OAuthProvider) {
     window.location.href = `/api/auth/${provider}/login`;
   }
@@ -144,6 +192,11 @@ export default function SignupPage() {
 
     if (emailError || usernameError) {
       toast("입력하신 정보를 다시 확인해 주세요");
+      return;
+    }
+
+    if (!emailVerified) {
+      toast("이메일 인증을 완료해 주세요");
       return;
     }
 
@@ -249,15 +302,32 @@ export default function SignupPage() {
           <div className="field">
             <label htmlFor="signupEmail">이메일</label>
 
-            <input
-              id="signupEmail"
-              type="email"
-              placeholder="you@store.com"
-              autoComplete="email"
-              value={email}
-              disabled={busy}
-              onChange={(event) => setEmail(event.target.value)}
-            />
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                id="signupEmail"
+                type="email"
+                placeholder="you@store.com"
+                autoComplete="email"
+                value={email}
+                disabled={busy || emailVerified}
+                onChange={(event) => setEmail(event.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={busy || emailVerified || cooldown > 0 || !!emailError}
+                onClick={handleSendCode}
+              >
+                {emailVerified
+                  ? "인증완료"
+                  : cooldown > 0
+                    ? `재발송 (${cooldown}s)`
+                    : codeSent
+                      ? "재발송"
+                      : "인증번호 발송"}
+              </button>
+            </div>
 
             {emailError && (
               <div
@@ -265,6 +335,29 @@ export default function SignupPage() {
                 style={{ color: "#e5484d", fontSize: 12, marginTop: 4 }}
               >
                 {emailError}
+              </div>
+            )}
+
+            {codeSent && !emailVerified && (
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="인증번호 6자리"
+                  value={code}
+                  disabled={busy}
+                  onChange={(event) => setCode(event.target.value)}
+                  style={{ flex: 1 }}
+                />
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={busy || code.length !== 6}
+                  onClick={handleVerifyCode}
+                >
+                  확인
+                </button>
               </div>
             )}
           </div>
