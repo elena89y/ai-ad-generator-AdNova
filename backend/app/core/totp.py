@@ -1,7 +1,9 @@
 import base64
 import hashlib
+import io
 
 import pyotp
+import qrcode
 from cryptography.fernet import Fernet, InvalidToken
 
 from app.core.config import settings
@@ -37,6 +39,14 @@ def build_totp_provisioning_uri(secret: str, username: str) -> str:
         name=username,
         issuer_name="AdNova Admin",
     )
+
+
+def build_totp_qr_code_data_url(provisioning_uri: str) -> str:
+    qr = qrcode.make(provisioning_uri)
+    buffer = io.BytesIO()
+    qr.save(buffer, format="PNG")
+    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
 
 
 def verify_totp_code(encrypted_secret: str, code: str) -> bool:

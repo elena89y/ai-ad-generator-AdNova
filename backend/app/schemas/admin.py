@@ -220,6 +220,7 @@ class AdminTotpSetupRequest(BaseModel):
 class AdminTotpSetupResponse(BaseModel):
     manual_entry_key: str
     provisioning_uri: str
+    qr_code_data_url: str
 
 
 class AdminTotpVerifyRequest(BaseModel):

@@ -12,6 +12,7 @@ import { readApiError, readJsonSafely } from "@/lib/api";
 type MessageResponse = { message?: string };
 type TotpSetupResponse = {
   manual_entry_key?: string;
+  qr_code_data_url?: string;
 };
 
 function onlyTotpDigits(value: string): string {
@@ -25,6 +26,7 @@ export default function AdminSecurityPage() {
   const [setupCode, setSetupCode] = useState("");
   const [disableCode, setDisableCode] = useState("");
   const [manualEntryKey, setManualEntryKey] = useState("");
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState("");
   const [loading, setLoading] = useState<"setup" | "confirm" | "disable" | null>(null);
   const [message, setMessage] = useState("");
   const [messageKind, setMessageKind] = useState<"success" | "error" | null>(null);
@@ -54,10 +56,11 @@ export default function AdminSecurityPage() {
         body: JSON.stringify({ current_password: currentPassword }),
       });
       const data = (await readJsonSafely(response)) as TotpSetupResponse | null;
-      if (!response.ok || !data?.manual_entry_key) {
+      if (!response.ok || !data?.manual_entry_key || !data.qr_code_data_url) {
         throw new Error(readApiError(data, "2단계 인증 설정을 시작하지 못했습니다."));
       }
       setManualEntryKey(data.manual_entry_key);
+      setQrCodeDataUrl(data.qr_code_data_url);
       setSetupCode("");
       showMessage("인증 앱에 등록한 뒤 6자리 코드를 입력해 활성화해 주세요.", "success");
     } catch (error) {
@@ -87,6 +90,7 @@ export default function AdminSecurityPage() {
         throw new Error(readApiError(data, "2단계 인증을 활성화하지 못했습니다."));
       }
       setManualEntryKey("");
+      setQrCodeDataUrl("");
       setSetupCode("");
       setCurrentPassword("");
       await refreshAdmin();
@@ -198,6 +202,12 @@ export default function AdminSecurityPage() {
               <button type="button" onClick={() => void copyManualEntryKey()} className="grid size-9 shrink-0 place-items-center text-white/55 transition hover:bg-white/5 hover:text-white" aria-label="설정 키 복사" title="설정 키 복사">
                 <Copy size={17} />
               </button>
+            </div>
+            <div className="mt-5 flex flex-col items-center gap-3 rounded-xl border border-white/10 bg-white p-5">
+              <img src={qrCodeDataUrl} alt="TOTP 등록용 QR 코드" className="size-52" />
+              <p className="text-center text-xs leading-5 text-slate-600">
+                인증 앱에서 QR 코드를 스캔하거나 위 설정 키를 직접 입력해 주세요.
+              </p>
             </div>
             <label className="mt-5 block">
               <span className="mb-2 block text-sm font-bold text-white/75">인증 앱 코드</span>
