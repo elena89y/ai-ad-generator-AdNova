@@ -55,8 +55,8 @@ OUT_DIR = _BACKEND / "results" / "ai"
 # judge ≠ 생성 모델 원칙(judge-model-distinct-from-generator): 챗봇 답변을 gpt-5.4-mini 가
 # 생성하는데 judge 도 mini 면 "같은 모델이 같은 modality 자기 산출을 채점" = 진짜 자기평가.
 # OpenAI-only 이므로 judge 를 생성보다 상위 티어로 분리(자기평가 편향 방지).
-# ⚠️ 상위 티어 모델 ID 는 팀 OpenAI 계약에 맞게 CHATBOT_JUDGE_MODEL 로 확정할 것
-#    (기본값 gpt-5.4 = mini 상위 풀 모델 가정). Qwen 교차 judge 는 VLM-001 이후.
+# 상위 티어 = gpt-5.4 (gpt-5.4-mini 상위 풀 모델, 사용자 확정 2026-07-22).
+# 필요 시 CHATBOT_JUDGE_MODEL 로 override. Qwen 교차 judge 는 VLM-001 이후.
 JUDGE_MODEL = os.getenv("CHATBOT_JUDGE_MODEL", "gpt-5.4")
 CONCURRENCY = 4
 MAX_RETRIES = 3
