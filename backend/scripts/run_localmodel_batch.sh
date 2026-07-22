@@ -29,7 +29,9 @@ cd "$CLONE/backend" || { echo "clone 없음: $CLONE"; touch /tmp/localmodel_batc
       --off 0 --on 1 --style pop --manifest experiments/pal_inputs.yaml \
       --inputs-dir "$INPUTS_DIR" || echo "!! PAL 실패"
   # 4) item1 C — studio 강화 신생성 + DINO (객체 3; before=로컬 baseline 0.70)
-  $PY scripts/item1_cmode_ab.py run --inputs-dir "$INPUTS_DIR" || echo "!! item1-C 실패"
+  #    SKIP_ITEM1=1 이면 건너뜀(재런 시 이미 완료된 item1 C 재실행 회피).
+  if [ "${SKIP_ITEM1:-0}" = "1" ]; then echo "item1-C 스킵(SKIP_ITEM1=1)";
+  else $PY scripts/item1_cmode_ab.py run --inputs-dir "$INPUTS_DIR" || echo "!! item1-C 실패"; fi
   set +x
   # 요약
   $PY scripts/real001_finish_ab.py summary || true

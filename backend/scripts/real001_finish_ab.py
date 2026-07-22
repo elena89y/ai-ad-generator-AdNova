@@ -88,9 +88,13 @@ def _run_one(image_path: Path, item: dict, style_key: str, seed: int,
             return
         from app.services import style_gen
 
+        # arm별 하위폴더 — kontext 출력이 입력 stem으로만 이름지어져 control/treat이
+        #   같은 파일에 덮어쓰는 충돌 방지(BUGFIX: 첫 배치서 before/after 동일파일화).
+        arm_dir = Path(out_dir) / arm
+        arm_dir.mkdir(parents=True, exist_ok=True)
         out_path = style_gen.generate_scene(
             str(image_path), style_key, subject_en,
-            output_dir=str(out_dir), seed=seed, domain=domain,
+            output_dir=str(arm_dir), seed=seed, domain=domain,
             finish_profile=finish)
         run.set_output(out_path)
 
