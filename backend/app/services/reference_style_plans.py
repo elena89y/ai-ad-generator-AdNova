@@ -22,6 +22,31 @@ class ReferenceStylePlan:
     archetype: str
     reference_ids: tuple[str, ...]
     direction: str
+    # REAL-001: 사진적 사실감 finish 프로파일. 기본 "none"(무주입) → 모든 기존 지시는
+    #   바이트 동일(스냅샷·회귀 가드). 실험 arm이 build_*_instruction(finish_profile=...)로
+    #   덮어써 리얼리즘 절을 켠다. 루브릭 근거 = 픽바이트 레퍼런스 관찰(자연광 논리·재질
+    #   사실감·절제색·공간 그라운딩). 모드 불가지 — food/object/drink 전부 동일 절 적용.
+    finish_profile: str = "none"
+
+
+# REAL-001 리얼리즘 finish 절 (생성 프롬프트 → 영어. 함정 #1: 한글 금지).
+#   trailing space 포함 = direction과 금지꼬리 사이에 자연 삽입, "none"은 빈 문자열이라
+#   기존 조립과 바이트 동일.
+_FINISH_CLAUSES: dict[str, str] = {
+    "none": "",
+    "photographic": (
+        "Render it with true-to-life photographic realism: soft single-source window light "
+        "with gentle contact shadows and natural highlight rolloff, accurate untouched material "
+        "texture, and restrained natural color in a warm balanced grade. Keep the subject clearly "
+        "grounded in a believable real setting with only gentle background falloff, not dissolved "
+        "into a blurred bokeh void. "
+    ),
+}
+
+
+def _finish_clause(profile: str | None) -> str:
+    """finish_profile → 삽입 절. 미지정·미등록은 무주입("")으로 안전 폴백."""
+    return _FINISH_CLAUSES.get((profile or "none"), "")
 
 
 _STYLE_ALIASES = {
@@ -448,7 +473,9 @@ def _is_dessert_subject(subject_en: str) -> bool:
 
 def build_reference_instruction(style_key: str, domain: str | None, subject_en: str,
                                 container_desc: str | None = None,
-                                container_opacity: str | None = None) -> str | None:
+                                container_opacity: str | None = None,
+                                finish_profile: str | None = None,
+                                palette_override: str | None = None) -> str | None:
     """StylePlan을 Kontext용 정체성 보존 편집 지시로 변환한다.
 
     container_desc·container_opacity(analyze_photo Vision 산출)가 유리 디저트 용기(vessel)로
@@ -480,16 +507,21 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
     # 누락 키로 KeyError를 내지 않게 한다.
     fmt_args: dict[str, str] = {}
     if "{palette}" in direction:
-        fmt_args["palette"] = _style_palette_clause(plan.style_key, plan.domain, subject)
+        # PAL-001: palette_override(제품 적응형 생성기 산출)가 오면 그것으로, 아니면 기존 고정
+        #   팔레트 조회로 폴백(바이트 동일 — palette_override 미전달 시 회귀 없음).
+        fmt_args["palette"] = (palette_override
+                               or _style_palette_clause(plan.style_key, plan.domain, subject))
     if "{hero}" in direction:
         fmt_args["hero"] = hero
     if "{container_clause}" in direction:
         fmt_args["container_clause"] = container_clause
     if fmt_args:
         direction = direction.format(**fmt_args)
+    # REAL-001: finish_profile 미지정 시 plan 기본값("none") → 절 무주입 → 바이트 동일.
+    finish = _finish_clause(finish_profile if finish_profile is not None else plan.finish_profile)
     return (
         f"The photographed subject is {subject}. "
-        f"{identity_lock}{direction} "
+        f"{identity_lock}{direction} {finish}"
         "Do not generate any new logo, label, lettering, watermark or advertising copy."
     )
 
@@ -577,7 +609,8 @@ def build_recompose_instruction(style_key: str, subject_en: str,
                                 container_desc: str | None = None,
                                 temperature: str | None = None,
                                 text_zone: str | None = None,
-                                flexible_parts: list[str] | None = None) -> str | None:
+                                flexible_parts: list[str] | None = None,
+                                finish_profile: str | None = None) -> str | None:
     """P5 음료 재연출 지시 — 보존 편집이 아니라 같은 음료의 '새 연출'을 만든다.
 
     재연출 계약(원본 승계): 같은 음료·토핑 / 앵글·구도 자유 / 외래 재료·손·글자 금지 /
@@ -619,6 +652,8 @@ def build_recompose_instruction(style_key: str, subject_en: str,
     scene_direction = ". ".join(
         s.rstrip(".") for s in raw_direction.split(". ") if not s.strip().startswith("No ")
     ) + "."
+    # REAL-001: 미지정 시 plan 기본값("none") → 무주입 → 바이트 동일.
+    finish = _finish_clause(finish_profile if finish_profile is not None else plan.finish_profile)
     return (
         f"Restage this {subject} into a new advertisement composition. "
         f"{vessel_clause}"
@@ -626,6 +661,7 @@ def build_recompose_instruction(style_key: str, subject_en: str,
         f"dynamic advertising shot. {staging_txt}{effect_txt} "
         f"{scene_direction} "
         f"Leave clean empty copy space in the {zone} area. "
+        f"{finish}"
         "Do not add any new ingredients, fruit, garnish, props, hands or people. "
         "Do not generate any new logo, label, lettering, watermark or advertising copy."
     )
