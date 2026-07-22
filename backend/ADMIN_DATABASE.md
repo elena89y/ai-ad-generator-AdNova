@@ -38,3 +38,26 @@ python -m app.scripts.seed_admin
 ```
 
 `seed_admin`은 `ADMIN_USERNAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` 환경 변수를 사용하며, 이미 같은 아이디가 있으면 비밀번호와 역할을 갱신한다.
+
+## 관리자 TOTP
+
+관리자 계정은 인증 앱 기반 2단계 인증(TOTP)을 설정할 수 있다. 운영 환경에서는 아래 Fernet 키를 `SECRET_KEY`와 별도로 설정한다.
+
+```env
+ADMIN_TOTP_ENCRYPTION_KEY=
+```
+
+키는 아래 명령으로 생성할 수 있다.
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+기존 `admin.db`에는 컬럼을 추가해야 한다.
+
+```bash
+cd backend
+python -m app.scripts.migrate_admin_totp
+```
+
+관리자 로그인 API는 TOTP가 활성화된 계정에 `totp_code` 6자리를 추가로 요구한다. 설정 시작·활성화·해제 API는 `/api/admin/totp` 경로 아래에 있다.

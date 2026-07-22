@@ -10,6 +10,8 @@ email-validator
 python-multipart
 python-dotenv
 requests
+pyotp
+cryptography
 
 # Google OAuth
 authlib

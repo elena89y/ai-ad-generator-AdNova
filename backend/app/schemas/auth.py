@@ -89,6 +89,14 @@ class UserLogin(BaseModel):
         return value.lower()
 
 
+class AdminLoginRequest(UserLogin):
+    totp_code: str | None = Field(
+        default=None,
+        pattern=r"^\d{6}$",
+        description="TOTP가 설정된 관리자 계정의 6자리 인증 코드",
+    )
+
+
 class UsernameFindRequest(BaseModel):
     email: EmailStr
 
