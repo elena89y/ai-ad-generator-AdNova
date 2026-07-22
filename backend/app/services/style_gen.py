@@ -22,12 +22,17 @@ def generate_scene(image_path: str, style_key: str, subject_en: str,
                    container_opacity: Optional[str] = None,
                    temperature: Optional[str] = None,
                    text_zone: Optional[str] = None,
-                   flexible_parts: Optional[list[str]] = None) -> str:
+                   flexible_parts: Optional[list[str]] = None,
+                   finish_profile: Optional[str] = None) -> str:
     """도메인별 StylePlan 또는 특수 포맷 지시로 Kontext 편집 후 경로를 반환한다.
 
     staging="recompose"(P5 음료 재연출): 보존 편집 대신 같은 음료의 새 연출을 지시한다.
     container_desc/temperature/text_zone은 호출부가 analyze_photo 결과에서 넘긴다 —
     재연출 계약을 지원하지 않는 스타일이면 preserve로 자연 폴백.
+
+    finish_profile(REAL-001): "photographic" 등 사진적 사실감 finish 절을 지시에 주입한다.
+    None(기본)이면 build_*_instruction 이 plan 기본값("none")을 써 절 무주입 → 바이트 동일
+    (REAL A/B 대조군). 실험 arm이 "photographic"을 넘겨 처리군을 만든다.
     """
     from . import kontext_service
     from .style_specs import get_spec
@@ -38,7 +43,7 @@ def generate_scene(image_path: str, style_key: str, subject_en: str,
         recompose_instr = build_recompose_instruction(
             style_key, subject_en, container_desc=container_desc,
             temperature=temperature, text_zone=text_zone,
-            flexible_parts=flexible_parts,
+            flexible_parts=flexible_parts, finish_profile=finish_profile,
         )
         if recompose_instr:
             kw = {} if steps is None else {"steps": steps}
@@ -68,7 +73,8 @@ def generate_scene(image_path: str, style_key: str, subject_en: str,
     reference_instr = build_reference_instruction(style_key, domain, subject_en,
                                                   container_desc=container_desc,
                                                   container_opacity=container_opacity,
-                                                  palette_override=palette_override)
+                                                  palette_override=palette_override,
+                                                  finish_profile=finish_profile)
     clip_prompt = build_clip_anchor(style_key, domain, subject_en)
 
     # 구성(composition) 유지 절 — 무드 씬 전용 (2026-07-11 콜드런 실측: editorial 이 브런치
