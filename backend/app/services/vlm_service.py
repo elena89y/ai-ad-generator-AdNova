@@ -333,9 +333,17 @@ def generate_platform_copy_local(image_path: str, product_name: str, description
     correction, result = None, {}
     for _ in range(max_retries + 1):
         instr = gpt_service._platform_copy_instruction(product_context, style, allowed, "", correction)
+        # 로컬 4B 폴리시(VLM-001): ①한국어 언어락(중국어·영어 문장 누출 차단) ②없는 재료 지어내기
+        #   금지 강화(headline·body·hashtag 전부 — 자기보고 게이트가 못 잡는 환각을 원천 억제).
+        allow_txt = (", ".join(allowed) if allowed else "이미지에 명확히 보이는 것")
+        lock = ("[필수] 모든 출력(headline·body·hashtags)을 100% 한국어로만 작성해라. "
+                "중국어·영어 문장이나 단어를 절대 쓰지 마라.\n"
+                f"[필수] 재료·토핑은 오직 다음만 근거로 삼아라: {allow_txt}. 이 목록에 없는 재료·토핑"
+                "(예: 펄·타피오카·시럽·견과 등 이미지에 안 보이는 것)을 headline·body·hashtag 어디에도 "
+                "지어내지 마라. 확실하지 않으면 재료를 언급하지 마라.\n\n")
         messages = [{"role": "user", "content": [
             {"type": "image", "image": str(image_path)},
-            {"type": "text", "text": "아래는 완성된 광고 이미지다. 이 이미지를 직접 보고 작성해라.\n\n" + instr}]}]
+            {"type": "text", "text": "아래는 완성된 광고 이미지다. 이 이미지를 직접 보고 작성해라.\n" + lock + instr}]}]
         raw = _generate(messages, max_new=640)
         result = {}
         mm = re.search(r"\{.*\}", raw, re.DOTALL)
