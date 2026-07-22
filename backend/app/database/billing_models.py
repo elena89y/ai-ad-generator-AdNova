@@ -86,6 +86,7 @@ class PurchaseHistory(Base):
     __tablename__ = "purchase_histories"
 
     id = Column(Integer, primary_key=True, index=True)
+    # 탈퇴 시 "탈퇴회원" 센티넬로 재지정해 가명처리-보존(전자상거래법 5년). retention.py 참조.
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     provider = Column(String(50), nullable=True)
     provider_payment_id = Column(String(255), unique=True, nullable=True)
@@ -95,6 +96,7 @@ class PurchaseHistory(Base):
     currency = Column(String(3), default="KRW", nullable=False)
     status = Column(String(30), nullable=False)
     purchased_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    anonymized_at = Column(DateTime(timezone=True), nullable=True)  # 탈퇴 익명화 시각
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
 
@@ -103,6 +105,7 @@ class RefundRequest(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     purchase_id = Column(Integer, ForeignKey("purchase_histories.id"), nullable=False, index=True)
+    # 탈퇴 시 "탈퇴회원" 센티넬로 재지정해 가명처리-보존(전자상거래법 5년). retention.py 참조.
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     amount = Column(Integer, nullable=False)
     reason = Column(String(500), nullable=False)
@@ -111,3 +114,4 @@ class RefundRequest(Base):
     processed_by_admin_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     requested_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     processed_at = Column(DateTime(timezone=True), nullable=True)
+    anonymized_at = Column(DateTime(timezone=True), nullable=True)  # 탈퇴 익명화 시각

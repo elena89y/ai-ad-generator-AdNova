@@ -25,6 +25,11 @@ init_langfuse()
 
 Base.metadata.create_all(bind=engine)
 AdminBase.metadata.create_all(bind=admin_engine)
+# 리텐션 마이그레이션 자동 적용: create_all 이 못 하는 기존 테이블 컬럼 추가(anonymized_at)를
+# 기동 시 멱등하게 반영 → 배포 시 수동 마이그레이션 불필요 (한의정, 07-21).
+from app.scripts.migrate_retention import ensure_retention_columns  # noqa: E402
+
+ensure_retention_columns(engine)
 upload_dir = Path(settings.UPLOAD_DIR)
 upload_dir.mkdir(parents=True, exist_ok=True)
 
@@ -33,6 +38,12 @@ app = FastAPI(
     description="AI Ad Generator Backend API",
     version="0.1.0",
 )
+
+# 리텐션 파기 배치를 인앱 스케줄러로 자동 실행 → 외부 cron 등록 불필요 (한의정, 07-21).
+# RETENTION_PURGE_ENABLED=0 이면 비활성(외부 cron 선택 시).
+from app.services.retention_scheduler import start_purge_scheduler  # noqa: E402
+
+start_purge_scheduler(app)
 
 app.add_middleware(
     SessionMiddleware,
