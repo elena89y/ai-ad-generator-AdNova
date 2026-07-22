@@ -315,7 +315,7 @@ export default function SignupPage() {
               />
               <button
                 type="button"
-                className="btn-secondary"
+                className={emailVerified ? "btn-secondary verified" : "btn-secondary"}
                 disabled={busy || emailVerified || cooldown > 0 || !!emailError}
                 onClick={handleSendCode}
               >
