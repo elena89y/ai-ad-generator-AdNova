@@ -1065,6 +1065,7 @@ def _build_faq_candidate_response(candidate) -> AdminFaqCandidateResponse:
 def promote_inquiry_to_faq(
     inquiry_id: int,
     db: Session = Depends(get_db),
+    admin_db: Session = Depends(get_admin_db),
     current_admin: AdminUser = Depends(get_current_admin),
 ) -> AdminFaqCandidateResponse:
     inquiry = get_inquiry_by_id(db, inquiry_id)
@@ -1081,25 +1082,28 @@ def promote_inquiry_to_faq(
             detail="이미 이 문의로 등록되었거나 승인된 FAQ 후보가 있습니다.",
         )
     try:
+        # 후보(FaqCandidate)는 메인 DB, 감사로그는 admin DB (두-DB 분리, #216 패턴 준수)
         candidate = create_faq_candidate(
             db,
             source_inquiry_id=inquiry.id,
             category=inquiry.category,
             question=inquiry.title,
             answer=inquiry.answer,
-            created_by_admin_id=current_admin.user_id,
+            created_by_admin_id=current_admin.id,
             commit=False,
         )
         create_admin_audit_log(
-            db,
-            admin_user_id=current_admin.user_id,
+            admin_db,
+            admin_user_id=current_admin.id,
             action="faq_candidate.promoted",
             target_type="faq_candidate",
             target_id=candidate.id,
             detail=f"inquiry_id={inquiry.id}",
         )
+        db.commit()
     except Exception:
         db.rollback()
+        admin_db.rollback()
         raise
     return _build_faq_candidate_response(candidate)
 
@@ -1127,6 +1131,7 @@ def update_faq_candidate(
     candidate_id: int,
     request: FaqCandidateStatusUpdateRequest,
     db: Session = Depends(get_db),
+    admin_db: Session = Depends(get_admin_db),
     current_admin: AdminUser = Depends(get_current_admin),
 ) -> AdminFaqCandidateResponse:
     candidate = get_faq_candidate_by_id(db, candidate_id)
@@ -1139,21 +1144,24 @@ def update_faq_candidate(
             detail="이미 검토된 FAQ 후보입니다.",
         )
     try:
+        # 후보(FaqCandidate)는 메인 DB, 감사로그는 admin DB (두-DB 분리, #216 패턴 준수)
         candidate = update_faq_candidate_status(
             db,
             candidate,
             candidate_status=request.status,
-            admin_user_id=current_admin.user_id,
+            admin_user_id=current_admin.id,
             commit=False,
         )
         create_admin_audit_log(
-            db,
-            admin_user_id=current_admin.user_id,
+            admin_db,
+            admin_user_id=current_admin.id,
             action=f"faq_candidate.{request.status}",
             target_type="faq_candidate",
             target_id=candidate.id,
         )
+        db.commit()
     except Exception:
         db.rollback()
+        admin_db.rollback()
         raise
     return _build_faq_candidate_response(candidate)
