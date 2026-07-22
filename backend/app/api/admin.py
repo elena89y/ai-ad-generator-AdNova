@@ -124,6 +124,7 @@ def read_admin_me(
         username=current_admin.username,
         email=current_admin.email,
         role=current_admin.role,
+        totp_enabled=current_admin.totp_enabled,
     )
 
 

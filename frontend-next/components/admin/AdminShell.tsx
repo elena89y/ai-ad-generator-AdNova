@@ -13,6 +13,7 @@ import {
   ReceiptText,
   RotateCcw,
   ScrollText,
+  ShieldCheck,
   UserCog,
   UsersRound,
 } from "lucide-react";
@@ -64,6 +65,11 @@ const navigationItems = [
     href: "/admin/password",
     label: "비밀번호 변경",
     icon: KeyRound,
+  },
+  {
+    href: "/admin/security",
+    label: "2단계 인증",
+    icon: ShieldCheck,
   },
   {
     href: "/admin/refunds",

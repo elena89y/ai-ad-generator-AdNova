@@ -12,6 +12,7 @@ class AdminMeResponse(BaseModel):
     username: str
     email: str
     role: str
+    totp_enabled: bool
 
 
 class AdminAccountResponse(BaseModel):
