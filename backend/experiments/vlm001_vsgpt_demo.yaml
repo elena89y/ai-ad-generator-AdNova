@@ -1,0 +1,6 @@
+# hej4016 실제 프로덕션 광고: GPT카피(DB generated_text) vs VLM 로컬 4매체
+items:
+  - {image: /tmp/hej_ads/ad114.png, name: 한우 등심, core_ingredients: [beef], gpt_copy: "한우 등심의 품격 / 불 위에서 완성되는 깊은 풍미", baked: false}
+  - {image: /tmp/hej_ads/ad112.png, name: 히알루론산 세럼, core_ingredients: [], gpt_copy: "맑음을 채우는 세럼 / 히알루론산의 깊은 보습", baked: false}
+  - {image: /tmp/hej_ads/ad108.png, name: 블루베리 생크림 케이크, core_ingredients: [blueberry, cream], gpt_copy: "블루베리의 깊은 품격 / 부드러운 크림의 여운", baked: true}
+  - {image: /tmp/hej_ads/ad115.png, name: 말차 베리 쿠키, core_ingredients: [matcha, berry], gpt_copy: "말차 베리 톡! / 달콤상큼 한입 충전", baked: true}
