@@ -37,6 +37,7 @@ export default function TemplateApplyPage() {
   const [imageId, setImageId] = useState<number | null>(null);
   const [preview, setPreview] = useState<string>("");
   const [productName, setProductName] = useState("");
+  const [extraRequest, setExtraRequest] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadStep, setLoadStep] = useState(GEN_STEPS[0]);
   const [resultUrl, setResultUrl] = useState<string>("");
@@ -97,6 +98,7 @@ export default function TemplateApplyPage() {
       const fd = new FormData();
       fd.append("image_id", String(imageId));
       fd.append("product_name", productName.trim() || tpl.name);
+      if (extraRequest.trim()) fd.append("extra_request", extraRequest.trim());
       fd.append("template_id", serverTemplateId(tpl.no, tpl.id));
       fd.append("purpose", "sns");
       const res = await apiFetch("/api/ads/generate", { method: "POST", body: fd });
@@ -189,7 +191,23 @@ export default function TemplateApplyPage() {
                   className="rail-input"
                   value={productName}
                   onChange={(e) => setProductName(e.target.value)}
-                  placeholder={`예: ${tpl.name}`}
+                  placeholder={`예: ${tpl.name_examples?.join(", ") ?? tpl.name}`}
+                />
+              </div>
+
+              <div>
+                <div className="rail-label">추가 요청 (선택)</div>
+                <textarea
+                  className="rail-input"
+                  value={extraRequest}
+                  onChange={(e) => setExtraRequest(e.target.value)}
+                  rows={2}
+                  style={{ resize: "vertical" }}
+                  placeholder={
+                    tpl.request_examples?.length
+                      ? `예: ${tpl.request_examples.join(" · ")}`
+                      : "예: 배경을 더 밝게 · 그림자 길게"
+                  }
                 />
               </div>
 
