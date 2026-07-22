@@ -11,6 +11,10 @@ DEFAULT_UPLOAD_DIR = Path(__file__).resolve().parents[2] / "uploads"
 class Settings:
     PROJECT_NAME: str = "AdNova_AI Ad Generator"
     API_PREFIX: str = "/api"
+    ADMIN_DATABASE_URL: str = os.getenv(
+        "ADMIN_DATABASE_URL",
+        "sqlite:///./data/admin.db",
+    )
 
     SECRET_KEY: str = os.getenv("SECRET_KEY", "change-this-secret-key")
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")

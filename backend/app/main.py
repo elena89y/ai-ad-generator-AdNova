@@ -17,13 +17,14 @@ from app.api.export import router as export_router
 from app.core.config import settings
 from app.core.observability import init_langfuse, shutdown_langfuse
 from app.database import admin_models, billing_models, models
-from app.database.connection import Base, engine
+from app.database.connection import AdminBase, Base, admin_engine, engine
 
 # env(.env) 는 core.config 임포트 시점에 이미 로드됨 — Langfuse 는 그 다음, 첫 OpenAI/
 # LangChain 호출보다 반드시 앞서 초기화(자격증명 누락 방지, 마스킹 훅 등록).
 init_langfuse()
 
 Base.metadata.create_all(bind=engine)
+AdminBase.metadata.create_all(bind=admin_engine)
 upload_dir = Path(settings.UPLOAD_DIR)
 upload_dir.mkdir(parents=True, exist_ok=True)
 

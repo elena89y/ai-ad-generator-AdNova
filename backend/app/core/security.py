@@ -53,6 +53,21 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 
+def create_admin_access_token(
+    admin_id: int,
+    role: str,
+    expires_delta: Optional[timedelta] = None,
+) -> str:
+    return create_access_token(
+        {
+            "sub": str(admin_id),
+            "role": role,
+            "token_type": "admin",
+        },
+        expires_delta=expires_delta,
+    )
+
+
 def decode_access_token(token: str) -> dict | None:
     """
     JWT Access Token을 복호화하고 payload를 반환한다.
@@ -100,6 +115,11 @@ def get_current_user(
         )
 
     payload = decode_access_token(credentials.credentials)
+    if payload and payload.get("token_type") == "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="관리자 인증 토큰은 일반 사용자 API에 사용할 수 없습니다.",
+        )
     user_id = payload.get("sub") if payload else None
 
     try:

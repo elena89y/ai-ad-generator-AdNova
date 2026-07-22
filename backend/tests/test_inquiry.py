@@ -15,8 +15,8 @@ from app.api.inquiries import (
     read_user_inquiry_detail,
     read_user_inquiries,
 )
-from app.database.admin_models import AdminAccount, AdminAuditLog
-from app.database.connection import Base
+from app.database.admin_models import AdminAuditLog, AdminUser
+from app.database.connection import AdminBase, Base
 from app.database.models import SupportInquiry, User
 from app.schemas.inquiry import (
     InquiryAnswerUpdateRequest,
@@ -46,26 +46,33 @@ class InquiryApiTestCase(unittest.TestCase):
             password_hash="test-hash",
             is_active=True,
         )
-        self.admin_user = User(
+        self.admin_user = AdminUser(
             email="inquiry-admin@example.com",
             username="inquiryadmin",
             password_hash="test-hash",
             is_active=True,
-        )
-        self.session.add_all([self.user, self.other_user, self.admin_user])
-        self.session.commit()
-
-        self.admin_account = AdminAccount(
-            user_id=self.admin_user.id,
             role="super_admin",
         )
-        self.session.add(self.admin_account)
+        self.session.add_all([self.user, self.other_user])
         self.session.commit()
+
+        self.admin_engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+        )
+        AdminBase.metadata.create_all(bind=self.admin_engine)
+        self.admin_session = sessionmaker(bind=self.admin_engine)()
+        self.admin_session.add(self.admin_user)
+        self.admin_session.commit()
+        self.admin_account = self.admin_user
 
     def tearDown(self) -> None:
         self.session.close()
         Base.metadata.drop_all(bind=self.engine)
         self.engine.dispose()
+        self.admin_session.close()
+        AdminBase.metadata.drop_all(bind=self.admin_engine)
+        self.admin_engine.dispose()
 
     def _create_inquiry(self):
         return create_user_inquiry(
@@ -119,6 +126,7 @@ class InquiryApiTestCase(unittest.TestCase):
             inquiry_id=created.id,
             request=InquiryAnswerUpdateRequest(answer="결제 내역에서 확인할 수 있습니다."),
             db=self.session,
+            admin_db=self.admin_session,
             current_admin=self.admin_account,
         )
 
@@ -127,7 +135,7 @@ class InquiryApiTestCase(unittest.TestCase):
         self.assertEqual(answered.answer, "결제 내역에서 확인할 수 있습니다.")
         self.assertEqual(answered.answered_by_admin_id, self.admin_user.id)
         self.assertEqual(
-            self.session.query(AdminAuditLog)
+            self.admin_session.query(AdminAuditLog)
             .filter(AdminAuditLog.action == "inquiry.answered")
             .count(),
             1,
@@ -140,6 +148,7 @@ class InquiryApiTestCase(unittest.TestCase):
             inquiry_id=created.id,
             request=InquiryStatusUpdateRequest(status="in_progress"),
             db=self.session,
+            admin_db=self.admin_session,
             current_admin=self.admin_account,
         )
 
@@ -157,6 +166,7 @@ class InquiryApiTestCase(unittest.TestCase):
                     inquiry_id=created.id,
                     request=InquiryStatusUpdateRequest(status="in_progress"),
                     db=self.session,
+                    admin_db=self.admin_session,
                     current_admin=self.admin_account,
                 )
 
