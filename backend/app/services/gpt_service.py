@@ -738,6 +738,19 @@ def analyze_menu(name: str) -> MenuAnalysis:
         _NS, "analyze_menu.instruction",
         display_name=display_name or "(빈 입력)", menu_categories=_MENU_CATEGORIES)
     result = _chat_json([{"role": "user", "content": instruction}], label="analyze_menu")
+    return menu_from_result(result, display_name)
+
+
+def build_menu_instruction(name: str) -> str:
+    """analyze_menu 라우팅 프롬프트 조립(원장 YAML). VLM-001 로컬 라우팅이 재사용."""
+    display_name = (name or "").strip()
+    return _prompts.fmt(_NS, "analyze_menu.instruction",
+                        display_name=display_name or "(빈 입력)", menu_categories=_MENU_CATEGORIES)
+
+
+def menu_from_result(result: dict, display_name: str) -> MenuAnalysis:
+    """라우팅 JSON → MenuAnalysis (GPT·로컬 VLM 공용 파서, VLM-001). 화이트리스트 클램프로
+    로컬 2B의 자유형 출력도 안전 범위로 강제한다."""
     low = {str(k).lower(): v for k, v in result.items()} if isinstance(result, dict) else {}
     domain = "object" if str(low.get("domain", "food")).lower().startswith("obj") else "food"
     category = str(low.get("category", "default")).strip().lower()

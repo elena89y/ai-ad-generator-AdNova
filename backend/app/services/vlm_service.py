@@ -245,3 +245,29 @@ def auto_caption(image_path: str) -> dict:
         except json.JSONDecodeError:
             pass
     return {"_ok": False, "_raw": raw}
+
+
+# --- VLM-001 ① 로컬 라우팅 (analyze_menu 무-API 대체) ------------------------------
+def analyze_menu_local(name: str):
+    """Qwen3-VL 로컬 라우팅 — gpt_service.analyze_menu 의 무-OpenAI 대체(VLM-001 ①).
+
+    같은 원장 프롬프트(build_menu_instruction)로 Qwen 텍스트 생성 → JSON 추출 →
+    공용 파서(gpt_service.menu_from_result)로 MenuAnalysis 반환. 2B 자유형 출력은
+    화이트리스트 클램프가 안전 범위로 강제. gpt_service 는 vlm_service.describe 를
+    참조하므로 순환 회피 위해 함수 내부 import.
+    """
+    from . import gpt_service
+    instr = gpt_service.build_menu_instruction(name)
+    messages = [{"role": "user", "content": [{"type": "text", "text": instr}]}]
+    raw = _generate(messages, max_new=256)
+    result: dict = {}
+    m = re.search(r"\{.*\}", raw, re.DOTALL)
+    if m:
+        try:
+            result = json.loads(m.group(0))
+        except json.JSONDecodeError:
+            result = {}
+    ma = gpt_service.menu_from_result(result, (name or "").strip())
+    logger.info("[VLM-001 route] %s → domain=%s food_mode=%s subject=%s (raw_ok=%s)",
+                name, ma.domain, ma.food_mode, ma.subject_en, bool(m))
+    return ma
