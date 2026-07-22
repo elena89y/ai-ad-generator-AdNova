@@ -238,7 +238,7 @@ export async function refreshAdminAccessToken(): Promise<string | null> {
       .then(async (response) => {
         const token = await readAccessToken(response);
         if (!token) return null;
-        storeAdminAuth(token, getStoredAdmin(), isPersistentAdminAuth());
+        storeAdminAuth(token, getStoredAdmin() ?? undefined, isPersistentAdminAuth());
         return token;
       })
       .catch(() => null)
