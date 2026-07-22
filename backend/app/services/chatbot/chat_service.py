@@ -107,6 +107,7 @@ class ChatResult:
     escalate: bool
     sources: list[str] = field(default_factory=list)           # 인용된 FAQ id
     matched_category: Optional[str] = None                     # 1위 FAQ 카테고리
+    rewritten: bool = False                                     # 쿼리 리라이팅 발동(통계용)
     inquiry_draft_title: Optional[str] = None                  # 1:1 문의 프리필용
     inquiry_draft_content: Optional[str] = None
 
@@ -188,11 +189,14 @@ class ChatService:
         if not question:
             return build_escalation("(빈 질문)", [])
 
-        hits, confident, _rewritten = retrieve_with_rewrite(self.retriever, question)
+        hits, confident, rewritten_q = retrieve_with_rewrite(self.retriever, question)
+        rewritten = rewritten_q is not None
         if not confident:
             logger.info("chatbot escalate: %r (top_bm25=%.2f)",
                         question[:50], hits[0].bm25_score if hits else -1.0)
-            return build_escalation(question, hits)
+            result = build_escalation(question, hits)
+            result.rewritten = rewritten
+            return result
 
         answer = _generate(question, hits)
         sources = extract_sources(answer, [h.faq.id for h in hits])
@@ -213,6 +217,7 @@ class ChatService:
             answer=answer,
             escalate=False,
             sources=sources,
+            rewritten=rewritten,
             matched_category=hits[0].faq.category,
         )
 

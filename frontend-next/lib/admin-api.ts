@@ -21,6 +21,37 @@ export interface AdminSummary {
   monthly_paid_purchase_amount: number;
 }
 
+export interface ChatbotCategoryStat {
+  category: string;
+  count: number;
+}
+
+export interface ChatbotFaqStat {
+  faq_id: string;
+  count: number;
+}
+
+export interface AdminChatbotStats {
+  total_chats: number;
+  answered_chats: number;
+  escalated_chats: number;
+  rewritten_chats: number;
+  escalation_rate: number;
+  by_category: ChatbotCategoryStat[];
+  top_cited_faqs: ChatbotFaqStat[];
+}
+
+export interface AdminFaqCandidate {
+  id: number;
+  source_inquiry_id: number | null;
+  category: string;
+  question: string;
+  answer: string;
+  status: "pending" | "approved" | "dismissed";
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AdminManagedUser {
   id: number;
   username: string;
