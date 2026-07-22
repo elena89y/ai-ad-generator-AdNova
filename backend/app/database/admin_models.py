@@ -66,6 +66,8 @@ class AdminUser(AdminBase):
     name = Column(String(100), nullable=True)
     role = Column(String(30), default="operator", nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    totp_secret_encrypted = Column(String(255), nullable=True)
+    totp_enabled = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at = Column(
         DateTime(timezone=True),

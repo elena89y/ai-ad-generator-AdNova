@@ -210,3 +210,20 @@ class AdminPasswordChangeRequest(BaseModel):
 
 class AdminMessageResponse(BaseModel):
     message: str
+
+
+class AdminTotpSetupRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+
+
+class AdminTotpSetupResponse(BaseModel):
+    manual_entry_key: str
+    provisioning_uri: str
+
+
+class AdminTotpVerifyRequest(BaseModel):
+    code: str = Field(pattern=r"^\d{6}$")
+
+
+class AdminTotpDisableRequest(AdminTotpVerifyRequest):
+    current_password: str = Field(min_length=1, max_length=128)

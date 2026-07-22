@@ -6,6 +6,12 @@ from sqlalchemy.orm import Session
 
 from app.core.admin_security import get_current_admin, get_current_super_admin
 from app.core.security import hash_password, verify_password
+from app.core.totp import (
+    build_totp_provisioning_uri,
+    encrypt_totp_secret,
+    generate_totp_secret,
+    verify_totp_code,
+)
 from app.crud.admin import (
     count_active_super_admins,
     count_advertisements_by_user,
@@ -53,6 +59,10 @@ from app.schemas.admin import (
     AdminPurchaseHistoryResponse,
     AdminSubscriptionListResponse,
     AdminSubscriptionResponse,
+    AdminTotpDisableRequest,
+    AdminTotpSetupRequest,
+    AdminTotpSetupResponse,
+    AdminTotpVerifyRequest,
     AdminUserDetailResponse,
     AdminUserListResponse,
     AdminUserResponse,
@@ -1019,3 +1029,95 @@ def change_admin_password(
     )
     admin_db.commit()
     return AdminMessageResponse(message="관리자 비밀번호가 변경되었습니다.")
+
+
+@router.post("/totp/setup", response_model=AdminTotpSetupResponse)
+def setup_admin_totp(
+    request: AdminTotpSetupRequest,
+    admin_db: Session = Depends(get_admin_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminTotpSetupResponse:
+    if not verify_password(request.current_password, current_admin.password_hash):
+        raise HTTPException(status_code=400, detail="현재 비밀번호가 올바르지 않습니다.")
+
+    secret = generate_totp_secret()
+    current_admin.totp_secret_encrypted = encrypt_totp_secret(secret)
+    current_admin.totp_enabled = False
+    create_admin_audit_log(
+        admin_db,
+        admin_user_id=current_admin.id,
+        action="admin.totp_setup_started",
+        target_type="admin",
+        target_id=current_admin.id,
+        commit=False,
+    )
+    admin_db.commit()
+    return AdminTotpSetupResponse(
+        manual_entry_key=secret,
+        provisioning_uri=build_totp_provisioning_uri(secret, current_admin.username),
+    )
+
+
+@router.post("/totp/confirm", response_model=AdminMessageResponse)
+def confirm_admin_totp(
+    request: AdminTotpVerifyRequest,
+    admin_db: Session = Depends(get_admin_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminMessageResponse:
+    if not current_admin.totp_secret_encrypted:
+        raise HTTPException(status_code=400, detail="먼저 TOTP 설정을 시작해 주세요.")
+    try:
+        is_valid_totp = verify_totp_code(
+            current_admin.totp_secret_encrypted,
+            request.code,
+        )
+    except ValueError:
+        is_valid_totp = False
+    if not is_valid_totp:
+        raise HTTPException(status_code=400, detail="인증 코드가 올바르지 않습니다.")
+
+    current_admin.totp_enabled = True
+    create_admin_audit_log(
+        admin_db,
+        admin_user_id=current_admin.id,
+        action="admin.totp_enabled",
+        target_type="admin",
+        target_id=current_admin.id,
+        commit=False,
+    )
+    admin_db.commit()
+    return AdminMessageResponse(message="관리자 2단계 인증이 활성화되었습니다.")
+
+
+@router.delete("/totp", response_model=AdminMessageResponse)
+def disable_admin_totp(
+    request: AdminTotpDisableRequest,
+    admin_db: Session = Depends(get_admin_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminMessageResponse:
+    if not current_admin.totp_enabled or not current_admin.totp_secret_encrypted:
+        raise HTTPException(status_code=400, detail="활성화된 TOTP 인증이 없습니다.")
+    if not verify_password(request.current_password, current_admin.password_hash):
+        raise HTTPException(status_code=400, detail="현재 비밀번호가 올바르지 않습니다.")
+    try:
+        is_valid_totp = verify_totp_code(
+            current_admin.totp_secret_encrypted,
+            request.code,
+        )
+    except ValueError:
+        is_valid_totp = False
+    if not is_valid_totp:
+        raise HTTPException(status_code=400, detail="인증 코드가 올바르지 않습니다.")
+
+    current_admin.totp_secret_encrypted = None
+    current_admin.totp_enabled = False
+    create_admin_audit_log(
+        admin_db,
+        admin_user_id=current_admin.id,
+        action="admin.totp_disabled",
+        target_type="admin",
+        target_id=current_admin.id,
+        commit=False,
+    )
+    admin_db.commit()
+    return AdminMessageResponse(message="관리자 2단계 인증이 해제되었습니다.")
