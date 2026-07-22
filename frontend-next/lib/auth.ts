@@ -1,20 +1,26 @@
 import { authApi } from "./auth-api";
+import {
+  getToken as getStoredToken,
+  isPersistentAuth,
+  logoutSession,
+  storeAuth,
+} from "./api";
 
 export function getToken() {
-  return localStorage.getItem("access_token");
+  return getStoredToken();
 }
 
-export function setToken(token: string) {
-  localStorage.setItem("access_token", token);
+export function setToken(token: string, rememberMe = false) {
+  storeAuth(token, undefined, rememberMe);
 }
 
 export function logout() {
-  localStorage.removeItem("access_token");
-  localStorage.removeItem("user");
+  void logoutSession();
 }
 
 export async function loadUser() {
   const res = await authApi.get("/account/me");
-  localStorage.setItem("user", JSON.stringify(res.data));
+  const token = getStoredToken();
+  if (token) storeAuth(token, res.data, isPersistentAuth());
   return res.data;
 }

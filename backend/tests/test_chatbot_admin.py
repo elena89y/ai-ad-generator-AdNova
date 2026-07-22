@@ -15,7 +15,7 @@ from app.api.admin import (
     read_faq_candidates,
     update_faq_candidate,
 )
-from app.database.admin_models import AdminAccount, AdminAuditLog
+from app.database.admin_models import AdminAuditLog, AdminBase, AdminUser
 from app.database.connection import Base
 from app.database.models import ChatbotEvent, FaqCandidate, SupportInquiry, User
 from app.schemas.admin import FaqCandidateStatusUpdateRequest
@@ -27,13 +27,15 @@ class ChatbotAdminTestCase(unittest.TestCase):
             "sqlite:///:memory:", connect_args={"check_same_thread": False}
         )
         Base.metadata.create_all(bind=self.engine)
+        AdminBase.metadata.create_all(bind=self.engine)
         self.session = sessionmaker(bind=self.engine)()
         self.user = User(email="u@t.com", username="user01", password_hash="x")
         self.admin_user = User(email="a@t.com", username="admin01", password_hash="x")
         self.session.add_all([self.user, self.admin_user])
         self.session.commit()
-        self.admin_account = AdminAccount(
-            user_id=self.admin_user.id, role="super_admin", is_active=True
+        self.admin_account = AdminUser(
+            username="admin01", email="admin@t.com", password_hash="x",
+            role="super_admin", is_active=True
         )
         self.session.add(self.admin_account)
         self.session.commit()
@@ -80,7 +82,7 @@ class ChatbotAdminTestCase(unittest.TestCase):
     def test_promote_answered_inquiry_creates_candidate(self):
         inq = self._add_inquiry()
         res = promote_inquiry_to_faq(
-            inquiry_id=inq.id, db=self.session, current_admin=self.admin_account
+            inquiry_id=inq.id, db=self.session, admin_db=self.session, current_admin=self.admin_account
         )
         self.assertEqual(res.status, "pending")
         self.assertEqual(res.question, "프리미엄 요금?")
@@ -93,60 +95,60 @@ class ChatbotAdminTestCase(unittest.TestCase):
     def test_promote_unanswered_inquiry_409(self):
         inq = self._add_inquiry(status="pending", answer=None)
         with self.assertRaises(HTTPException) as ctx:
-            promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, current_admin=self.admin_account)
+            promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, admin_db=self.session, current_admin=self.admin_account)
         self.assertEqual(ctx.exception.status_code, 409)
 
     def test_promote_missing_inquiry_404(self):
         with self.assertRaises(HTTPException) as ctx:
-            promote_inquiry_to_faq(inquiry_id=999, db=self.session, current_admin=self.admin_account)
+            promote_inquiry_to_faq(inquiry_id=999, db=self.session, admin_db=self.session, current_admin=self.admin_account)
         self.assertEqual(ctx.exception.status_code, 404)
 
     def test_promote_duplicate_pending_409(self):
         inq = self._add_inquiry()
-        promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, current_admin=self.admin_account)
+        promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, admin_db=self.session, current_admin=self.admin_account)
         with self.assertRaises(HTTPException) as ctx:
-            promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, current_admin=self.admin_account)
+            promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, admin_db=self.session, current_admin=self.admin_account)
         self.assertEqual(ctx.exception.status_code, 409)
 
     def test_promote_after_approved_409(self):
         """승인된 후보가 있는 문의를 다시 승격하면 중복 방지 (리뷰 지적 3b)."""
         inq = self._add_inquiry()
-        cand = promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, current_admin=self.admin_account)
+        cand = promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, admin_db=self.session, current_admin=self.admin_account)
         update_faq_candidate(
             candidate_id=cand.id,
             request=FaqCandidateStatusUpdateRequest(status="approved"),
-            db=self.session, current_admin=self.admin_account,
+            db=self.session, admin_db=self.session, current_admin=self.admin_account,
         )
         with self.assertRaises(HTTPException) as ctx:
-            promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, current_admin=self.admin_account)
+            promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, admin_db=self.session, current_admin=self.admin_account)
         self.assertEqual(ctx.exception.status_code, 409)
 
     def test_promote_after_dismissed_allowed(self):
         """기각된 후보만 있으면 재승격 허용 (재검토 여지)."""
         inq = self._add_inquiry()
-        cand = promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, current_admin=self.admin_account)
+        cand = promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, admin_db=self.session, current_admin=self.admin_account)
         update_faq_candidate(
             candidate_id=cand.id,
             request=FaqCandidateStatusUpdateRequest(status="dismissed"),
-            db=self.session, current_admin=self.admin_account,
+            db=self.session, admin_db=self.session, current_admin=self.admin_account,
         )
-        again = promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, current_admin=self.admin_account)
+        again = promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, admin_db=self.session, current_admin=self.admin_account)
         self.assertEqual(again.status, "pending")
 
     def test_update_already_reviewed_candidate_409(self):
         """승인/기각된 후보의 상태 뒤집기 차단 (리뷰 지적 3a)."""
         inq = self._add_inquiry()
-        cand = promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, current_admin=self.admin_account)
+        cand = promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, admin_db=self.session, current_admin=self.admin_account)
         update_faq_candidate(
             candidate_id=cand.id,
             request=FaqCandidateStatusUpdateRequest(status="approved"),
-            db=self.session, current_admin=self.admin_account,
+            db=self.session, admin_db=self.session, current_admin=self.admin_account,
         )
         with self.assertRaises(HTTPException) as ctx:
             update_faq_candidate(
                 candidate_id=cand.id,
                 request=FaqCandidateStatusUpdateRequest(status="dismissed"),
-                db=self.session, current_admin=self.admin_account,
+                db=self.session, admin_db=self.session, current_admin=self.admin_account,
             )
         self.assertEqual(ctx.exception.status_code, 409)
 
@@ -154,13 +156,13 @@ class ChatbotAdminTestCase(unittest.TestCase):
         inq = self._add_inquiry()
         with patch("app.api.admin.create_admin_audit_log", side_effect=RuntimeError("boom")):
             with self.assertRaises(RuntimeError):
-                promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, current_admin=self.admin_account)
+                promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, admin_db=self.session, current_admin=self.admin_account)
         self.assertEqual(self.session.query(FaqCandidate).count(), 0)
 
     # --- 후보 큐 목록 + 승인 --------------------------------------------------
     def test_list_and_approve_candidate(self):
         inq = self._add_inquiry()
-        cand = promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, current_admin=self.admin_account)
+        cand = promote_inquiry_to_faq(inquiry_id=inq.id, db=self.session, admin_db=self.session, current_admin=self.admin_account)
 
         listing = read_faq_candidates(
             skip=0, limit=50, candidate_status="pending",
@@ -171,7 +173,7 @@ class ChatbotAdminTestCase(unittest.TestCase):
         approved = update_faq_candidate(
             candidate_id=cand.id,
             request=FaqCandidateStatusUpdateRequest(status="approved"),
-            db=self.session, current_admin=self.admin_account,
+            db=self.session, admin_db=self.session, current_admin=self.admin_account,
         )
         self.assertEqual(approved.status, "approved")
         self.assertEqual(

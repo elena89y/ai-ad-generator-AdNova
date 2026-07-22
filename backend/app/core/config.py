@@ -17,10 +17,15 @@ class Settings:
     )
 
     SECRET_KEY: str = os.getenv("SECRET_KEY", "change-this-secret-key")
+    ADMIN_TOTP_ENCRYPTION_KEY: str = os.getenv("ADMIN_TOTP_ENCRYPTION_KEY", "")
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
         os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
     )
+    REFRESH_TOKEN_EXPIRE_DAYS: int = int(
+        os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "30")
+    )
+    SESSION_HTTPS_ONLY: bool = os.getenv("SESSION_HTTPS_ONLY", "false").lower() == "true"
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", str(DEFAULT_UPLOAD_DIR))
     # 15MB: 폰 원본(12MB급) 수용 — 업로드 즉시 정규화(장변 2048)로 축소 저장되므로 부담 없음
     MAX_IMAGE_SIZE_MB: int = int(os.getenv("MAX_IMAGE_SIZE_MB", "15"))
@@ -41,6 +46,14 @@ class Settings:
     # LangGraph 문구 품질 게이트 루프 사용 (1=사용, 0=끄고 gpt_service 직접 호출로 폴백).
     # langgraph 미설치 시에도 자동 폴백 — 제거 가능 설계.
     USE_COPY_GATE: bool = os.getenv("USE_COPY_GATE", "1") == "1"
+
+
+    # 이메일 발송 (AWS SES SMTP)
+    SMTP_HOST: str = os.getenv("SMTP_HOST", "email-smtp.ap-northeast-2.amazonaws.com")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USER: str = os.getenv("SMTP_USER", "")
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
+    SMTP_FROM: str = os.getenv("SMTP_FROM", "AdNova <noreply@iridescentseraphim.org>")
 
 
 settings = Settings()

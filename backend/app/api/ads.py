@@ -326,6 +326,7 @@ def generate_ad(
     product_description: str = Form(""),
     style: Optional[StylePreset] = Form(None),
     template_id: Optional[str] = Form(None),  # TEMPLATE-PIPE-V2: 카탈로그 연출 레시피 id
+    extra_request: str = Form(""),            # 템플릿 생성 시 사용자 추가 연출 요청(선택)
     use_vision: bool = Form(False),
     poster: bool = Form(False),
     seed: Optional[int] = Form(None),
@@ -356,6 +357,7 @@ def generate_ad(
             "product_description": product_description,
             "style": style.value if style else None,
             "template_id": template_id,
+            "extra_request": extra_request or None,
             "use_vision": use_vision,
             "poster": poster,
             "seed": seed,
@@ -401,7 +403,8 @@ def generate_ad(
             if template_id is not None:
                 # TEMPLATE-PIPE-V2: 카탈로그 연출 레시피 + identity_grade 보존 (서버측 프롬프트)
                 out = template_generation.generate_from_template(
-                    str(src_path), template_id, product, use_vision=use_vision
+                    str(src_path), template_id, product, use_vision=use_vision,
+                    extra_request=extra_request,
                 )
                 result = _to_response(out)
             elif generation_client.is_remote():

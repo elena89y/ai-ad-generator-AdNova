@@ -76,6 +76,7 @@ class UserLogin(BaseModel):
         description="일반 계정은 7~12자, 관리자 기본 계정은 admin",
     )
     password: str
+    remember_me: bool = False
 
     @field_validator("username")
     @classmethod
@@ -87,6 +88,14 @@ class UserLogin(BaseModel):
                 "아이디는 영문과 숫자만 사용할 수 있으며 7~12자여야 합니다."
             )
         return value.lower()
+
+
+class AdminLoginRequest(UserLogin):
+    totp_code: str | None = Field(
+        default=None,
+        pattern=r"^\d{6}$",
+        description="TOTP가 설정된 관리자 계정의 6자리 인증 코드",
+    )
 
 
 class UsernameFindRequest(BaseModel):

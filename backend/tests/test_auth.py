@@ -1,16 +1,20 @@
 import unittest
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.api.auth import admin_login, find_username, login
+import pyotp
+
+from app.api.auth import admin_login, admin_refresh, find_username, login, logout, refresh
+from app.core.refresh_tokens import issue_user_refresh_token
 from app.core.security import create_admin_access_token, get_current_user, hash_password
-from app.database.admin_models import AdminLoginFailureLog, AdminUser
+from app.core.totp import encrypt_totp_secret, generate_totp_secret
+from app.database.admin_models import AdminLoginFailureLog, AdminRefreshToken, AdminUser
 from app.database.connection import AdminBase, Base
-from app.database.models import User
-from app.schemas.auth import UserLogin, UsernameFindRequest
+from app.database.models import User, UserRefreshToken
+from app.schemas.auth import AdminLoginRequest, UserLogin, UsernameFindRequest
 
 
 class AuthApiTestCase(unittest.TestCase):
@@ -47,6 +51,7 @@ class AuthApiTestCase(unittest.TestCase):
     def test_login_uses_username(self) -> None:
         result = login(
             user_data=UserLogin(username="LOGINUSER", password="Password1!"),
+            response=Response(),
             db=self.session,
             admin_db=self.admin_session,
         )
@@ -59,6 +64,7 @@ class AuthApiTestCase(unittest.TestCase):
         with self.assertRaises(HTTPException) as context:
             login(
                 user_data=UserLogin(username="missinguser", password="Password1!"),
+                response=Response(),
                 db=self.session,
                 admin_db=self.admin_session,
             )
@@ -80,6 +86,7 @@ class AuthApiTestCase(unittest.TestCase):
         with self.assertRaises(HTTPException) as context:
             login(
                 user_data=UserLogin(username="admin", password="Password1!"),
+                response=Response(),
                 db=self.session,
                 admin_db=self.admin_session,
             )
@@ -103,6 +110,7 @@ class AuthApiTestCase(unittest.TestCase):
 
         result = admin_login(
             user_data=UserLogin(username="admin", password="Password1!"),
+            response=Response(),
             admin_db=self.admin_session,
         )
 
@@ -130,6 +138,51 @@ class AuthApiTestCase(unittest.TestCase):
 
         self.assertEqual(context.exception.status_code, 403)
 
+    def test_totp_enabled_admin_requires_valid_code(self) -> None:
+        secret = generate_totp_secret()
+        admin = AdminUser(
+            email="admin@example.com",
+            username="admin",
+            password_hash=hash_password("Password1!"),
+            is_active=True,
+            role="super_admin",
+            totp_secret_encrypted=encrypt_totp_secret(secret),
+            totp_enabled=True,
+        )
+        self.admin_session.add(admin)
+        self.admin_session.commit()
+
+        with self.assertRaises(HTTPException) as missing_code:
+            admin_login(
+                user_data=AdminLoginRequest(username="admin", password="Password1!"),
+                response=Response(),
+                admin_db=self.admin_session,
+            )
+        self.assertEqual(missing_code.exception.status_code, 401)
+
+        with self.assertRaises(HTTPException) as invalid_code:
+            admin_login(
+                user_data=AdminLoginRequest(
+                    username="admin",
+                    password="Password1!",
+                    totp_code="000000",
+                ),
+                response=Response(),
+                admin_db=self.admin_session,
+            )
+        self.assertEqual(invalid_code.exception.status_code, 401)
+
+        response = admin_login(
+            user_data=AdminLoginRequest(
+                username="admin",
+                password="Password1!",
+                totp_code=pyotp.TOTP(secret).now(),
+            ),
+            response=Response(),
+            admin_db=self.admin_session,
+        )
+        self.assertTrue(response["access_token"])
+
     def test_regular_user_cannot_use_admin_login(self) -> None:
         regular_user = User(
             email="user@example.com",
@@ -143,6 +196,7 @@ class AuthApiTestCase(unittest.TestCase):
         with self.assertRaises(HTTPException) as context:
             admin_login(
                 user_data=UserLogin(username="regularuser", password="Password1!"),
+                response=Response(),
                 admin_db=self.admin_session,
             )
 
@@ -156,6 +210,7 @@ class AuthApiTestCase(unittest.TestCase):
         with self.assertRaises(HTTPException) as context:
             admin_login(
                 user_data=UserLogin(username="missinguser", password="Password1!"),
+                response=Response(),
                 admin_db=self.admin_session,
             )
 
@@ -181,6 +236,93 @@ class AuthApiTestCase(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.status_code, 404)
+
+    def test_login_issues_refresh_cookie_and_refresh_rotates_it(self) -> None:
+        login_response = Response()
+        login(
+            user_data=UserLogin(username="loginuser", password="Password1!", remember_me=True),
+            response=login_response,
+            db=self.session,
+            admin_db=self.admin_session,
+        )
+        cookie = login_response.headers["set-cookie"].split(";", 1)[0].split("=", 1)[1]
+        self.assertIn("adnova_refresh_token", login_response.headers["set-cookie"])
+
+        refresh_response = Response()
+        result = refresh(
+            response=refresh_response,
+            refresh_token=cookie,
+            db=self.session,
+        )
+        self.assertTrue(result["access_token"])
+        self.assertIn("adnova_refresh_token", refresh_response.headers["set-cookie"])
+
+    def test_admin_refresh_cookie_is_rotated(self) -> None:
+        admin_user = AdminUser(
+            email="admin@example.com",
+            username="admin",
+            password_hash=hash_password("Password1!"),
+            is_active=True,
+            role="super_admin",
+        )
+        self.admin_session.add(admin_user)
+        self.admin_session.commit()
+
+        login_response = Response()
+        admin_login(
+            user_data=AdminLoginRequest(username="admin", password="Password1!", remember_me=True),
+            response=login_response,
+            admin_db=self.admin_session,
+        )
+        cookie = login_response.headers["set-cookie"].split(";", 1)[0].split("=", 1)[1]
+
+        refresh_response = Response()
+        result = admin_refresh(
+            response=refresh_response,
+            refresh_token=cookie,
+            admin_db=self.admin_session,
+        )
+
+        self.assertTrue(result["access_token"])
+        self.assertIn("adnova_admin_refresh_token", refresh_response.headers["set-cookie"])
+        self.assertEqual(self.admin_session.query(AdminRefreshToken).count(), 2)
+
+    def test_logout_revokes_current_refresh_token(self) -> None:
+        login_response = Response()
+        login(
+            user_data=UserLogin(username="loginuser", password="Password1!"),
+            response=login_response,
+            db=self.session,
+            admin_db=self.admin_session,
+        )
+        cookie = login_response.headers["set-cookie"].split(";", 1)[0].split("=", 1)[1]
+
+        logout(
+            response=Response(),
+            user_refresh_token=cookie,
+            admin_refresh_token=None,
+            db=self.session,
+            admin_db=self.admin_session,
+        )
+
+        stored_token = self.session.query(UserRefreshToken).one()
+        self.assertIsNotNone(stored_token.revoked_at)
+
+    def test_social_login_session_keeps_provider_on_refresh_token(self) -> None:
+        response = Response()
+        issue_user_refresh_token(
+            self.session,
+            response,
+            user_id=self.user.id,
+            auth_provider="google",
+            is_persistent=False,
+        )
+
+        stored_token = self.session.query(UserRefreshToken).one()
+        self.assertEqual(stored_token.auth_provider, "google")
+        self.assertFalse(stored_token.is_persistent)
+        self.assertIn("adnova_refresh_token", response.headers["set-cookie"])
+        self.assertNotIn("Max-Age", response.headers["set-cookie"])
 
 
 if __name__ == "__main__":

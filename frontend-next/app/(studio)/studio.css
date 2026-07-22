@@ -1851,3 +1851,33 @@
     padding: 10px 14px;
   }
 }
+
+
+.btn-secondary {
+  flex-shrink: 0;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid var(--auth-border);
+  background: var(--auth-glow);
+  color: var(--accent-deep);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: rgba(139, 92, 246, 0.28);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary.verified {
+  border-color: rgba(91, 227, 160, 0.45);
+  background: rgba(91, 227, 160, 0.15);
+  color: var(--ok);
+}
