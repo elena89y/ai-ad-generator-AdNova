@@ -311,3 +311,74 @@ def generate_copy_local(image_path: str, product_name: str) -> dict:
     logger.info("[VLM-001 copy] %s → '%s' / '%s' (위반 %d)",
                 product_name, headline, subcopy, len(violations))
     return {"headline": headline, "subcopy": subcopy, "violations": violations, "raw": raw}
+
+
+def generate_platform_copy_local(image_path: str, product_name: str, description: str = "",
+                                 core_ingredients=None, style=None, max_retries: int = 1) -> dict:
+    """Qwen3-VL 로컬 4매체 SNS 카피(VLM-001 ② — gpt_service.generate_platform_copy 무-API 대체).
+
+    완성 광고 이미지를 Qwen 이 '직접 관찰'해(텍스트 캡션 불요, 더 강한 그라운딩) 매체별 페르소나
+    (IG 감성후킹 / FB 정보CTA / X 위트 / Threads 대화체) 카피 생성. gpt_service 의 페르소나·정직성
+    프롬프트·게이트를 그대로 재사용 → GPT 판과 동일 계약. 정직성: claimed_ingredients ⊆ core_ingredients
+    아니면 correction 재시도(환각 차단). 반환 {instagram,facebook,x,threads,claimed_ingredients}.
+    """
+    from . import gpt_service
+    from ..schemas.ads import StylePreset
+    style = style or StylePreset.EDITORIAL
+    parts = [p.strip() for p in (product_name, description) if p and p.strip()]
+    product_context = " — ".join(parts) or "(상품 정보 없음)"
+    allowed = [str(i).strip().lower() for i in (core_ingredients or []) if str(i).strip()]
+    correction, result = None, {}
+    for _ in range(max_retries + 1):
+        instr = gpt_service._platform_copy_instruction(product_context, style, allowed, "", correction)
+        messages = [{"role": "user", "content": [
+            {"type": "image", "image": str(image_path)},
+            {"type": "text", "text": "아래는 완성된 광고 이미지다. 이 이미지를 직접 보고 작성해라.\n\n" + instr}]}]
+        raw = _generate(messages, max_new=640)
+        result = {}
+        mm = re.search(r"\{.*\}", raw, re.DOTALL)
+        if mm:
+            try:
+                result = json.loads(mm.group(0))
+            except json.JSONDecodeError:
+                result = {}
+        claimed = [str(c).strip().lower() for c in (result.get("claimed_ingredients") or [])]
+        extra = [c for c in claimed if c and allowed and not any(c in a or a in c for a in allowed)]
+        if not extra:
+            break
+        correction = extra
+    out: dict = {}
+    for plat in gpt_service._PLATFORM_PERSONA:
+        blk = result.get(plat) or {}
+        out[plat] = {"headline": str(blk.get("headline", "")).strip(),
+                     "body": str(blk.get("body", "")).strip(),
+                     "hashtags": [str(h).strip() for h in (blk.get("hashtags") or []) if str(h).strip()]}
+    out["claimed_ingredients"] = [str(c).strip() for c in (result.get("claimed_ingredients") or [])]
+    logger.info("[VLM-001 platform] %s → 4매체 생성 (정직성 게이트 통과)", product_name)
+    return out
+
+
+def platform_copy_template(product_name: str, core_ingredients=None, style=None) -> dict:
+    """무-AI 규칙/템플릿 4매체 카피 — VLM 채택 판단용 베이스라인(AI가 이거보다 나은가?).
+
+    상품명·핵심재료만으로 매체별 결정론 카피. LLM 0회. VLM 로컬 카피가 이 대비 확실히
+    나아야 AI 모델을 쓸 이유가 있다는 비교 기준(사용자 지시 2026-07-22).
+    """
+    ings = [str(i).strip() for i in (core_ingredients or []) if str(i).strip()]
+    ing_ph = f"{ings[0]}" if ings else product_name
+    tag = product_name.replace(" ", "")
+    return {
+        "instagram": {"headline": f"오늘의 한 컷, {product_name} ✨",
+                      "body": f"{ing_ph} 가득 담은 {product_name}. 사진보다 실물이 더 좋아요 🤍",
+                      "hashtags": [f"#{tag}", "#맛집", "#푸드스타그램", "#먹스타그램", "#오늘뭐먹지", "#데일리푸드"]},
+        "facebook": {"headline": f"{product_name}, 정성껏 준비했습니다",
+                     "body": f"{product_name}를 신선한 재료로 정성껏 만들었습니다. 오늘 특별한 한 끼로 만나보세요. 지금 주문 가능합니다!",
+                     "hashtags": [f"#{tag}", "#추천메뉴"]},
+        "x": {"headline": f"{product_name} 등장",
+              "body": f"{product_name} 한 입이면 오늘 저녁 고민 끝 😋",
+              "hashtags": [f"#{tag}", "#맛집"]},
+        "threads": {"headline": f"{product_name} 어때요?",
+                    "body": f"오늘은 {product_name} 하나로 든든하게. 다들 좋아하실 거예요 :)",
+                    "hashtags": [f"#{tag}"]},
+        "claimed_ingredients": ings[:2],
+    }

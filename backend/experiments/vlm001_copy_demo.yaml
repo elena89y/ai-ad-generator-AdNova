@@ -1,9 +1,6 @@
-# VLM-001 ② 데모: 배치3 완성 광고 이미지(VM lm-track 결과) → 로컬 카피
+# VLM-001 ② 데모: 배치3 완성 광고 → 로컬 4매체 카피 (핵심재료=정직성 게이트/베이스라인용)
 items:
-  - {image: /home/spai0820/lm-track/backend/results/ai/real001/realism/treat/김치찌개_kontext.png, name: 김치찌개}
-  - {image: /home/spai0820/lm-track/backend/results/ai/real001/realism/treat/까르보나라_kontext.png, name: 까르보나라}
-  - {image: /home/spai0820/lm-track/backend/results/ai/real001/realism/treat/핑크레모네이드_kontext.png, name: 핑크레모네이드}
-  - {image: /home/spai0820/lm-track/backend/results/ai/scene_env_ab/dessert-ab/after/딸기롤케이크_kontext.png, name: 딸기롤케이크}
-  - {image: /home/spai0820/lm-track/backend/results/ai/scene_env_ab/dessert-ab/after/딸기생크림케이크_kontext.png, name: 딸기생크림케이크}
-  - {image: /home/spai0820/lm-track/backend/results/ai/scene_env_ab/pal-ab/after/떡볶이_kontext.png, name: 떡볶이}
-  - {image: /home/spai0820/lm-track/backend/results/ai/scene_env_ab/pal-ab/after/김치찌개_kontext.png, name: 김치찌개}
+  - {image: /home/spai0820/lm-track/backend/results/ai/real001/realism/treat/김치찌개_kontext.png, name: 김치찌개, core_ingredients: [kimchi, pork, tofu]}
+  - {image: /home/spai0820/lm-track/backend/results/ai/real001/realism/treat/까르보나라_kontext.png, name: 까르보나라, core_ingredients: [pasta, cream, bacon]}
+  - {image: /home/spai0820/lm-track/backend/results/ai/scene_env_ab/dessert-ab/after/딸기롤케이크_kontext.png, name: 딸기롤케이크, core_ingredients: [strawberry, cream, sponge cake]}
+  - {image: /home/spai0820/lm-track/backend/results/ai/scene_env_ab/pal-ab/after/떡볶이_kontext.png, name: 떡볶이, core_ingredients: [rice cake, gochujang]}
