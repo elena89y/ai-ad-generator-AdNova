@@ -36,8 +36,8 @@ def use_v5(purpose: AdPurpose = AdPurpose.SNS) -> bool:
 
 
 def generate_v5(
-    image_path: str,
-    name: str,
+    image_path: Optional[str] = None,
+    name: str = "",
     purpose: AdPurpose = AdPurpose.SNS,
     knob: Optional[float] = None,
     style: Optional[str] = None,

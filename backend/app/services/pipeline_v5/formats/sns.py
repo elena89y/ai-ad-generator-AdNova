@@ -27,8 +27,14 @@ def render(hero: HeroAsset, spec: FormatSpec, output_dir: str) -> list[str]:
     fitted.save(tmp, quality=95)
 
     out = str(Path(output_dir) / "sns_1080.jpg")
+    # 무-상품(브리프) 경로: load-bearing 정보줄이 있으면 하단 패널 조판으로 전환(사진과 분리해
+    # 오탈자 0으로 정보 전달). 상품 경로는 종전대로 overlay(회귀 0).
+    has_info = bool(hero.info_lines) or bool(hero.fine_print)
     overlay_service.apply_food_poster(
         tmp, hero.headline, hero.subcopy,
-        layout="overlay", style_key=hero.style, output_path=out,
+        layout="panel" if has_info else "overlay",
+        style_key=hero.style, output_path=out,
+        info_lines=list(hero.info_lines) or None,
+        fine_print=hero.fine_print,
     )
     return [out]

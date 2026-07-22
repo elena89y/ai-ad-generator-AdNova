@@ -106,6 +106,53 @@ def build_edit_instruction(subject_en: str, style_hint: str = "",
     return text
 
 
+def build_generate_prompt(scene_en: str, palette_hint: str = "") -> str:
+    """무-상품 배경 생성 프롬프트 조립(문구는 YAML 원장). 글자 없는 배경만(함정 #3)."""
+    return _prompts.fmt(
+        _NS, "generate_base",
+        scene=scene_en or "clean minimal studio background, soft light",
+        palette=palette_hint or _prompts.get(_NS, "generate_palette_default"))
+
+
+def generate_image(prompt: str,
+                   out_dir: str = str(_DEFAULT_OUT_DIR),
+                   model: str = DEFAULT_MODEL, quality: str = "low",
+                   size: str = "1024x1024", run=None) -> str:  # noqa: ANN001 — RunLogger optional
+    """gpt-image text→image 1회 호출(입력 이미지 없음) → 결과 PNG 경로.
+
+    edit_image 의 쌍둥이 — 동일 예산 가드·비용 기록·클라이언트를 공유하고, 차이는
+    client.images.generate(입력 이미지 없음) 뿐. 무-상품(브리프) 경로의 배경 생성 엔진.
+    """
+    estimated = image_cost_of(model, quality=quality) or 0.02
+    _reserve_budget(estimated)
+
+    if run is None:
+        from ..harness.run_logger import current_run
+
+        run = current_run()
+
+    from .gpt_service import _get_client  # Langfuse drop-in 트레이싱 계승
+
+    client = _get_client()
+    response = client.images.generate(
+        model=model, prompt=prompt, size=size, quality=quality)
+
+    b64 = response.data[0].b64_json
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    out_path = out / f"apigen_{uuid.uuid4().hex[:8]}.png"
+    out_path.write_bytes(base64.b64decode(b64))
+
+    if run is not None:
+        try:
+            run.add_image_api_usage(model, n=1, cost_usd=estimated)
+        except Exception:  # noqa: BLE001
+            logger.debug("image_api usage 기록 실패(무해)", exc_info=True)
+    logger.info("api generate 완료 model=%s quality=%s cost≈$%.3f → %s",
+                model, quality, estimated, out_path)
+    return str(out_path)
+
+
 def edit_image(image_path: str, instruction: str,
                out_dir: str = str(_DEFAULT_OUT_DIR),
                model: str = DEFAULT_MODEL, quality: str = "low",

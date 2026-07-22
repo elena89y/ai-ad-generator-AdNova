@@ -947,3 +947,17 @@ def generate_editorial(
 
     out = _P(output_dir) / f"{_P(image_path).stem}_editorial.png"
     return apply_editorial_poster(cleaned, eyebrow, en_name, caption, output_path=str(out))
+
+
+# --- 무-상품(텍스트 브리프) 경로 — 기능 1 (제거 가능 모듈: pipeline_brief) ------
+def run_from_brief(*args, **kwargs):  # noqa: ANN002, ANN003, ANN201 — 위임 시그니처는 패키지 정본
+    """텍스트 브리프만으로 멀티포맷 광고팩 생성 — pipeline_brief 로 위임(guarded, copy_graph 패턴).
+
+    구현·시그니처 정본은 pipeline_brief.run_from_brief. 패키지 삭제/USE_BRIEF_PIPELINE=0 이면
+    명확한 에러로 안내하고 기존 상품 경로(process_ad 등)에는 아무 영향이 없다.
+    """
+    try:
+        from . import pipeline_brief
+    except ImportError as e:  # 패키지 제거 시 — 기능만 사라지고 코어는 무영향
+        raise RuntimeError("brief 파이프라인 미설치 (pipeline_brief 패키지 없음)") from e
+    return pipeline_brief.run_from_brief(*args, **kwargs)

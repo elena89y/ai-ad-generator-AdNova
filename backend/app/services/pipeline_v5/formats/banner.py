@@ -13,10 +13,15 @@ from ..hero import HeroAsset
 
 
 def render(hero: HeroAsset, spec: FormatSpec, output_dir: str) -> list[str]:
-    """매체 규격마다 다른 커머스 문법으로 히어로와 카피를 조판한다."""
+    """매체 규격마다 다른 커머스 문법으로 히어로와 카피를 조판한다.
+
+    무-상품(브리프) 경로: 정보줄/규정문구가 있으면 하단 밴드 높이를 먼저 예약하고
+    본 조판을 축소 캔버스에 렌더 → 밴드가 CTA 등 기존 조판을 절대 가리지 않는다.
+    """
+    import dataclasses
+
     img = Image.open(hero.image_path).convert("RGB")
     mask = _load_mask(hero.mask_path)
-    canvas = fit_hero(img, spec, mask=mask).convert("RGB")
     copy = copy_for(hero)
     renderers = {
         "commerce_wide": _render_wide,
@@ -24,11 +29,73 @@ def render(hero: HeroAsset, spec: FormatSpec, output_dir: str) -> list[str]:
         "smartstore_detail": _render_catalog,
         "commerce_vertical": _render_vertical,
     }
-    canvas = renderers.get(spec.label, _render_vertical)(canvas, copy, spec)
+    render_fn = renderers.get(spec.label, _render_vertical)
+
+    footer = _measure_info_footer(spec, list(hero.info_lines), hero.fine_print)
+    if footer is None:
+        canvas = render_fn(fit_hero(img, spec, mask=mask).convert("RGB"), copy, spec)
+    else:
+        cw, ch = spec.canvas
+        inner = dataclasses.replace(spec, canvas=(cw, ch - footer["band_h"]))
+        body = render_fn(fit_hero(img, inner, mask=mask).convert("RGB"), copy, inner)
+        canvas = Image.new("RGB", spec.canvas, (18, 16, 14))
+        canvas.paste(body, (0, 0))
+        _draw_info_footer(canvas, footer)
+
     cw, ch = canvas.size
     out = str(Path(output_dir) / f"banner_{cw}x{ch}_{spec.label}.jpg")
     canvas.save(out, quality=92)
     return [out]
+
+
+def _measure_info_footer(spec: FormatSpec, info_lines: list, fine_print: str):
+    """하단 정보 밴드 계측 — 없으면 None. 텍스트 폭 맞춤 폰트까지 여기서 확정(결정론)."""
+    if not info_lines and not fine_print:
+        return None
+    cw, ch = spec.canvas
+    base = min(cw, ch)
+    margin = int(base * spec.safe_margin)
+    probe = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+
+    info_text = "   ·   ".join(info_lines) if info_lines else ""
+    info_size = max(15, int(base * 0.032))
+    ifont = _font("medium", info_size)
+    while info_text and probe.textbbox((0, 0), info_text, font=ifont)[2] > cw - 2 * margin and info_size > 12:
+        info_size -= 1
+        ifont = _font("medium", info_size)
+
+    fine_size = max(11, int(base * 0.021))
+    ffont = _font("medium", fine_size)
+    while fine_print and probe.textbbox((0, 0), fine_print, font=ffont)[2] > cw - 2 * margin and fine_size > 10:
+        fine_size -= 1
+        ffont = _font("medium", fine_size)
+
+    gap = int(base * 0.012)
+    pad = int(base * 0.022)
+    band_h = pad * 2
+    if info_text:
+        band_h += info_size + gap
+    if fine_print:
+        band_h += fine_size + gap
+    band_h = min(band_h, int(ch * 0.30))  # 밴드가 캔버스를 삼키지 않게 상한
+    return {"band_h": band_h, "pad": pad, "gap": gap, "info_text": info_text,
+            "info_size": info_size, "ifont": ifont,
+            "fine_print": fine_print, "ffont": ffont}
+
+
+def _draw_info_footer(canvas: Image.Image, f: dict) -> None:
+    """계측된 정보 밴드를 캔버스 최하단에 조판 — 일시/장소/문의처(원문 그대로) + fine print."""
+    cw, ch = canvas.size
+    probe = ImageDraw.Draw(canvas, "RGBA")
+    probe.rectangle((0, ch - f["band_h"], cw, ch), fill=(18, 16, 14, 255))
+    y = ch - f["band_h"] + f["pad"]
+    if f["info_text"]:
+        tw = probe.textbbox((0, 0), f["info_text"], font=f["ifont"])[2]
+        probe.text(((cw - tw) // 2, y), f["info_text"], font=f["ifont"], fill=(236, 232, 226))
+        y += f["info_size"] + f["gap"]
+    if f["fine_print"]:
+        tw = probe.textbbox((0, 0), f["fine_print"], font=f["ffont"])[2]
+        probe.text(((cw - tw) // 2, y), f["fine_print"], font=f["ffont"], fill=(176, 170, 162))
 
 
 def _render_wide(canvas, copy, spec):
