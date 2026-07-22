@@ -1,4 +1,5 @@
-from datetime import timedelta, timezone
+import secrets
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlalchemy import func
@@ -24,7 +25,8 @@ from app.core.totp import verify_totp_code
 from app.crud.admin import create_admin_login_failure_log
 from app.database.connection import get_admin_db, get_db
 from app.database.admin_models import AdminRefreshToken, AdminUser
-from app.database.models import User, UserRefreshToken
+from app.database.models import User, UserRefreshToken, EmailVerification, utc_now
+from app.core.email import send_verification_email
 from app.schemas.auth import (
     AdminLoginRequest,
     UserCreate,
@@ -205,7 +207,119 @@ def check_email(email: str, db: Session = Depends(get_db)):
         .first()
     )
     return AvailabilityResponse(available=existing is None)
-    
+
+
+VERIFICATION_EXPIRE_MINUTES = 5
+RESEND_COOLDOWN_SECONDS = 60
+MAX_VERIFY_ATTEMPTS = 5
+
+
+def _as_aware_utc(dt: datetime) -> datetime:
+    """SQLite 가 naive 로 돌려주는 datetime 을 UTC aware 로 보정."""
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+
+class EmailCodeRequest(BaseModel):
+    email: str
+
+
+class EmailCodeVerifyRequest(BaseModel):
+    email: str
+    code: str
+
+
+@router.post("/send-verification-code")
+def send_verification_code(request: EmailCodeRequest, db: Session = Depends(get_db)):
+    email = request.email.strip().lower()
+
+    existing = db.query(User).filter(func.lower(User.email) == email).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="이미 가입된 이메일입니다.",
+        )
+
+    recent = (
+        db.query(EmailVerification)
+        .filter(EmailVerification.email == email)
+        .order_by(EmailVerification.created_at.desc())
+        .first()
+    )
+    if recent and (utc_now() - _as_aware_utc(recent.created_at)).total_seconds() < RESEND_COOLDOWN_SECONDS:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="잠시 후 다시 시도해 주세요.",
+        )
+
+    code = f"{secrets.randbelow(1000000):06d}"
+
+    db.query(EmailVerification).filter(
+        EmailVerification.email == email,
+        EmailVerification.verified_at.is_(None),
+    ).delete(synchronize_session=False)
+
+    verification = EmailVerification(
+        email=email,
+        code_hash=hash_password(code),
+        expires_at=utc_now() + timedelta(minutes=VERIFICATION_EXPIRE_MINUTES),
+    )
+    db.add(verification)
+    db.commit()
+
+    try:
+        send_verification_email(email, code)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="인증 메일 발송에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+        )
+
+    return {"message": "인증번호가 발송되었습니다."}
+
+
+@router.post("/verify-email-code")
+def verify_email_code(request: EmailCodeVerifyRequest, db: Session = Depends(get_db)):
+    email = request.email.strip().lower()
+
+    verification = (
+        db.query(EmailVerification)
+        .filter(
+            EmailVerification.email == email,
+            EmailVerification.verified_at.is_(None),
+        )
+        .order_by(EmailVerification.created_at.desc())
+        .first()
+    )
+
+    if verification is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="인증번호를 먼저 요청해 주세요.",
+        )
+    if utc_now() > _as_aware_utc(verification.expires_at):
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="인증번호가 만료되었습니다. 다시 요청해 주세요.",
+        )
+    if verification.attempts >= MAX_VERIFY_ATTEMPTS:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="시도 횟수를 초과했습니다. 다시 요청해 주세요.",
+        )
+
+    if not verify_password(request.code, verification.code_hash):
+        verification.attempts += 1
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="인증번호가 올바르지 않습니다.",
+        )
+
+    verification.verified_at = utc_now()
+    db.commit()
+    return {"message": "이메일 인증이 완료되었습니다."}
+
+
 @router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     existing_user = db.query(User).filter(User.email == user_data.email).first()
@@ -215,6 +329,22 @@ def signup(user_data: UserCreate, db: Session = Depends(get_db)):
             status_code=status.HTTP_409_CONFLICT,
             detail="이미 가입된 이메일입니다.",
         )
+
+
+    verified = (
+        db.query(EmailVerification)
+        .filter(
+            func.lower(EmailVerification.email) == user_data.email.lower(),
+            EmailVerification.verified_at.is_not(None),
+        )
+        .first()
+    )
+    if verified is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="이메일 인증이 필요합니다.",
+        )
+
 
     existing_username = db.query(User).filter(User.username == user_data.username).first()
 
