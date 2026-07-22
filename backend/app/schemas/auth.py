@@ -76,6 +76,7 @@ class UserLogin(BaseModel):
         description="일반 계정은 7~12자, 관리자 기본 계정은 admin",
     )
     password: str
+    remember_me: bool = False
 
     @field_validator("username")
     @classmethod

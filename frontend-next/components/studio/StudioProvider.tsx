@@ -22,8 +22,11 @@ import {
   getStoredUser,
   getToken,
   historyToCard,
+  isPersistentAuth,
+  logoutSession,
   readApiError,
   readJsonSafely,
+  refreshAccessToken,
   storeAuth,
   toAbsoluteUrl,
 } from "@/lib/api";
@@ -239,7 +242,7 @@ export default function StudioProvider({ children }: { children: React.ReactNode
   );
 
   const clearAuth = useCallback(() => {
-    clearStoredAuth();
+    void logoutSession();
     setAuthVersion((v) => v + 1);
     setBillingSummaryState(null);
     setBillingPurchases([]);
@@ -255,18 +258,26 @@ export default function StudioProvider({ children }: { children: React.ReactNode
   }, []);
 
   useEffect(() => {
-    const handleAuthExpired = () => clearAuth();
+    const handleAuthExpired = () => {
+      clearAuth();
+      if (!window.location.pathname.startsWith("/login")) {
+        window.location.replace("/login?message=" + encodeURIComponent("로그인이 만료되었습니다. 다시 로그인해 주세요."));
+      }
+    };
     window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
     return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
   }, [clearAuth]);
 
   useEffect(() => {
-    if (!ready || !token) return;
+    if (!ready) return;
 
     let cancelled = false;
 
     async function restoreAuth() {
       try {
+        const activeToken = token || (await refreshAccessToken());
+        if (!activeToken || cancelled) return;
+
         const res = await apiFetch("/api/account/me");
         const data = (await readJsonSafely(res)) as AdnovaUser | null;
 
@@ -278,8 +289,8 @@ export default function StudioProvider({ children }: { children: React.ReactNode
           return;
         }
 
-        if (!cancelled && data && token) {
-          storeAuth(token, data);
+        if (!cancelled && data) {
+          storeAuth(activeToken, data, isPersistentAuth());
           setAuthVersion((v) => v + 1);
         }
       } catch {

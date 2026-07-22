@@ -38,6 +38,19 @@ class User(Base):
     )
 
 
+class UserRefreshToken(Base):
+    __tablename__ = "user_refresh_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    token_hash = Column(String(64), unique=True, nullable=False, index=True)
+    auth_provider = Column(String(30), default="local", nullable=False)
+    is_persistent = Column(Boolean, default=False, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
 class CreditBalance(Base):
     __tablename__ = "credit_balances"
 

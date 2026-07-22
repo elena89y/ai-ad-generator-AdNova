@@ -16,6 +16,7 @@ export default function LoginClient() {
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [message, setMessage] = useState(
     searchParams.get("message") ||
       searchParams.get("oauth_error") ||
@@ -60,6 +61,7 @@ export default function LoginClient() {
       const response = await authApi.post("/auth/login", {
         username: loginId,
         password,
+        remember_me: rememberMe,
       });
 
       const accessToken = response.data?.access_token;
@@ -68,7 +70,7 @@ export default function LoginClient() {
         throw new Error("로그인 토큰을 받지 못했습니다.");
       }
 
-      setToken(accessToken);
+      setToken(accessToken, rememberMe);
 
       const user = await loadUser();
 
@@ -225,6 +227,17 @@ export default function LoginClient() {
               className="auth-input h-12 w-full rounded-xl px-4 text-sm outline-none transition disabled:cursor-not-allowed disabled:opacity-60"
             />
           </div>
+
+          <label className="flex items-center gap-2 text-sm text-white/55">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              disabled={isLoading}
+              onChange={(event) => setRememberMe(event.target.checked)}
+              className="size-4 accent-[var(--accent-deep)]"
+            />
+            로그인 유지
+          </label>
 
           <button
             type="submit"

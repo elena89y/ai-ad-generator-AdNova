@@ -1,6 +1,6 @@
-from datetime import timedelta
+from datetime import timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -8,6 +8,12 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.core.config import settings
+from app.core.refresh_tokens import (
+    generate_refresh_token,
+    hash_refresh_token,
+    refresh_token_expiry,
+    utc_now,
+)
 from app.core.security import (
     create_access_token,
     create_admin_access_token,
@@ -17,8 +23,8 @@ from app.core.security import (
 from app.core.totp import verify_totp_code
 from app.crud.admin import create_admin_login_failure_log
 from app.database.connection import get_admin_db, get_db
-from app.database.admin_models import AdminUser
-from app.database.models import User
+from app.database.admin_models import AdminRefreshToken, AdminUser
+from app.database.models import User, UserRefreshToken
 from app.schemas.auth import (
     AdminLoginRequest,
     UserCreate,
@@ -33,6 +39,9 @@ router = APIRouter(
     prefix="/auth",
     tags=["Auth"],
 )
+
+USER_REFRESH_COOKIE_NAME = "adnova_refresh_token"
+ADMIN_REFRESH_COOKIE_NAME = "adnova_admin_refresh_token"
 
 
 def _authenticate_credentials(user_data: UserLogin, db: Session) -> User:
@@ -71,10 +80,10 @@ def _record_admin_login_failure(
         db.rollback()
 
 
-def _create_login_response(db: Session, user: User) -> dict:
+def _create_login_response(user: User, auth_provider: str = "local") -> dict:
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": str(user.id), "email": user.email, "auth_provider": "local"},
+        data={"sub": str(user.id), "email": user.email, "auth_provider": auth_provider},
         expires_delta=access_token_expires,
     )
     return {
@@ -90,11 +99,92 @@ def _create_login_response(db: Session, user: User) -> dict:
             "is_active": user.is_active,
             "created_at": user.created_at,
             "updated_at": user.updated_at,
-            "auth_provider": "local",
+            "auth_provider": auth_provider,
             "is_admin": False,
             "role": "user",
         },
     }
+
+
+def _set_refresh_cookie(
+    response: Response,
+    *,
+    name: str,
+    token: str,
+    is_persistent: bool,
+) -> None:
+    max_age = settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60 if is_persistent else None
+    response.set_cookie(
+        key=name,
+        value=token,
+        max_age=max_age,
+        httponly=True,
+        secure=settings.SESSION_HTTPS_ONLY,
+        samesite="lax",
+        path="/api/auth",
+    )
+
+
+def _clear_refresh_cookie(response: Response, name: str) -> None:
+    response.delete_cookie(key=name, path="/api/auth")
+
+
+def _is_expired(expires_at) -> bool:
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    return expires_at <= utc_now()
+
+
+def _issue_user_refresh_token(
+    db: Session,
+    response: Response,
+    *,
+    user: User,
+    auth_provider: str,
+    is_persistent: bool,
+) -> None:
+    token = generate_refresh_token()
+    db.add(
+        UserRefreshToken(
+            user_id=user.id,
+            token_hash=hash_refresh_token(token),
+            auth_provider=auth_provider,
+            is_persistent=is_persistent,
+            expires_at=refresh_token_expiry(settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        )
+    )
+    db.commit()
+    _set_refresh_cookie(
+        response,
+        name=USER_REFRESH_COOKIE_NAME,
+        token=token,
+        is_persistent=is_persistent,
+    )
+
+
+def _issue_admin_refresh_token(
+    admin_db: Session,
+    response: Response,
+    *,
+    admin_user: AdminUser,
+    is_persistent: bool,
+) -> None:
+    token = generate_refresh_token()
+    admin_db.add(
+        AdminRefreshToken(
+            admin_user_id=admin_user.id,
+            token_hash=hash_refresh_token(token),
+            is_persistent=is_persistent,
+            expires_at=refresh_token_expiry(settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        )
+    )
+    admin_db.commit()
+    _set_refresh_cookie(
+        response,
+        name=ADMIN_REFRESH_COOKIE_NAME,
+        token=token,
+        is_persistent=is_persistent,
+    )
 
 
 class AvailabilityResponse(BaseModel):
@@ -162,6 +252,7 @@ def signup(user_data: UserCreate, db: Session = Depends(get_db)):
 @router.post("/login")
 def login(
     user_data: UserLogin,
+    response: Response,
     db: Session = Depends(get_db),
     admin_db: Session = Depends(get_admin_db),
 ):
@@ -179,12 +270,20 @@ def login(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
     user = _authenticate_credentials(user_data, db)
-    return _create_login_response(db, user)
+    _issue_user_refresh_token(
+        db,
+        response,
+        user=user,
+        auth_provider="local",
+        is_persistent=user_data.remember_me,
+    )
+    return _create_login_response(user)
 
 
 @router.post("/admin-login")
 def admin_login(
     user_data: AdminLoginRequest,
+    response: Response,
     admin_db: Session = Depends(get_admin_db),
 ):
     admin_user = (
@@ -256,6 +355,12 @@ def admin_login(
                 detail="인증 코드가 올바르지 않습니다.",
             )
 
+    _issue_admin_refresh_token(
+        admin_db,
+        response,
+        admin_user=admin_user,
+        is_persistent=user_data.remember_me,
+    )
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_admin_access_token(
         admin_user.id,
@@ -294,6 +399,106 @@ def find_username(request: UsernameFindRequest, db: Session = Depends(get_db)):
     return UsernameFindResponse(username=user.username)
 
 
+@router.post("/refresh")
+def refresh(
+    response: Response,
+    refresh_token: str | None = Cookie(default=None, alias=USER_REFRESH_COOKIE_NAME),
+    db: Session = Depends(get_db),
+):
+    if not refresh_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="로그인이 만료되었습니다.")
+
+    stored_token = (
+        db.query(UserRefreshToken)
+        .filter(UserRefreshToken.token_hash == hash_refresh_token(refresh_token))
+        .first()
+    )
+    if stored_token is None or stored_token.revoked_at is not None or _is_expired(stored_token.expires_at):
+        _clear_refresh_cookie(response, USER_REFRESH_COOKIE_NAME)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="로그인이 만료되었습니다.")
+
+    user = db.query(User).filter(User.id == stored_token.user_id, User.is_active.is_(True)).first()
+    if user is None:
+        stored_token.revoked_at = utc_now()
+        db.commit()
+        _clear_refresh_cookie(response, USER_REFRESH_COOKIE_NAME)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="로그인이 만료되었습니다.")
+
+    stored_token.revoked_at = utc_now()
+    db.flush()
+    _issue_user_refresh_token(
+        db,
+        response,
+        user=user,
+        auth_provider=stored_token.auth_provider,
+        is_persistent=stored_token.is_persistent,
+    )
+    return _create_login_response(user, stored_token.auth_provider)
+
+
+@router.post("/admin-refresh")
+def admin_refresh(
+    response: Response,
+    refresh_token: str | None = Cookie(default=None, alias=ADMIN_REFRESH_COOKIE_NAME),
+    admin_db: Session = Depends(get_admin_db),
+):
+    if not refresh_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="관리자 로그인이 만료되었습니다.")
+
+    stored_token = (
+        admin_db.query(AdminRefreshToken)
+        .filter(AdminRefreshToken.token_hash == hash_refresh_token(refresh_token))
+        .first()
+    )
+    if stored_token is None or stored_token.revoked_at is not None or _is_expired(stored_token.expires_at):
+        _clear_refresh_cookie(response, ADMIN_REFRESH_COOKIE_NAME)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="관리자 로그인이 만료되었습니다.")
+
+    admin_user = (
+        admin_db.query(AdminUser)
+        .filter(AdminUser.id == stored_token.admin_user_id, AdminUser.is_active.is_(True))
+        .first()
+    )
+    if admin_user is None or admin_user.role not in {"operator", "super_admin"}:
+        stored_token.revoked_at = utc_now()
+        admin_db.commit()
+        _clear_refresh_cookie(response, ADMIN_REFRESH_COOKIE_NAME)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="관리자 로그인이 만료되었습니다.")
+
+    stored_token.revoked_at = utc_now()
+    admin_db.flush()
+    _issue_admin_refresh_token(
+        admin_db,
+        response,
+        admin_user=admin_user,
+        is_persistent=stored_token.is_persistent,
+    )
+    access_token = create_admin_access_token(
+        admin_user.id,
+        admin_user.role,
+        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
 @router.post("/logout")
-def logout():
+def logout(
+    response: Response,
+    user_refresh_token: str | None = Cookie(default=None, alias=USER_REFRESH_COOKIE_NAME),
+    admin_refresh_token: str | None = Cookie(default=None, alias=ADMIN_REFRESH_COOKIE_NAME),
+    db: Session = Depends(get_db),
+    admin_db: Session = Depends(get_admin_db),
+):
+    if user_refresh_token:
+        db.query(UserRefreshToken).filter(
+            UserRefreshToken.token_hash == hash_refresh_token(user_refresh_token)
+        ).update({UserRefreshToken.revoked_at: utc_now()}, synchronize_session=False)
+        db.commit()
+    if admin_refresh_token:
+        admin_db.query(AdminRefreshToken).filter(
+            AdminRefreshToken.token_hash == hash_refresh_token(admin_refresh_token)
+        ).update({AdminRefreshToken.revoked_at: utc_now()}, synchronize_session=False)
+        admin_db.commit()
+    _clear_refresh_cookie(response, USER_REFRESH_COOKIE_NAME)
+    _clear_refresh_cookie(response, ADMIN_REFRESH_COOKIE_NAME)
     return {"message": "로그아웃되었습니다."}
