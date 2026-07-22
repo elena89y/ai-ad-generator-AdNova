@@ -75,3 +75,15 @@ class AdminUser(AdminBase):
         onupdate=utc_now,
         nullable=False,
     )
+
+
+class AdminRefreshToken(AdminBase):
+    __tablename__ = "admin_refresh_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    admin_user_id = Column(Integer, nullable=False, index=True)
+    token_hash = Column(String(64), unique=True, nullable=False, index=True)
+    is_persistent = Column(Boolean, default=False, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)

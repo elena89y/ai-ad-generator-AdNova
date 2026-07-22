@@ -11,7 +11,10 @@ export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? "/api").replace(
 
 const ACCESS_TOKEN_KEY = "access_token";
 const USER_KEY = "user";
+const SESSION_ACCESS_TOKEN_KEY = ACCESS_TOKEN_KEY;
+const SESSION_USER_KEY = USER_KEY;
 export const AUTH_EXPIRED_EVENT = "adnova:auth-expired";
+let refreshPromise: Promise<string | null> | null = null;
 
 function buildApiUrl(path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -149,23 +152,34 @@ export interface PurchaseHistory {
 /* ---------- auth storage ---------- */
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(ACCESS_TOKEN_KEY);
+  return localStorage.getItem(ACCESS_TOKEN_KEY) || sessionStorage.getItem(SESSION_ACCESS_TOKEN_KEY);
 }
 export function getStoredUser(): AdnovaUser | null {
   if (typeof window === "undefined") return null;
   try {
-    return JSON.parse(localStorage.getItem(USER_KEY) || "null");
+    return JSON.parse(
+      localStorage.getItem(USER_KEY) || sessionStorage.getItem(SESSION_USER_KEY) || "null"
+    );
   } catch {
     return null;
   }
 }
-export function storeAuth(token: string, user?: AdnovaUser | null) {
-  localStorage.setItem(ACCESS_TOKEN_KEY, token);
-  if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+export function isPersistentAuth(): boolean {
+  return typeof window !== "undefined" && Boolean(localStorage.getItem(ACCESS_TOKEN_KEY));
+}
+export function storeAuth(token: string, user?: AdnovaUser | null, rememberMe = false) {
+  const storage = rememberMe ? localStorage : sessionStorage;
+  const otherStorage = rememberMe ? sessionStorage : localStorage;
+  otherStorage.removeItem(ACCESS_TOKEN_KEY);
+  otherStorage.removeItem(USER_KEY);
+  storage.setItem(ACCESS_TOKEN_KEY, token);
+  if (user) storage.setItem(USER_KEY, JSON.stringify(user));
 }
 export function clearStoredAuth() {
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  sessionStorage.removeItem(SESSION_ACCESS_TOKEN_KEY);
+  sessionStorage.removeItem(SESSION_USER_KEY);
 }
 
 export function getAuthProvider(): string {
@@ -185,15 +199,59 @@ export function isSocialAuthUser(): boolean {
 }
 
 /* ---------- fetch ---------- */
-export async function apiFetch(path: string, options: RequestInit = {}) {
-  const token = getToken();
-  const response = await fetch(buildApiUrl(path), {
+async function requestApi(path: string, options: RequestInit = {}, token = getToken()) {
+  return fetch(buildApiUrl(path), {
     ...options,
+    credentials: "include",
     headers: {
       ...(options.headers || {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
+}
+
+export async function refreshAccessToken(): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+  if (!refreshPromise) {
+    refreshPromise = fetch(buildApiUrl("/auth/refresh"), {
+      method: "POST",
+      credentials: "include",
+    })
+      .then(async (response) => {
+        const data = (await readJsonSafely(response)) as { access_token?: string } | null;
+        if (!response.ok || !data?.access_token) return null;
+        storeAuth(data.access_token, getStoredUser(), isPersistentAuth());
+        return data.access_token;
+      })
+      .catch(() => null)
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
+
+export async function logoutSession(): Promise<void> {
+  try {
+    await fetch(buildApiUrl("/auth/logout"), { method: "POST", credentials: "include" });
+  } finally {
+    clearStoredAuth();
+  }
+}
+
+export async function apiFetch(path: string, options: RequestInit = {}) {
+  let response = await requestApi(path, options);
+
+  if (
+    response.status === 401 &&
+    path !== "/auth/refresh" &&
+    path !== "/auth/logout" &&
+    path !== "/api/auth/refresh" &&
+    path !== "/api/auth/logout"
+  ) {
+    const refreshedToken = await refreshAccessToken();
+    if (refreshedToken) response = await requestApi(path, options, refreshedToken);
+  }
 
   if (response.status === 401 && typeof window !== "undefined") {
     clearStoredAuth();

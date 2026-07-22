@@ -9,10 +9,14 @@ import {
 } from "react";
 import {
   type AdminUser,
+  ADMIN_AUTH_EXPIRED_EVENT,
   adminApiFetch,
   clearAdminAuth,
   getAdminToken,
   getStoredAdmin,
+  isPersistentAdminAuth,
+  logoutAdminSession,
+  refreshAdminAccessToken,
   storeAdminAuth,
 } from "@/lib/admin-api";
 import { readJsonSafely } from "@/lib/api";
@@ -20,7 +24,7 @@ import { readJsonSafely } from "@/lib/api";
 interface AdminContextValue {
   ready: boolean;
   admin: AdminUser | null;
-  signIn: (token: string) => Promise<AdminUser>;
+  signIn: (token: string, rememberMe?: boolean) => Promise<AdminUser>;
   signOut: () => void;
   refreshAdmin: () => Promise<AdminUser | null>;
 }
@@ -38,7 +42,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [admin, setAdmin] = useState<AdminUser | null>(null);
 
   const refreshAdmin = useCallback(async (): Promise<AdminUser | null> => {
-    const token = getAdminToken();
+    const existingToken = getAdminToken();
+    const token = existingToken || (await refreshAdminAccessToken());
     if (!token) {
       setAdmin(null);
       return null;
@@ -54,7 +59,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         return null;
       }
 
-      storeAdminAuth(token, data);
+      storeAdminAuth(token, data, isPersistentAdminAuth());
       setAdmin(data);
       return data;
     } catch {
@@ -67,9 +72,23 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     void refreshAdmin().finally(() => setReady(true));
   }, [refreshAdmin]);
 
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      clearAdminAuth();
+      setAdmin(null);
+      if (!window.location.pathname.startsWith("/admin/login")) {
+        window.location.replace(
+          "/admin/login?message=" + encodeURIComponent("관리자 로그인이 만료되었습니다. 다시 로그인해 주세요.")
+        );
+      }
+    };
+    window.addEventListener(ADMIN_AUTH_EXPIRED_EVENT, handleAuthExpired);
+    return () => window.removeEventListener(ADMIN_AUTH_EXPIRED_EVENT, handleAuthExpired);
+  }, []);
+
   const signIn = useCallback(
-    async (token: string): Promise<AdminUser> => {
-      storeAdminAuth(token);
+    async (token: string, rememberMe = false): Promise<AdminUser> => {
+      storeAdminAuth(token, undefined, rememberMe);
       const currentAdmin = await refreshAdmin();
 
       if (!currentAdmin) {
@@ -83,7 +102,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signOut = useCallback(() => {
-    clearAdminAuth();
+    void logoutAdminSession();
     setAdmin(null);
   }, []);
 
