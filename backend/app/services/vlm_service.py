@@ -22,13 +22,15 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-MODEL_REPO = "Qwen/Qwen3-VL-2B-Instruct"  # bf16 네이티브(양자화 의존성 0)
+# 기본 2B(브링업·캘리브 완료). VLM-001 재측정용 4B는 VLM_MODEL_REPO 로 오버라이드.
+MODEL_REPO = os.environ.get("VLM_MODEL_REPO", "Qwen/Qwen3-VL-2B-Instruct")  # bf16 네이티브
 _MAX_NEW = 320
 
 _model = None
