@@ -30,6 +30,7 @@ export default function BillingPage() {
   const summary = s.billingSummary;
   const subscription = summary?.subscription;
   const paymentMethod = summary?.payment_method;
+  const bonusCredits = summary?.bonus_credits_remaining ?? 0;
   const isPremium = s.isPremium;
   const cancelPending = Boolean(subscription?.cancel_at_period_end);
   const hasBillingData = Boolean(
@@ -76,6 +77,7 @@ export default function BillingPage() {
                 크레딧 <b>{s.freeLeft}</b>
               </>
             )}
+            {bonusCredits > 0 && <> · 보너스 <b>{bonusCredits}</b></>}
           </span>
         }
       />
@@ -307,6 +309,12 @@ export default function BillingPage() {
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <span style={{ color: "var(--ink-mute)" }}>이번 달 남은 생성</span>
                     <b>{s.premiumLeft}/{s.premiumTotal}회</b>
+                  </div>
+                )}
+                {bonusCredits > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "var(--ink-mute)" }}>보너스 크레딧</span>
+                    <b>{bonusCredits}개</b>
                   </div>
                 )}
                 <div style={{ display: "flex", justifyContent: "space-between" }}>

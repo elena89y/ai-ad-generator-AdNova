@@ -20,6 +20,7 @@ const ACTION_LABELS: Record<string, string> = {
   "admin.login_failed": "관리자 로그인 실패",
   "user.status_updated": "회원 계정 상태 변경",
   "user.subscription_updated": "회원 플랜 변경",
+  "user.bonus_credits_granted": "보너스 크레딧 지급",
   "purchase.refunded": "결제 환불",
   "refund.approved": "환불 신청 승인",
   "refund.rejected": "환불 신청 거절",

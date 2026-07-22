@@ -30,8 +30,10 @@ from ..core.security import get_current_user
 from ..crud.advertisement import create_advertisement
 from ..crud.billing import get_subscription_by_user
 from ..crud.credits import (
+    consume_bonus_credit,
     consume_free_credit,
     consume_premium_credit,
+    restore_bonus_credit,
     restore_free_credit,
     restore_premium_credit,
 )
@@ -76,6 +78,9 @@ def _remove_temporary_upload(path: Path | None) -> None:
 
 
 def _consume_generation_credit(db: Session, user_id: int) -> str:
+    if consume_bonus_credit(db, user_id) is not None:
+        return "bonus"
+
     subscription = get_subscription_by_user(db, user_id)
     is_premium = bool(
         subscription
@@ -103,6 +108,9 @@ def _consume_generation_credit(db: Session, user_id: int) -> str:
 
 
 def _restore_generation_credit(db: Session, user_id: int, credit_type: str) -> None:
+    if credit_type == "bonus":
+        restore_bonus_credit(db, user_id)
+        return
     if credit_type == "premium":
         subscription = get_subscription_by_user(db, user_id)
         restore_premium_credit(

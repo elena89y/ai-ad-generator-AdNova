@@ -5,12 +5,16 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.crud.credits import (
+    consume_bonus_credit,
     consume_free_credit,
+    get_bonus_credits_remaining,
     consume_premium_credit,
     get_credit_balance,
     get_credit_status,
     get_premium_credit_status,
+    grant_bonus_credits,
     grant_premium_credits,
+    restore_bonus_credit,
     restore_free_credit,
     restore_premium_credit,
 )
@@ -55,6 +59,13 @@ class CreditBalanceCrudTestCase(unittest.TestCase):
         consume_free_credit(self.session, self.user.id)
 
         self.assertEqual(restore_free_credit(self.session, self.user.id), 3)
+
+    def test_bonus_credits_are_persistent_and_can_be_restored(self) -> None:
+        self.assertEqual(get_bonus_credits_remaining(self.session, self.user.id), 0)
+        grant_bonus_credits(self.session, self.user.id, 5)
+
+        self.assertEqual(consume_bonus_credit(self.session, self.user.id), 4)
+        self.assertEqual(restore_bonus_credit(self.session, self.user.id), 5)
 
     def test_one_credit_is_refilled_every_24_hours(self) -> None:
         now = datetime(2026, 7, 15, 12, 0, tzinfo=timezone.utc)

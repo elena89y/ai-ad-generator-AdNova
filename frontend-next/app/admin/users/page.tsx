@@ -6,6 +6,7 @@ import { RefreshCw, Search, UserRoundCheck, UserRoundX, UsersRound, X } from "lu
 import { AdminShell } from "@/components/admin/AdminShell";
 import { useAdmin } from "@/components/admin/AdminProvider";
 import {
+  type AdminBonusCreditGrantResult,
   type AdminListResponse,
   type AdminManagedUser,
   type AdminUserDetail,
@@ -53,6 +54,7 @@ export default function AdminUsersPage() {
   const [detailTarget, setDetailTarget] = useState<AdminManagedUser | null>(null);
   const [detailUser, setDetailUser] = useState<AdminUserDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [bonusCreditAmount, setBonusCreditAmount] = useState("10");
 
   const loadUsers = useCallback(async (filters: UserFilters) => {
     const params = new URLSearchParams({ limit: "100" });
@@ -167,6 +169,44 @@ export default function AdminUsersPage() {
       setDetailTarget(null);
     } finally {
       setDetailLoading(false);
+    }
+  }
+
+  async function grantBonusCredits() {
+    if (!detailUser) return;
+    const amount = Number(bonusCreditAmount);
+    if (!Number.isInteger(amount) || amount < 1 || amount > 10000) {
+      setMessage("지급할 크레딧은 1~10,000 사이의 정수로 입력해 주세요.");
+      setMessageKind("error");
+      return;
+    }
+    if (!window.confirm(`${detailUser.username}님에게 보너스 크레딧 ${amount}개를 지급할까요?`)) return;
+
+    setProcessingId(detailUser.id);
+    setMessage("");
+    setMessageKind(null);
+    try {
+      const response = await adminApiFetch(`/admin/users/${detailUser.id}/bonus-credits`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount }),
+      });
+      const data = (await readJsonSafely(response)) as AdminBonusCreditGrantResult | null;
+      if (!response.ok || !data) {
+        throw new Error(readApiError(data, "보너스 크레딧을 지급하지 못했습니다."));
+      }
+      setDetailUser((current) => (
+        current?.id === data.user_id
+          ? { ...current, bonus_credits_remaining: data.bonus_credits_remaining }
+          : current
+      ));
+      setMessage(`${detailUser.username}님에게 보너스 크레딧 ${amount}개를 지급했습니다.`);
+      setMessageKind("success");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "보너스 크레딧을 지급하지 못했습니다.");
+      setMessageKind("error");
+    } finally {
+      setProcessingId(null);
     }
   }
 
@@ -364,6 +404,7 @@ export default function AdminUsersPage() {
               {detailLoading || !detailUser ? (
                 <p className="py-12 text-center text-sm text-white/50">회원 상세 정보를 불러오고 있습니다.</p>
               ) : (
+                <>
                 <dl className="mt-6 grid gap-y-3 text-sm sm:grid-cols-[8rem_minmax(0,1fr)]">
                   <dt className="text-white/45">회원 ID</dt>
                   <dd className="font-semibold text-white">{detailUser.id}</dd>
@@ -377,6 +418,8 @@ export default function AdminUsersPage() {
                   <dd className="text-white/80">{detailUser.business_type || "-"}</dd>
                   <dt className="text-white/45">플랜 / 구독 상태</dt>
                   <dd className="text-white/80">{detailUser.plan === "premium" ? "프리미엄" : "무료"} · {detailUser.subscription_status || "-"}</dd>
+                  <dt className="text-white/45">보너스 크레딧</dt>
+                  <dd className="font-semibold text-[#ddd6fe]">{detailUser.bonus_credits_remaining.toLocaleString("ko-KR")}개</dd>
                   <dt className="text-white/45">계정 상태</dt>
                   <dd className={detailUser.is_active ? "text-[#8af0bd]" : "text-[#fca5a5]"}>{detailUser.is_active ? "활성" : "비활성"}</dd>
                   <dt className="text-white/45">광고 생성 수</dt>
@@ -386,6 +429,33 @@ export default function AdminUsersPage() {
                   <dt className="text-white/45">마지막 수정</dt>
                   <dd className="text-white/80">{formatDate(detailUser.updated_at)}</dd>
                 </dl>
+                {canManageUsers && (
+                  <div className="mt-6 border-t border-white/10 pt-5">
+                    <p className="text-sm font-bold text-white">보너스 크레딧 지급</p>
+                    <p className="mt-1 text-xs text-white/45">무료 일일 충전과 프리미엄 월간 크레딧과 별도로 누적됩니다.</p>
+                    <div className="mt-3 flex gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        max="10000"
+                        step="1"
+                        value={bonusCreditAmount}
+                        onChange={(event) => setBonusCreditAmount(event.target.value)}
+                        className="h-10 w-32 border border-white/15 bg-[#0b1729] px-3 text-sm text-white outline-none focus:border-[#a78bfa]"
+                        aria-label="지급할 보너스 크레딧 수량"
+                      />
+                      <button
+                        type="button"
+                        disabled={processingId === detailUser.id}
+                        onClick={() => void grantBonusCredits()}
+                        className="h-10 bg-[#8b5cf6] px-4 text-sm font-extrabold text-white transition hover:bg-[#a78bfa] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        지급
+                      </button>
+                    </div>
+                  </div>
+                )}
+                </>
               )}
             </section>
           </div>
