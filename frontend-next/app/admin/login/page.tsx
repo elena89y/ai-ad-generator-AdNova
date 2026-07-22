@@ -20,6 +20,8 @@ export default function AdminLoginPage() {
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [totpCode, setTotpCode] = useState("");
+  const [requiresTotp, setRequiresTotp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -42,6 +44,10 @@ export default function AdminLoginPage() {
       );
       return;
     }
+    if (requiresTotp && !/^\d{6}$/.test(totpCode)) {
+      setMessage("인증 앱의 6자리 코드를 입력해 주세요.");
+      return;
+    }
 
     setLoading(true);
 
@@ -56,6 +62,7 @@ export default function AdminLoginPage() {
           body: JSON.stringify({
             username: username.trim(),
             password,
+            ...(requiresTotp ? { totp_code: totpCode } : {}),
           }),
         }
       );
@@ -66,12 +73,9 @@ export default function AdminLoginPage() {
         )) as AdminLoginResponse | null;
 
       if (!response.ok || !data?.access_token) {
-        throw new Error(
-          readApiError(
-            data,
-            "관리자 로그인에 실패했습니다."
-          )
-        );
+        const errorMessage = readApiError(data, "관리자 로그인에 실패했습니다.");
+        if (errorMessage.includes("6자리 코드")) setRequiresTotp(true);
+        throw new Error(errorMessage);
       }
 
       await signIn(data.access_token);
@@ -187,6 +191,35 @@ export default function AdminLoginPage() {
               placeholder="관리자 아이디를 입력하세요"
             />
           </div>
+
+          {requiresTotp && (
+            <div>
+              <label
+                htmlFor="adminTotpCode"
+                className="mb-2 block text-sm font-semibold text-white/75"
+              >
+                인증 앱 코드
+              </label>
+
+              <input
+                id="adminTotpCode"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={totpCode}
+                disabled={loading}
+                onChange={(event) =>
+                  setTotpCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+                className="auth-input h-12 w-full rounded-xl px-4 text-sm tracking-[0.25em] outline-none transition disabled:cursor-not-allowed disabled:opacity-60"
+                placeholder="6자리 인증 코드"
+              />
+
+              <p className="mt-2 text-xs leading-5 text-white/40">
+                Google Authenticator 등 인증 앱에 표시된 코드를 입력해 주세요.
+              </p>
+            </div>
+          )}
 
           <div>
             <label

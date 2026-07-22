@@ -8,6 +8,7 @@ export interface AdminUser {
   username: string;
   email: string;
   role: "operator" | "super_admin";
+  totp_enabled: boolean;
 }
 
 export interface AdminSummary {
