@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.crud.billing import expire_ended_subscriptions
 from app.crud.credits import grant_premium_credits
+from app.crud.retention import WITHDRAWN_USERNAME
 from app.database.admin_models import (
     AdminAuditLog,
     AdminLoginFailureLog,
@@ -35,7 +36,8 @@ def get_admin_summary(db: Session) -> dict[str, int]:
     )
 
     return {
-        "total_users": db.query(User).count(),
+        # 탈퇴회원 센티넬 제외 (active_users 는 is_active=False 라 이미 제외됨)
+        "total_users": db.query(User).filter(User.username != WITHDRAWN_USERNAME).count(),
         "active_users": db.query(User).filter(User.is_active.is_(True)).count(),
         "premium_users": (
             db.query(Subscription)
@@ -246,7 +248,7 @@ def list_users_for_admin(
     query = db.query(User, Subscription).outerjoin(
         Subscription,
         Subscription.user_id == User.id,
-    )
+    ).filter(User.username != WITHDRAWN_USERNAME)  # 탈퇴회원 센티넬은 회원목록에서 제외
     if search:
         keyword = f"%{search}%"
         query = query.filter(

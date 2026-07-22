@@ -1,10 +1,9 @@
 from sqlalchemy.orm import Session
 
+from app.crud.retention import anonymize_legal_records_for_user
 from app.database.billing_models import (
     PaymentMethod,
     PremiumCreditBalance,
-    PurchaseHistory,
-    RefundRequest,
     Subscription,
 )
 from app.database.models import (
@@ -14,7 +13,6 @@ from app.database.models import (
     History,
     Image,
     NotificationSettings,
-    SupportInquiry,
     User,
 )
 
@@ -69,6 +67,12 @@ def delete_user_account(db: Session, user: User) -> list[str]:
     ]
 
     try:
+        # 법정 보존 기록(문의 3년·구매/환불 5년)은 삭제하지 않고 가명처리-보존한다.
+        # user_id 를 "탈퇴회원" 센티넬 계정으로 재지정(NOT NULL 유지)하므로 개인 식별
+        # 링크만 끊긴다. (전자상거래법 시행령 제6조 + 개인정보보호법 제21조 — retention.py 참조)
+        anonymize_legal_records_for_user(db, user_id)
+
+        # 운영 데이터는 종전대로 즉시 파기.
         db.query(CreditRefillState).filter(
             CreditRefillState.user_id == user_id
         ).delete(synchronize_session=False)
@@ -78,9 +82,6 @@ def delete_user_account(db: Session, user: User) -> list[str]:
         db.query(NotificationSettings).filter(
             NotificationSettings.user_id == user_id
         ).delete(synchronize_session=False)
-        db.query(SupportInquiry).filter(SupportInquiry.user_id == user_id).delete(
-            synchronize_session=False
-        )
         db.query(History).filter(History.user_id == user_id).delete(
             synchronize_session=False
         )
@@ -88,12 +89,6 @@ def delete_user_account(db: Session, user: User) -> list[str]:
             synchronize_session=False
         )
         db.query(Image).filter(Image.user_id == user_id).delete(
-            synchronize_session=False
-        )
-        db.query(RefundRequest).filter(RefundRequest.user_id == user_id).delete(
-            synchronize_session=False
-        )
-        db.query(PurchaseHistory).filter(PurchaseHistory.user_id == user_id).delete(
             synchronize_session=False
         )
         db.query(PremiumCreditBalance).filter(
