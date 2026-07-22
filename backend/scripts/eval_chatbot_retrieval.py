@@ -35,7 +35,7 @@ GOLDEN_PATH = Path(__file__).resolve().parents[1] / "experiments" / "chatbot_gol
 OUT_DIR = Path(__file__).resolve().parents[1] / "results" / "ai"
 TOP_K = 3
 
-ANSWERABLE_TYPES = ("direct", "paraphrase", "typo")
+ANSWERABLE_TYPES = ("direct", "paraphrase", "typo", "guide")
 ESCALATE_TYPES = ("adjacent", "offtopic", "injection")
 
 

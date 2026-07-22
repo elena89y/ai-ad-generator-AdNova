@@ -16,8 +16,8 @@ bidmate eval_quant_judge 패턴 승계 (비동기 병렬 + 지수 백오프, jud
   0회라 실호출은 생성 ≤13회 + judge ≤14회 = 약 30회 미만 (gpt-5.4-mini).
   실행 후 총 토큰을 리포트에 기록 — $30 팀 한도 장부.
 
-⚠️ judge 한계 (bidmate 때와 동일하게 명시): 생성과 judge 가 같은 모델(gpt-5.4-mini)
-  — self-preference 편향 가능. 교차 judge(로컬 Qwen)는 VLM-001 이후 추가 예정.
+judge 모델: 생성(gpt-5.4-mini)과 다른 상위 티어(CHATBOT_JUDGE_MODEL, 기본 gpt-5.4)로 분리
+  — judge≠생성 원칙(자기평가 편향 제거). 로컬 Qwen 교차 judge 는 VLM-001 이후.
 
 실행 (backend/ 에서, OPENAI_API_KEY 필요 — VM):
   ../.venv/bin/python scripts/eval_chatbot_generation.py
@@ -52,7 +52,12 @@ from app.services.chatbot.retrieval import HybridRetriever  # noqa: E402
 
 GOLDEN_PATH = _BACKEND / "experiments" / "chatbot_golden_v1.yaml"
 OUT_DIR = _BACKEND / "results" / "ai"
-JUDGE_MODEL = gpt_service.GPT_MODEL  # 고정 — 스코어 비교가능성 (모델 바꾸면 재채점)
+# judge ≠ 생성 모델 원칙(judge-model-distinct-from-generator): 챗봇 답변을 gpt-5.4-mini 가
+# 생성하는데 judge 도 mini 면 "같은 모델이 같은 modality 자기 산출을 채점" = 진짜 자기평가.
+# OpenAI-only 이므로 judge 를 생성보다 상위 티어로 분리(자기평가 편향 방지).
+# 상위 티어 = gpt-5.4 (gpt-5.4-mini 상위 풀 모델, 사용자 확정 2026-07-22).
+# 필요 시 CHATBOT_JUDGE_MODEL 로 override. Qwen 교차 judge 는 VLM-001 이후.
+JUDGE_MODEL = os.getenv("CHATBOT_JUDGE_MODEL", "gpt-5.4")
 CONCURRENCY = 4
 MAX_RETRIES = 3
 
@@ -197,7 +202,8 @@ async def _run() -> None:
         f"(1~5, judge={JUDGE_MODEL})",
         f"- answerable 답변률 {metrics['answer_rate']:.0%} ({n_answered}/{n_ans_cases})",
         f"- 토큰: 생성 {gen_tokens} + judge {judge_tokens} = {gen_tokens + judge_tokens} ($30 장부 기록용)",
-        "- ⚠️ 생성=judge 동일 모델(self-preference 가능) — 교차 judge 는 VLM-001 이후",
+        f"- judge={JUDGE_MODEL} ≠ 생성={gpt_service.GPT_MODEL} (상위 티어 분리로 자기평가 편향 제거). "
+        "로컬 Qwen 교차 judge 는 VLM-001 이후 추가 예정.",
         "",
         "## 케이스별",
         *detail,
