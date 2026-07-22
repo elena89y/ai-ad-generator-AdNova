@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.refresh_tokens import issue_user_refresh_token
 from app.core.security import create_access_token, hash_password
 from app.database.connection import get_db
 from app.database.models import User
@@ -315,7 +316,15 @@ def naver_callback(
         f"&is_new_user={'true' if is_new_user else 'false'}"
     )
 
-    return RedirectResponse(
+    response = RedirectResponse(
         url=redirect_url,
         status_code=status.HTTP_302_FOUND,
     )
+    issue_user_refresh_token(
+        db,
+        response,
+        user_id=user.id,
+        auth_provider="naver",
+        is_persistent=False,
+    )
+    return response

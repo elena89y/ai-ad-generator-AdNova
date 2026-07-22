@@ -9,8 +9,10 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 from app.core.refresh_tokens import (
+    USER_REFRESH_COOKIE_NAME,
     generate_refresh_token,
     hash_refresh_token,
+    issue_user_refresh_token,
     refresh_token_expiry,
     utc_now,
 )
@@ -40,7 +42,6 @@ router = APIRouter(
     tags=["Auth"],
 )
 
-USER_REFRESH_COOKIE_NAME = "adnova_refresh_token"
 ADMIN_REFRESH_COOKIE_NAME = "adnova_admin_refresh_token"
 
 
@@ -143,21 +144,11 @@ def _issue_user_refresh_token(
     auth_provider: str,
     is_persistent: bool,
 ) -> None:
-    token = generate_refresh_token()
-    db.add(
-        UserRefreshToken(
-            user_id=user.id,
-            token_hash=hash_refresh_token(token),
-            auth_provider=auth_provider,
-            is_persistent=is_persistent,
-            expires_at=refresh_token_expiry(settings.REFRESH_TOKEN_EXPIRE_DAYS),
-        )
-    )
-    db.commit()
-    _set_refresh_cookie(
+    issue_user_refresh_token(
+        db,
         response,
-        name=USER_REFRESH_COOKIE_NAME,
-        token=token,
+        user_id=user.id,
+        auth_provider=auth_provider,
         is_persistent=is_persistent,
     )
 

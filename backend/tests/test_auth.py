@@ -8,6 +8,7 @@ from sqlalchemy.orm import sessionmaker
 import pyotp
 
 from app.api.auth import admin_login, admin_refresh, find_username, login, logout, refresh
+from app.core.refresh_tokens import issue_user_refresh_token
 from app.core.security import create_admin_access_token, get_current_user, hash_password
 from app.core.totp import encrypt_totp_secret, generate_totp_secret
 from app.database.admin_models import AdminLoginFailureLog, AdminRefreshToken, AdminUser
@@ -306,6 +307,22 @@ class AuthApiTestCase(unittest.TestCase):
 
         stored_token = self.session.query(UserRefreshToken).one()
         self.assertIsNotNone(stored_token.revoked_at)
+
+    def test_social_login_session_keeps_provider_on_refresh_token(self) -> None:
+        response = Response()
+        issue_user_refresh_token(
+            self.session,
+            response,
+            user_id=self.user.id,
+            auth_provider="google",
+            is_persistent=False,
+        )
+
+        stored_token = self.session.query(UserRefreshToken).one()
+        self.assertEqual(stored_token.auth_provider, "google")
+        self.assertFalse(stored_token.is_persistent)
+        self.assertIn("adnova_refresh_token", response.headers["set-cookie"])
+        self.assertNotIn("Max-Age", response.headers["set-cookie"])
 
 
 if __name__ == "__main__":
