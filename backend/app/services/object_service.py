@@ -69,22 +69,12 @@ def _clarity(rgb, amount):
     return rgb + amount * (rgb - blur)
 
 
-def _gloss(rgb, amount, mask=None):
-    """스펙큘러 하이라이트 부스트. 니(knee)를 제품 자체 휘도 분포에 적응.
-
-    구 버전은 니 0.62 고정 → 다크/무광(헤드폰: lum 대부분 <0.62)엔 하이라이트가
-    전혀 안 붙어 '죽은 무광', 흰 제품(텀블러: lum~0.9)엔 과발화로 흰-위-흰 날아감
-    (DINO 열세 재질 0.70 vs 향수 0.81의 코드 원인). 마스크가 오면 제품 픽셀 휘도의
-    78퍼센타일을 니로 잡아 각 재질의 상대적 밝은 부위(림·엣지·유약)에만 자연 배치.
-    """
+def _gloss(rgb, amount):
+    # REVERT 2026-07-22: 적응형 니(percentile)는 item1 강화 폐기와 함께 원복(고정 0.62).
     if amount <= 0:
         return rgb
     lum = rgb @ np.array([0.299, 0.587, 0.114], np.float32)
-    if mask is not None and mask.sum() >= 20:
-        knee = float(np.clip(np.percentile(lum[mask], 78), 0.35, 0.72))
-    else:
-        knee = 0.62  # 마스크 없으면 구 동작 유지
-    hi = (np.clip((lum - knee) / max(1.0 - knee, 1e-3), 0, 1) ** 2)[..., None]
+    hi = (np.clip((lum - 0.62) / 0.38, 0, 1) ** 2)[..., None]
     return rgb + amount * hi * (1.0 - rgb)
 
 
@@ -99,7 +89,7 @@ def clean_object(product_rgba: Image.Image, material: str = "default",
     rgb = _neutral_wb(rgb, mask, p["wb"] * k)
     rgb = _sat(rgb, p["sat"] * k)
     rgb = _clarity(rgb, p["clarity"] * k)
-    rgb = _gloss(rgb, p["gloss"] * k, mask=mask)
+    rgb = _gloss(rgb, p["gloss"] * k)
     out = _to_img(rgb).convert("RGBA")
     out.putalpha(product_rgba.split()[-1])
     return out

@@ -629,43 +629,17 @@ def _flat_color_background(
         return _add_contact_shadow(canvas, product_mask)
 
     if mode == "studio":
-        # 클린 스튜디오 (C모드 사물 제품컷): 딥톤 백드롭 + 히어로 헤일로 + 바닥 반사.
-        #   음식·카페와 달리 사물은 '먹음직'이 아니라 '정확·깔끔'이 목표 → 무채색.
-        #   ⚠️ 구 버전(평면 흰 스윕 248→225)은 흰/밝은 사물이 배경에 묻힘(텀블러 밋밋의
-        #   구조적 원인). specs object_studio 요구대로 (1)제품 뒤 방사 스포트라이트로 밝은
-        #   halo + 코너는 딥톤으로 떨궈 형태 분리, (2)접지선 바닥 글로시 반사로 제품감 부여.
-        from PIL import ImageFilter
-
-        # 제품 중심·접지선 (halo·반사 배치 기준). 마스크 없으면 프레임 기준 폴백.
-        m = np.asarray(product_mask.convert("L"), dtype=np.float64)
-        if m.sum() > 255.0:
-            ys, xs = np.nonzero(m > 127)
-            cx, cy = float(xs.mean()) / w, float(ys.mean()) / h
-            floor_y = int(ys.max())
-        else:
-            cx, cy, floor_y = 0.5, 0.46, int(h * 0.9)
-
-        # 딥톤 백드롭: 상단 라이트 → 하단 딥. 흰 사물도 뜨도록 코너를 충분히 떨굼.
-        top = np.array([236.0, 236.0, 238.0])
-        bot = np.array([196.0, 195.0, 198.0])
+        # 클린 스튜디오 스윕 (C모드 사물 제품컷): 중립 밝은 그라데이션 + 중앙 소프트광.
+        #   음식·카페와 달리 사물은 '먹음직'이 아니라 '정확·깔끔'이 목표 → 무채색 배경.
+        #   (REVERT 2026-07-22: 딥톤+헤일로+바닥반사 강화는 육안 개선 미미해 아트디렉터 폐기.)
+        top = np.array([248.0, 248.0, 249.0])
+        bot = np.array([225.0, 223.0, 222.0])
         t = np.linspace(0, 1, h)[:, None, None]
         canvas = np.tile(top[None, None, :] * (1 - t) + bot[None, None, :] * t, (1, w, 1))
-        # 히어로 헤일로: 제품 중심 뒤 방사 소프트광(코너 대비 형태 분리).
         yy, xx = np.mgrid[0:h, 0:w]
-        r = np.sqrt(((xx - w * cx) / (w * 0.62)) ** 2 + ((yy - h * cy) / (h * 0.62)) ** 2)
-        halo = np.clip(1 - r, 0, 1) ** 1.6
-        canvas = np.clip(canvas + halo[..., None] * 46.0, 0, 255)
+        r = np.sqrt(((xx - w * 0.5) / (w * 0.5)) ** 2 + ((yy - h * 0.42) / (h * 0.55)) ** 2)
+        canvas = np.clip(canvas + np.clip(1 - r, 0, 1)[..., None] * 12.0, 0, 255)
         canvas = Image.fromarray(canvas.astype(np.uint8))
-
-        # 바닥 글로시 반사: 제품을 접지선 기준 상하반전 → 알파 페이드 + 블러.
-        refl = product_rgba.transpose(Image.FLIP_TOP_BOTTOM)
-        ra = np.asarray(refl.split()[-1], dtype=np.float64)
-        fade = np.clip(np.linspace(1.0, 0.0, h)[:, None] * 1.15, 0, 1)  # 위(접점)→아래 소멸
-        refl.putalpha(Image.fromarray((ra * 0.26 * fade).clip(0, 255).astype(np.uint8)))
-        refl = refl.filter(ImageFilter.GaussianBlur(2.0))
-        off = 2 * floor_y - h  # 원본 접지선(floor_y)이 반전상 접점과 만나도록 수직 오프셋
-        canvas.paste(refl, (0, off), refl)
-
         canvas.paste(product_rgba, (0, 0), product_rgba)
         return _add_contact_shadow(canvas, product_mask)
 
