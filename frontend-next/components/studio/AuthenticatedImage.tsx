@@ -158,6 +158,8 @@ export function AuthenticatedImage({
       {...props}
       src={displaySrc}
       alt={alt ?? ""}
+      className={className}
+      style={style}
       onError={() => {
         setDisplaySrc("");
         setLoadState("error");
