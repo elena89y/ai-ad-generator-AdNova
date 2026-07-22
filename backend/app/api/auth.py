@@ -8,10 +8,15 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.core.config import settings
-from app.core.security import create_access_token, hash_password, verify_password
+from app.core.security import (
+    create_access_token,
+    create_admin_access_token,
+    hash_password,
+    verify_password,
+)
 from app.crud.admin import create_admin_login_failure_log
-from app.database.connection import get_db
-from app.database.admin_models import AdminAccount
+from app.database.connection import get_admin_db, get_db
+from app.database.admin_models import AdminUser
 from app.database.models import User
 from app.schemas.auth import (
     UserCreate,
@@ -46,22 +51,18 @@ def _authenticate_credentials(user_data: UserLogin, db: Session) -> User:
     return user
 
 
-def _get_admin_account(db: Session, user_id: int) -> AdminAccount | None:
-    return db.query(AdminAccount).filter(AdminAccount.user_id == user_id).first()
-
-
 def _record_admin_login_failure(
     db: Session,
     *,
     username: str,
     reason: str,
-    user_id: int | None = None,
+    admin_user_id: int | None = None,
 ) -> None:
     try:
         create_admin_login_failure_log(
             db,
             attempted_username=username,
-            user_id=user_id,
+            admin_user_id=admin_user_id,
             reason=reason,
         )
     except Exception:
@@ -74,8 +75,6 @@ def _create_login_response(db: Session, user: User) -> dict:
         data={"sub": str(user.id), "email": user.email, "auth_provider": "local"},
         expires_delta=access_token_expires,
     )
-    admin_account = _get_admin_account(db, user.id)
-
     return {
         "access_token": access_token,
         "token_type": "bearer",
@@ -90,8 +89,8 @@ def _create_login_response(db: Session, user: User) -> dict:
             "created_at": user.created_at,
             "updated_at": user.updated_at,
             "auth_provider": "local",
-            "is_admin": admin_account is not None and admin_account.is_active,
-            "role": admin_account.role if admin_account else "user",
+            "is_admin": False,
+            "role": "user",
         },
     }
 
@@ -159,68 +158,68 @@ def signup(user_data: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login")
-def login(user_data: UserLogin, db: Session = Depends(get_db)):
-    user = _authenticate_credentials(user_data, db)
-    admin_account = _get_admin_account(db, user.id)
-    if admin_account is not None:
+def login(
+    user_data: UserLogin,
+    db: Session = Depends(get_db),
+    admin_db: Session = Depends(get_admin_db),
+):
+    admin_user = (
+        admin_db.query(AdminUser)
+        .filter(AdminUser.username == user_data.username)
+        .first()
+    )
+    if admin_user is not None:
         detail = (
             "비활성화된 관리자 계정입니다."
-            if not admin_account.is_active
+            if not admin_user.is_active
             else "관리자 계정은 관리자 페이지에서 로그인해 주세요."
         )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
+    user = _authenticate_credentials(user_data, db)
     return _create_login_response(db, user)
 
 
 @router.post("/admin-login")
-def admin_login(user_data: UserLogin, db: Session = Depends(get_db)):
-    try:
-        user = _authenticate_credentials(user_data, db)
-    except HTTPException as exc:
-        matched_user = (
-            db.query(User).filter(User.username == user_data.username).first()
-        )
+def admin_login(
+    user_data: UserLogin,
+    admin_db: Session = Depends(get_admin_db),
+):
+    admin_user = (
+        admin_db.query(AdminUser)
+        .filter(AdminUser.username == user_data.username)
+        .first()
+    )
+    if admin_user is None or not verify_password(
+        user_data.password,
+        admin_user.password_hash if admin_user else "",
+    ):
         _record_admin_login_failure(
-            db,
+            admin_db,
             username=user_data.username,
-            user_id=matched_user.id if matched_user else None,
-            reason=(
-                "비활성화된 계정"
-                if exc.status_code == status.HTTP_403_FORBIDDEN
-                else "아이디 또는 비밀번호 불일치"
-            ),
-        )
-        raise
-
-    admin_account = _get_admin_account(db, user.id)
-    if admin_account is None:
-        _record_admin_login_failure(
-            db,
-            username=user.username,
-            user_id=user.id,
-            reason="일반 사용자 계정으로 관리자 로그인을 시도함",
+            admin_user_id=admin_user.id if admin_user else None,
+            reason="아이디 또는 비밀번호 불일치",
         )
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="일반 사용자 계정은 관리자 페이지에서 로그인할 수 없습니다.",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="아이디 또는 비밀번호가 올바르지 않습니다.",
         )
-    if not admin_account.is_active:
+    if not admin_user.is_active:
         _record_admin_login_failure(
-            db,
-            username=user.username,
-            user_id=user.id,
+            admin_db,
+            username=admin_user.username,
+            admin_user_id=admin_user.id,
             reason="비활성화된 관리자 계정",
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="비활성화된 관리자 계정입니다.",
         )
-    if admin_account.role not in {"operator", "super_admin"}:
+    if admin_user.role not in {"operator", "super_admin"}:
         _record_admin_login_failure(
-            db,
-            username=user.username,
-            user_id=user.id,
+            admin_db,
+            username=admin_user.username,
+            admin_user_id=admin_user.id,
             reason="유효하지 않은 관리자 역할",
         )
         raise HTTPException(
@@ -228,7 +227,26 @@ def admin_login(user_data: UserLogin, db: Session = Depends(get_db)):
             detail="유효한 관리자 역할이 없습니다.",
         )
 
-    return _create_login_response(db, user)
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_admin_access_token(
+        admin_user.id,
+        admin_user.role,
+        expires_delta=access_token_expires,
+    )
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": admin_user.id,
+            "email": admin_user.email,
+            "username": admin_user.username,
+            "name": admin_user.name,
+            "is_active": admin_user.is_active,
+            "auth_provider": "local",
+            "is_admin": True,
+            "role": admin_user.role,
+        },
+    }
 
 
 @router.post("/find-username", response_model=UsernameFindResponse)
