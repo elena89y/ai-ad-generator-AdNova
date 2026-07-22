@@ -8,6 +8,7 @@ from app.core.admin_security import get_current_admin, get_current_super_admin
 from app.core.security import hash_password, verify_password
 from app.core.totp import (
     build_totp_provisioning_uri,
+    build_totp_qr_code_data_url,
     encrypt_totp_secret,
     generate_totp_secret,
     verify_totp_code,
@@ -1065,9 +1066,11 @@ def setup_admin_totp(
         commit=False,
     )
     admin_db.commit()
+    provisioning_uri = build_totp_provisioning_uri(secret, current_admin.username)
     return AdminTotpSetupResponse(
         manual_entry_key=secret,
-        provisioning_uri=build_totp_provisioning_uri(secret, current_admin.username),
+        provisioning_uri=provisioning_uri,
+        qr_code_data_url=build_totp_qr_code_data_url(provisioning_uri),
     )
 
 
