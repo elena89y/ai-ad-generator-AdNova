@@ -65,11 +65,13 @@ class FaqEndpointTestCase(unittest.TestCase):
 class ChatEndpointTestCase(unittest.TestCase):
     def setUp(self):
         self.client = _make_client()
-        # 게이트 루프는 별도 케이스에서 검증 — 여기선 직접 생성 경로 고정
+        # 게이트 루프·tier-2 는 별도 케이스에서 검증 — 여기선 근거 답변/에스컬레이션 이분법 고정
         os.environ["USE_CHAT_GATE"] = "0"
+        os.environ["USE_GENERAL_TIER"] = "0"
 
     def tearDown(self):
         os.environ.pop("USE_CHAT_GATE", None)
+        os.environ.pop("USE_GENERAL_TIER", None)
 
     def test_answerable_question_returns_sources(self):
         canned = "Premium은 월 9,900원입니다.\n[근거: faq-bill-002]"
@@ -116,6 +118,48 @@ class ChatEndpointTestCase(unittest.TestCase):
             res = self.client.post("/support/chat", json={"question": "내일 서울 날씨 알려줘"})
         gen.assert_not_called()
         self.assertTrue(res.json()["escalate"])
+
+
+class ChatGeneralTierTestCase(unittest.TestCase):
+    """tier-2 일반답변: 안전 카테고리는 답하고, 요금·정책·오프토픽은 에스컬레이션."""
+
+    def setUp(self):
+        self.client = _make_client()
+        os.environ["USE_GENERAL_TIER"] = "1"
+        # 저신뢰 유도: 리라이팅은 지식 밖 키워드 반환(재검색도 실패), 근거 답변 경로 미진입
+        self._rw = patch.object(chat_service, "rewrite_query", return_value="동영상 광고 편집")
+        self._rw.start()
+
+    def tearDown(self):
+        self._rw.stop()
+        os.environ.pop("USE_GENERAL_TIER", None)
+
+    def test_general_tier_answers_safe_question(self):
+        """FAQ 밖 안전 질문 → 일반답변(escalate=False, general=True, 헤지 포함)."""
+        with patch.object(chat_service, "general_answer", return_value="일반적으로 가능합니다.") as g:
+            res = self.client.post("/support/chat", json={"question": "동영상 광고도 편집되나요?"})
+        g.assert_called_once()
+        body = res.json()
+        self.assertFalse(body["escalate"])
+        self.assertIn("일반적으로", body["answer"])
+
+    def test_general_tier_refuses_and_escalates(self):
+        """FAQ 밖 질문이라도 general_answer 가 None(민감/오프토픽 판정) → 에스컬레이션."""
+        # 저신뢰 질문(동영상 편집=KB 밖)으로 tier-2 진입 후, 모델이 거절했다고 가정
+        with patch.object(chat_service, "general_answer", return_value=None) as g:
+            res = self.client.post("/support/chat", json={"question": "동영상 광고도 편집되나요?"})
+        g.assert_called_once()
+        self.assertTrue(res.json()["escalate"])
+
+    def test_offtopic_skips_general_tier(self):
+        """리라이터 OFFTOPIC 판정이면 일반답변 시도 없이 바로 에스컬레이션."""
+        self._rw.stop()
+        with patch.object(chat_service, "rewrite_query", return_value="OFFTOPIC"), \
+             patch.object(chat_service, "general_answer") as g:
+            res = self.client.post("/support/chat", json={"question": "파스타 레시피 알려줘"})
+        g.assert_not_called()
+        self.assertTrue(res.json()["escalate"])
+        self._rw.start()  # tearDown 대칭
 
     def test_pending_policy_source_appends_notice(self):
         """미확정 정책(needs_confirmation) 근거 인용 시 '추후 보완' 고지가 코드로 부착."""
