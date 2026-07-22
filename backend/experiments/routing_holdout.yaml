@@ -1,0 +1,18 @@
+seed: 42
+items:
+  - {name: 한우 등심, expected_mode: dish}
+  - {name: 히알루론산 세럼, expected_mode: object}
+  - {name: 블루베리 생크림 케이크, expected_mode: cafe}
+  - {name: 말차 베리 쿠키, expected_mode: cafe}
+  - {name: 김치찌개, expected_mode: dish}
+  - {name: 까르보나라, expected_mode: dish}
+  - {name: 떡볶이, expected_mode: dish}
+  - {name: 크루아상, expected_mode: cafe}
+  - {name: 핑크 레모네이드, expected_mode: cafe}
+  - {name: 한정식 상차림, expected_mode: dish}
+  - {name: 헤드폰, expected_mode: object}
+  - {name: 텀블러, expected_mode: object}
+  - {name: 향수, expected_mode: object}
+  - {name: 아포가토, expected_mode: cafe}
+  - {name: 에어팟, expected_mode: object}
+  - {name: 그릭요거트볼, expected_mode: cafe}
