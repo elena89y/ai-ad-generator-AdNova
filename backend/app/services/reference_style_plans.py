@@ -630,7 +630,10 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         # 디저트(케이크류)는 접시를 상품이 아닌 연출요소로 보고 예쁜 접시로 재플레이팅한다.
         #   vessel(유리 디저트 용기)이 아닐 때만 — 굽 유리볼 빙수 등은 위에서 이미 보존 처리.
         if plan.domain == "food" and _is_dessert_subject(subject):
-            identity_lock = _IDENTITY_LOCKS["food_dessert"]
+            # DESSERT-AB: 재플레이팅(238c288) before/after 인세션 토글. 기본 on=현행(바이트 동일),
+            #   DESSERT_REPLATE=0 이면 구 동작(접시 보존=freeze plate)으로 폴백 → A/B 대조군.
+            if os.environ.get("DESSERT_REPLATE", "1") != "0":
+                identity_lock = _IDENTITY_LOCKS["food_dessert"]
         hero = _prompts.get(_NS, "container.hero_default")
         container_clause = _prompts.get(_NS, "container.realism_clause_default")
     direction = plan.direction

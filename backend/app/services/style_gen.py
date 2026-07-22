@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import os
 from typing import Optional
 
 
@@ -67,7 +68,9 @@ def generate_scene(image_path: str, style_key: str, subject_en: str,
     #   입력 이미지에서 제품 색 추출 → 제품군 분류 → 하모니 레시피 로테이션. 다른 스타일은 미적용
     #   (파스텔·모노톤은 롤아웃 후속). palette_override 미전달 스타일은 기존 문구와 바이트 동일.
     palette_override = None
-    if normalize_style(style_key) == "pop":
+    # PAL-AB: 적응형 팔레트(PAL-001) before/after 인세션 토글. 기본 on=현행(바이트 동일),
+    #   PAL_ADAPTIVE=0 이면 고정 _POP_PALETTES 폴백(구 동작) → A/B 대조군.
+    if normalize_style(style_key) == "pop" and os.environ.get("PAL_ADAPTIVE", "1") != "0":
         from . import palette_gen
         palette_override = palette_gen.pop_palette_clause(subject_en, domain, image_path, seed)
     reference_instr = build_reference_instruction(style_key, domain, subject_en,
