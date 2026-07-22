@@ -14,6 +14,7 @@ from app.crud.billing import (
 from app.crud.credits import (
     DEFAULT_FREE_CREDITS,
     PREMIUM_MONTHLY_CREDITS,
+    get_bonus_credits_remaining,
     get_credit_status,
     get_premium_credit_status,
 )
@@ -57,6 +58,7 @@ def _build_summary(db: Session, user_id: int) -> BillingSummaryResponse:
         free_credits_remaining=credit_balance.free_credits_remaining,
         free_credit_limit=DEFAULT_FREE_CREDITS,
         next_free_credit_at=next_refill_at,
+        bonus_credits_remaining=get_bonus_credits_remaining(db, user_id),
         premium_credits_remaining=(
             premium_balance.credits_remaining if premium_balance else None
         ),

@@ -14,6 +14,7 @@ from app.api.admin import (
     read_admin_accounts,
     read_admin_audit_logs,
     read_admin_me,
+    grant_admin_user_bonus_credits,
     setup_admin_totp,
     update_admin_account_status_by_super_admin,
     update_admin_user_status,
@@ -28,6 +29,7 @@ from app.schemas.admin import (
     AdminAccountCreateRequest,
     AdminAccountStatusUpdateRequest,
     AdminUserStatusUpdateRequest,
+    AdminBonusCreditGrantRequest,
     AdminTotpDisableRequest,
     AdminTotpSetupRequest,
     AdminTotpVerifyRequest,
@@ -199,6 +201,22 @@ class AdminApiTestCase(unittest.TestCase):
         ).one()
         self.assertEqual(audit_log.admin_user_id, self.admin.id)
         self.assertEqual(audit_log.target_id, self.user.id)
+
+    def test_super_admin_can_grant_bonus_credits_with_audit_log(self) -> None:
+        response = grant_admin_user_bonus_credits(
+            user_id=self.user.id,
+            request=AdminBonusCreditGrantRequest(amount=12),
+            db=self.user_db,
+            admin_db=self.admin_db,
+            current_admin=self.admin,
+        )
+
+        self.assertEqual(response.bonus_credits_remaining, 12)
+        audit_log = self.admin_db.query(AdminAuditLog).filter_by(
+            action="user.bonus_credits_granted"
+        ).one()
+        self.assertEqual(audit_log.target_id, self.user.id)
+        self.assertIn("amount=12", audit_log.detail)
 
     def test_audit_log_api_reads_admin_database(self) -> None:
         self.admin_db.add(

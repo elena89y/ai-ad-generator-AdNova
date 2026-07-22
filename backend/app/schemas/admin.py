@@ -114,6 +114,7 @@ class AdminUserDetailResponse(AdminUserResponse):
     business_type: str | None = None
     updated_at: datetime
     advertisement_count: int
+    bonus_credits_remaining: int = Field(default=0, ge=0)
 
 
 class AdminUserStatusUpdateRequest(BaseModel):
@@ -122,6 +123,15 @@ class AdminUserStatusUpdateRequest(BaseModel):
 
 class AdminUserSubscriptionUpdateRequest(BaseModel):
     is_premium: bool
+
+
+class AdminBonusCreditGrantRequest(BaseModel):
+    amount: int = Field(ge=1, le=10000)
+
+
+class AdminBonusCreditGrantResponse(BaseModel):
+    user_id: int
+    bonus_credits_remaining: int = Field(ge=0)
 
 
 class AdminPurchaseHistoryResponse(BaseModel):

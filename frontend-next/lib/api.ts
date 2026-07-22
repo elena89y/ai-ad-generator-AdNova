@@ -129,6 +129,7 @@ export interface BillingSummary {
   free_credits_remaining: number;
   free_credit_limit: number;
   next_free_credit_at?: string | null;
+  bonus_credits_remaining?: number;
   premium_credits_remaining?: number | null;
   premium_credit_limit?: number;
   next_premium_credit_at?: string | null;

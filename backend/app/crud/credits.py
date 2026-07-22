@@ -4,7 +4,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database.billing_models import PremiumCreditBalance
-from app.database.models import CreditBalance, CreditRefillState
+from app.database.models import BonusCreditBalance, CreditBalance, CreditRefillState
 
 
 DEFAULT_FREE_CREDITS = 3
@@ -116,6 +116,67 @@ def get_credit_status(
 def get_credit_balance(db: Session, user_id: int) -> CreditBalance:
     balance, _ = get_credit_status(db, user_id)
     return balance
+
+
+def get_bonus_credits_remaining(db: Session, user_id: int) -> int:
+    balance = (
+        db.query(BonusCreditBalance)
+        .filter(BonusCreditBalance.user_id == user_id)
+        .first()
+    )
+    return balance.credits_remaining if balance is not None else 0
+
+
+def grant_bonus_credits(
+    db: Session,
+    user_id: int,
+    amount: int,
+    *,
+    commit: bool = True,
+) -> BonusCreditBalance:
+    balance = (
+        db.query(BonusCreditBalance)
+        .filter(BonusCreditBalance.user_id == user_id)
+        .first()
+    )
+    if balance is None:
+        balance = BonusCreditBalance(user_id=user_id, credits_remaining=0)
+        db.add(balance)
+
+    balance.credits_remaining += amount
+    if commit:
+        db.commit()
+        db.refresh(balance)
+    else:
+        db.flush()
+    return balance
+
+
+def consume_bonus_credit(db: Session, user_id: int) -> int | None:
+    updated = (
+        db.query(BonusCreditBalance)
+        .filter(
+            BonusCreditBalance.user_id == user_id,
+            BonusCreditBalance.credits_remaining > 0,
+        )
+        .update(
+            {
+                BonusCreditBalance.credits_remaining: (
+                    BonusCreditBalance.credits_remaining - 1
+                )
+            },
+            synchronize_session=False,
+        )
+    )
+    if updated != 1:
+        return None
+
+    db.commit()
+    return get_bonus_credits_remaining(db, user_id)
+
+
+def restore_bonus_credit(db: Session, user_id: int) -> int:
+    return grant_bonus_credits(db, user_id, 1).credits_remaining
 
 
 def consume_free_credit(

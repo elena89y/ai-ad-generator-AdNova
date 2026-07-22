@@ -36,6 +36,7 @@ from app.crud.admin import (
     update_user_premium_access,
 )
 from app.crud.chatbot_stats import get_chatbot_stats
+from app.crud.credits import get_bonus_credits_remaining, grant_bonus_credits
 from app.crud.faq_candidate import (
     create_faq_candidate,
     get_faq_candidate_by_id,
@@ -61,6 +62,8 @@ from app.schemas.admin import (
     AdminAccountStatusUpdateRequest,
     AdminAuditLogListResponse,
     AdminAuditLogResponse,
+    AdminBonusCreditGrantRequest,
+    AdminBonusCreditGrantResponse,
     AdminDemoRefundRequest,
     AdminDemoRefundResponse,
     AdminMeResponse,
@@ -837,6 +840,7 @@ def read_admin_user_detail(
         business_type=user.business_type,
         updated_at=user.updated_at,
         advertisement_count=count_advertisements_by_user(db, user.id),
+        bonus_credits_remaining=get_bonus_credits_remaining(db, user.id),
     )
 
 
@@ -914,6 +918,47 @@ def update_admin_user_subscription(
         admin_db.rollback()
         raise
     return _build_admin_user_response(user, subscription)
+
+
+@router.post(
+    "/users/{user_id}/bonus-credits",
+    response_model=AdminBonusCreditGrantResponse,
+)
+def grant_admin_user_bonus_credits(
+    user_id: int,
+    request: AdminBonusCreditGrantRequest,
+    db: Session = Depends(get_db),
+    admin_db: Session = Depends(get_admin_db),
+    current_admin: AdminUser = Depends(get_current_super_admin),
+) -> AdminBonusCreditGrantResponse:
+    if get_user_for_admin(db, user_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="사용자를 찾을 수 없습니다.",
+        )
+
+    try:
+        balance = grant_bonus_credits(db, user_id, request.amount, commit=False)
+        create_admin_audit_log(
+            admin_db,
+            admin_user_id=current_admin.id,
+            action="user.bonus_credits_granted",
+            target_type="user",
+            target_id=user_id,
+            detail=(
+                f"amount={request.amount}; "
+                f"bonus_credits_remaining={balance.credits_remaining}"
+            ),
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        admin_db.rollback()
+        raise
+    return AdminBonusCreditGrantResponse(
+        user_id=user_id,
+        bonus_credits_remaining=balance.credits_remaining,
+    )
 
 
 @router.get("/refunds", response_model=AdminRefundListResponse)

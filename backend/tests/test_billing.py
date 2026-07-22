@@ -21,6 +21,7 @@ from app.database.billing_models import (
 )
 from app.database.connection import Base
 from app.database.models import User
+from app.crud.credits import grant_bonus_credits
 from app.schemas.billing import DemoCardRequest
 
 
@@ -98,6 +99,7 @@ class BillingApiTestCase(unittest.TestCase):
         self.assertEqual(summary.free_credits_remaining, 3)
         self.assertEqual(summary.free_credit_limit, 3)
         self.assertIsNone(summary.next_free_credit_at)
+        self.assertEqual(summary.bonus_credits_remaining, 0)
         self.assertEqual(summary.premium_credits_remaining, 30)
         self.assertEqual(summary.premium_credit_limit, 30)
         self.assertEqual(
@@ -106,6 +108,13 @@ class BillingApiTestCase(unittest.TestCase):
         )
         self.assertEqual(summary.subscription.id, self.subscription.id)
         self.assertEqual(summary.payment_method.card_last4, "1234")
+
+    def test_summary_includes_admin_granted_bonus_credits(self) -> None:
+        grant_bonus_credits(self.session, self.user.id, 7)
+
+        summary = read_billing_summary(db=self.session, current_user=self.user)
+
+        self.assertEqual(summary.bonus_credits_remaining, 7)
 
     def test_expired_subscription_loses_premium_access(self) -> None:
         self.subscription.current_period_end = datetime.now(timezone.utc) - timedelta(

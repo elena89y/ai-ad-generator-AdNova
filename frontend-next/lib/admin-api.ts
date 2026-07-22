@@ -74,6 +74,12 @@ export interface AdminUserDetail extends AdminManagedUser {
   business_type: string | null;
   updated_at: string;
   advertisement_count: number;
+  bonus_credits_remaining: number;
+}
+
+export interface AdminBonusCreditGrantResult {
+  user_id: number;
+  bonus_credits_remaining: number;
 }
 
 export interface AdminListResponse<T> {
