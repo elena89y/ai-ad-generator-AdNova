@@ -129,14 +129,16 @@ def _generate_impl(
     t = template_service.get_catalog_template(catalog_id)
     instruction, grade, size = build_instruction(catalog_id, product.name, extra_request)
     style_badge = _FINISH_STYLE.get(t.finish, StylePreset.EDITORIAL)
+    # 템플릿별 품질(catalog quality) 우선 — 질감 중요한 음식 템플릿만 medium, 나머지 low.
+    q = t.quality or quality
     asset_id = secrets.token_hex(6)  # 12자리 hex (^[a-f0-9]{12}$)
-    logger.info("template 생성: id=%s grade=%s asset=%s", catalog_id, grade, asset_id)
+    logger.info("template 생성: id=%s grade=%s q=%s asset=%s", catalog_id, grade, q, asset_id)
 
     t0 = time.time()
     with _stage(run, "generate"):
         raw = api_image_service.edit_image(
             image_path, instruction, out_dir=str(image_service.RESULTS_DIR),
-            size=size, quality=quality, run=run,  # run 전달 → image_api 비용 원장 적재
+            size=size, quality=q, run=run,  # run 전달 → image_api 비용 원장 적재
         )
     # asset_id 규약 파일명으로 정착 (서빙·재생성 계약과 통일)
     final = image_service.RESULTS_DIR / f"{asset_id}_template.png"
