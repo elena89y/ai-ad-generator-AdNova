@@ -202,3 +202,17 @@ body {
   background: rgba(148, 163, 184, 0.24);
   border-radius: 999px;
 }
+/* 템플릿 마퀴 — 예시 섹션 아래 무한 가로 슬라이드 (리스트 2배 복제 + -50% 이동) */
+@keyframes template-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee-track {
+  animation: template-marquee var(--marquee-duration, 60s) linear infinite;
+  width: max-content;
+}
+.marquee-track.reverse { animation-direction: reverse; }
+.marquee-viewport:hover .marquee-track { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track { animation: none; }
+}
