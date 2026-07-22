@@ -7,7 +7,6 @@ import {
   AdItem,
   GenerateResult,
   PlatformCopy,
-  STYLE_LABEL_MAP,
   STYLE_PRESET_MAP,
   apiFetch,
   formatDateLabel,
@@ -22,7 +21,6 @@ import {
 import { useStudio } from "@/components/studio/StudioProvider";
 import { AppBar, WorkspaceNav } from "@/components/studio/chrome";
 import { AuthenticatedImage } from "@/components/studio/AuthenticatedImage";
-import { fetchTemplates } from "@/lib/templates";
 
 const GEN_STEPS = [
   "사진을 분석하는 중…",
@@ -47,14 +45,6 @@ const USES = [
   // [html-parity] 전단지 폐기 결정 반영 — 모놀리식 html은 이미 상세페이지로 교체됨
   { v: "detail", label: "상세페이지" },
 ];
-
-/* 템플릿 formats[0] → 용도 버튼 매핑 (v6 T4; 전단지 폐기 → 상세페이지로 대체) */
-const FORMAT_TO_USE: Record<string, string> = {
-  sns: "sns",
-  cardnews: "card",
-  banner: "banner",
-  detail_page: "detail",
-};
 
 /* [html-parity] 포맷 갤러리 라벨 — 모놀리식 html FORMAT_GALLERY_LABELS 이식.
    Next 이관에서 format_outputs 갤러리 자체가 누락되어 있었음 (index.html renderFormatGallery) */
@@ -118,50 +108,6 @@ export default function StudioPage() {
 
   useEffect(() => {
     s.refreshDashboardSummary();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // 템플릿 갤러리에서 진입 — ?template={원장id}(팩 전체 적용) 또는 ?style=&use=(프리셋만) (v6 T4)
-  useEffect(() => {
-    const sp = new URLSearchParams(window.location.search);
-    const id = sp.get("template");
-    const styleParam = sp.get("style");
-    const useParam = sp.get("use");
-    const tname = sp.get("tname");
-    if (!id && !styleParam && !useParam) return;
-
-    const clearQuery = () =>
-      window.history.replaceState(null, "", "/studio"); // 새로고침 재적용 방지
-
-    if (!id) {
-      s.setDashboardState({
-        ...(styleParam ? { styleLabel: styleParam } : {}),
-        ...(useParam ? { useValue: useParam } : {}),
-      });
-      s.toast(`템플릿 적용: ${tname ?? styleParam ?? ""}`);
-      clearQuery();
-      return;
-    }
-
-    let cancelled = false;
-    fetchTemplates()
-      .then((items) => {
-        if (cancelled) return;
-        const t = items.find((x) => x.id === id);
-        if (!t) return;
-        const styleLabel = STYLE_LABEL_MAP[t.style_preset] ?? t.style_preset;
-        const nextUse = FORMAT_TO_USE[t.formats[0] ?? ""];
-        s.setDashboardState({
-          styleLabel,
-          ...(nextUse ? { useValue: nextUse } : {}),
-        });
-        s.toast(`템플릿 적용: ${tname ?? t.title}`);
-        clearQuery();
-      })
-      .catch(() => {}); // 템플릿은 부가 기능 — 실패해도 스튜디오는 동작
-    return () => {
-      cancelled = true;
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

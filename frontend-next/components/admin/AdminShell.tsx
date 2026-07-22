@@ -8,6 +8,7 @@ import {
   KeyRound,
   LayoutDashboard,
   LogOut,
+  MessageCircleQuestion,
   MessageSquareMore,
   ReceiptText,
   RotateCcw,
@@ -38,6 +39,11 @@ const navigationItems = [
     href: "/admin/inquiries",
     label: "1:1 문의",
     icon: MessageSquareMore,
+  },
+  {
+    href: "/admin/faq",
+    label: "FAQ 관리",
+    icon: MessageCircleQuestion,
   },
   {
     href: "/admin/subscriptions",

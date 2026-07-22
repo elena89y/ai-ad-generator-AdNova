@@ -227,3 +227,44 @@ class AdminTotpVerifyRequest(BaseModel):
 
 class AdminTotpDisableRequest(AdminTotpVerifyRequest):
     current_password: str = Field(min_length=1, max_length=128)
+
+# --- 챗봇 이용통계 (한의정) ---------------------------------------------------
+class ChatbotCategoryStat(BaseModel):
+    category: str
+    count: int
+
+
+class ChatbotFaqStat(BaseModel):
+    faq_id: str
+    count: int
+
+
+class AdminChatbotStatsResponse(BaseModel):
+    total_chats: int
+    answered_chats: int
+    escalated_chats: int
+    rewritten_chats: int
+    escalation_rate: float
+    by_category: list[ChatbotCategoryStat]
+    top_cited_faqs: list[ChatbotFaqStat]
+
+
+# --- FAQ 후보 큐 (한의정) -----------------------------------------------------
+class AdminFaqCandidateResponse(BaseModel):
+    id: int
+    source_inquiry_id: int | None = None
+    category: str
+    question: str
+    answer: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class AdminFaqCandidateListResponse(BaseModel):
+    total: int
+    items: list[AdminFaqCandidateResponse]
+
+
+class FaqCandidateStatusUpdateRequest(BaseModel):
+    status: Literal["approved", "dismissed"]

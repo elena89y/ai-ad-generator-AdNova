@@ -34,6 +34,14 @@ from app.crud.admin import (
     update_user_active_status,
     update_user_premium_access,
 )
+from app.crud.chatbot_stats import get_chatbot_stats
+from app.crud.faq_candidate import (
+    create_faq_candidate,
+    get_faq_candidate_by_id,
+    has_active_candidate_for_inquiry,
+    list_faq_candidates_for_admin,
+    update_faq_candidate_status,
+)
 from app.crud.inquiry import (
     answer_inquiry,
     get_inquiry_by_id,
@@ -74,6 +82,10 @@ from app.schemas.admin import (
     AdminRefundResponse,
     AdminPasswordChangeRequest,
     AdminMessageResponse,
+    AdminChatbotStatsResponse,
+    AdminFaqCandidateListResponse,
+    AdminFaqCandidateResponse,
+    FaqCandidateStatusUpdateRequest,
 )
 from app.schemas.inquiry import (
     AdminInquiryListResponse,
@@ -1121,3 +1133,146 @@ def disable_admin_totp(
     )
     admin_db.commit()
     return AdminMessageResponse(message="관리자 2단계 인증이 해제되었습니다.")
+
+# --- 챗봇 이용통계 (한의정) ---------------------------------------------------
+@router.get("/chatbot/stats", response_model=AdminChatbotStatsResponse)
+def read_chatbot_stats(
+    db: Session = Depends(get_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminChatbotStatsResponse:
+    del current_admin
+    return AdminChatbotStatsResponse(**get_chatbot_stats(db))
+
+
+# --- FAQ 후보 큐 (한의정) -----------------------------------------------------
+def _build_faq_candidate_response(candidate) -> AdminFaqCandidateResponse:
+    return AdminFaqCandidateResponse(
+        id=candidate.id,
+        source_inquiry_id=candidate.source_inquiry_id,
+        category=candidate.category,
+        question=candidate.question,
+        answer=candidate.answer,
+        status=candidate.status,
+        created_at=candidate.created_at,
+        updated_at=candidate.updated_at,
+    )
+
+
+@router.post(
+    "/inquiries/{inquiry_id}/promote-faq",
+    response_model=AdminFaqCandidateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def promote_inquiry_to_faq(
+    inquiry_id: int,
+    db: Session = Depends(get_db),
+    admin_db: Session = Depends(get_admin_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminFaqCandidateResponse:
+    audit_db = admin_db if isinstance(admin_db, Session) else db
+    admin_id = getattr(current_admin, "id", getattr(current_admin, "user_id", None))
+    inquiry = get_inquiry_by_id(db, inquiry_id)
+    if inquiry is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문의를 찾을 수 없습니다.")
+    if inquiry.status != "answered" or not inquiry.answer:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="답변이 완료된 문의만 FAQ 후보로 등록할 수 있습니다.",
+        )
+    if has_active_candidate_for_inquiry(db, inquiry.id):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="이미 이 문의로 등록되었거나 승인된 FAQ 후보가 있습니다.",
+        )
+    try:
+        candidate = create_faq_candidate(
+            db,
+            source_inquiry_id=inquiry.id,
+            category=inquiry.category,
+            question=inquiry.title,
+            answer=inquiry.answer,
+            created_by_admin_id=admin_id,
+            commit=False,
+        )
+        create_admin_audit_log(
+            audit_db,
+            admin_user_id=admin_id,
+            action="faq_candidate.promoted",
+            target_type="faq_candidate",
+            target_id=candidate.id,
+            detail=f"inquiry_id={inquiry.id}",
+            commit=False,
+        )
+        db.commit()
+        if audit_db is admin_db:
+            admin_db.commit()
+    except Exception:
+        db.rollback()
+        if audit_db is admin_db:
+            admin_db.rollback()
+        raise
+    return _build_faq_candidate_response(candidate)
+
+
+@router.get("/faq-candidates", response_model=AdminFaqCandidateListResponse)
+def read_faq_candidates(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    candidate_status: str | None = Query(None, min_length=1, max_length=20),
+    db: Session = Depends(get_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminFaqCandidateListResponse:
+    del current_admin
+    total, rows = list_faq_candidates_for_admin(
+        db, skip=skip, limit=limit, candidate_status=candidate_status
+    )
+    return AdminFaqCandidateListResponse(
+        total=total,
+        items=[_build_faq_candidate_response(candidate) for candidate in rows],
+    )
+
+
+@router.patch("/faq-candidates/{candidate_id}", response_model=AdminFaqCandidateResponse)
+def update_faq_candidate(
+    candidate_id: int,
+    request: FaqCandidateStatusUpdateRequest,
+    db: Session = Depends(get_db),
+    admin_db: Session = Depends(get_admin_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminFaqCandidateResponse:
+    audit_db = admin_db if isinstance(admin_db, Session) else db
+    admin_id = getattr(current_admin, "id", getattr(current_admin, "user_id", None))
+    candidate = get_faq_candidate_by_id(db, candidate_id)
+    if candidate is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="FAQ 후보를 찾을 수 없습니다.")
+    if candidate.status != "pending":
+        # 이미 검토된 후보의 상태 뒤집기 차단 (승인분 KB 반영과의 상태 불일치·중복삽입 방지)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="이미 검토된 FAQ 후보입니다.",
+        )
+    try:
+        candidate = update_faq_candidate_status(
+            db,
+            candidate,
+            candidate_status=request.status,
+            admin_user_id=admin_id,
+            commit=False,
+        )
+        create_admin_audit_log(
+            audit_db,
+            admin_user_id=admin_id,
+            action=f"faq_candidate.{request.status}",
+            target_type="faq_candidate",
+            target_id=candidate.id,
+            commit=False,
+        )
+        db.commit()
+        if audit_db is admin_db:
+            admin_db.commit()
+    except Exception:
+        db.rollback()
+        if audit_db is admin_db:
+            admin_db.rollback()
+        raise
+    return _build_faq_candidate_response(candidate)

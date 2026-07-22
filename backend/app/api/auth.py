@@ -5,6 +5,8 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from pydantic import BaseModel
+
 from app.core.config import settings
 from app.core.security import (
     create_access_token,
@@ -95,6 +97,25 @@ def _create_login_response(db: Session, user: User) -> dict:
     }
 
 
+class AvailabilityResponse(BaseModel):
+    available: bool
+
+
+@router.get("/check-username", response_model=AvailabilityResponse)
+def check_username(username: str, db: Session = Depends(get_db)):
+    existing = db.query(User).filter(User.username == username).first()
+    return AvailabilityResponse(available=existing is None)
+
+
+@router.get("/check-email", response_model=AvailabilityResponse)
+def check_email(email: str, db: Session = Depends(get_db)):
+    existing = (
+        db.query(User)
+        .filter(func.lower(User.email) == email.lower())
+        .first()
+    )
+    return AvailabilityResponse(available=existing is None)
+    
 @router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     existing_user = db.query(User).filter(User.email == user_data.email).first()

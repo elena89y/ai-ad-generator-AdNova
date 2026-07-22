@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type SyntheticEvent } from "react";
+import { useState, useEffect, type SyntheticEvent } from "react";
 
 import {
   type AdnovaUser,
@@ -35,6 +35,62 @@ export default function SignupPage() {
   const [terms, setTerms] = useState(true);
   const [busy, setBusy] = useState(false);
   const [modal, setModal] = useState<"terms" | "privacy" | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const mail = email.trim();
+    if (!mail || !EMAIL_PATTERN.test(mail)) {
+      setEmailError(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await apiFetch(
+          `/api/auth/check-email?email=${encodeURIComponent(mail)}`
+        );
+        const data = (await readJsonSafely(res)) as { available?: boolean } | null;
+
+        if (res.ok && data?.available === false) {
+          setEmailError("이미 사용 중인 이메일입니다");
+        } else {
+          setEmailError(null);
+        }
+      } catch {
+        // 네트워크 오류는 무시, 제출 시 서버에서 다시 검증됨
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [email]);
+
+  useEffect(() => {
+    const name = username.trim();
+    if (!name || !USERNAME_PATTERN.test(name)) {
+      setUsernameError(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await apiFetch(
+          `/api/auth/check-username?username=${encodeURIComponent(name)}`
+        );
+        const data = (await readJsonSafely(res)) as { available?: boolean } | null;
+
+        if (res.ok && data?.available === false) {
+          setUsernameError("이미 사용 중인 아이디입니다");
+        } else {
+          setUsernameError(null);
+        }
+      } catch {
+        // ignore
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [username]);
 
   function startOAuth(provider: OAuthProvider) {
     window.location.href = `/api/auth/${provider}/login`;
@@ -83,6 +139,11 @@ export default function SignupPage() {
 
     if (password !== passwordConfirm) {
       toast("비밀번호가 서로 다릅니다");
+      return;
+    }
+
+    if (emailError || usernameError) {
+      toast("입력하신 정보를 다시 확인해 주세요");
       return;
     }
 
@@ -184,6 +245,7 @@ export default function SignupPage() {
         </p>
 
         <form onSubmit={handleSignup}>
+
           <div className="field">
             <label htmlFor="signupEmail">이메일</label>
 
@@ -196,6 +258,15 @@ export default function SignupPage() {
               disabled={busy}
               onChange={(event) => setEmail(event.target.value)}
             />
+
+            {emailError && (
+              <div
+                className="field-error"
+                style={{ color: "#e5484d", fontSize: 12, marginTop: 4 }}
+              >
+                {emailError}
+              </div>
+            )}
           </div>
 
           <div className="field">
@@ -210,6 +281,15 @@ export default function SignupPage() {
               disabled={busy}
               onChange={(event) => setUsername(event.target.value)}
             />
+
+            {usernameError && (
+              <div
+                className="field-error"
+                style={{ color: "#e5484d", fontSize: 12, marginTop: 4 }}
+              >
+                {usernameError}
+              </div>
+            )}
           </div>
 
           <div className="field">

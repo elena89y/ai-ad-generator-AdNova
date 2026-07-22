@@ -346,6 +346,7 @@ def run_from_upload_v2(
                 variants = build_typography_variants(
                     r, product.name or r.subject_en, typography_enabled=poster,
                     output_dir=str(image_service.RESULTS_DIR),
+                    domain=getattr(r, "style_domain", None) or getattr(r, "domain", "food"),
                 )
             return GenerationOutput(
                 final_image_path=variants.selected_image_path,
@@ -434,6 +435,7 @@ def rerun_v2(
                 variants = build_typography_variants(
                     r, product.name or r.subject_en, typography_enabled=poster,
                     output_dir=str(image_service.RESULTS_DIR),
+                    domain=getattr(r, "style_domain", None) or getattr(r, "domain", "food"),
                 )
             return GenerationOutput(
                 final_image_path=variants.selected_image_path,
@@ -477,6 +479,7 @@ def build_typography_variants(
     brand_label: str = "",
     kicker: str = "",
     cta: str = "",
+    domain: str = "food",
 ):
     """기생성 ProcessedAd에서 타이포 OFF/ON 두 파일을 만든다(CPU, GPU 재호출 없음).
 
@@ -498,6 +501,8 @@ def build_typography_variants(
         cta=cta,
         # TS-1/2(영문 헤드라인) 분기용 — 없으면 조판기가 한글 계열로 폴백
         subject_en=getattr(result, "subject_en", "") or "",
+        # 사물=배경 레터링 z-order 강제 (07-21 지시)
+        domain=domain,
     )
 
 
