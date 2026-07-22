@@ -1,20 +1,26 @@
 import unittest
 
+import pyotp
+
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.api.admin import (
+    confirm_admin_totp,
     create_admin_account_by_super_admin,
+    disable_admin_totp,
     read_admin_accounts,
     read_admin_audit_logs,
     read_admin_me,
+    setup_admin_totp,
     update_admin_account_status_by_super_admin,
     update_admin_user_status,
 )
 from app.core.admin_security import get_current_admin, get_current_super_admin
 from app.core.security import create_access_token, create_admin_access_token, hash_password
+from app.core.totp import decrypt_totp_secret
 from app.database.admin_models import AdminAuditLog, AdminUser
 from app.database.connection import AdminBase, Base
 from app.database.models import User
@@ -22,6 +28,9 @@ from app.schemas.admin import (
     AdminAccountCreateRequest,
     AdminAccountStatusUpdateRequest,
     AdminUserStatusUpdateRequest,
+    AdminTotpDisableRequest,
+    AdminTotpSetupRequest,
+    AdminTotpVerifyRequest,
 )
 
 
@@ -213,6 +222,39 @@ class AdminApiTestCase(unittest.TestCase):
 
         self.assertEqual(response.total, 1)
         self.assertEqual(response.items[0].admin_username, "adminuser")
+
+    def test_admin_can_enable_and_disable_totp(self) -> None:
+        setup = setup_admin_totp(
+            request=AdminTotpSetupRequest(current_password="Password1!"),
+            admin_db=self.admin_db,
+            current_admin=self.admin,
+        )
+        self.assertTrue(setup.provisioning_uri.startswith("otpauth://totp/"))
+        self.assertNotEqual(self.admin.totp_secret_encrypted, setup.manual_entry_key)
+        self.assertFalse(self.admin.totp_enabled)
+
+        code = pyotp.TOTP(setup.manual_entry_key).now()
+        confirm_admin_totp(
+            request=AdminTotpVerifyRequest(code=code),
+            admin_db=self.admin_db,
+            current_admin=self.admin,
+        )
+        self.assertTrue(self.admin.totp_enabled)
+        self.assertEqual(
+            decrypt_totp_secret(self.admin.totp_secret_encrypted),
+            setup.manual_entry_key,
+        )
+
+        disable_admin_totp(
+            request=AdminTotpDisableRequest(
+                current_password="Password1!",
+                code=code,
+            ),
+            admin_db=self.admin_db,
+            current_admin=self.admin,
+        )
+        self.assertFalse(self.admin.totp_enabled)
+        self.assertIsNone(self.admin.totp_secret_encrypted)
 
 
 if __name__ == "__main__":

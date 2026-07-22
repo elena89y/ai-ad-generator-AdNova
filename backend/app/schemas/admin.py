@@ -12,6 +12,7 @@ class AdminMeResponse(BaseModel):
     username: str
     email: str
     role: str
+    totp_enabled: bool
 
 
 class AdminAccountResponse(BaseModel):
@@ -211,6 +212,23 @@ class AdminPasswordChangeRequest(BaseModel):
 class AdminMessageResponse(BaseModel):
     message: str
 
+
+class AdminTotpSetupRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+
+
+class AdminTotpSetupResponse(BaseModel):
+    manual_entry_key: str
+    provisioning_uri: str
+    qr_code_data_url: str
+
+
+class AdminTotpVerifyRequest(BaseModel):
+    code: str = Field(pattern=r"^\d{6}$")
+
+
+class AdminTotpDisableRequest(AdminTotpVerifyRequest):
+    current_password: str = Field(min_length=1, max_length=128)
 
 # --- 챗봇 이용통계 (한의정) ---------------------------------------------------
 class ChatbotCategoryStat(BaseModel):

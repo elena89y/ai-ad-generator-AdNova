@@ -5,12 +5,15 @@ from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+import pyotp
+
 from app.api.auth import admin_login, find_username, login
 from app.core.security import create_admin_access_token, get_current_user, hash_password
+from app.core.totp import encrypt_totp_secret, generate_totp_secret
 from app.database.admin_models import AdminLoginFailureLog, AdminUser
 from app.database.connection import AdminBase, Base
 from app.database.models import User
-from app.schemas.auth import UserLogin, UsernameFindRequest
+from app.schemas.auth import AdminLoginRequest, UserLogin, UsernameFindRequest
 
 
 class AuthApiTestCase(unittest.TestCase):
@@ -129,6 +132,48 @@ class AuthApiTestCase(unittest.TestCase):
             get_current_user(credentials=credentials, db=self.session)
 
         self.assertEqual(context.exception.status_code, 403)
+
+    def test_totp_enabled_admin_requires_valid_code(self) -> None:
+        secret = generate_totp_secret()
+        admin = AdminUser(
+            email="admin@example.com",
+            username="admin",
+            password_hash=hash_password("Password1!"),
+            is_active=True,
+            role="super_admin",
+            totp_secret_encrypted=encrypt_totp_secret(secret),
+            totp_enabled=True,
+        )
+        self.admin_session.add(admin)
+        self.admin_session.commit()
+
+        with self.assertRaises(HTTPException) as missing_code:
+            admin_login(
+                user_data=AdminLoginRequest(username="admin", password="Password1!"),
+                admin_db=self.admin_session,
+            )
+        self.assertEqual(missing_code.exception.status_code, 401)
+
+        with self.assertRaises(HTTPException) as invalid_code:
+            admin_login(
+                user_data=AdminLoginRequest(
+                    username="admin",
+                    password="Password1!",
+                    totp_code="000000",
+                ),
+                admin_db=self.admin_session,
+            )
+        self.assertEqual(invalid_code.exception.status_code, 401)
+
+        response = admin_login(
+            user_data=AdminLoginRequest(
+                username="admin",
+                password="Password1!",
+                totp_code=pyotp.TOTP(secret).now(),
+            ),
+            admin_db=self.admin_session,
+        )
+        self.assertTrue(response["access_token"])
 
     def test_regular_user_cannot_use_admin_login(self) -> None:
         regular_user = User(

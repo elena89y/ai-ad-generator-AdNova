@@ -14,11 +14,13 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
+from app.core.totp import verify_totp_code
 from app.crud.admin import create_admin_login_failure_log
 from app.database.connection import get_admin_db, get_db
 from app.database.admin_models import AdminUser
 from app.database.models import User
 from app.schemas.auth import (
+    AdminLoginRequest,
     UserCreate,
     UserLogin,
     UserResponse,
@@ -182,7 +184,7 @@ def login(
 
 @router.post("/admin-login")
 def admin_login(
-    user_data: UserLogin,
+    user_data: AdminLoginRequest,
     admin_db: Session = Depends(get_admin_db),
 ):
     admin_user = (
@@ -226,6 +228,33 @@ def admin_login(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="유효한 관리자 역할이 없습니다.",
         )
+    if admin_user.totp_enabled:
+        if user_data.totp_code is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="인증 앱의 6자리 코드를 입력해 주세요.",
+            )
+        try:
+            is_valid_totp = bool(
+                admin_user.totp_secret_encrypted
+                and verify_totp_code(
+                    admin_user.totp_secret_encrypted,
+                    user_data.totp_code,
+                )
+            )
+        except ValueError:
+            is_valid_totp = False
+        if not is_valid_totp:
+            _record_admin_login_failure(
+                admin_db,
+                username=admin_user.username,
+                admin_user_id=admin_user.id,
+                reason="TOTP 인증 코드 불일치",
+            )
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="인증 코드가 올바르지 않습니다.",
+            )
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_admin_access_token(
