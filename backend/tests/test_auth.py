@@ -12,6 +12,7 @@ from app.api.auth import (
     admin_login,
     admin_refresh,
     confirm_password_reset,
+    extend_admin_session,
     find_username,
     login,
     logout,
@@ -347,6 +348,8 @@ class AuthApiTestCase(unittest.TestCase):
             admin_db=self.admin_session,
         )
         cookie = login_response.headers["set-cookie"].split(";", 1)[0].split("=", 1)[1]
+        original_token = self.admin_session.query(AdminRefreshToken).one()
+        original_expiry = original_token.expires_at
 
         refresh_response = Response()
         result = admin_refresh(
@@ -358,6 +361,55 @@ class AuthApiTestCase(unittest.TestCase):
         self.assertTrue(result["access_token"])
         self.assertIn("adnova_admin_refresh_token", refresh_response.headers["set-cookie"])
         self.assertEqual(self.admin_session.query(AdminRefreshToken).count(), 2)
+        refreshed_token = (
+            self.admin_session.query(AdminRefreshToken)
+            .filter(AdminRefreshToken.revoked_at.is_(None))
+            .one()
+        )
+        self.assertFalse(refreshed_token.is_persistent)
+        self.assertEqual(refreshed_token.expires_at, original_expiry)
+
+    def test_admin_session_is_not_persistent_and_can_be_extended(self) -> None:
+        admin_user = AdminUser(
+            email="admin@example.com",
+            username="admin",
+            password_hash=hash_password("Password1!"),
+            is_active=True,
+            role="super_admin",
+        )
+        self.admin_session.add(admin_user)
+        self.admin_session.commit()
+
+        login_response = Response()
+        admin_login(
+            user_data=AdminLoginRequest(username="admin", password="Password1!", remember_me=True),
+            response=login_response,
+            admin_db=self.admin_session,
+        )
+        cookie = login_response.headers["set-cookie"].split(";", 1)[0].split("=", 1)[1]
+        original_token = self.admin_session.query(AdminRefreshToken).one()
+        original_expiry = original_token.expires_at
+
+        self.assertFalse(original_token.is_persistent)
+        self.assertNotIn("Max-Age", login_response.headers["set-cookie"])
+
+        extend_response = Response()
+        result = extend_admin_session(
+            response=extend_response,
+            refresh_token=cookie,
+            admin_db=self.admin_session,
+        )
+
+        self.assertTrue(result["access_token"])
+        self.assertEqual(self.admin_session.query(AdminRefreshToken).count(), 2)
+        self.assertIsNotNone(original_token.revoked_at)
+        extended_token = (
+            self.admin_session.query(AdminRefreshToken)
+            .filter(AdminRefreshToken.revoked_at.is_(None))
+            .one()
+        )
+        self.assertFalse(extended_token.is_persistent)
+        self.assertGreaterEqual(extended_token.expires_at, original_expiry)
 
     def test_logout_revokes_current_refresh_token(self) -> None:
         login_response = Response()
