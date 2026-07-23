@@ -151,6 +151,8 @@ def _to_response(out: generation_service.GenerationOutput) -> GenerateAdResponse
         typography_layout=out.typography_layout,
         generate_seconds=out.generate_seconds,
         harmonize_seconds=out.harmonize_seconds,
+        # SRV-ROUTE-001 phase2: 인식 라벨 정본 — getattr 가드로 구 GenerationOutput 무해
+        serving_type=getattr(out, "serving_type", None),
     )
 
 

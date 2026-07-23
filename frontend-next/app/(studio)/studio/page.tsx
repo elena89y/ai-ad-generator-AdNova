@@ -75,18 +75,33 @@ const PLATFORMS = [
   { p: "threads", si: "th", label: "Threads", short: "@" },
 ];
 
-/* 상품명 → 광고 유형 자동 감지 (프로토타입 detectMode 포팅) */
+/* 상품명 → 광고 유형 자동 감지 (프로토타입 detectMode 포팅).
+   SRV-ROUTE-001 phase2: 타이핑 중 근사 미리보기 전용 — 생성 후에는 백엔드 serving_type
+   (SERVING_TYPE_LABELS)이 정본. 디저트·베이커리를 음료에서 분리(케이크가 "카페 음료"로
+   뜨던 문제). 기존 `티\b`는 JS \b가 한글 경계를 못 잡아 사문(死文)이라 명시 차 어휘로 대체. */
 function detectModeText(name: string): string {
   const n = (name || "").trim();
-  const cafe =
-    /(라떼|밀크티|커피|아메리카노|스무디|에이드|주스|쿠키|스콘|케이크|음료|티\b)/;
+  const dessert =
+    /(쿠키|스콘|케이크|케익|마카롱|크루아상|도넛|타르트|빵|베이글|디저트|와플|브라우니|푸딩|아이스크림|빙수)/;
+  const drink =
+    /(라떼|밀크티|커피|아메리카노|콜드브루|에스프레소|스무디|에이드|주스|음료|홍차|녹차|레모네이드)/;
   const obj =
     /(마우스|키보드|컵|잔|텀블러|화장품|케이스|가방|시계|이어폰|스탠드|괄사|기기|용품)/;
   if (!n) return "상품명을 입력하면 광고 유형을 자동 판단해요";
   if (obj.test(n)) return "사물·제품으로 인식 · 스튜디오 배경 모드";
-  if (cafe.test(n)) return "카페 음료로 인식 · 배경 연출 모드";
+  if (dessert.test(n)) return "디저트·베이커리로 인식 · 배경 연출 모드";
+  if (drink.test(n)) return "카페 음료로 인식 · 배경 연출 모드";
   return "음식으로 인식 · 정체성 보존 향상 모드";
 }
+
+/* SRV-ROUTE-001 phase2: 백엔드 serving_type → 정본 인식 라벨. 미지값·부재는 regex 폴백. */
+const SERVING_TYPE_LABELS: Record<string, string> = {
+  dish: "음식으로 인식 · 정체성 보존 향상 모드",
+  drink: "카페 음료로 인식 · 배경 연출 모드",
+  dessert: "디저트·베이커리로 인식 · 배경 연출 모드",
+  bakery: "디저트·베이커리로 인식 · 배경 연출 모드",
+  object: "사물·제품으로 인식 · 스튜디오 배경 모드",
+};
 
 export default function StudioPage() {
   const s = useStudio();
@@ -217,7 +232,7 @@ export default function StudioPage() {
       const data = (await readJsonSafely(res)) as GenerateResult | null;
       if (!res.ok || !data)
         throw new Error(readApiError(data, "광고 생성에 실패했습니다"));
-      s.setDashboardState({ currentResult: data });
+      s.setDashboardState({ currentResult: { ...data, client_prod_name: productName } });
       s.refreshBilling(false);
       s.refreshDashboardSummary();
       s.refreshHistory(false);
@@ -269,7 +284,7 @@ export default function StudioPage() {
       const data = (await readJsonSafely(res)) as GenerateResult | null;
       if (!res.ok || !data)
         throw new Error(readApiError(data, "다시 생성에 실패했습니다"));
-      s.setDashboardState({ currentResult: data });
+      s.setDashboardState({ currentResult: { ...data, client_prod_name: productName } });
       s.refreshBilling(false);
       s.refreshDashboardSummary();
       s.refreshHistory(false);
@@ -505,7 +520,14 @@ export default function StudioPage() {
             />
             <div className="auto-mode" style={{ margin: "9px 0 0" }}>
               <span className="lamp" />
-              <span>{detectModeText(s.prodName)}</span>
+              {/* SRV-ROUTE-001 phase2: 생성 후엔 백엔드 인식값이 정본, 이름을 바꿔 치는 중이면
+                  (client_prod_name 불일치) regex 미리보기로 복귀 — stale 라벨 방지 */}
+              <span>
+                {(s.currentResult?.serving_type &&
+                  s.currentResult?.client_prod_name === s.prodName.trim()
+                  ? SERVING_TYPE_LABELS[s.currentResult.serving_type]
+                  : undefined) ?? detectModeText(s.prodName)}
+              </span>
             </div>
             <label className="mini-label">
               추가 요청 <span className="hint">· 선택</span>
