@@ -97,7 +97,9 @@ export default function TemplateApplyPage() {
     try {
       const fd = new FormData();
       fd.append("image_id", String(imageId));
-      fd.append("product_name", productName.trim() || tpl.name);
+      // 상품명 미입력 시 빈 값 그대로 전송 — 템플릿 표시명을 폴백하면 각인류 템플릿이
+      // 그 이름("크림 각인 타이포")을 문자 그대로 새기는 사고가 남 (2026-07-24 실측)
+      fd.append("product_name", productName.trim());
       if (extraRequest.trim()) fd.append("extra_request", extraRequest.trim());
       fd.append("template_id", serverTemplateId(tpl.no, tpl.id));
       fd.append("purpose", "sns");
