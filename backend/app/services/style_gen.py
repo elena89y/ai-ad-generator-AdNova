@@ -73,7 +73,8 @@ def generate_scene(image_path: str, style_key: str, subject_en: str,
                                                   container_desc=container_desc,
                                                   container_opacity=container_opacity,
                                                   palette_override=palette_override,
-                                                  serving_type=serving_type)
+                                                  serving_type=serving_type,
+                                                  scene_seed=seed)
     clip_prompt = build_clip_anchor(style_key, domain, subject_en)
 
     # 구성(composition) 유지 절 — 무드 씬 전용 (2026-07-11 콜드런 실측: editorial 이 브런치
