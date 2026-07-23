@@ -222,7 +222,12 @@ analyze_menu:
 
     8. lang: 상품명이 한글이면 ''ko'', 영어면 ''en''.
 
-    반드시 JSON: {"domain":"object","category":"default","subject_en":"wireless computer mouse","core_ingredients":[],"texture_hero":false,"material":"reflective","food_mode":"dish","lang":"ko"}'
+    9. serving_type: 제공 형태. ''dish''=식사 음식(국·탕·밥·구이·면과 떡볶이·떡국 같은 분식, 붕어빵·호떡·꽈배기처럼 손에 들고 먹는 길거리 간식,
+    호빵·만두 같은 찜기류, 김밥·도시락·치킨·샌드위치·버거), ''drink''=마시는 음료(음료와 디저트가 병기된 세트 메뉴도 drink), ''dessert''=접시에
+    내는 단 디저트(케이크·타르트·마카롱, 버터떡·인절미 같은 단 떡, 약과·아이스크림·빙수·파르페), ''bakery''=빵·페이스트리(크루아상·소금빵·앙버터·베이글·스콘),
+    ''object''=사물과 밀키트·티백·원두·파우치 같은 포장 판매 식품. object 도메인이면 ''object''.
+
+    반드시 JSON: {"domain":"object","category":"default","subject_en":"wireless computer mouse","core_ingredients":[],"texture_hero":false,"material":"reflective","food_mode":"dish","lang":"ko","serving_type":"object"}'
 analyze_photo:
   instruction: "너는 소상공인 광고 파이프라인의 사진·상품 통합 분석기야. 사진과 상품명을 함께 분석해 아래 키를 정확히 사용한 JSON으로만 응답해.\n- 상품명: ${display_name}\n\
     입력 게이트는 관대하게 판단해. 사진의 주 피사체가 상품명과 같은 종류 또는 같은 대분류의 음식·음료·제품이면 match=true이고, 색·브랜드·세부 차이는 무시해. 상품이\
@@ -239,12 +244,14 @@ analyze_photo:
     \ 각인), flexible_parts는 상품이 아니라 담는 용기·그릇·받침처럼 무드에 맞게 색·재질을 바꿔도 되는 부분. 둘 다 English words only 배열(최대\
     \ 5개).\n  - 음료: 음료 자체와 라떼아트·거품은 identity, 컵·잔·머그·받침은 flexible.\n  - 로고·라벨 있는 사물(향수·전자제품·화장품): 상품 전체가\
     \ identity(형태·로고·색 보존), flexible=[].\n  - 그릇 요리: 음식 자체가 identity, 담는 접시·볼은 flexible.\n  판단 불가하면 identity=[],\
-    \ flexible=[] (호출부가 전체 보존으로 안전 폴백).\nJSON 키: {\"match\":true,\"seen\":\"\",\"domain\":\"food\",\"\
+    \ flexible=[] (호출부가 전체 보존으로 안전 폴백).\n13. serving_type은 dish|drink|dessert|bakery|object 중 하나 —\
+    \ 그릇 요리·분식(떡볶이·떡국)·길거리 간식(붕어빵·호떡)·김밥·도시락·샌드위치는 dish, 마시는 음료(디저트 병기 세트 포함)는 drink, 접시 단 디저트(케이크·타르트·마카롱·단\
+    \ 떡·빙수)는 dessert, 빵·페이스트리(크루아상·소금빵·앙버터)는 bakery, 사물·포장 판매 식품(밀키트·티백·원두)은 object.\nJSON 키: {\"match\":true,\"seen\":\"\",\"domain\":\"food\",\"\
     display_name\":\"\",\"subject_en\":\"cafe latte\",\"category\":\"default\",\"core_ingredients\":[\"\
     espresso\",\"milk\"],\"texture_hero\":false,\"material\":\"default\",\"food_mode\":\"cafe\",\"lang\"\
     :\"ko\",\"container_kind\":\"cup\",\"container_color\":\"white\",\"container_opacity\":\"opaque\"\
     ,\"temperature\":\"hot\",\"view_angle\":\"eye\",\"visible_text\":\"\",\"identity_parts\":[\"coffee\"\
-    ,\"latte art\"],\"flexible_parts\":[\"cup\",\"saucer\"]}"
+    ,\"latte art\"],\"flexible_parts\":[\"cup\",\"saucer\"],\"serving_type\":\"drink\"}"
 verify_photo_subject:
   instruction: '사용자가 상품명 "${name}" 광고를 만들려고 이 사진을 올렸어. 사진의 주 피사체가 그 상품명과 **같은 종류**(같은 대분류의 음식/음료/제품이고
     대충 그럴듯)면 match=true. 색·브랜드·세부 차이는 무시하고 관대하게 판단해. 단, 사진에 그 상품이 **전혀 없으면**(무관한 사람·동물·풍경·빈 배경 등) match=false.

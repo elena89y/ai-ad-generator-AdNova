@@ -643,18 +643,25 @@ _DRINK_CONTAINERS = ("cup", "glass", "mug", "bottle", "can", "tumbler", "jar")
 
 
 def _resolve_style_domain(analysis, domain: str, food_mode: Optional[str],
-                          subject_en: str) -> str:  # noqa: ANN001
+                          subject_en: str, *,
+                          serving_type: Optional[str] = None) -> str:  # noqa: ANN001
     """StylePlan 도메인 정규화. drink는 '실제 음료'라는 긍정 근거가 있을 때만 승격한다.
 
     1차: PhotoAnalysis(UNIFIED_ANALYSIS 경로)의 container_kind — 사진 근거(D-4) 최우선.
-    2차(텍스트 폴백): subject_en에 실제 음료 어휘가 있을 때만 drink. 그 외(디저트·빵·샌드위치 등
-    카페에서 파는 고체 음식 전부)는 food 유지 — 화이트리스트라 새 메뉴가 나와도 안전측으로 기운다.
+    2차(SRV-ROUTE-001): serving_type(LLM 의미 판정)이 있으면 drink 여부를 그것으로 확정 —
+    substring 화이트리스트의 오탐("milk tea cake"가 'milk tea'에 걸려 케이크가 drink 승격)을
+    원천 차단한다. dessert|bakery|dish면 food 확정.
+    3차(레거시 폴백, serving_type=None): subject_en에 실제 음료 어휘가 있을 때만 drink.
+    그 외(디저트·빵·샌드위치 등 카페에서 파는 고체 음식 전부)는 food 유지 — 화이트리스트라
+    새 메뉴가 나와도 안전측으로 기운다. serving_type은 keyword-only(기존 positional 호출 보호).
     """
     if domain != "food" or food_mode != "cafe":
         return domain
     container = getattr(analysis, "container_kind", None)
     if container is not None:  # Vision 근거 우선
         return "drink" if str(container).lower() in _DRINK_CONTAINERS else domain
+    if serving_type is not None:
+        return "drink" if serving_type == "drink" else domain
     low = (subject_en or "").lower()
     return "drink" if any(hint in low for hint in _DRINK_HINTS) else domain
 
@@ -741,7 +748,15 @@ def _process_ad_impl(
         subject_en = getattr(resolved_analysis, "subject_en", None) or name
         domain = getattr(resolved_analysis, "domain", "food")
         food_mode = getattr(resolved_analysis, "food_mode", None)
-        style_domain = _resolve_style_domain(resolved_analysis, domain, food_mode, subject_en)
+        # SRV-ROUTE-001 킬스위치 단일 게이트: 하류 소비(_resolve_style_domain 2차·scene_kwargs
+        #   배관)가 전부 이 값에서 파생되므로 여기 한 곳이 off 스위치다. 반드시 객체 속성
+        #   getattr — pipeline_graph state dict 사영은 새 필드를 조용히 탈락시킨다(적대검증).
+        serving_type = (
+            None if os.environ.get("SERVING_TYPE_ROUTING", "1") == "0"
+            else getattr(resolved_analysis, "serving_type", None)
+        )
+        style_domain = _resolve_style_domain(resolved_analysis, domain, food_mode, subject_en,
+                                             serving_type=serving_type)
         # 포맷 자동감지(STYLE_SYSTEM v2): style 은 '무드', 포맷은 콘텐츠로 결정.
         #   STY-003~005 이후 사물도 선택 무드를 적용하되, StylePlan이 상품은 고정하고 배경·조명만 바꾼다.
         #   여름음료 pop_split·케이크 cross_section 은 특수 조판/게이트 필요 → 당분간 명시 호출 유지.
@@ -778,6 +793,9 @@ def _process_ad_impl(
             scene_kwargs: dict = {
                 "container_desc": _container_desc(resolved_analysis),
                 "container_opacity": getattr(resolved_analysis, "container_opacity", None),
+                # SRV-ROUTE-001 배관: build_reference_instruction까지 신호 전달. develop엔
+                #   아직 소비처(디저트 락)가 없어 무동작 — 락 브랜치 머지 시 tier-3가 소비.
+                "serving_type": serving_type,
             }
             if staging == "recompose":
                 scene_kwargs.update({
