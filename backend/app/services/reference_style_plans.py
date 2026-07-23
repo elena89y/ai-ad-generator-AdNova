@@ -405,7 +405,8 @@ def get_reference_plan(style_key: str, domain: str | None) -> ReferenceStylePlan
 def build_reference_instruction(style_key: str, domain: str | None, subject_en: str,
                                 container_desc: str | None = None,
                                 container_opacity: str | None = None,
-                                serving_type: str | None = None) -> str | None:
+                                serving_type: str | None = None,
+                                palette_override: str | None = None) -> str | None:
     """StylePlan을 Kontext용 정체성 보존 편집 지시로 변환한다.
 
     container_desc·container_opacity(analyze_photo Vision 산출)가 유리 디저트 용기(vessel)로
@@ -438,7 +439,10 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
     # 누락 키로 KeyError를 내지 않게 한다.
     fmt_args: dict[str, str] = {}
     if "{palette}" in direction:
-        fmt_args["palette"] = _style_palette_clause(plan.style_key, plan.domain, subject)
+        # PAL-001: palette_override(제품 적응형 생성기 산출)가 오면 그것으로, 아니면 기존 고정
+        #   팔레트 조회로 폴백(바이트 동일 — palette_override 미전달 시 회귀 없음).
+        fmt_args["palette"] = (palette_override
+                               or _style_palette_clause(plan.style_key, plan.domain, subject))
     if "{hero}" in direction:
         fmt_args["hero"] = hero
     if "{container_clause}" in direction:
