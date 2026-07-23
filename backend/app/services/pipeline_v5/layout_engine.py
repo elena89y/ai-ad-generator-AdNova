@@ -143,11 +143,24 @@ def _bind_text(el: dict, copy) -> str:
     return val
 
 
-def _cond(el: dict, copy) -> bool:
+def _cond(el: dict, copy, ctx: dict | None = None) -> bool:
+    """요소 표시 조건. if(copy 필드 truthy) + 콘텐츠 적응(L5): if_domain/unless_domain/if_density.
+
+    ctx = {"domain": food|drink|object|cafe, "density": minimal|medium|dense}.
+    조건을 안 붙인 요소는 항상 표시 → 기존 렌더 불변(픽셀 동등 유지).
+    """
+    ctx = ctx or {}
     key = el.get("if")
-    if not key:
-        return True
-    return bool(getattr(copy, key, None))
+    if key and not getattr(copy, key, None):
+        return False
+    dom = ctx.get("domain")
+    if "if_domain" in el and dom not in el["if_domain"]:
+        return False
+    if "unless_domain" in el and dom in el["unless_domain"]:
+        return False
+    if "if_density" in el and ctx.get("density") not in el["if_density"]:
+        return False
+    return True
 
 
 def _font_of(el: dict, text: str, W: int, H: int, margin: int) -> ImageFont.FreeTypeFont:
@@ -173,15 +186,18 @@ def _paste_image(canvas: Image.Image, el: dict, cuts: dict, W: int, H: int, marg
 
 
 def render_elements(canvas: Image.Image, elements: list[dict], copy, pal,
-                    W: int, H: int, margin: int) -> None:
-    """요소 리스트를 canvas 에 순서대로 렌더. canvas 는 이미 배경(컷 등) 배치된 상태."""
+                    W: int, H: int, margin: int, ctx: dict | None = None) -> None:
+    """요소 리스트를 canvas 에 순서대로 렌더. canvas 는 이미 배경(컷 등) 배치된 상태.
+
+    ctx = 콘텐츠 적응 컨텍스트(domain/density) — _cond 의 if_domain/if_density 판정용(L5).
+    """
     draw = ImageDraw.Draw(canvas, "RGBA")
 
     def rr(v):
         return _r(v, W, H, margin)
 
     for el in elements:
-        if not _cond(el, copy):
+        if not _cond(el, copy, ctx):
             continue
         t = el["type"]
         if t == "scrim":
@@ -302,11 +318,11 @@ def _cta_pill(img: Image.Image, text: str, font, xy, pad: int = 20,
 
 
 def render_slide(size: tuple[int, int], spec: dict, cuts: dict, copy, pal,
-                 margin_ratio: float, cover_mode: str = "round") -> Image.Image:
+                 margin_ratio: float, cover_mode: str = "round", ctx: dict | None = None) -> Image.Image:
     """슬라이드 스펙(bg + images + elements) → 완성 캔버스.
 
     bg: {"cut": "hero"}(컷 cover) | {"fill": "deep"}(단색). images: [{cut, at, size}].
-    cover_mode: 컷 리사이즈 반올림('round'=카드뉴스/배너, 'int'=상세페이지).
+    cover_mode: 컷 리사이즈 반올림('round'=카드뉴스/배너, 'int'=상세페이지). ctx: 콘텐츠 적응(L5).
     """
     W, H = size
     margin = int(W * margin_ratio)
@@ -317,7 +333,7 @@ def render_slide(size: tuple[int, int], spec: dict, cuts: dict, copy, pal,
         canvas = Image.new("RGB", size, _color(bg.get("fill", "white"), pal))
     for im in spec.get("images", []):
         _paste_image(canvas, im, cuts, W, H, margin, cover_mode)
-    render_elements(canvas, spec.get("elements", []), copy, pal, W, H, margin)
+    render_elements(canvas, spec.get("elements", []), copy, pal, W, H, margin, ctx)
     return canvas
 
 
@@ -368,10 +384,12 @@ def _section_height(s: dict, copy, width: int, margin: int) -> int:
     return int(h)
 
 
-def render_page(width: int, page: dict, cuts: dict, copy, pal, margin_ratio: float) -> Image.Image:
+def render_page(width: int, page: dict, cuts: dict, copy, pal, margin_ratio: float,
+                ctx: dict | None = None) -> Image.Image:
     """섹션들을 세로로 스택(상세페이지 롱스크롤). 각 섹션 = (width, 계산된 높이) 미니 슬라이드.
 
     가변 높이(story/benefits)는 카피 길이로 결정(_HEIGHT_CALC). 높이 0 섹션은 생략.
+    ctx: 콘텐츠 적응(domain/density) — 요소 조건(if_domain 등)에 전달(L5).
     """
     margin = int(width * margin_ratio)
     cm = page.get("cover_mode", "round")
@@ -383,7 +401,7 @@ def render_page(width: int, page: dict, cuts: dict, copy, pal, margin_ratio: flo
         if h <= 0:
             continue
         # 섹션별 margin override(예: hero 0.07) — 나머지는 page margin_ratio.
-        sec = render_slide((width, h), s, cuts, copy, pal, s.get("margin_ratio", margin_ratio), cover_mode=cm)
+        sec = render_slide((width, h), s, cuts, copy, pal, s.get("margin_ratio", margin_ratio), cover_mode=cm, ctx=ctx)
         canvas.paste(sec, (0, y))
         y += h
     return canvas

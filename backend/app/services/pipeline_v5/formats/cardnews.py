@@ -30,13 +30,14 @@ def render(hero: HeroAsset, spec: FormatSpec, output_dir: str) -> list[str]:
     by_name = {role.value: cuts[role] for role in DetailCutRole}
     copy = detail_copy_for(hero)
     pal = palette(hero.style)
+    ctx = {"domain": hero.domain, "density": spec.copy_density}  # L5 콘텐츠 적응
     layout = load_layout("cardnews")
     size = spec.canvas
 
     output = Path(output_dir)
     paths: list[str] = []
     for index, name in enumerate(_SLIDE_NAMES, start=1):
-        slide = render_slide(size, layout[name], by_name, copy, pal, spec.safe_margin)
+        slide = render_slide(size, layout[name], by_name, copy, pal, spec.safe_margin, ctx=ctx)
         path = output / f"cardnews_{index:02d}_{name}_{size[0]}x{size[1]}.jpg"
         slide.save(path, quality=93)
         paths.append(str(path))
