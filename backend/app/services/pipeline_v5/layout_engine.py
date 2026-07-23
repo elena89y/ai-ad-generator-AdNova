@@ -149,10 +149,13 @@ def _cond(el: dict, copy) -> bool:
 
 def _font_of(el: dict, text: str, W: int, H: int, margin: int) -> ImageFont.FreeTypeFont:
     f = el["font"]
-    if isinstance(f, dict) and "fit" in f:
+    if isinstance(f, dict):
         mw = el.get("maxw")
         maxw = _r(mw, W, H, margin) if mw is not None else W - 2 * margin
-        return _fit(text, maxw, f["fit"][0], f["fit"][1])
+        if "fit" in f:  # 단일 라인 축소(카드뉴스)
+            return _fit(text, maxw, f["fit"][0], f["fit"][1])
+        if "fit_headline" in f:  # 1~2줄 허용 크기의 폰트만 취함(배너 catalog 단일 draw)
+            return _fit_headline(text, maxw, f["fit_headline"][0], f["fit_headline"][1])[1]
     return _font(f, el.get("bold", False))
 
 
@@ -199,8 +202,72 @@ def render_elements(canvas: Image.Image, elements: list[dict], copy, pal,
                     draw.text((x, y0 + i * lh), line, font=font, fill=fill, spacing=el.get("spacing", 4))
             else:
                 draw.text((x, y0), s, font=font, fill=fill, spacing=el.get("spacing", 4))
+        elif t == "text_lines":  # 커머스 배너 헤드라인 — 1~2줄 자동 맞춤(fit_headline)
+            s = _bind_text(el, copy)
+            mw = el["maxw"]
+            maxw = _r(mw, W, H, margin) if isinstance(mw, list) else mw
+            lines, font = _fit_headline(s, maxw, el["fit_lines"][0], el["fit_lines"][1])
+            x, y0 = rr(el["at"][0]), rr(el["at"][1])
+            lh = _line_height(font)
+            for i, line in enumerate(lines):
+                draw.text((x, y0 + i * lh), line, font=font, fill=_color(el["color"], pal))
+        elif t == "cta_pill":
+            s = _bind_text(el, copy)
+            _cta_pill(canvas, s, _font(el["font"], True), (rr(el["at"][0]), rr(el["at"][1])),
+                      fill=_color(el["fill"], pal), fg=_color(el["fg"], pal))
         else:
             raise ValueError(f"알 수 없는 요소 타입: {t}")
+
+
+# --- 커머스 배너용 헬퍼(formats.banner 와 동일 — 정적 규격 DSL 이 재사용) ---------
+def _split_two_lines(text: str) -> list[str]:
+    words = text.split()
+    if len(words) < 2:
+        return [text]
+    best = min(range(1, len(words)),
+               key=lambda i: abs(len(" ".join(words[:i])) - len(" ".join(words[i:]))))
+    return [" ".join(words[:best]), " ".join(words[best:])]
+
+
+def _ellipsize(text: str, font, max_width: int, draw) -> str:
+    suffix = "…"
+    value = text
+    while value and draw.textbbox((0, 0), value + suffix, font=font)[2] > max_width:
+        value = value[:-1]
+    return (value.rstrip() + suffix) if value else suffix
+
+
+def _fit_headline(text: str, max_width: int, max_size: int, min_size: int):
+    clean = " ".join((text or "광고 이미지").split())
+    probe = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    for size in range(max_size, min_size - 1, -2):
+        font = _font(size, True)
+        if probe.textbbox((0, 0), clean, font=font)[2] <= max_width:
+            return [clean], font
+        lines = _split_two_lines(clean)
+        if len(lines) == 2 and all(
+            probe.textbbox((0, 0), line, font=font)[2] <= max_width for line in lines
+        ):
+            return lines, font
+    font = _font(min_size, True)
+    return [_ellipsize(clean, font, max_width, probe)], font
+
+
+def _line_height(font) -> int:
+    box = font.getbbox("가Ag")
+    return int((box[3] - box[1]) * 1.28)
+
+
+def _cta_pill(img: Image.Image, text: str, font, xy, pad: int = 20,
+              fill=(255, 255, 255), fg=(20, 20, 20)) -> None:
+    draw = ImageDraw.Draw(img)
+    left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
+    tw, th = right - left, bottom - top
+    x, y = xy
+    box = [x, y, x + tw + 2 * pad, y + th + int(pad * 1.2)]
+    radius = (box[3] - box[1]) // 2
+    draw.rounded_rectangle(box, radius=radius, fill=fill)
+    draw.text((x + pad, y + int(pad * 0.6)), text, font=font, fill=fg)
 
 
 def render_slide(size: tuple[int, int], spec: dict, cuts: dict, copy, pal,
