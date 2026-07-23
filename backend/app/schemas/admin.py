@@ -118,6 +118,29 @@ class AdminUserDetailResponse(AdminUserResponse):
     bonus_credits_remaining: int = Field(default=0, ge=0)
 
 
+class AdminAdvertisementResponse(BaseModel):
+    id: int
+    user_id: int
+    username: str
+    email: str
+    title: str | None = None
+    ad_type: str
+    style: str | None = None
+    status: str
+    prompt: str
+    generated_text: str | None = None
+    error_message: str | None = None
+    output_image_id: int | None = None
+    output_image_url: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AdminAdvertisementListResponse(BaseModel):
+    total: int
+    items: list[AdminAdvertisementResponse]
+
+
 class AdminUserStatusUpdateRequest(BaseModel):
     is_active: bool
 

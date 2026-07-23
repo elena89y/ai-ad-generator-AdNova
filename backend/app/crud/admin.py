@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from sqlalchemy import func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.crud.billing import expire_ended_subscriptions, get_demo_credit_pack_credits
 from app.crud.credits import grant_premium_credits, revoke_purchased_credits
@@ -300,6 +300,57 @@ def get_user_for_admin(
 
 def count_advertisements_by_user(db: Session, user_id: int) -> int:
     return db.query(Advertisement).filter(Advertisement.user_id == user_id).count()
+
+
+def list_advertisements_for_admin(
+    db: Session,
+    *,
+    skip: int,
+    limit: int,
+    user_id: int | None = None,
+    search: str | None = None,
+    status: str | None = None,
+) -> tuple[int, list[tuple[Advertisement, User]]]:
+    query = (
+        db.query(Advertisement, User)
+        .join(User, User.id == Advertisement.user_id)
+        .options(joinedload(Advertisement.output_image))
+    )
+    if user_id is not None:
+        query = query.filter(Advertisement.user_id == user_id)
+    if search:
+        keyword = f"%{search}%"
+        query = query.filter(
+            or_(
+                Advertisement.title.ilike(keyword),
+                User.username.ilike(keyword),
+                User.email.ilike(keyword),
+            )
+        )
+    if status:
+        query = query.filter(Advertisement.status == status)
+
+    total = query.count()
+    rows = (
+        query.order_by(Advertisement.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    return total, rows
+
+
+def get_advertisement_for_admin(
+    db: Session,
+    advertisement_id: int,
+) -> tuple[Advertisement, User] | None:
+    return (
+        db.query(Advertisement, User)
+        .join(User, User.id == Advertisement.user_id)
+        .options(joinedload(Advertisement.output_image))
+        .filter(Advertisement.id == advertisement_id)
+        .first()
+    )
 
 
 def update_user_active_status(
