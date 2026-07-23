@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.database.billing_models import PremiumCreditBalance
+from app.database.billing_models import PremiumCreditBalance, PurchasedCreditBalance
 from app.database.models import BonusCreditBalance, CreditBalance, CreditRefillState
 
 
@@ -355,3 +355,58 @@ def restore_premium_credit(
         db.commit()
         db.refresh(balance)
     return balance.credits_remaining
+
+
+def get_purchased_credits_remaining(db: Session, user_id: int) -> int:
+    balance = (
+        db.query(PurchasedCreditBalance)
+        .filter(PurchasedCreditBalance.user_id == user_id)
+        .first()
+    )
+    return balance.credits_remaining if balance is not None else 0
+
+
+def grant_purchased_credits(
+    db: Session,
+    user_id: int,
+    amount: int,
+    *,
+    commit: bool = True,
+) -> PurchasedCreditBalance:
+    balance = (
+        db.query(PurchasedCreditBalance)
+        .filter(PurchasedCreditBalance.user_id == user_id)
+        .first()
+    )
+    if balance is None:
+        balance = PurchasedCreditBalance(user_id=user_id, credits_remaining=0)
+        db.add(balance)
+    balance.credits_remaining += amount
+    if commit:
+        db.commit()
+        db.refresh(balance)
+    else:
+        db.flush()
+    return balance
+
+
+def consume_purchased_credit(db: Session, user_id: int) -> int | None:
+    updated = (
+        db.query(PurchasedCreditBalance)
+        .filter(
+            PurchasedCreditBalance.user_id == user_id,
+            PurchasedCreditBalance.credits_remaining > 0,
+        )
+        .update(
+            {PurchasedCreditBalance.credits_remaining: PurchasedCreditBalance.credits_remaining - 1},
+            synchronize_session=False,
+        )
+    )
+    if updated != 1:
+        return None
+    db.commit()
+    return get_purchased_credits_remaining(db, user_id)
+
+
+def restore_purchased_credit(db: Session, user_id: int) -> int:
+    return grant_purchased_credits(db, user_id, 1).credits_remaining

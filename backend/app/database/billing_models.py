@@ -59,6 +59,18 @@ class PremiumCreditBalance(Base):
     )
 
 
+class PurchasedCreditBalance(Base):
+    """데모 결제로 구매한 크레딧. 월 정기 크레딧과 별도로 보관한다."""
+
+    __tablename__ = "purchased_credit_balances"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False, index=True)
+    credits_remaining = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
 class PaymentMethod(Base):
     __tablename__ = "payment_methods"
 

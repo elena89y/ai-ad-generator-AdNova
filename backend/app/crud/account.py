@@ -4,6 +4,7 @@ from app.crud.retention import anonymize_legal_records_for_user
 from app.database.billing_models import (
     PaymentMethod,
     PremiumCreditBalance,
+    PurchasedCreditBalance,
     Subscription,
 )
 from app.database.models import (
@@ -93,6 +94,9 @@ def delete_user_account(db: Session, user: User) -> list[str]:
         )
         db.query(PremiumCreditBalance).filter(
             PremiumCreditBalance.user_id == user_id
+        ).delete(synchronize_session=False)
+        db.query(PurchasedCreditBalance).filter(
+            PurchasedCreditBalance.user_id == user_id
         ).delete(synchronize_session=False)
         db.query(PaymentMethod).filter(PaymentMethod.user_id == user_id).delete(
             synchronize_session=False
