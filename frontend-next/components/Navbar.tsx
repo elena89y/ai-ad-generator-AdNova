@@ -4,6 +4,12 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  apiFetch,
+  getToken,
+  readJsonSafely,
+  refreshAccessToken,
+} from "@/lib/api";
 
 const links = [
   { href: "#features", label: "기능" },
@@ -15,12 +21,36 @@ const links = [
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
     onScroll();
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkSession() {
+      try {
+        const activeToken = getToken() || (await refreshAccessToken());
+        if (!activeToken) return;
+        const response = await apiFetch("/api/account/me");
+        const user = await readJsonSafely(response);
+        if (!cancelled) setSignedIn(response.ok && Boolean(user));
+      } catch {
+        if (!cancelled) setSignedIn(false);
+      } finally {
+        if (!cancelled) setSignedIn((current) => current ?? false);
+      }
+    }
+
+    void checkSession();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -37,7 +67,7 @@ export default function Navbar() {
             scrolled ? "glass" : "bg-transparent"
           )}
         >
-          <a href="#top" className="flex items-center gap-1.5">
+          <a href={signedIn ? "/dashboard" : "#top"} className="flex items-center gap-1.5">
             <Image
               src="/brand/brand-logo.png"
               alt="adnova-ai 로고"
@@ -69,18 +99,31 @@ export default function Navbar() {
             >
               고객센터
             </a>
-            <a
-              href="/login"
-              className="text-sm text-muted transition-colors hover:text-foreground"
-            >
-              로그인
-            </a>
-            <a
-              href="/signup"
-              className="rounded-full accent-gradient px-4 py-2 text-sm font-semibold text-white transition-transform hover:scale-[1.03]"
-            >
-              무료로 시작하기
-            </a>
+            {signedIn === null ? (
+              <span className="text-sm text-muted">로그인 상태 확인 중</span>
+            ) : signedIn ? (
+              <a
+                href="/dashboard"
+                className="rounded-full accent-gradient px-4 py-2 text-sm font-semibold text-white transition-transform hover:scale-[1.03]"
+              >
+                대시보드로 이동
+              </a>
+            ) : (
+              <>
+                <a
+                  href="/login"
+                  className="text-sm text-muted transition-colors hover:text-foreground"
+                >
+                  로그인
+                </a>
+                <a
+                  href="/signup"
+                  className="rounded-full accent-gradient px-4 py-2 text-sm font-semibold text-white transition-transform hover:scale-[1.03]"
+                >
+                  무료로 시작하기
+                </a>
+              </>
+            )}
           </div>
 
           <button
@@ -113,20 +156,34 @@ export default function Navbar() {
             >
               고객센터
             </a>
-            <a
-              href="/login"
-              onClick={() => setOpen(false)}
-              className="text-muted transition-colors hover:text-foreground"
-            >
-              로그인
-            </a>
-            <a
-              href="/signup"
-              onClick={() => setOpen(false)}
-              className="mt-2 rounded-full accent-gradient px-4 py-2 text-center text-sm font-semibold text-white"
-            >
-              무료로 시작하기
-            </a>
+            {signedIn === null ? (
+              <span className="text-muted">로그인 상태 확인 중</span>
+            ) : signedIn ? (
+              <a
+                href="/dashboard"
+                onClick={() => setOpen(false)}
+                className="mt-2 rounded-full accent-gradient px-4 py-2 text-center text-sm font-semibold text-white"
+              >
+                대시보드로 이동
+              </a>
+            ) : (
+              <>
+                <a
+                  href="/login"
+                  onClick={() => setOpen(false)}
+                  className="text-muted transition-colors hover:text-foreground"
+                >
+                  로그인
+                </a>
+                <a
+                  href="/signup"
+                  onClick={() => setOpen(false)}
+                  className="mt-2 rounded-full accent-gradient px-4 py-2 text-center text-sm font-semibold text-white"
+                >
+                  무료로 시작하기
+                </a>
+              </>
+            )}
           </nav>
         </div>
       )}
