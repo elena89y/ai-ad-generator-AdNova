@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from fastapi import HTTPException, Response
 from fastapi.security import HTTPAuthorizationCredentials
@@ -7,14 +8,34 @@ from sqlalchemy.orm import sessionmaker
 
 import pyotp
 
-from app.api.auth import admin_login, admin_refresh, find_username, login, logout, refresh
+from app.api.auth import (
+    admin_login,
+    admin_refresh,
+    confirm_password_reset,
+    find_username,
+    login,
+    logout,
+    refresh,
+    request_password_reset,
+)
 from app.core.refresh_tokens import issue_user_refresh_token
-from app.core.security import create_admin_access_token, get_current_user, hash_password
+from app.core.security import (
+    create_admin_access_token,
+    get_current_user,
+    hash_password,
+    verify_password,
+)
 from app.core.totp import encrypt_totp_secret, generate_totp_secret
 from app.database.admin_models import AdminLoginFailureLog, AdminRefreshToken, AdminUser
 from app.database.connection import AdminBase, Base
-from app.database.models import User, UserRefreshToken
-from app.schemas.auth import AdminLoginRequest, UserLogin, UsernameFindRequest
+from app.database.models import PasswordResetToken, User, UserRefreshToken
+from app.schemas.auth import (
+    AdminLoginRequest,
+    PasswordResetConfirm,
+    PasswordResetRequest,
+    UserLogin,
+    UsernameFindRequest,
+)
 
 
 class AuthApiTestCase(unittest.TestCase):
@@ -236,6 +257,57 @@ class AuthApiTestCase(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.status_code, 404)
+
+    @patch("app.api.auth.send_password_reset_email")
+    def test_password_reset_changes_password_and_invalidates_token(self, send_email) -> None:
+        issue_user_refresh_token(
+            self.session,
+            Response(),
+            user_id=self.user.id,
+            auth_provider="local",
+            is_persistent=False,
+        )
+        request_password_reset(
+            request=PasswordResetRequest(email="LOGIN@EXAMPLE.COM"),
+            db=self.session,
+        )
+        send_email.assert_called_once()
+        raw_token = send_email.call_args.args[1]
+
+        result = confirm_password_reset(
+            request=PasswordResetConfirm(
+                token=raw_token,
+                new_password="NewPassword1!",
+            ),
+            db=self.session,
+        )
+
+        self.assertIn("비밀번호가 변경되었습니다", result["message"])
+        self.session.refresh(self.user)
+        self.assertTrue(verify_password("NewPassword1!", self.user.password_hash))
+        token = self.session.query(PasswordResetToken).one()
+        self.assertIsNotNone(token.used_at)
+        self.assertIsNotNone(self.session.query(UserRefreshToken).one().revoked_at)
+
+        with self.assertRaises(HTTPException) as context:
+            confirm_password_reset(
+                request=PasswordResetConfirm(
+                    token=raw_token,
+                    new_password="AnotherPassword1!",
+                ),
+                db=self.session,
+            )
+        self.assertEqual(context.exception.status_code, 400)
+
+    @patch("app.api.auth.send_password_reset_email")
+    def test_password_reset_request_does_not_reveal_unknown_email(self, send_email) -> None:
+        result = request_password_reset(
+            request=PasswordResetRequest(email="missing@example.com"),
+            db=self.session,
+        )
+
+        self.assertIn("가입된 이메일이라면", result["message"])
+        send_email.assert_not_called()
 
     def test_login_issues_refresh_cookie_and_refresh_rotates_it(self) -> None:
         login_response = Response()

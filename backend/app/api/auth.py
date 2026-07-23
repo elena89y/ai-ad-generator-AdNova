@@ -1,3 +1,4 @@
+import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -27,8 +28,14 @@ from app.core.totp import verify_totp_code
 from app.crud.admin import create_admin_login_failure_log
 from app.database.connection import get_admin_db, get_db
 from app.database.admin_models import AdminRefreshToken, AdminUser
-from app.database.models import User, UserRefreshToken, EmailVerification, utc_now
-from app.core.email import send_verification_email
+from app.database.models import (
+    EmailVerification,
+    PasswordResetToken,
+    User,
+    UserRefreshToken,
+    utc_now,
+)
+from app.core.email import send_password_reset_email, send_verification_email
 from app.schemas.auth import (
     AdminLoginRequest,
     UserCreate,
@@ -36,6 +43,8 @@ from app.schemas.auth import (
     UserResponse,
     UsernameFindRequest,
     UsernameFindResponse,
+    PasswordResetConfirm,
+    PasswordResetRequest,
 )
 
 
@@ -518,6 +527,94 @@ def find_username(request: UsernameFindRequest, db: Session = Depends(get_db)):
         )
 
     return UsernameFindResponse(username=user.username)
+
+
+PASSWORD_RESET_EXPIRE_MINUTES = 30
+
+
+@router.post("/password-reset/request")
+def request_password_reset(
+    request: PasswordResetRequest,
+    db: Session = Depends(get_db),
+):
+    """재설정 가능 여부와 관계없이 같은 응답을 반환해 계정 존재 여부를 숨긴다."""
+    email = str(request.email).lower()
+    user = db.query(User).filter(func.lower(User.email) == email).first()
+    if user is not None:
+        db.query(PasswordResetToken).filter(
+            PasswordResetToken.user_id == user.id,
+            PasswordResetToken.used_at.is_(None),
+        ).update(
+            {PasswordResetToken.used_at: utc_now()},
+            synchronize_session=False,
+        )
+        raw_token = secrets.token_urlsafe(48)
+        token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+        db.add(
+            PasswordResetToken(
+                user_id=user.id,
+                token_hash=token_hash,
+                expires_at=utc_now() + timedelta(minutes=PASSWORD_RESET_EXPIRE_MINUTES),
+            )
+        )
+        db.commit()
+        try:
+            send_password_reset_email(user.email, raw_token)
+        except Exception as exc:
+            db.query(PasswordResetToken).filter(
+                PasswordResetToken.token_hash == token_hash
+            ).update(
+                {PasswordResetToken.used_at: utc_now()},
+                synchronize_session=False,
+            )
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="재설정 메일을 발송하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+            ) from exc
+
+    return {"message": "가입된 이메일이라면 비밀번호 재설정 링크를 보냈습니다."}
+
+
+@router.post("/password-reset/confirm")
+def confirm_password_reset(
+    request: PasswordResetConfirm,
+    db: Session = Depends(get_db),
+):
+    token_hash = hashlib.sha256(request.token.encode("utf-8")).hexdigest()
+    reset_token = (
+        db.query(PasswordResetToken)
+        .filter(PasswordResetToken.token_hash == token_hash)
+        .first()
+    )
+    if (
+        reset_token is None
+        or reset_token.used_at is not None
+        or _is_expired(reset_token.expires_at)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="재설정 링크가 만료되었거나 이미 사용되었습니다.",
+        )
+
+    user = db.query(User).filter(User.id == reset_token.user_id).first()
+    if user is None or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="비밀번호를 재설정할 수 없습니다.",
+        )
+
+    user.password_hash = hash_password(request.new_password)
+    reset_token.used_at = utc_now()
+    db.query(UserRefreshToken).filter(
+        UserRefreshToken.user_id == user.id,
+        UserRefreshToken.revoked_at.is_(None),
+    ).update(
+        {UserRefreshToken.revoked_at: utc_now()},
+        synchronize_session=False,
+    )
+    db.commit()
+    return {"message": "비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요."}
 
 
 @router.post("/refresh")

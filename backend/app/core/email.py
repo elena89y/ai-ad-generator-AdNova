@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import logging
 import smtplib
+from html import escape
+from urllib.parse import quote
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -69,3 +71,16 @@ def send_marketing_email(to_email: str, subject: str, message: str) -> None:
         f"<p style=\"white-space:pre-line;\">{escape(message)}</p>",
     )
     send_email(to_email, f"[AdNova] {subject}", html)
+
+
+def send_password_reset_email(to_email: str, token: str) -> None:
+    reset_url = f"{settings.FRONTEND_URL}/reset-password?token={quote(token, safe='')}"
+    html = _base_template(
+        "AdNova 비밀번호 재설정",
+        f"""<p>아래 버튼을 눌러 새 비밀번호를 설정해 주세요. 링크는 30분간 유효합니다.</p>
+        <p style=\"margin:24px 0;\"><a href=\"{escape(reset_url, quote=True)}\"
+          style=\"display:inline-block;background:#f2a93b;color:#16151a;padding:12px 18px;
+          border-radius:8px;text-decoration:none;font-weight:bold;\">비밀번호 재설정</a></p>
+        <p style=\"font-size:12px;color:#888;word-break:break-all;\">{escape(reset_url)}</p>""",
+    )
+    send_email(to_email, "[AdNova] 비밀번호 재설정 링크", html)
