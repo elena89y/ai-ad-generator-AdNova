@@ -10,7 +10,8 @@ cover:
     - {type: bar, box: [0, 0, [fw, 1], 108], color: paper, alpha: 235}
     - {type: text, at: [[margin], 40], bind: product_name, fallback: ADNOVA SELECT, font: 25, bold: true, color: [24, 24, 24]}
     - {type: rule, box: [[rmargin, -120], 57, [rmargin], 57], color: accent, width: 5}
-    - {type: text, at: [[margin], [fh, 0.76]], text: SIGNATURE MENU, font: 22, bold: true, color: tint, if: product_name}
+    # L5 도메인 적응: 'SIGNATURE MENU'는 음식·음료 메뉴 뉘앙스 → 제품(object) SKU 에는 생략.
+    - {type: text, at: [[margin], [fh, 0.76]], text: SIGNATURE MENU, font: 22, bold: true, color: tint, if: product_name, unless_domain: [object]}
     - {type: text, at: [[margin], [fh, 0.76, 42]], bind: intro_headline, font: {fit: [62, 38]}, color: white}
     - {type: text, at: [[margin], [fh, 0.76, 128]], bind: benefit_bullets.0, font: {fit: [28, 22]}, color: tint, if: benefit_bullets}
 story:

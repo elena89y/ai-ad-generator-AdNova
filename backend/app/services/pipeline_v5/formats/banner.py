@@ -34,7 +34,8 @@ def render(hero: HeroAsset, spec: FormatSpec, output_dir: str) -> list[str]:
         layout = load_layout("banner")[spec.label]
         basis = ch if layout["margin_basis"] == "ch" else cw
         margin = int(basis * spec.safe_margin)
-        render_elements(canvas, layout["elements"], copy, pal, cw, ch, margin)
+        ctx = {"domain": hero.domain, "density": spec.copy_density}  # L5 콘텐츠 적응
+        render_elements(canvas, layout["elements"], copy, pal, cw, ch, margin, ctx)
     cw, ch = canvas.size
     out = str(Path(output_dir) / f"banner_{cw}x{ch}_{spec.label}.jpg")
     canvas.save(out, quality=92)

@@ -78,6 +78,38 @@ def test_conditional_element():
     assert le._cond({}, copy) is True
 
 
+def test_content_adaptation_conditions():
+    """L5: if_domain/unless_domain/if_density — 콘텐츠(도메인·밀도)에 요소 표시 적응."""
+    copy = _fixture()
+    # if_domain: 지정 도메인일 때만 표시
+    assert le._cond({"if_domain": ["food", "drink"]}, copy, {"domain": "drink"}) is True
+    assert le._cond({"if_domain": ["food", "drink"]}, copy, {"domain": "object"}) is False
+    # unless_domain: 지정 도메인이면 숨김
+    assert le._cond({"unless_domain": ["object"]}, copy, {"domain": "object"}) is False
+    assert le._cond({"unless_domain": ["object"]}, copy, {"domain": "drink"}) is True
+    # if_density
+    assert le._cond({"if_density": ["dense"]}, copy, {"density": "dense"}) is True
+    assert le._cond({"if_density": ["dense"]}, copy, {"density": "medium"}) is False
+    # if(copy 필드) + 도메인 복합
+    assert le._cond({"if": "product_name", "unless_domain": ["object"]}, copy, {"domain": "drink"}) is True
+    assert le._cond({"if": "product_name", "unless_domain": ["object"]}, copy, {"domain": "object"}) is False
+    # ctx 없음 → domain=None: unless_domain 은 통과(표시), if_domain 은 숨김
+    assert le._cond({"unless_domain": ["object"]}, copy, None) is True
+    assert le._cond({"if_domain": ["food"]}, copy, None) is False
+
+
+def test_cardnews_cover_kicker_adapts_to_domain(tmp_path):
+    """L5 시연: 'SIGNATURE MENU' 키커가 object 도메인에서 생략 → drink 와 픽셀 다름."""
+    layout = le.load_layout("cardnews")
+    by_name = _cuts(tmp_path)
+    copy = _fixture()
+    pal = palette("pop")
+    size = (1080, 1350)
+    drink = le.render_slide(size, layout["cover"], by_name, copy, pal, 0.07, ctx={"domain": "drink"})
+    obj = le.render_slide(size, layout["cover"], by_name, copy, pal, 0.07, ctx={"domain": "object"})
+    assert ImageChops.difference(drink, obj).getbbox() is not None  # 키커 유무 차이
+
+
 # --- DSL 레이아웃 로드·렌더 ----------------------------------------------------
 
 def test_cardnews_layout_has_four_slides():

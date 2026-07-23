@@ -39,8 +39,9 @@ def render(hero: HeroAsset, spec: FormatSpec, output_dir: str) -> list[str]:
     by_name = {role.value: cuts[role] for role in DetailCutRole}
     copy = detail_copy_for(hero)
     pal = palette(hero.style)
+    ctx = {"domain": hero.domain, "density": spec.copy_density}  # L5 콘텐츠 적응
     width = spec.canvas[0]
-    canvas = render_page(width, load_layout("detail"), by_name, copy, pal, spec.safe_margin)
+    canvas = render_page(width, load_layout("detail"), by_name, copy, pal, spec.safe_margin, ctx=ctx)
     out = Path(output_dir) / f"detail_{width}x{canvas.height}_{spec.label}.jpg"
     canvas.save(out, quality=93)
     return [str(out)]
