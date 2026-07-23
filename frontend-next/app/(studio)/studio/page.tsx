@@ -135,19 +135,16 @@ export default function StudioPage() {
     fileRef.current?.click();
   }
 
-  function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+  function selectImageFile(file: File | undefined) {
     // 백엔드 MAX_IMAGE_SIZE_MB(15MB)와 동기 — 서버가 장변 2048로 정규화 저장하므로 폰 원본 OK
     const MAX_IMAGE_SIZE = 15 * 1024 * 1024;
     if (!file) return;
     if (file.size > MAX_IMAGE_SIZE) {
       s.toast("이미지는 최대 15MB까지 업로드할 수 있습니다.");
-      e.target.value = "";
-    return;
+      return;
     }
     if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
       s.toast("jpg, png, webp 이미지만 업로드할 수 있습니다");
-      e.target.value = "";
       return;
     }
     setSelectedImageFile(file);
@@ -159,8 +156,36 @@ export default function StudioPage() {
     });
     setUploadInfo(`선택한 이미지: ${file.name}`);
     s.toast("이미지를 선택했습니다");
+  }
+
+  function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    selectImageFile(e.target.files?.[0]);
     e.target.value = "";
   }
+
+  function handleImageDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    selectImageFile(e.dataTransfer.files?.[0]);
+  }
+
+  function removeSelectedImage() {
+    setSelectedImageFile(null);
+    s.setDashboardState({
+      selectedImageId: null,
+      selectedImageUrl: null,
+      selectedImagePreview: null,
+      currentResult: null,
+    });
+    setUploadInfo("사진만 넣으면 배경·구도는 AI가 알아서 잡아줘요.");
+    s.toast("선택한 이미지를 제거했습니다");
+  }
+
+  useEffect(() => {
+    const previewUrl = s.selectedImagePreview;
+    return () => {
+      if (previewUrl?.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
+    };
+  }, [s.selectedImagePreview]);
 
   function startLoadingSteps() {
     let i = 0;
@@ -400,6 +425,8 @@ export default function StudioPage() {
                 transition: "border-color .2s ease, background .2s ease",
               }}
               onClick={selectProductImage}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={handleImageDrop}
             >
               {beforeSrc ? (
                 <>
@@ -415,7 +442,12 @@ export default function StudioPage() {
                     alt="제품 사진"
                   />
 
-                  <span
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      selectProductImage();
+                    }}
                     style={{
                       position: "absolute",
                       top: 8,
@@ -427,10 +459,35 @@ export default function StudioPage() {
                       padding: "5px 10px",
                       borderRadius: 8,
                       backdropFilter: "blur(6px)",
+                      border: 0,
+                      cursor: "pointer",
                     }}
                   >
                     사진 바꾸기
-                  </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeSelectedImage();
+                    }}
+                    style={{
+                      position: "absolute",
+                      right: 8,
+                      bottom: 8,
+                      background: "rgba(0,0,0,.65)",
+                      color: "#fff",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: "5px 10px",
+                      borderRadius: 8,
+                      backdropFilter: "blur(6px)",
+                      border: 0,
+                      cursor: "pointer",
+                    }}
+                  >
+                    제거
+                  </button>
                 </>
               ) : (
                 <div
@@ -479,7 +536,7 @@ export default function StudioPage() {
                       lineHeight: 1.4,
                     }}
                   >
-                    클릭하여 이미지를 선택하세요
+                    클릭하거나 파일을 끌어다 놓으세요
                   </div>
                 </div>
               )}
