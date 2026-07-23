@@ -57,6 +57,11 @@ from app.crud.inquiry import (
     list_inquiries_for_admin,
     update_inquiry_status,
 )
+from app.crud.report import (
+    get_report_by_id,
+    list_reports_for_admin,
+    update_report_status,
+)
 from app.services.notification_service import send_marketing_notifications
 from app.database.admin_models import AdminUser
 from app.database.billing_models import PurchaseHistory, RefundRequest, Subscription, utc_now
@@ -108,6 +113,11 @@ from app.schemas.inquiry import (
     AdminInquiryResponse,
     InquiryAnswerUpdateRequest,
     InquiryStatusUpdateRequest,
+)
+from app.schemas.report import (
+    AdminReportListResponse,
+    AdminReportResponse,
+    ReportStatusUpdateRequest,
 )
 
 
@@ -470,6 +480,25 @@ def _build_admin_inquiry_response(inquiry, user: User) -> AdminInquiryResponse:
         answered_at=inquiry.answered_at,
         created_at=inquiry.created_at,
         updated_at=inquiry.updated_at,
+    )
+
+
+def _build_admin_report_response(report, user: User) -> AdminReportResponse:
+    return AdminReportResponse(
+        id=report.id,
+        user_id=user.id,
+        username=user.username,
+        email=user.email,
+        category=report.category,
+        title=report.title,
+        content=report.content,
+        advertisement_id=report.advertisement_id,
+        status=report.status,
+        admin_note=report.admin_note,
+        handled_by_admin_id=report.handled_by_admin_id,
+        handled_at=report.handled_at,
+        created_at=report.created_at,
+        updated_at=report.updated_at,
     )
 
 
@@ -986,6 +1015,87 @@ def answer_admin_inquiry(
         admin_db.rollback()
         raise
     return _build_admin_inquiry_response(inquiry, inquiry.user)
+
+
+@router.get("/reports", response_model=AdminReportListResponse)
+def read_admin_reports(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    report_status: str | None = Query(None, min_length=1, max_length=30),
+    search: str | None = Query(None, min_length=1, max_length=100),
+    db: Session = Depends(get_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminReportListResponse:
+    del current_admin
+    total, rows = list_reports_for_admin(
+        db,
+        skip=skip,
+        limit=limit,
+        report_status=report_status,
+        search=search,
+    )
+    return AdminReportListResponse(
+        total=total,
+        items=[
+            _build_admin_report_response(report, user)
+            for report, user in rows
+        ],
+    )
+
+
+@router.get("/reports/{report_id}", response_model=AdminReportResponse)
+def read_admin_report_detail(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminReportResponse:
+    del current_admin
+    report = get_report_by_id(db, report_id)
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="신고 내역을 찾을 수 없습니다.",
+        )
+    return _build_admin_report_response(report, report.user)
+
+
+@router.patch("/reports/{report_id}", response_model=AdminReportResponse)
+def update_admin_report(
+    report_id: int,
+    request: ReportStatusUpdateRequest,
+    db: Session = Depends(get_db),
+    admin_db: Session = Depends(get_admin_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminReportResponse:
+    report = get_report_by_id(db, report_id)
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="신고 내역을 찾을 수 없습니다.",
+        )
+    try:
+        report = update_report_status(
+            db,
+            report,
+            report_status=request.status,
+            admin_note=request.admin_note,
+            admin_user_id=current_admin.id,
+            commit=False,
+        )
+        create_admin_audit_log(
+            admin_db,
+            admin_user_id=current_admin.id,
+            action="report.status_updated",
+            target_type="report",
+            target_id=report.id,
+            detail=f"status={request.status}",
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        admin_db.rollback()
+        raise
+    return _build_admin_report_response(report, report.user)
 
 
 @router.get("/users/{user_id}", response_model=AdminUserDetailResponse)

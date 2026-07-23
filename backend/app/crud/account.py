@@ -16,6 +16,7 @@ from app.database.models import (
     NotificationSettings,
     PasswordResetToken,
     User,
+    UserReport,
 )
 
 
@@ -87,6 +88,9 @@ def delete_user_account(db: Session, user: User) -> list[str]:
         db.query(NotificationSettings).filter(
             NotificationSettings.user_id == user_id
         ).delete(synchronize_session=False)
+        db.query(UserReport).filter(UserReport.user_id == user_id).delete(
+            synchronize_session=False
+        )
         db.query(History).filter(History.user_id == user_id).delete(
             synchronize_session=False
         )
