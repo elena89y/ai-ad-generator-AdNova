@@ -14,6 +14,7 @@ from app.database.models import (
     History,
     Image,
     NotificationSettings,
+    PasswordResetToken,
     User,
 )
 
@@ -80,6 +81,9 @@ def delete_user_account(db: Session, user: User) -> list[str]:
         db.query(CreditBalance).filter(CreditBalance.user_id == user_id).delete(
             synchronize_session=False
         )
+        db.query(PasswordResetToken).filter(
+            PasswordResetToken.user_id == user_id
+        ).delete(synchronize_session=False)
         db.query(NotificationSettings).filter(
             NotificationSettings.user_id == user_id
         ).delete(synchronize_session=False)

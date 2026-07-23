@@ -106,6 +106,29 @@ class UsernameFindResponse(BaseModel):
     username: str
 
 
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str = Field(..., min_length=32, max_length=200)
+    new_password: str = Field(
+        ...,
+        min_length=8,
+        max_length=20,
+        description="8~20자, 영문 대문자/소문자/숫자/특수문자를 각각 최소 1개 포함",
+    )
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, value: str) -> str:
+        if not re.match(PASSWORD_PATTERN, value):
+            raise ValueError(
+                "비밀번호는 8~20자이며 영문 대문자, 영문 소문자, 숫자, 특수문자를 각각 최소 1개 이상 포함해야 합니다."
+            )
+        return value
+
+
 class UserResponse(BaseModel):
     id: int
     email: EmailStr
