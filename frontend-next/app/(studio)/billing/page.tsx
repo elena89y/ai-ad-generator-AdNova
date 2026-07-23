@@ -30,6 +30,8 @@ export default function BillingPage() {
   const summary = s.billingSummary;
   const subscription = summary?.subscription;
   const paymentMethod = summary?.payment_method;
+  const bonusCredits = summary?.bonus_credits_remaining ?? 0;
+  const purchasedCredits = summary?.purchased_credits_remaining ?? 0;
   const isPremium = s.isPremium;
   const cancelPending = Boolean(subscription?.cancel_at_period_end);
   const hasBillingData = Boolean(
@@ -69,13 +71,15 @@ export default function BillingPage() {
           <span className="credits">
             {isPremium ? (
               <>
-                플랜 <b>프리미엄</b>
+                크레딧 <b>{s.premiumLeft}/{s.premiumTotal}</b>
               </>
             ) : (
               <>
                 크레딧 <b>{s.freeLeft}</b>
               </>
             )}
+            {bonusCredits > 0 && <> · 보너스 <b>{bonusCredits}</b></>}
+            {purchasedCredits > 0 && <> · 구매 <b>{purchasedCredits}</b></>}
           </span>
         }
       />
@@ -303,6 +307,22 @@ export default function BillingPage() {
                       : subscription?.plan || "무료"}
                   </b>
                 </div>
+                {isPremium && (
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "var(--ink-mute)" }}>이번 달 남은 생성</span>
+                    <b>{s.premiumLeft}/{s.premiumTotal}회</b>
+                  </div>
+                )}
+                {bonusCredits > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "var(--ink-mute)" }}>보너스 크레딧</span>
+                    <b>{bonusCredits}개</b>
+                  </div>
+                )}
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ color: "var(--ink-mute)" }}>구매 크레딧</span>
+                  <b>{purchasedCredits}개</b>
+                </div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ color: "var(--ink-mute)" }}>
                     {cancelPending || subscription?.status !== "active"
@@ -317,6 +337,28 @@ export default function BillingPage() {
                     기능을 이용할 수 있습니다.
                   </p>
                 )}
+              </div>
+            </div>
+            <div className="set-card">
+              <h4>크레딧 추가 구매</h4>
+              <p style={{ fontSize: 12, color: "var(--ink-mute)", margin: "-3px 0 14px" }}>
+                월 크레딧을 모두 사용한 뒤 구매 크레딧이 사용됩니다.
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
+                <button
+                  type="button"
+                  style={{ padding: 14, border: "1px solid var(--line)", borderRadius: 11, background: "rgba(255,255,255,.04)", color: "var(--ink)", textAlign: "left", cursor: "pointer" }}
+                  onClick={() => router.push("/checkout?mode=credit-pack&product=credit_10")}
+                >
+                  <b>크레딧 10개</b><br /><span style={{ color: "var(--gold)", fontWeight: 800 }}>₩4,900</span>
+                </button>
+                <button
+                  type="button"
+                  style={{ padding: 14, border: "1px solid var(--gold)", borderRadius: 11, background: "rgba(242,169,59,.08)", color: "var(--ink)", textAlign: "left", cursor: "pointer" }}
+                  onClick={() => router.push("/checkout?mode=credit-pack&product=credit_30")}
+                >
+                  <b>크레딧 30개</b><br /><span style={{ color: "var(--gold)", fontWeight: 800 }}>₩9,900</span>
+                </button>
               </div>
             </div>
             <div className="set-card">

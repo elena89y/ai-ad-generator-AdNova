@@ -288,25 +288,30 @@ def render_typography_variants(
     brand_label: str = "",
     kicker: str = "",
     cta: str = "",
+    subject_en: str = "",
+    domain: str = "food",
 ) -> TypographyRenderResult:
-    """GPU 재생성 없이 OFF/ON을 함께 만들고 토글에 맞는 경로를 선택한다."""
+    """GPU 재생성 없이 OFF/ON을 함께 만들고 토글에 맞는 경로를 선택한다.
+
+    2026-07-21 판정: 기존 kr_hero 기본 룩은 사용 금지 — ON 변형은 타이포 시스템 v0
+    (typography_system, TS-1~3b 자동 분기)로 조판한다. layout_key/style_key 는
+    호출부 계약 유지를 위해 받되 v0 분기에서는 사용하지 않는다.
+    """
+    from . import typography_system
+
     copy = commercial_copy_from_text(
         copy_text, product_name, brand_label=brand_label, kicker=kicker, cta=cta,
     )
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     stem = Path(image_path).stem
-    source = Image.open(image_path).convert("RGB")
-    resolved_layout = select_typography_layout(source) if layout_key == _AUTO_LAYOUT else layout_key
     off_path = out_dir / f"{stem}_typography_off.png"
     on_path = out_dir / f"{stem}_typography_on.png"
-    render_commercial_poster(
-        image_path, str(off_path), copy, enabled=False,
-        layout_key=layout_key, style_key=style_key,
-    )
-    render_commercial_poster(
-        image_path, str(on_path), copy, enabled=True,
-        layout_key=resolved_layout, style_key=style_key,
+    # OFF = 원본 그대로 (기존에도 enabled=False 는 무타이포 앵커였음)
+    Image.open(image_path).convert("RGB").save(off_path)
+    used_style = typography_system.render_typography(
+        image_path, str(on_path), product_name, copy.headline, subject_en=subject_en,
+        domain=domain,
     )
     selected = on_path if typography_enabled else off_path
     return TypographyRenderResult(
@@ -314,5 +319,5 @@ def render_typography_variants(
         with_typography_path=str(on_path),
         selected_image_path=str(selected),
         typography_enabled=typography_enabled,
-        layout_key=resolved_layout,
+        layout_key=used_style,
     )

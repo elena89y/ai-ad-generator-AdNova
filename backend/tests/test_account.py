@@ -300,15 +300,33 @@ class AccountApiTestCase(unittest.TestCase):
                     auth_provider="local",
                 )
 
-            self.assertEqual(self.session.query(User).count(), 0)
+            # 탈퇴 회원 본인 계정은 삭제됨 (법정 보존 기록 귀속용 "탈퇴회원" 센티넬만 잔존)
+            from app.crud.retention import WITHDRAWN_USERNAME
+
+            self.assertEqual(
+                self.session.query(User).filter(User.username != WITHDRAWN_USERNAME).count(), 0
+            )
             self.assertEqual(self.session.query(Image).count(), 0)
             self.assertEqual(self.session.query(Advertisement).count(), 0)
             self.assertEqual(self.session.query(History).count(), 0)
             self.assertEqual(self.session.query(Subscription).count(), 0)
             self.assertEqual(self.session.query(PaymentMethod).count(), 0)
-            self.assertEqual(self.session.query(PurchaseHistory).count(), 0)
-            self.assertEqual(self.session.query(RefundRequest).count(), 0)
-            self.assertEqual(self.session.query(SupportInquiry).count(), 0)
+            # 법정 보존 기록(문의 3년·구매/환불 5년)은 삭제되지 않고 센티넬로 가명처리-보존된다.
+            # (전자상거래법 시행령 제6조 + 개인정보보호법 제21조)
+            placeholder = (
+                self.session.query(User)
+                .filter(User.username == WITHDRAWN_USERNAME)
+                .one()
+            )
+            for model in (PurchaseHistory, RefundRequest, SupportInquiry):
+                retained = self.session.query(model).all()
+                self.assertEqual(len(retained), 1, f"{model.__name__} 보존돼야 함")
+                self.assertEqual(
+                    retained[0].user_id, placeholder.id, f"{model.__name__} 센티넬 귀속돼야 함"
+                )
+                self.assertIsNotNone(
+                    retained[0].anonymized_at, f"{model.__name__} anonymized_at 기록돼야 함"
+                )
             self.assertEqual(self.session.query(CreditBalance).count(), 0)
             self.assertEqual(self.session.query(CreditRefillState).count(), 0)
             self.assertEqual(self.session.query(PremiumCreditBalance).count(), 0)

@@ -9,6 +9,7 @@ from app.api.billing import (
     change_demo_payment_method,
     create_demo_subscription,
     create_payment_method_change_session,
+    purchase_credit_pack,
     read_billing_summary,
     read_purchase_histories,
     resume_canceled_subscription,
@@ -16,12 +17,14 @@ from app.api.billing import (
 from app.database.billing_models import (
     PaymentMethod,
     PremiumCreditBalance,
+    PurchasedCreditBalance,
     PurchaseHistory,
     Subscription,
 )
 from app.database.connection import Base
 from app.database.models import User
-from app.schemas.billing import DemoCardRequest
+from app.crud.credits import grant_bonus_credits
+from app.schemas.billing import CreditPackRequest, DemoCardRequest
 
 
 class BillingApiTestCase(unittest.TestCase):
@@ -98,6 +101,8 @@ class BillingApiTestCase(unittest.TestCase):
         self.assertEqual(summary.free_credits_remaining, 3)
         self.assertEqual(summary.free_credit_limit, 3)
         self.assertIsNone(summary.next_free_credit_at)
+        self.assertEqual(summary.bonus_credits_remaining, 0)
+        self.assertEqual(summary.purchased_credits_remaining, 0)
         self.assertEqual(summary.premium_credits_remaining, 30)
         self.assertEqual(summary.premium_credit_limit, 30)
         self.assertEqual(
@@ -106,6 +111,13 @@ class BillingApiTestCase(unittest.TestCase):
         )
         self.assertEqual(summary.subscription.id, self.subscription.id)
         self.assertEqual(summary.payment_method.card_last4, "1234")
+
+    def test_summary_includes_admin_granted_bonus_credits(self) -> None:
+        grant_bonus_credits(self.session, self.user.id, 7)
+
+        summary = read_billing_summary(db=self.session, current_user=self.user)
+
+        self.assertEqual(summary.bonus_credits_remaining, 7)
 
     def test_expired_subscription_loses_premium_access(self) -> None:
         self.subscription.current_period_end = datetime.now(timezone.utc) - timedelta(
@@ -226,6 +238,42 @@ class BillingApiTestCase(unittest.TestCase):
 
         self.assertEqual(summary.payment_method.card_brand, "Mastercard")
         self.assertEqual(summary.payment_method.card_last4, "5678")
+
+    def test_premium_user_can_purchase_credit_pack(self) -> None:
+        summary = purchase_credit_pack(
+            request=CreditPackRequest(
+                product_id="credit_10",
+                card_brand="Visa",
+                card_last4="4242",
+            ),
+            db=self.session,
+            current_user=self.user,
+        )
+
+        self.assertEqual(summary.purchased_credits_remaining, 10)
+        balance = self.session.query(PurchasedCreditBalance).filter(
+            PurchasedCreditBalance.user_id == self.user.id
+        ).one()
+        self.assertEqual(balance.credits_remaining, 10)
+        purchase = self.session.query(PurchaseHistory).filter(
+            PurchaseHistory.user_id == self.user.id,
+            PurchaseHistory.item_type == "credit_pack",
+        ).one()
+        self.assertEqual(purchase.amount, 4900)
+
+    def test_non_premium_user_cannot_purchase_credit_pack(self) -> None:
+        with self.assertRaises(HTTPException) as context:
+            purchase_credit_pack(
+                request=CreditPackRequest(
+                    product_id="credit_10",
+                    card_brand="Visa",
+                    card_last4="4242",
+                ),
+                db=self.session,
+                current_user=self.other_user,
+            )
+
+        self.assertEqual(context.exception.status_code, 403)
 
 if __name__ == "__main__":
     unittest.main()

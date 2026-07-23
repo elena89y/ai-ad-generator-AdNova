@@ -53,10 +53,10 @@ def render(hero: HeroAsset, spec: FormatSpec, output_dir: str) -> list[str]:
         y += heights[2]
 
     top = _cover(Image.open(cuts[DetailCutRole.TOP_VIEW]).convert("RGB"), (width, heights[3]))
-    canvas.paste(top, (0, y)); _section_label(canvas, pal, y, "01", copy.top_view_label, light=False); y += heights[3]
+    canvas.paste(top, (0, y)); _section_label(canvas, pal, y, copy.top_view_label, light=False); y += heights[3]
 
     closeup = _cover(Image.open(cuts[DetailCutRole.TEXTURE_CLOSEUP]).convert("RGB"), (width, heights[4]))
-    canvas.paste(closeup, (0, y)); _section_label(canvas, pal, y, "02", copy.closeup_caption, light=True); y += heights[4]
+    canvas.paste(closeup, (0, y)); _section_label(canvas, pal, y, copy.closeup_caption, light=True); y += heights[4]
 
     _split_section(canvas, cuts[DetailCutRole.SIDE_PROFILE], copy, pal, y, heights[5], width, margin); y += heights[5]
 
@@ -152,16 +152,36 @@ def _cover(image: Image.Image, size: tuple[int, int]) -> Image.Image:
     return resized.crop((left, top, left + w, top + h))
 
 
+def _scrim(canvas, y_top: int, y_bottom: int, width: int, rgb: tuple, amax: int, fade: int):
+    """제품 이미지 위 타이포 배경 — 솔리드 대신 위쪽 페이드 밴드.
+
+    메인은 이미지(사용자 피드백 2026-07-21): 하단에만 얇게 깔고 상단은 투명하게 페이드해
+    제품이 덜 가려지도록 한다. 밴드 하부는 amax 로 불투명해 흰 타이포 가독성 유지.
+    """
+    h = int(y_bottom - y_top)
+    if h <= 0:
+        return
+    ramp = Image.new("L", (1, h))
+    px = ramp.load()
+    for i in range(h):
+        px[0, i] = int(amax * min(1.0, i / max(1, fade)))
+    overlay = Image.new("RGBA", (width, h), (rgb[0], rgb[1], rgb[2], 0))
+    overlay.putalpha(ramp.resize((width, h)))
+    region = canvas.crop((0, int(y_top), width, int(y_top) + h)).convert("RGBA")
+    canvas.paste(Image.alpha_composite(region, overlay).convert("RGB"), (0, int(y_top)))
+
+
 def _title_overlay(canvas, copy: DetailPageCopy, pal, y, height, width):
     draw = ImageDraw.Draw(canvas, "RGBA")
     draw.rectangle((0, y, width, y + 104), fill=(*_PAPER, 242))
-    draw.rectangle((0, y + int(height * .68), width, y + height), fill=(*_INK, 220))
+    # 하단 32% 솔리드 → 20% 페이드 밴드(제품 노출↑). 타이포는 밴드 하부(불투명)로 내림.
+    _scrim(canvas, y + int(height * .80), y + height, width, _INK, 205, 80)
     margin = int(width * .07)
     draw.text((margin, y + 37), copy.product_name or "ADNOVA SELECT", font=_font(22, True), fill=(24, 24, 24))
     draw.line((width - margin - 100, y + 52, width - margin, y + 52), fill=pal["accent"], width=4)
-    draw.text((margin, y + int(height * .73)), copy.product_name, font=_font(23, True), fill=pal["tint"])
-    font = _fit(copy.intro_headline, width - margin * 2, 55, 34)
-    draw.text((margin, y + int(height * .79)), copy.intro_headline, font=font, fill="white")
+    draw.text((margin, y + int(height * .84)), copy.product_name, font=_font(23, True), fill=pal["tint"])
+    font = _fit(copy.intro_headline, width - margin * 2, 52, 34)
+    draw.text((margin, y + int(height * .90)), copy.intro_headline, font=font, fill="white")
 
 
 def _story_metrics(copy: DetailPageCopy, width, margin) -> tuple[list[str], int]:
@@ -202,18 +222,18 @@ def _benefits(canvas, copy: DetailPageCopy, pal, y, height, margin, width):
                   _fit_line(bullet, width - margin * 2 - 56, 27), font=_font(27, True), fill=(30, 30, 30))
 
 
-def _section_label(canvas, pal, y, number, title, light):
+def _section_label(canvas, pal, y, title, light):
     draw = ImageDraw.Draw(canvas, "RGBA")
     fill = (*_PAPER, 232) if light else (*_INK, 205)
     text = (24, 24, 24) if light else (255, 255, 255)
-    # 라이브 실측(2026-07-21): '잔' 같은 짧은 라벨이 고정 폭 바에 떠 보임 → 텍스트 폭 맞춤.
-    label = _fit_line(title, 520 - 128 - 24, 27)
+    # 번호 제거(2026-07-23, 카드뉴스/배너와 통일) — 라벨만 남기고 텍스트 폭에 맞춘다.
+    # 라이브 실측(2026-07-21): '잔' 같은 짧은 라벨이 고정 폭 바에 떠 보이던 문제도 함께 유지.
+    label = _fit_line(title, 520 - 68 - 24, 27)
     font = _font(27, True)
     label_w = draw.textbbox((0, 0), label, font=font)[2]
-    right = max(320, min(520, 128 + label_w + 36))
+    right = max(240, min(520, 68 + label_w + 36))
     draw.rectangle((44, y + 42, right, y + 145), fill=fill)
-    draw.text((68, y + 67), number, font=_font(20, True), fill=pal["accent"])
-    draw.text((128, y + 63), label, font=font, fill=text)
+    draw.text((68, y + 68), label, font=font, fill=text)
 
 
 def _split_section(canvas, path, copy: DetailPageCopy, pal, y, height, width, margin):
@@ -222,7 +242,7 @@ def _split_section(canvas, path, copy: DetailPageCopy, pal, y, height, width, ma
     draw = ImageDraw.Draw(canvas)
     draw.rectangle((image_w, y, width, y + height), fill=pal["deep"])
     x = image_w + margin
-    draw.text((x, y + 85), "03 / PROFILE", font=_font(19, True), fill=pal["tint"])
+    draw.text((x, y + 85), "PROFILE", font=_font(19, True), fill=pal["tint"])
     draw.text((x, y + 150), copy.profile_title, font=_font(39, True), fill="white", spacing=8)
     if copy.profile_caption:
         for index, line in enumerate(_wrap_px(copy.profile_caption, _font(21), width - x - margin)[:3]):
@@ -230,10 +250,11 @@ def _split_section(canvas, path, copy: DetailPageCopy, pal, y, height, width, ma
 
 
 def _lifestyle_overlay(canvas, copy: DetailPageCopy, pal, y, height, width, margin):
+    # 하단 33% 솔리드 → 22% 페이드 밴드(라이프스타일 컷 노출↑).
+    _scrim(canvas, y + int(height * .78), y + height, width, _INK, 200, 90)
     draw = ImageDraw.Draw(canvas, "RGBA")
-    draw.rectangle((0, y + int(height * .67), width, y + height), fill=(*_INK, 205))
-    draw.text((margin, y + int(height * .72)), "04 / MOMENT", font=_font(20, True), fill=pal["tint"])
-    draw.text((margin, y + int(height * .79)), copy.lifestyle_line,
+    draw.text((margin, y + int(height * .82)), "MOMENT", font=_font(20, True), fill=pal["tint"])
+    draw.text((margin, y + int(height * .88)), copy.lifestyle_line,
               font=_fit(copy.lifestyle_line, width - margin * 2, 43, 29), fill="white")
 
 

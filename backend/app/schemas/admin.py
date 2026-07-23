@@ -2,9 +2,9 @@ import re
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from app.schemas.auth import PASSWORD_PATTERN
+from app.schemas.auth import PASSWORD_PATTERN, USERNAME_PATTERN
 
 
 class AdminMeResponse(BaseModel):
@@ -12,6 +12,7 @@ class AdminMeResponse(BaseModel):
     username: str
     email: str
     role: str
+    totp_enabled: bool
 
 
 class AdminAccountResponse(BaseModel):
@@ -31,8 +32,29 @@ class AdminAccountListResponse(BaseModel):
 
 
 class AdminAccountCreateRequest(BaseModel):
-    user_id: int = Field(gt=0)
+    email: EmailStr
+    username: str = Field(min_length=7, max_length=12)
+    password: str = Field(min_length=8, max_length=20)
+    name: str | None = Field(default=None, max_length=15)
     role: Literal["operator", "super_admin"] = "operator"
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value: str) -> str:
+        if not re.match(USERNAME_PATTERN, value):
+            raise ValueError(
+                "아이디는 영문과 숫자만 사용할 수 있으며 7~12자여야 합니다."
+            )
+        return value.lower()
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        if not re.match(PASSWORD_PATTERN, value):
+            raise ValueError(
+                "비밀번호는 8~20자이며 영문 대문자, 영문 소문자, 숫자, 특수문자를 각각 최소 1개 이상 포함해야 합니다."
+            )
+        return value
 
 
 class AdminAccountRoleUpdateRequest(BaseModel):
@@ -56,11 +78,12 @@ class AdminSummaryResponse(BaseModel):
 
 class AdminAuditLogResponse(BaseModel):
     id: int
-    admin_user_id: int
+    source: Literal["admin_action", "login_failure"]
+    admin_user_id: int | None = None
     admin_username: str
     action: str
     target_type: str
-    target_id: int
+    target_id: int | None = None
     detail: str | None = None
     created_at: datetime
 
@@ -91,6 +114,7 @@ class AdminUserDetailResponse(AdminUserResponse):
     business_type: str | None = None
     updated_at: datetime
     advertisement_count: int
+    bonus_credits_remaining: int = Field(default=0, ge=0)
 
 
 class AdminUserStatusUpdateRequest(BaseModel):
@@ -99,6 +123,15 @@ class AdminUserStatusUpdateRequest(BaseModel):
 
 class AdminUserSubscriptionUpdateRequest(BaseModel):
     is_premium: bool
+
+
+class AdminBonusCreditGrantRequest(BaseModel):
+    amount: int = Field(ge=1, le=10000)
+
+
+class AdminBonusCreditGrantResponse(BaseModel):
+    user_id: int
+    bonus_credits_remaining: int = Field(ge=0)
 
 
 class AdminPurchaseHistoryResponse(BaseModel):
@@ -188,3 +221,62 @@ class AdminPasswordChangeRequest(BaseModel):
 
 class AdminMessageResponse(BaseModel):
     message: str
+
+
+class AdminTotpSetupRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+
+
+class AdminTotpSetupResponse(BaseModel):
+    manual_entry_key: str
+    provisioning_uri: str
+    qr_code_data_url: str
+
+
+class AdminTotpVerifyRequest(BaseModel):
+    code: str = Field(pattern=r"^\d{6}$")
+
+
+class AdminTotpDisableRequest(AdminTotpVerifyRequest):
+    current_password: str = Field(min_length=1, max_length=128)
+
+# --- 챗봇 이용통계 (한의정) ---------------------------------------------------
+class ChatbotCategoryStat(BaseModel):
+    category: str
+    count: int
+
+
+class ChatbotFaqStat(BaseModel):
+    faq_id: str
+    count: int
+
+
+class AdminChatbotStatsResponse(BaseModel):
+    total_chats: int
+    answered_chats: int
+    escalated_chats: int
+    rewritten_chats: int
+    escalation_rate: float
+    by_category: list[ChatbotCategoryStat]
+    top_cited_faqs: list[ChatbotFaqStat]
+
+
+# --- FAQ 후보 큐 (한의정) -----------------------------------------------------
+class AdminFaqCandidateResponse(BaseModel):
+    id: int
+    source_inquiry_id: int | None = None
+    category: str
+    question: str
+    answer: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class AdminFaqCandidateListResponse(BaseModel):
+    total: int
+    items: list[AdminFaqCandidateResponse]
+
+
+class FaqCandidateStatusUpdateRequest(BaseModel):
+    status: Literal["approved", "dismissed"]

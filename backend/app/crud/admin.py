@@ -5,7 +5,12 @@ from sqlalchemy.orm import Session
 
 from app.crud.billing import expire_ended_subscriptions
 from app.crud.credits import grant_premium_credits
-from app.database.admin_models import AdminAccount, AdminAuditLog
+from app.crud.retention import WITHDRAWN_USERNAME
+from app.database.admin_models import (
+    AdminAuditLog,
+    AdminLoginFailureLog,
+    AdminUser,
+)
 from app.database.billing_models import PurchaseHistory, Subscription, utc_now
 from app.database.models import Advertisement, SupportInquiry, User
 
@@ -31,7 +36,8 @@ def get_admin_summary(db: Session) -> dict[str, int]:
     )
 
     return {
-        "total_users": db.query(User).count(),
+        # 탈퇴회원 센티넬 제외 (active_users 는 is_active=False 라 이미 제외됨)
+        "total_users": db.query(User).filter(User.username != WITHDRAWN_USERNAME).count(),
         "active_users": db.query(User).filter(User.is_active.is_(True)).count(),
         "premium_users": (
             db.query(Subscription)
@@ -82,10 +88,10 @@ def list_admin_audit_logs(
     skip: int,
     limit: int,
     action: str | None = None,
-) -> tuple[int, list[tuple[AdminAuditLog, User]]]:
-    query = db.query(AdminAuditLog, User).join(
-        User,
-        User.id == AdminAuditLog.admin_user_id,
+) -> tuple[int, list[tuple[AdminAuditLog, AdminUser]]]:
+    query = db.query(AdminAuditLog, AdminUser).join(
+        AdminUser,
+        AdminUser.id == AdminAuditLog.admin_user_id,
     )
     if action:
         query = query.filter(AdminAuditLog.action == action)
@@ -96,29 +102,60 @@ def list_admin_audit_logs(
     )
 
 
+def create_admin_login_failure_log(
+    db: Session,
+    *,
+    attempted_username: str,
+    reason: str,
+    admin_user_id: int | None = None,
+) -> AdminLoginFailureLog:
+    login_failure_log = AdminLoginFailureLog(
+        attempted_username=attempted_username,
+        admin_user_id=admin_user_id,
+        reason=reason,
+    )
+    db.add(login_failure_log)
+    db.commit()
+    db.refresh(login_failure_log)
+    return login_failure_log
+
+
+def list_admin_login_failure_logs(
+    db: Session,
+    *,
+    skip: int,
+    limit: int,
+) -> tuple[int, list[AdminLoginFailureLog]]:
+    query = db.query(AdminLoginFailureLog)
+    return (
+        query.count(),
+        query.order_by(AdminLoginFailureLog.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all(),
+    )
+
+
 def list_admin_accounts(
     db: Session,
     *,
     skip: int,
     limit: int,
     search: str | None = None,
-) -> tuple[int, list[tuple[AdminAccount, User]]]:
-    query = db.query(AdminAccount, User).join(
-        User,
-        User.id == AdminAccount.user_id,
-    )
+) -> tuple[int, list[AdminUser]]:
+    query = db.query(AdminUser)
     if search:
         keyword = f"%{search}%"
         query = query.filter(
             or_(
-                User.username.ilike(keyword),
-                User.email.ilike(keyword),
+                AdminUser.username.ilike(keyword),
+                AdminUser.email.ilike(keyword),
             )
         )
 
     total = query.count()
     rows = (
-        query.order_by(AdminAccount.created_at.desc())
+        query.order_by(AdminUser.created_at.desc())
         .offset(skip)
         .limit(limit)
         .all()
@@ -129,53 +166,38 @@ def list_admin_accounts(
 def get_admin_account_by_id(
     db: Session,
     admin_account_id: int,
-) -> tuple[AdminAccount, User] | None:
-    return (
-        db.query(AdminAccount, User)
-        .join(User, User.id == AdminAccount.user_id)
-        .filter(AdminAccount.id == admin_account_id)
-        .first()
-    )
+) -> AdminUser | None:
+    return db.query(AdminUser).filter(AdminUser.id == admin_account_id).first()
 
 
-def get_admin_account_by_user_id(
-    db: Session,
-    user_id: int,
-) -> AdminAccount | None:
-    return (
-        db.query(AdminAccount)
-        .filter(AdminAccount.user_id == user_id)
-        .first()
-    )
-
-
-def create_admin_account(
+def create_admin_user_account(
     db: Session,
     *,
-    user_id: int,
+    email: str,
+    username: str,
+    password_hash: str,
+    name: str | None,
     role: str,
-    commit: bool = True,
-) -> AdminAccount:
-    admin_account = AdminAccount(
-        user_id=user_id,
-        role=role,
+) -> AdminUser:
+    admin_user = AdminUser(
+        email=email,
+        username=username,
+        password_hash=password_hash,
+        name=name,
         is_active=True,
+        role=role,
     )
-    db.add(admin_account)
-    if commit:
-        db.commit()
-    else:
-        db.flush()
-    db.refresh(admin_account)
-    return admin_account
+    db.add(admin_user)
+    db.flush()
+    return admin_user
 
 
 def count_active_super_admins(db: Session) -> int:
     return (
-        db.query(AdminAccount)
+        db.query(AdminUser)
         .filter(
-            AdminAccount.role == "super_admin",
-            AdminAccount.is_active.is_(True),
+            AdminUser.role == "super_admin",
+            AdminUser.is_active.is_(True),
         )
         .count()
     )
@@ -183,11 +205,11 @@ def count_active_super_admins(db: Session) -> int:
 
 def update_admin_account_role(
     db: Session,
-    admin_account: AdminAccount,
+    admin_account: AdminUser,
     *,
     role: str,
     commit: bool = True,
-) -> AdminAccount:
+) -> AdminUser:
     admin_account.role = role
     if commit:
         db.commit()
@@ -199,11 +221,11 @@ def update_admin_account_role(
 
 def update_admin_account_active_status(
     db: Session,
-    admin_account: AdminAccount,
+    admin_account: AdminUser,
     *,
     is_active: bool,
     commit: bool = True,
-) -> AdminAccount:
+) -> AdminUser:
     admin_account.is_active = is_active
     if commit:
         db.commit()
@@ -226,7 +248,7 @@ def list_users_for_admin(
     query = db.query(User, Subscription).outerjoin(
         Subscription,
         Subscription.user_id == User.id,
-    )
+    ).filter(User.username != WITHDRAWN_USERNAME)  # 탈퇴회원 센티넬은 회원목록에서 제외
     if search:
         keyword = f"%{search}%"
         query = query.filter(

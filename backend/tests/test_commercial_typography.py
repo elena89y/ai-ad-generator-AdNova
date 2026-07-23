@@ -149,10 +149,13 @@ def test_variant_result_selects_without_gpu_regeneration(tmp_path, enabled) -> N
     assert result.selected_image_path == (
         result.with_typography_path if enabled else result.without_typography_path
     )
+    # 2026-07-21 판정: ON 변형은 타이포 시스템 v0 레지스트리로 조판된다
     assert result.layout_key in {
-        "kr_hero_top_left", "kr_hero_top_center", "kr_hero_bottom_left",
+        "ts1_bg_lettering", "ts2_editorial_serif", "ts3_korean_block", "ts3b_panel",
     }
-    assert Image.open(result.with_typography_path).size == (640, 800)
+    on = Image.open(result.with_typography_path)
+    assert on.size[0] == 640  # TS-3b 는 패널 확장으로 세로가 늘 수 있다
+    assert on.size[1] >= 800
     assert np.array_equal(
         np.asarray(Image.open(src)), np.asarray(Image.open(result.without_typography_path)),
     )

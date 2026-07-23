@@ -6,6 +6,7 @@ import HowItWorks from "@/components/HowItWorks";
 import Navbar from "@/components/Navbar";
 import Pricing from "@/components/Pricing";
 import Showcase from "@/components/Showcase";
+import TemplateMarquee from "@/components/TemplateMarquee";
 
 export default function Home() {
   return (
@@ -16,6 +17,7 @@ export default function Home() {
         <Features />
         <HowItWorks />
         <Showcase />
+        <TemplateMarquee />
         <Pricing />
         <CTA />
       </main>

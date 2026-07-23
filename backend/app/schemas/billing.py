@@ -8,6 +8,10 @@ class DemoCardRequest(BaseModel):
     card_last4: str = Field(pattern=r"^\d{4}$")
 
 
+class CreditPackRequest(DemoCardRequest):
+    product_id: str = Field(pattern=r"^credit_(10|30)$")
+
+
 class SubscriptionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -48,6 +52,8 @@ class BillingSummaryResponse(BaseModel):
     free_credits_remaining: int = Field(ge=0)
     free_credit_limit: int = Field(ge=1)
     next_free_credit_at: datetime | None = None
+    bonus_credits_remaining: int = Field(default=0, ge=0)
+    purchased_credits_remaining: int = Field(default=0, ge=0)
     premium_credits_remaining: int | None = Field(default=None, ge=0)
     premium_credit_limit: int = Field(default=30, ge=1)
     next_premium_credit_at: datetime | None = None

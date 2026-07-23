@@ -1,3 +1,5 @@
+import { CATALOG } from "./catalog";
+
 /* 프로토타입(frontend/html/index.html)의 backend api 유틸 포팅 */
 
 /* 로그인 API와 같은 기준을 사용한다.
@@ -9,6 +11,10 @@ export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? "/api").replace(
 
 const ACCESS_TOKEN_KEY = "access_token";
 const USER_KEY = "user";
+const SESSION_ACCESS_TOKEN_KEY = ACCESS_TOKEN_KEY;
+const SESSION_USER_KEY = USER_KEY;
+export const AUTH_EXPIRED_EVENT = "adnova:auth-expired";
+let refreshPromise: Promise<string | null> | null = null;
 
 function buildApiUrl(path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -69,6 +75,7 @@ export interface PlatformCopy {
 }
 
 export interface GenerateResult {
+  history_id?: number;
   asset_id?: string;
   seed?: number;
   style?: string;
@@ -100,13 +107,15 @@ export interface AdItem {
   rawStyle?: string;
   date: string;
   createdAt?: string;
-  inputImageId?: number;
   inputImg: string;
   img: string;
   /* [v6-1] 용도별 산출물(상세페이지/카드뉴스/배너 여러 장)과 그 purpose.
      img 는 대표 히어로 1장(SNS 공유용) 유지 — 실제 포맷 결과는 여기로 렌더. */
   formatOutputs?: string[];
   purpose?: string;
+  // [html-parity] 상세 화면 타이포 토글용 페어 — html buildCurrentOutputItem 이식 (Next 이관 시 누락)
+  imageWithoutTypography?: string;
+  imageWithTypography?: string;
   assetId?: string;
   seed?: number;
   adType?: string;
@@ -120,6 +129,11 @@ export interface BillingSummary {
   free_credits_remaining: number;
   free_credit_limit: number;
   next_free_credit_at?: string | null;
+  bonus_credits_remaining?: number;
+  purchased_credits_remaining?: number;
+  premium_credits_remaining?: number | null;
+  premium_credit_limit?: number;
+  next_premium_credit_at?: string | null;
   subscription?: {
     plan?: string;
     status?: string;
@@ -140,23 +154,34 @@ export interface PurchaseHistory {
 /* ---------- auth storage ---------- */
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(ACCESS_TOKEN_KEY);
+  return localStorage.getItem(ACCESS_TOKEN_KEY) || sessionStorage.getItem(SESSION_ACCESS_TOKEN_KEY);
 }
 export function getStoredUser(): AdnovaUser | null {
   if (typeof window === "undefined") return null;
   try {
-    return JSON.parse(localStorage.getItem(USER_KEY) || "null");
+    return JSON.parse(
+      localStorage.getItem(USER_KEY) || sessionStorage.getItem(SESSION_USER_KEY) || "null"
+    );
   } catch {
     return null;
   }
 }
-export function storeAuth(token: string, user?: AdnovaUser | null) {
-  localStorage.setItem(ACCESS_TOKEN_KEY, token);
-  if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+export function isPersistentAuth(): boolean {
+  return typeof window !== "undefined" && Boolean(localStorage.getItem(ACCESS_TOKEN_KEY));
+}
+export function storeAuth(token: string, user?: AdnovaUser | null, rememberMe = false) {
+  const storage = rememberMe ? localStorage : sessionStorage;
+  const otherStorage = rememberMe ? sessionStorage : localStorage;
+  otherStorage.removeItem(ACCESS_TOKEN_KEY);
+  otherStorage.removeItem(USER_KEY);
+  storage.setItem(ACCESS_TOKEN_KEY, token);
+  if (user) storage.setItem(USER_KEY, JSON.stringify(user));
 }
 export function clearStoredAuth() {
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  sessionStorage.removeItem(SESSION_ACCESS_TOKEN_KEY);
+  sessionStorage.removeItem(SESSION_USER_KEY);
 }
 
 export function getAuthProvider(): string {
@@ -176,15 +201,68 @@ export function isSocialAuthUser(): boolean {
 }
 
 /* ---------- fetch ---------- */
-export async function apiFetch(path: string, options: RequestInit = {}) {
-  const token = getToken();
+async function requestApi(path: string, options: RequestInit = {}, token = getToken()) {
   return fetch(buildApiUrl(path), {
     ...options,
+    credentials: "include",
     headers: {
       ...(options.headers || {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
+}
+
+export async function refreshAccessToken(): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+  if (!refreshPromise) {
+    refreshPromise = fetch(buildApiUrl("/auth/refresh"), {
+      method: "POST",
+      credentials: "include",
+    })
+      .then(async (response) => {
+        const data = (await readJsonSafely(response)) as { access_token?: string } | null;
+        if (!response.ok || !data?.access_token) return null;
+        storeAuth(data.access_token, getStoredUser(), isPersistentAuth());
+        return data.access_token;
+      })
+      .catch(() => null)
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
+
+export async function logoutSession(): Promise<void> {
+  // 화면 상태가 먼저 로그아웃되도록 브라우저 인증 정보를 즉시 삭제한다.
+  clearStoredAuth();
+  try {
+    await fetch(buildApiUrl("/auth/logout"), { method: "POST", credentials: "include" });
+  } catch {
+    // 서버 요청이 실패해도 로컬 로그아웃 상태는 유지한다.
+  }
+}
+
+export async function apiFetch(path: string, options: RequestInit = {}) {
+  let response = await requestApi(path, options);
+
+  if (
+    response.status === 401 &&
+    path !== "/auth/refresh" &&
+    path !== "/auth/logout" &&
+    path !== "/api/auth/refresh" &&
+    path !== "/api/auth/logout"
+  ) {
+    const refreshedToken = await refreshAccessToken();
+    if (refreshedToken) response = await requestApi(path, options, refreshedToken);
+  }
+
+  if (response.status === 401 && typeof window !== "undefined") {
+    clearStoredAuth();
+    window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+  }
+
+  return response;
 }
 
 interface ValidationItem {
@@ -314,9 +392,14 @@ export const FORMAT_LABELS: Record<string, string> = {
   detail_page: "상세페이지",
 };
 
+/* template_id(서버 형식 tpl_NN_id) → 카탈로그 표시명 역매핑.
+   템플릿으로 생성한 광고는 히스토리 뱃지를 프리셋명이 아닌 템플릿 이름 그대로 표시한다. */
+const TEMPLATE_NAME_BY_ID: Record<string, string> = Object.fromEntries(
+  CATALOG.map((t) => [`tpl_${String(t.no).padStart(2, "0")}_${t.id}`, t.name]),
+);
+
 export function historyToCard(history: HistoryEntry): AdItem {
   const ad = history.advertisement || {};
-  const inputImage = ad.input_image || {};
   const outputImage = ad.output_image || {};
   let responseData: Record<string, unknown> = {};
   let requestData: Record<string, unknown> = {};
@@ -331,7 +414,11 @@ export function historyToCard(history: HistoryEntry): AdItem {
     /* malformed json in history row */
   }
   const copy = splitCopyText(ad.generated_text || (responseData.copy_text as string) || "");
-  const style = toStyleLabel(ad.style);
+  // 템플릿으로 생성한 광고(request_data.template_id 존재)는 프리셋 뱃지 대신 템플릿 이름을
+  // 표시한다. rawStyle 은 프리셋 필터용으로 원본 style 을 유지한다.
+  const templateId = typeof requestData.template_id === "string" ? requestData.template_id : "";
+  const templateName = templateId ? TEMPLATE_NAME_BY_ID[templateId] || "" : "";
+  const style = templateName || toStyleLabel(ad.style);
   return {
     historyId: history.id,
     advertisementId: ad.id,
@@ -345,13 +432,15 @@ export function historyToCard(history: HistoryEntry): AdItem {
     rawStyle: ad.style,
     date: formatDateLabel(history.created_at),
     createdAt: history.created_at,
-    inputImageId: ad.input_image_id,
-    inputImg: toAbsoluteUrl(inputImage.image_url),
+    inputImg: "",
     img: toAbsoluteUrl(outputImage.image_url || (responseData.image_url as string)),
     formatOutputs: Array.isArray(responseData.format_outputs)
       ? (responseData.format_outputs as string[]).map((u) => toAbsoluteUrl(u))
       : [],
     purpose: (responseData.purpose as string) || undefined,
+    // [html-parity] history response_data 의 타이포 페어 매핑 (html 이식, Next 이관 시 누락)
+    imageWithoutTypography: toAbsoluteUrl(responseData.image_without_typography_url as string),
+    imageWithTypography: toAbsoluteUrl(responseData.image_with_typography_url as string),
     assetId: responseData.asset_id as string | undefined,
     seed: responseData.seed as number | undefined,
     adType: ad.ad_type,

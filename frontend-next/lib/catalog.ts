@@ -14,6 +14,8 @@ export interface CatalogTemplate {
   style_label: string;
   use: string;
   ledger_id: string | null;
+  name_examples?: string[];      // 상품명 입력 placeholder 예시 (템플릿별)
+  request_examples?: string[];   // 추가 요청 입력 placeholder 예시 (템플릿별)
 }
 
 export const CATALOG: CatalogTemplate[] = [
@@ -33,7 +35,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/01_menu_poster.jpg",
     "style_label": "팝 비비드",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "김치찌개",
+      "제육덮밥"
+    ],
+    "request_examples": [
+      "김을 더 진하게",
+      "배경색 더 따뜻하게"
+    ]
   },
   {
     "no": 2,
@@ -51,7 +61,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/02_drink_twopanel.jpg",
     "style_label": "리얼리즘",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "아이스 아메리카노",
+      "자몽 에이드"
+    ],
+    "request_examples": [
+      "얼음 더 시원하게",
+      "물방울 살려서"
+    ]
   },
   {
     "no": 3,
@@ -69,7 +87,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/03_brand_studio.jpg",
     "style_label": "에디토리얼",
     "use": "sns",
-    "ledger_id": "object_studio_sku"
+    "ledger_id": "object_studio_sku",
+    "name_examples": [
+      "수분 세럼",
+      "핸드크림"
+    ],
+    "request_examples": [
+      "배경 딥블루로",
+      "스포트라이트 강하게"
+    ]
   },
   {
     "no": 4,
@@ -81,12 +107,21 @@ export const CATALOG: CatalogTemplate[] = [
     "tags": [
       "#타이포그래피",
       "#뷰티",
-      "#감성"
+      "#감성",
+      "#디저트"
     ],
     "img": "/tpl/04_cream_engrave.jpg",
     "style_label": "파스텔",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "수분 크림",
+      "나이트 크림"
+    ],
+    "request_examples": [
+      "각인 더 또렷하게",
+      "웜톤 강조"
+    ]
   },
   {
     "no": 5,
@@ -104,7 +139,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/05_steam_closeup.jpg",
     "style_label": "리얼리즘",
     "use": "sns",
-    "ledger_id": "realism_food_hero"
+    "ledger_id": "realism_food_hero",
+    "name_examples": [
+      "부대찌개",
+      "육개장"
+    ],
+    "request_examples": [
+      "김 더 많이",
+      "역광 강조"
+    ]
   },
   {
     "no": 6,
@@ -121,7 +164,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/06_charcoal_grill.jpg",
     "style_label": "리얼리즘",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "한우 등심",
+      "삼겹살"
+    ],
+    "request_examples": [
+      "불꽃 더 살려서",
+      "연기 강조"
+    ]
   },
   {
     "no": 7,
@@ -139,7 +190,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/07_bunsik_pop.jpg",
     "style_label": "팝 비비드",
     "use": "sns",
-    "ledger_id": "pop_vivid_promo"
+    "ledger_id": "pop_vivid_promo",
+    "name_examples": [
+      "떡볶이 세트",
+      "모둠 튀김"
+    ],
+    "request_examples": [
+      "색감 더 비비드하게",
+      "배경 노랑으로"
+    ]
   },
   {
     "no": 8,
@@ -156,7 +215,14 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/08_ingredient_callout.jpg",
     "style_label": "팝 비비드",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "비빔밥",
+      "영양돌솥밥"
+    ],
+    "request_examples": [
+      "콜아웃 선 더 깔끔하게"
+    ]
   },
   {
     "no": 9,
@@ -173,7 +239,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/09_delivery_thumb.jpg",
     "style_label": "모노톤",
     "use": "detail",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "후라이드 치킨",
+      "양념 치킨"
+    ],
+    "request_examples": [
+      "배경 더 밝게",
+      "여백 넉넉히"
+    ]
   },
   {
     "no": 10,
@@ -190,7 +264,14 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/10_menu_trio.jpg",
     "style_label": "리얼리즘",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "백반 정식",
+      "찌개 세트"
+    ],
+    "request_examples": [
+      "톤 더 통일감 있게"
+    ]
   },
   {
     "no": 11,
@@ -207,7 +288,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/11_cafe_goldenhour.jpg",
     "style_label": "웜 빈티지",
     "use": "sns",
-    "ledger_id": "warm_vintage_cafe"
+    "ledger_id": "warm_vintage_cafe",
+    "name_examples": [
+      "카페라떼",
+      "바닐라 라떼"
+    ],
+    "request_examples": [
+      "햇살 더 따뜻하게",
+      "그림자 길게"
+    ]
   },
   {
     "no": 12,
@@ -224,7 +313,14 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/12_latteart_topview.jpg",
     "style_label": "모노톤",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "로제타 라떼",
+      "플랫화이트"
+    ],
+    "request_examples": [
+      "크레마 디테일 살려서"
+    ]
   },
   {
     "no": 13,
@@ -241,7 +337,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/13_season_banner.jpg",
     "style_label": "파스텔",
     "use": "banner",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "청포도 에이드",
+      "자몽 에이드"
+    ],
+    "request_examples": [
+      "배경 민트색으로",
+      "더 청량하게"
+    ]
   },
   {
     "no": 14,
@@ -259,7 +363,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/14_ice_macro.jpg",
     "style_label": "리얼리즘",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "자몽 에이드",
+      "레몬 스쿼시"
+    ],
+    "request_examples": [
+      "기포 더 살려서",
+      "결로 강조"
+    ]
   },
   {
     "no": 15,
@@ -276,7 +388,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/15_dessert_crosssection.jpg",
     "style_label": "리얼리즘",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "딸기 생크림 케이크",
+      "티라미수"
+    ],
+    "request_examples": [
+      "층 더 선명하게",
+      "배경 크림색으로"
+    ]
   },
   {
     "no": 16,
@@ -293,7 +413,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/16_pastel_studio.jpg",
     "style_label": "파스텔",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "톤업 크림",
+      "립밤"
+    ],
+    "request_examples": [
+      "파스텔 핑크 배경",
+      "그림자 부드럽게"
+    ]
   },
   {
     "no": 17,
@@ -310,7 +438,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/17_ripple_reflection.jpg",
     "style_label": "에디토리얼",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "아쿠아 세럼",
+      "페이스 미스트"
+    ],
+    "request_examples": [
+      "물결 반사 또렷하게",
+      "새벽빛 톤으로"
+    ]
   },
   {
     "no": 18,
@@ -327,7 +463,14 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/18_mini_showcase.jpg",
     "style_label": "팝 비비드",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "미니 향수",
+      "앰플"
+    ],
+    "request_examples": [
+      "소품 더 아기자기하게"
+    ]
   },
   {
     "no": 19,
@@ -344,7 +487,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/19_cozy_fabric.jpg",
     "style_label": "웜 빈티지",
     "use": "sns",
-    "ledger_id": "editorial_lookbook"
+    "ledger_id": "editorial_lookbook",
+    "name_examples": [
+      "진정 크림",
+      "바디 오일"
+    ],
+    "request_examples": [
+      "아침 햇살 강조",
+      "린넨 주름 살려서"
+    ]
   },
   {
     "no": 20,
@@ -361,7 +512,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/20_citrus_fresh.jpg",
     "style_label": "리얼리즘",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "비타민 세럼",
+      "클렌징 폼"
+    ],
+    "request_examples": [
+      "햇살 더 쨍하게",
+      "과즙 디테일 살려서"
+    ]
   },
   {
     "no": 21,
@@ -378,7 +537,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/21_desk_setup.jpg",
     "style_label": "리얼리즘",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "무선 이어폰",
+      "블루투스 키보드"
+    ],
+    "request_examples": [
+      "모니터 보케 강조",
+      "금속 하이라이트 살려서"
+    ]
   },
   {
     "no": 22,
@@ -396,7 +563,14 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/22_unwrap_moment.jpg",
     "style_label": "웜 빈티지",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "수제 쿠키",
+      "선물 세트"
+    ],
+    "request_examples": [
+      "오후 햇살 부드럽게"
+    ]
   },
   {
     "no": 23,
@@ -413,7 +587,14 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/23_color_split.jpg",
     "style_label": "팝 비비드",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "스텐 텀블러",
+      "보온병"
+    ],
+    "request_examples": [
+      "배경색 대비 강하게"
+    ]
   },
   {
     "no": 24,
@@ -430,7 +611,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/24_giant_mini.jpg",
     "style_label": "팝 비비드",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "핸드크림",
+      "립밤"
+    ],
+    "request_examples": [
+      "하늘 더 맑게",
+      "미니 소품 강조"
+    ]
   },
   {
     "no": 25,
@@ -447,7 +636,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/25_white_standard.jpg",
     "style_label": "모노톤",
     "use": "detail",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "스텐 텀블러",
+      "유리 밀폐용기"
+    ],
+    "request_examples": [
+      "그림자 더 옅게",
+      "여백 넉넉히"
+    ]
   },
   {
     "no": 26,
@@ -464,7 +661,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/26_gradient_studio.jpg",
     "style_label": "에디토리얼",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "토너",
+      "에센스"
+    ],
+    "request_examples": [
+      "그라데이션 블루로",
+      "표면 반영 강조"
+    ]
   },
   {
     "no": 27,
@@ -481,7 +686,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/27_summer_vacance.jpg",
     "style_label": "리얼리즘",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "선크림",
+      "선스틱"
+    ],
+    "request_examples": [
+      "물방울 더 살려서",
+      "수면 보케 강조"
+    ]
   },
   {
     "no": 28,
@@ -498,7 +711,14 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/28_seollal_bojagi.jpg",
     "style_label": "웜 빈티지",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "명절 선물세트",
+      "한과 세트"
+    ],
+    "request_examples": [
+      "아침빛 은은하게"
+    ]
   },
   {
     "no": 29,
@@ -515,7 +735,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/29_christmas_ornament.jpg",
     "style_label": "웜 빈티지",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "홀리데이 향수",
+      "디퓨저"
+    ],
+    "request_examples": [
+      "전구 보케 강조",
+      "골드 톤 따뜻하게"
+    ]
   },
   {
     "no": 30,
@@ -527,12 +755,21 @@ export const CATALOG: CatalogTemplate[] = [
     "tags": [
       "#타이포그래피",
       "#질감",
-      "#감성"
+      "#감성",
+      "#디저트"
     ],
     "img": "/tpl/30_butter_engrave.jpg",
     "style_label": "파스텔",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "버터 쿠키",
+      "스콘"
+    ],
+    "request_examples": [
+      "각인 또렷하게",
+      "옐로 톤 따뜻하게"
+    ]
   },
   {
     "no": 31,
@@ -549,7 +786,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/31_doodle_mood.jpg",
     "style_label": "파스텔",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "크로플",
+      "마카롱"
+    ],
+    "request_examples": [
+      "낙서 더 발랄하게",
+      "파스텔 배경으로"
+    ]
   },
   {
     "no": 32,
@@ -566,7 +811,14 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/32_story_pack.jpg",
     "style_label": "리얼리즘",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "복숭아 아이스티",
+      "청귤 에이드"
+    ],
+    "request_examples": [
+      "상단 여백 민트색으로"
+    ]
   },
   {
     "no": 33,
@@ -583,7 +835,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/33_cheese_pull.jpg",
     "style_label": "리얼리즘",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "치즈 피자",
+      "로제 떡볶이"
+    ],
+    "request_examples": [
+      "치즈 더 늘어나게",
+      "광택 살려서"
+    ]
   },
   {
     "no": 34,
@@ -601,7 +861,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/34_hansang_topview.jpg",
     "style_label": "리얼리즘",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "백반 정식",
+      "청국장 정식"
+    ],
+    "request_examples": [
+      "김 더 살려서",
+      "반찬 색감 강조"
+    ]
   },
   {
     "no": 35,
@@ -618,7 +886,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/35_midnight_spotlight.jpg",
     "style_label": "리얼리즘",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "라면",
+      "곱창전골"
+    ],
+    "request_examples": [
+      "스팟라이트 더 강하게",
+      "배경 더 어둡게"
+    ]
   },
   {
     "no": 36,
@@ -635,7 +911,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/36_newmenu_notice.jpg",
     "style_label": "팝 비비드",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "크림 파스타",
+      "로제 파스타"
+    ],
+    "request_examples": [
+      "배경 아이보리로",
+      "뱃지 강조"
+    ]
   },
   {
     "no": 37,
@@ -651,7 +935,14 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/37_half_compare.jpg",
     "style_label": "리얼리즘",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "반반 치킨",
+      "반반 피자"
+    ],
+    "request_examples": [
+      "좌우 톤 통일감 있게"
+    ]
   },
   {
     "no": 38,
@@ -668,7 +959,14 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/38_honest_ingredient.jpg",
     "style_label": "리얼리즘",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "김치찜",
+      "제육볶음"
+    ],
+    "request_examples": [
+      "재료 색감 생생하게"
+    ]
   },
   {
     "no": 39,
@@ -685,7 +983,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/39_spicy_gauge.jpg",
     "style_label": "팝 비비드",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "불닭볶음면",
+      "매운 갈비찜"
+    ],
+    "request_examples": [
+      "배경 더 붉게",
+      "게이지 또렷하게"
+    ]
   },
   {
     "no": 40,
@@ -702,7 +1008,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/40_takeout_info.jpg",
     "style_label": "팝 비비드",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "도시락",
+      "포장 세트"
+    ],
+    "request_examples": [
+      "배경 크림색으로",
+      "문구 더 크게"
+    ]
   },
   {
     "no": 41,
@@ -719,7 +1033,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/41_season_limited.jpg",
     "style_label": "리얼리즘",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "물냉면",
+      "비빔냉면"
+    ],
+    "request_examples": [
+      "살얼음 더 살려서",
+      "쿨톤 강조"
+    ]
   },
   {
     "no": 42,
@@ -736,7 +1058,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/42_dessert_showcase.jpg",
     "style_label": "웜 빈티지",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "조각 케이크",
+      "마카롱"
+    ],
+    "request_examples": [
+      "유리 반사 은은하게",
+      "앞줄 초점 강조"
+    ]
   },
   {
     "no": 43,
@@ -753,7 +1083,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/43_review_event.jpg",
     "style_label": "팝 비비드",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "아이스 아메리카노",
+      "쿠키 세트"
+    ],
+    "request_examples": [
+      "배경 노랑 밝게",
+      "문구 강조"
+    ]
   },
   {
     "no": 44,
@@ -770,7 +1108,15 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/44_morning_windowlight.jpg",
     "style_label": "웜 빈티지",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "백반 정식",
+      "아침 정식"
+    ],
+    "request_examples": [
+      "아침 햇살 강조",
+      "김 살려서"
+    ]
   },
   {
     "no": 45,
@@ -788,7 +1134,14 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/45_diagonal_band.jpg",
     "style_label": "에디토리얼",
     "use": "sns",
-    "ledger_id": "pop_split_summer"
+    "ledger_id": "pop_split_summer",
+    "name_examples": [
+      "크림 파스타",
+      "스테이크"
+    ],
+    "request_examples": [
+      "띠 색 대비 강하게"
+    ]
   },
   {
     "no": 46,
@@ -805,6 +1158,114 @@ export const CATALOG: CatalogTemplate[] = [
     "img": "/tpl/46_sketch_board.jpg",
     "style_label": "리얼리즘",
     "use": "sns",
-    "ledger_id": null
+    "ledger_id": null,
+    "name_examples": [
+      "수제 버거",
+      "감자튀김 세트"
+    ],
+    "request_examples": [
+      "스케치 선 더 또렷하게"
+    ]
+  },
+  {
+    "no": 47,
+    "id": "cake_crosssection_macro",
+    "name": "케익 단면 클로즈업",
+    "desc": "단면의 층이 프레임을 가득 채우는 초근접 케이크 화보",
+    "family": "scene",
+    "finish": "photographic",
+    "tags": [
+      "#디저트",
+      "#연출컷",
+      "#질감",
+      "#인스타피드"
+    ],
+    "style_label": "리얼리즘",
+    "use": "sns",
+    "ledger_id": null,
+    "img": "/tpl/47_cake_crosssection_macro.jpg",
+    "name_examples": [
+      "딸기 초코 케이크",
+      "생크림 케이크"
+    ],
+    "request_examples": [
+      "초코 드립 강조",
+      "배경 핑크로"
+    ]
+  },
+  {
+    "no": 48,
+    "id": "partial_closeup_callout",
+    "name": "부분 클로즈업 오버레이",
+    "desc": "재료를 선과 박스로 짚어주는 부분 클로즈업 오버레이",
+    "family": "graphic_layout",
+    "finish": "photographic",
+    "tags": [
+      "#디저트",
+      "#레이아웃그래픽",
+      "#음식"
+    ],
+    "style_label": "리얼리즘",
+    "use": "sns",
+    "ledger_id": null,
+    "img": "/tpl/48_partial_closeup_callout.jpg",
+    "name_examples": [
+      "딸기 케이크",
+      "크로플"
+    ],
+    "request_examples": [
+      "콜아웃 선 더 깔끔하게"
+    ]
+  },
+  {
+    "no": 49,
+    "id": "circular_typo_poster",
+    "name": "원형 타이포 포스터",
+    "desc": "바닥에 새긴 원형 타이포가 디저트를 감싸는 포스터",
+    "family": "poster_typo",
+    "finish": "graphic",
+    "tags": [
+      "#타이포그래피",
+      "#포스터",
+      "#디저트",
+      "#음식"
+    ],
+    "style_label": "팝 비비드",
+    "use": "sns",
+    "ledger_id": null,
+    "img": "/tpl/49_circular_typo_poster.jpg",
+    "name_examples": [
+      "마카롱",
+      "딸기 케이크"
+    ],
+    "request_examples": [
+      "타이포 곡선 살려서"
+    ]
+  },
+  {
+    "no": 50,
+    "id": "curve_banner_poster",
+    "name": "곡선 배너 포스터",
+    "desc": "곡선 리본 속 손글씨 메뉴명이 살아있는 포스터",
+    "family": "poster_typo",
+    "finish": "graphic",
+    "tags": [
+      "#타이포그래피",
+      "#포스터",
+      "#음식",
+      "#디저트"
+    ],
+    "style_label": "팝 비비드",
+    "use": "sns",
+    "ledger_id": null,
+    "img": "/tpl/50_curve_banner_poster.jpg",
+    "name_examples": [
+      "크로플",
+      "수제 아이스크림"
+    ],
+    "request_examples": [
+      "리본 곡선 강조",
+      "손글씨 살려서"
+    ]
   }
 ];

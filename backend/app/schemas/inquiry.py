@@ -46,5 +46,8 @@ class InquiryStatusUpdateRequest(BaseModel):
     status: InquiryStatus
 
 
+# 참고: FAQ 후보/챗봇통계 스키마는 admin 전용이라 schemas/admin.py 에 정의됨.
+
+
 class InquiryAnswerUpdateRequest(BaseModel):
     answer: str = Field(min_length=1, max_length=5000)

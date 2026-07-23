@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Instrument_Serif, Space_Grotesk } from "next/font/google";
 import localFont from "next/font/local";
+import ChatWidget from "@/components/support/ChatWidget";
 import "./globals.css";
 
 const pretendard = localFont({
@@ -48,6 +49,8 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         {children}
+        {/* 고객센터 챗봇(노바냥) — 모든 페이지 우측 하단 상시 */}
+        <ChatWidget />
       </body>
     </html>
   );

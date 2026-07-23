@@ -13,6 +13,7 @@ import {
 import {
   AdItem,
   AdnovaUser,
+  AUTH_EXPIRED_EVENT,
   BillingSummary,
   GenerateResult,
   PurchaseHistory,
@@ -21,8 +22,11 @@ import {
   getStoredUser,
   getToken,
   historyToCard,
+  isPersistentAuth,
+  logoutSession,
   readApiError,
   readJsonSafely,
+  refreshAccessToken,
   storeAuth,
   toAbsoluteUrl,
 } from "@/lib/api";
@@ -34,6 +38,8 @@ interface StudioState {
   isPremium: boolean;
   freeLeft: number;
   freeTotal: number;
+  premiumLeft: number;
+  premiumTotal: number;
   billingSummary: BillingSummary | null;
   billingPurchases: PurchaseHistory[];
   profileImageUrl: string | null;
@@ -236,7 +242,7 @@ export default function StudioProvider({ children }: { children: React.ReactNode
   );
 
   const clearAuth = useCallback(() => {
-    clearStoredAuth();
+    void logoutSession();
     setAuthVersion((v) => v + 1);
     setBillingSummaryState(null);
     setBillingPurchases([]);
@@ -250,6 +256,54 @@ export default function StudioProvider({ children }: { children: React.ReactNode
       currentResult: null,
     }));
   }, []);
+
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      clearAuth();
+      if (!window.location.pathname.startsWith("/login")) {
+        window.location.replace("/login?message=" + encodeURIComponent("로그인이 만료되었습니다. 다시 로그인해 주세요."));
+      }
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+  }, [clearAuth]);
+
+  useEffect(() => {
+    if (!ready) return;
+
+    let cancelled = false;
+
+    async function restoreAuth() {
+      try {
+        const activeToken = token || (await refreshAccessToken());
+        if (!activeToken || cancelled) return;
+
+        const res = await apiFetch("/api/account/me");
+        const data = (await readJsonSafely(res)) as AdnovaUser | null;
+
+        if (!res.ok) {
+          if (!cancelled && (res.status === 401 || res.status === 403)) {
+            clearStoredAuth();
+            setAuthVersion((v) => v + 1);
+          }
+          return;
+        }
+
+        if (!cancelled && data) {
+          storeAuth(activeToken, data, isPersistentAuth());
+          setAuthVersion((v) => v + 1);
+        }
+      } catch {
+        // 일시적인 네트워크 오류에서는 기존 로그인 정보를 유지합니다.
+      }
+    }
+
+    void restoreAuth();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, token]);
 
   useEffect(() => {
     if (!token) return;
@@ -286,6 +340,8 @@ export default function StudioProvider({ children }: { children: React.ReactNode
   const isPremium = Boolean(billingSummary?.is_premium);
   const freeLeft = billingSummary?.free_credits_remaining ?? 3;
   const freeTotal = billingSummary?.free_credit_limit ?? 3;
+  const premiumLeft = billingSummary?.premium_credits_remaining ?? 0;
+  const premiumTotal = billingSummary?.premium_credit_limit ?? 30;
 
   const value = useMemo<StudioState>(
     () => ({
@@ -295,6 +351,8 @@ export default function StudioProvider({ children }: { children: React.ReactNode
       isPremium,
       freeLeft,
       freeTotal,
+      premiumLeft,
+      premiumTotal,
       billingSummary,
       billingPurchases,
       profileImageUrl,
@@ -330,6 +388,8 @@ export default function StudioProvider({ children }: { children: React.ReactNode
       isPremium,
       freeLeft,
       freeTotal,
+      premiumLeft,
+      premiumTotal,
       billingSummary,
       billingPurchases,
       profileImageUrl,

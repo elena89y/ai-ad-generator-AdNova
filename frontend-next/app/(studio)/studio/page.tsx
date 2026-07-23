@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -7,7 +8,6 @@ import {
   AdItem,
   GenerateResult,
   PlatformCopy,
-  STYLE_LABEL_MAP,
   STYLE_PRESET_MAP,
   apiFetch,
   formatDateLabel,
@@ -22,7 +22,6 @@ import {
 import { useStudio } from "@/components/studio/StudioProvider";
 import { AppBar, WorkspaceNav } from "@/components/studio/chrome";
 import { AuthenticatedImage } from "@/components/studio/AuthenticatedImage";
-import { fetchTemplates } from "@/lib/templates";
 
 const GEN_STEPS = [
   "사진을 분석하는 중…",
@@ -47,14 +46,6 @@ const USES = [
   // [html-parity] 전단지 폐기 결정 반영 — 모놀리식 html은 이미 상세페이지로 교체됨
   { v: "detail", label: "상세페이지" },
 ];
-
-/* 템플릿 formats[0] → 용도 버튼 매핑 (v6 T4; 전단지 폐기 → 상세페이지로 대체) */
-const FORMAT_TO_USE: Record<string, string> = {
-  sns: "sns",
-  cardnews: "card",
-  banner: "banner",
-  detail_page: "detail",
-};
 
 /* [html-parity] 포맷 갤러리 라벨 — 모놀리식 html FORMAT_GALLERY_LABELS 이식.
    Next 이관에서 format_outputs 갤러리 자체가 누락되어 있었음 (index.html renderFormatGallery) */
@@ -101,6 +92,7 @@ export default function StudioPage() {
   const s = useStudio();
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadStep, setLoadStep] = useState(GEN_STEPS[0]);
   const [activePlatform, setActivePlatform] = useState("instagram");
@@ -117,50 +109,6 @@ export default function StudioPage() {
 
   useEffect(() => {
     s.refreshDashboardSummary();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // 템플릿 갤러리에서 진입 — ?template={원장id}(팩 전체 적용) 또는 ?style=&use=(프리셋만) (v6 T4)
-  useEffect(() => {
-    const sp = new URLSearchParams(window.location.search);
-    const id = sp.get("template");
-    const styleParam = sp.get("style");
-    const useParam = sp.get("use");
-    const tname = sp.get("tname");
-    if (!id && !styleParam && !useParam) return;
-
-    const clearQuery = () =>
-      window.history.replaceState(null, "", "/studio"); // 새로고침 재적용 방지
-
-    if (!id) {
-      s.setDashboardState({
-        ...(styleParam ? { styleLabel: styleParam } : {}),
-        ...(useParam ? { useValue: useParam } : {}),
-      });
-      s.toast(`템플릿 적용: ${tname ?? styleParam ?? ""}`);
-      clearQuery();
-      return;
-    }
-
-    let cancelled = false;
-    fetchTemplates()
-      .then((items) => {
-        if (cancelled) return;
-        const t = items.find((x) => x.id === id);
-        if (!t) return;
-        const styleLabel = STYLE_LABEL_MAP[t.style_preset] ?? t.style_preset;
-        const nextUse = FORMAT_TO_USE[t.formats[0] ?? ""];
-        s.setDashboardState({
-          styleLabel,
-          ...(nextUse ? { useValue: nextUse } : {}),
-        });
-        s.toast(`템플릿 적용: ${tname ?? t.title}`);
-        clearQuery();
-      })
-      .catch(() => {}); // 템플릿은 부가 기능 — 실패해도 스튜디오는 동작
-    return () => {
-      cancelled = true;
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -187,7 +135,7 @@ export default function StudioPage() {
     fileRef.current?.click();
   }
 
-  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     // 백엔드 MAX_IMAGE_SIZE_MB(15MB)와 동기 — 서버가 장변 2048로 정규화 저장하므로 폰 원본 OK
     const MAX_IMAGE_SIZE = 15 * 1024 * 1024;
@@ -202,31 +150,16 @@ export default function StudioPage() {
       e.target.value = "";
       return;
     }
-    const formData = new FormData();
-    formData.append("file", file);
-    try {
-      s.toast("이미지를 업로드하는 중입니다");
-      const res = await apiFetch("/api/images/upload", { method: "POST", body: formData });
-      const data = (await readJsonSafely(res)) as {
-        image_id?: number;
-        image_url?: string;
-        filename?: string;
-      } | null;
-      if (!res.ok || !data)
-        throw new Error(readApiError(data, "이미지 업로드에 실패했습니다"));
-      s.setDashboardState({
-        selectedImageId: data.image_id ?? null,
-        selectedImageUrl: data.image_url ?? null,
-        selectedImagePreview: URL.createObjectURL(file),
-      });
-      setUploadInfo(`업로드 완료: ${data.filename || file.name}`);
-      s.toast("이미지가 업로드되었습니다");
-    } catch (err) {
-      s.setDashboardState({ selectedImageId: null, selectedImageUrl: null });
-      s.toast(err instanceof Error ? err.message : "이미지 업로드에 실패했습니다");
-    } finally {
-      e.target.value = "";
-    }
+    setSelectedImageFile(file);
+    s.setDashboardState({
+      selectedImageId: null,
+      selectedImageUrl: null,
+      selectedImagePreview: URL.createObjectURL(file),
+      currentResult: null,
+    });
+    setUploadInfo(`선택한 이미지: ${file.name}`);
+    s.toast("이미지를 선택했습니다");
+    e.target.value = "";
   }
 
   function startLoadingSteps() {
@@ -242,6 +175,10 @@ export default function StudioPage() {
   }
 
   async function generate() {
+    if (s.isPremium && s.premiumLeft <= 0) {
+      s.toast("이번 달 프리미엄 크레딧을 모두 사용했습니다");
+      return;
+    }
     if (!s.isPremium && s.freeLeft <= 0) {
       s.setUpgradeOpen(true);
       return;
@@ -251,7 +188,7 @@ export default function StudioPage() {
       router.push("/login");
       return;
     }
-    if (!s.selectedImageId) {
+    if (!selectedImageFile) {
       s.toast("먼저 제품 사진을 업로드해 주세요");
       return;
     }
@@ -264,7 +201,7 @@ export default function StudioPage() {
     setLoading(true);
     startLoadingSteps();
     const formData = new FormData();
-    formData.append("image_id", String(s.selectedImageId));
+    formData.append("image", selectedImageFile);
     formData.append("product_name", productName);
     formData.append("product_description", s.promptText.trim());
     formData.append("style", STYLE_PRESET_MAP[s.styleLabel] || "pop");
@@ -294,6 +231,10 @@ export default function StudioPage() {
   }
 
   async function regenerate() {
+    if (s.isPremium && s.premiumLeft <= 0) {
+      s.toast("이번 달 프리미엄 크레딧을 모두 사용했습니다");
+      return;
+    }
     if (!s.isPremium && s.freeLeft <= 0) {
       s.setUpgradeOpen(true);
       return;
@@ -346,6 +287,7 @@ export default function StudioPage() {
     const productName = s.prodName.trim() || "광고 상품";
     const copy = currentCopyFor(activePlatform, s.currentResult);
     return {
+      historyId: s.currentResult.history_id,
       emoji: "✦",
       hl: copy.head || productName,
       copyHead: copy.head || productName,
@@ -355,7 +297,10 @@ export default function StudioPage() {
       style: toStyleLabel(s.currentResult.style),
       rawStyle: s.currentResult.style,
       img: toAbsoluteUrl(resultImageUrl(s.currentResult)),
-      inputImg: toAbsoluteUrl(s.selectedImageUrl),
+      // [html-parity] 상세·공유로 넘어가도 타이포 토글이 되도록 페어 유지 (html 이식)
+      imageWithoutTypography: toAbsoluteUrl(s.currentResult.image_without_typography_url),
+      imageWithTypography: toAbsoluteUrl(s.currentResult.image_with_typography_url),
+      inputImg: "",
       assetId: s.currentResult.asset_id,
       seed: s.currentResult.seed,
       adType: s.currentResult.poster ? "poster" : "image",
@@ -373,7 +318,9 @@ export default function StudioPage() {
       return;
     }
     s.openShare(item, "/studio", activePlatform);
-    router.push("/share");
+    router.push(
+      item.historyId ? `/share?historyId=${item.historyId}` : "/share"
+    );
   }
 
   // [html-parity] html downloadImageFile 이식 — 기존 downloadResult 본문과 통합해
@@ -848,21 +795,32 @@ export default function StudioPage() {
                     AFTER
                   </span>
                   {!s.isPremium && (
-                    <span
+                    <div
+                      aria-label="AdNova 무료 버전 워터마크"
                       style={{
                         position: "absolute",
-                        right: 12,
-                        bottom: 12,
-                        background: "rgba(0,0,0,.6)",
-                        color: "var(--ink-soft)",
-                        fontSize: 9,
-                        fontWeight: 700,
-                        padding: "4px 8px",
-                        borderRadius: 6,
+                        right: 16,
+                        bottom: 16,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        pointerEvents: "none",
+                        userSelect: "none",
                       }}
                     >
-                      🔖 워터마크
-                    </span>
+                      <Image
+                        src="/brand/brand-logo.png"
+                        alt="AdNova"
+                        width={120}
+                        height={38}
+                        style={{
+                          width: 104,
+                          height: "auto",
+                          opacity: 0.82,
+                          filter: "drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35))",
+                        }}
+                      />
+                    </div>
                   )}
                 </div>
               </div>

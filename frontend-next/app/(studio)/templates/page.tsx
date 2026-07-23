@@ -3,19 +3,13 @@
 /* v6 T4 — 템플릿 갤러리 (카탈로그 v1 46종, 모노브식).
    좌측 워크스페이스 내비(광고 이미지/템플릿) + 태그 필터 칩 + 카드 클릭 → 중앙 확대 모달.
    데이터는 정적 카탈로그(lib/catalog.ts) — 생성 프롬프트는 클라이언트에 싣지 않는다.
-   CTA: ledger_id 있으면 /studio?template={id}(팩 전체 적용), 없으면 스타일·용도 프리셋만. */
+   CTA: 카드 → /templates/{id} 전용 페이지(TEMPLATE-PIPE-V2 서버측 연출 레시피). */
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { CATALOG, CatalogTemplate } from "@/lib/catalog";
 import { useStudio } from "@/components/studio/StudioProvider";
 import { AppBar, WorkspaceNav } from "@/components/studio/chrome";
-
-const FINISH_LABEL: Record<string, string> = {
-  photographic: "실사 마감",
-  graphic: "그래픽 마감",
-  stylized: "무드 연출",
-};
 
 export default function TemplatesPage() {
   const s = useStudio();
@@ -47,10 +41,9 @@ export default function TemplatesPage() {
   );
 
   const startWith = (t: CatalogTemplate) => {
-    const target = t.ledger_id
-      ? `/studio?template=${encodeURIComponent(t.ledger_id)}&tname=${encodeURIComponent(t.name)}`
-      : `/studio?style=${encodeURIComponent(t.style_label)}&use=${encodeURIComponent(t.use)}&tname=${encodeURIComponent(t.name)}`;
-    router.push(target);
+    // TEMPLATE-PIPE-V2: 전용 페이지로 진입 → 서버측 연출 레시피(template_id)로 생성.
+    // studio(스타일 프리셋) 경로로 흘려보내던 기존 배선 폐기.
+    router.push(`/templates/${encodeURIComponent(t.id)}`);
   };
 
   return (
@@ -64,12 +57,12 @@ export default function TemplatesPage() {
             원하는 연출을 고르면 스타일·용도가 자동으로 설정돼요. 제품 사진 1장이면 충분합니다.
           </p>
 
-          {/* 태그 필터 칩 */}
+          {/* 태그 필터 칩 — 가로 스크롤 대신 창 폭에 맞춰 여러 줄로 감싼다 */}
           <div
             style={{
               display: "flex",
               gap: 7,
-              overflowX: "auto",
+              flexWrap: "wrap",
               paddingBottom: 10,
               marginBottom: 16,
             }}
@@ -251,9 +244,6 @@ export default function TemplatesPage() {
                     {tg}
                   </button>
                 ))}
-              </div>
-              <div style={{ fontSize: 11.5, color: "var(--ink-mute)" }}>
-                {FINISH_LABEL[picked.finish] ?? picked.finish} · 추천 스타일 {picked.style_label}
               </div>
               <button className="btn-gen" style={{ marginTop: "auto" }} onClick={() => startWith(picked)}>
                 ✦ 이 템플릿으로 광고 만들기

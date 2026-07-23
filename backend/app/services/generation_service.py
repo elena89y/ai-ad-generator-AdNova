@@ -28,10 +28,21 @@ from .prompt_service import build_image_prompt
 # asset_id 형식: preprocess 가 uuid4().hex[:12] 로 생성 → 12자리 hex 만 허용.
 # 경로 탈출(../, /, \) 차단 (백엔드 리뷰 5번).
 _ASSET_ID_RE = re.compile(r"^[a-f0-9]{12}$")
+TEMP_REGENERATE_TTL_SECONDS = 60 * 60
 
 
 def is_valid_asset_id(asset_id: str) -> bool:
     return bool(_ASSET_ID_RE.match(asset_id or ""))
+
+
+def _purge_expired_regeneration_inputs() -> None:
+    cutoff = time.time() - TEMP_REGENERATE_TTL_SECONDS
+    for source in image_service.PROCESSED_DIR.glob("*_v2input.*"):
+        try:
+            if source.stat().st_mtime < cutoff:
+                source.unlink()
+        except OSError:
+            continue
 
 
 def _next_seed(prev_seed: Optional[int]) -> int:
@@ -275,6 +286,7 @@ def run_from_upload_v2(
     # session_id=asset_id 로 묶는다. /ads/regenerate 는 같은 asset_id 로 rerun_v2 를 호출하므로,
     # Langfuse Sessions 뷰에서 최초 생성 트레이스와 재생성 트레이스가 하나의 세션으로 이어져 보인다.
     asset_id = uuid.uuid4().hex[:12]
+    _purge_expired_regeneration_inputs()
     import os as _os
     _bon = max(1, int(_os.environ.get("BEST_OF_N", "1") or "1"))
     _steps = int(_os.environ["BEST_OF_STEPS"]) if _os.environ.get("BEST_OF_STEPS") else None
@@ -306,7 +318,7 @@ def run_from_upload_v2(
                     f"사진과 상품명('{product.name}')이 서로 달라 보여요.{seen} "
                     "상품이 잘 보이는 사진인지 확인해 주세요.")
 
-            # regen 용으로 입력 원본 보존(v2 는 누끼/mask 없음 → 원본 재투입 방식)
+            # 현재 생성 화면에서만 재생성할 수 있도록 원본을 임시 보관한다.
             with run.stage("input_prepare"):
                 saved = image_service.PROCESSED_DIR / f"{asset_id}_v2input{_P(image_path).suffix}"
                 saved.parent.mkdir(parents=True, exist_ok=True)
@@ -334,6 +346,7 @@ def run_from_upload_v2(
                 variants = build_typography_variants(
                     r, product.name or r.subject_en, typography_enabled=poster,
                     output_dir=str(image_service.RESULTS_DIR),
+                    domain=getattr(r, "style_domain", None) or getattr(r, "domain", "food"),
                 )
             return GenerationOutput(
                 final_image_path=variants.selected_image_path,
@@ -366,6 +379,7 @@ def rerun_v2(
 
     if not is_valid_asset_id(asset_id):
         raise ValueError(f"잘못된 asset_id 형식: {asset_id!r}")
+    _purge_expired_regeneration_inputs()
 
     # session_id=asset_id — 최초 생성(run_from_upload_v2)이 같은 asset_id 로 연 세션에 합류.
     with propagate_attributes(session_id=asset_id):
@@ -421,6 +435,7 @@ def rerun_v2(
                 variants = build_typography_variants(
                     r, product.name or r.subject_en, typography_enabled=poster,
                     output_dir=str(image_service.RESULTS_DIR),
+                    domain=getattr(r, "style_domain", None) or getattr(r, "domain", "food"),
                 )
             return GenerationOutput(
                 final_image_path=variants.selected_image_path,
@@ -464,6 +479,7 @@ def build_typography_variants(
     brand_label: str = "",
     kicker: str = "",
     cta: str = "",
+    domain: str = "food",
 ):
     """기생성 ProcessedAd에서 타이포 OFF/ON 두 파일을 만든다(CPU, GPU 재호출 없음).
 
@@ -483,6 +499,10 @@ def build_typography_variants(
         brand_label=brand_label,
         kicker=kicker,
         cta=cta,
+        # TS-1/2(영문 헤드라인) 분기용 — 없으면 조판기가 한글 계열로 폴백
+        subject_en=getattr(result, "subject_en", "") or "",
+        # 사물=배경 레터링 z-order 강제 (07-21 지시)
+        domain=domain,
     )
 
 
@@ -623,18 +643,25 @@ _DRINK_CONTAINERS = ("cup", "glass", "mug", "bottle", "can", "tumbler", "jar")
 
 
 def _resolve_style_domain(analysis, domain: str, food_mode: Optional[str],
-                          subject_en: str) -> str:  # noqa: ANN001
+                          subject_en: str, *,
+                          serving_type: Optional[str] = None) -> str:  # noqa: ANN001
     """StylePlan 도메인 정규화. drink는 '실제 음료'라는 긍정 근거가 있을 때만 승격한다.
 
     1차: PhotoAnalysis(UNIFIED_ANALYSIS 경로)의 container_kind — 사진 근거(D-4) 최우선.
-    2차(텍스트 폴백): subject_en에 실제 음료 어휘가 있을 때만 drink. 그 외(디저트·빵·샌드위치 등
-    카페에서 파는 고체 음식 전부)는 food 유지 — 화이트리스트라 새 메뉴가 나와도 안전측으로 기운다.
+    2차(SRV-ROUTE-001): serving_type(LLM 의미 판정)이 있으면 drink 여부를 그것으로 확정 —
+    substring 화이트리스트의 오탐("milk tea cake"가 'milk tea'에 걸려 케이크가 drink 승격)을
+    원천 차단한다. dessert|bakery|dish면 food 확정.
+    3차(레거시 폴백, serving_type=None): subject_en에 실제 음료 어휘가 있을 때만 drink.
+    그 외(디저트·빵·샌드위치 등 카페에서 파는 고체 음식 전부)는 food 유지 — 화이트리스트라
+    새 메뉴가 나와도 안전측으로 기운다. serving_type은 keyword-only(기존 positional 호출 보호).
     """
     if domain != "food" or food_mode != "cafe":
         return domain
     container = getattr(analysis, "container_kind", None)
     if container is not None:  # Vision 근거 우선
         return "drink" if str(container).lower() in _DRINK_CONTAINERS else domain
+    if serving_type is not None:
+        return "drink" if serving_type == "drink" else domain
     low = (subject_en or "").lower()
     return "drink" if any(hint in low for hint in _DRINK_HINTS) else domain
 
@@ -721,7 +748,15 @@ def _process_ad_impl(
         subject_en = getattr(resolved_analysis, "subject_en", None) or name
         domain = getattr(resolved_analysis, "domain", "food")
         food_mode = getattr(resolved_analysis, "food_mode", None)
-        style_domain = _resolve_style_domain(resolved_analysis, domain, food_mode, subject_en)
+        # SRV-ROUTE-001 킬스위치 단일 게이트: 하류 소비(_resolve_style_domain 2차·scene_kwargs
+        #   배관)가 전부 이 값에서 파생되므로 여기 한 곳이 off 스위치다. 반드시 객체 속성
+        #   getattr — pipeline_graph state dict 사영은 새 필드를 조용히 탈락시킨다(적대검증).
+        serving_type = (
+            None if os.environ.get("SERVING_TYPE_ROUTING", "1") == "0"
+            else getattr(resolved_analysis, "serving_type", None)
+        )
+        style_domain = _resolve_style_domain(resolved_analysis, domain, food_mode, subject_en,
+                                             serving_type=serving_type)
         # 포맷 자동감지(STYLE_SYSTEM v2): style 은 '무드', 포맷은 콘텐츠로 결정.
         #   STY-003~005 이후 사물도 선택 무드를 적용하되, StylePlan이 상품은 고정하고 배경·조명만 바꾼다.
         #   여름음료 pop_split·케이크 cross_section 은 특수 조판/게이트 필요 → 당분간 명시 호출 유지.
@@ -758,6 +793,9 @@ def _process_ad_impl(
             scene_kwargs: dict = {
                 "container_desc": _container_desc(resolved_analysis),
                 "container_opacity": getattr(resolved_analysis, "container_opacity", None),
+                # SRV-ROUTE-001 배관: build_reference_instruction까지 신호 전달. develop엔
+                #   아직 소비처(디저트 락)가 없어 무동작 — 락 브랜치 머지 시 tier-3가 소비.
+                "serving_type": serving_type,
             }
             if staging == "recompose":
                 scene_kwargs.update({

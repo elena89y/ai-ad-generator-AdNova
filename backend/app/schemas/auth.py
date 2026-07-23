@@ -76,6 +76,7 @@ class UserLogin(BaseModel):
         description="일반 계정은 7~12자, 관리자 기본 계정은 admin",
     )
     password: str
+    remember_me: bool = False
 
     @field_validator("username")
     @classmethod
@@ -89,12 +90,43 @@ class UserLogin(BaseModel):
         return value.lower()
 
 
+class AdminLoginRequest(UserLogin):
+    totp_code: str | None = Field(
+        default=None,
+        pattern=r"^\d{6}$",
+        description="TOTP가 설정된 관리자 계정의 6자리 인증 코드",
+    )
+
+
 class UsernameFindRequest(BaseModel):
     email: EmailStr
 
 
 class UsernameFindResponse(BaseModel):
     username: str
+
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str = Field(..., min_length=32, max_length=200)
+    new_password: str = Field(
+        ...,
+        min_length=8,
+        max_length=20,
+        description="8~20자, 영문 대문자/소문자/숫자/특수문자를 각각 최소 1개 포함",
+    )
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, value: str) -> str:
+        if not re.match(PASSWORD_PATTERN, value):
+            raise ValueError(
+                "비밀번호는 8~20자이며 영문 대문자, 영문 소문자, 숫자, 특수문자를 각각 최소 1개 이상 포함해야 합니다."
+            )
+        return value
 
 
 class UserResponse(BaseModel):

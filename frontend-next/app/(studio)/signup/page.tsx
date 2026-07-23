@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type SyntheticEvent } from "react";
+import { useState, useEffect, type SyntheticEvent } from "react";
 
 import {
   type AdnovaUser,
@@ -35,6 +35,110 @@ export default function SignupPage() {
   const [terms, setTerms] = useState(true);
   const [busy, setBusy] = useState(false);
   const [modal, setModal] = useState<"terms" | "privacy" | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [codeSent, setCodeSent] = useState(false);
+  const [code, setCode] = useState("");
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    const mail = email.trim();
+    if (!mail || !EMAIL_PATTERN.test(mail)) {
+      setEmailError(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await apiFetch(
+          `/api/auth/check-email?email=${encodeURIComponent(mail)}`
+        );
+        const data = (await readJsonSafely(res)) as { available?: boolean } | null;
+
+        if (res.ok && data?.available === false) {
+          setEmailError("이미 사용 중인 이메일입니다");
+        } else {
+          setEmailError(null);
+        }
+      } catch {
+        // 네트워크 오류는 무시, 제출 시 서버에서 다시 검증됨
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [email]);
+
+  useEffect(() => {
+    const name = username.trim();
+    if (!name || !USERNAME_PATTERN.test(name)) {
+      setUsernameError(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await apiFetch(
+          `/api/auth/check-username?username=${encodeURIComponent(name)}`
+        );
+        const data = (await readJsonSafely(res)) as { available?: boolean } | null;
+
+        if (res.ok && data?.available === false) {
+          setUsernameError("이미 사용 중인 아이디입니다");
+        } else {
+          setUsernameError(null);
+        }
+      } catch {
+        // ignore
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [username]);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown(cooldown - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
+  async function handleSendCode() {
+    const mail = email.trim();
+    if (!EMAIL_PATTERN.test(mail)) {
+      toast("이메일 형식이 올바르지 않습니다");
+      return;
+    }
+    const res = await apiFetch("/api/auth/send-verification-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: mail }),
+    });
+    const data = await readJsonSafely(res);
+    if (!res.ok) {
+      toast(readApiError(data, "인증번호 발송에 실패했습니다"));
+      return;
+    }
+    setCodeSent(true);
+    setCooldown(60);
+    toast("인증번호가 발송되었습니다");
+  }
+
+
+  async function handleVerifyCode() {
+    const res = await apiFetch("/api/auth/verify-email-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim(), code: code.trim() }),
+    });
+    const data = await readJsonSafely(res);
+    if (!res.ok) {
+      toast(readApiError(data, "인증에 실패했습니다"));
+      return;
+    }
+    setEmailVerified(true);
+    toast("이메일 인증이 완료되었습니다");
+  }
+
 
   function startOAuth(provider: OAuthProvider) {
     window.location.href = `/api/auth/${provider}/login`;
@@ -86,6 +190,16 @@ export default function SignupPage() {
       return;
     }
 
+    if (emailError || usernameError) {
+      toast("입력하신 정보를 다시 확인해 주세요");
+      return;
+    }
+
+    if (!emailVerified) {
+      toast("이메일 인증을 완료해 주세요");
+      return;
+    }
+
     if (!terms) {
       toast("이용약관 및 개인정보처리방침에 동의해 주세요");
       return;
@@ -121,18 +235,17 @@ export default function SignupPage() {
 
       /*
        * 2. 회원가입 직후 자동 로그인
-       * FastAPI 로그인은 application/x-www-form-urlencoded 방식
+       * FastAPI 로그인은 JSON 요청
        */
-      const loginBody = new URLSearchParams();
-      loginBody.set("username", name);
-      loginBody.set("password", password);
-
       const loginResponse = await apiFetch("/api/auth/login", {
         method: "POST",
         headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
+          "Content-Type": "application/json",
         },
-        body: loginBody,
+        body: JSON.stringify({
+          username: name,
+          password,
+        }),
       });
 
       const loginData = (await readJsonSafely(loginResponse)) as {
@@ -185,18 +298,68 @@ export default function SignupPage() {
         </p>
 
         <form onSubmit={handleSignup}>
+
           <div className="field">
             <label htmlFor="signupEmail">이메일</label>
 
-            <input
-              id="signupEmail"
-              type="email"
-              placeholder="you@store.com"
-              autoComplete="email"
-              value={email}
-              disabled={busy}
-              onChange={(event) => setEmail(event.target.value)}
-            />
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                id="signupEmail"
+                type="email"
+                placeholder="you@store.com"
+                autoComplete="email"
+                value={email}
+                disabled={busy || emailVerified}
+                onChange={(event) => setEmail(event.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button
+                type="button"
+                className={emailVerified ? "btn-secondary verified" : "btn-secondary"}
+                disabled={busy || emailVerified || cooldown > 0 || !!emailError}
+                onClick={handleSendCode}
+              >
+                {emailVerified
+                  ? "인증완료"
+                  : cooldown > 0
+                    ? `재발송 (${cooldown}s)`
+                    : codeSent
+                      ? "재발송"
+                      : "인증번호 발송"}
+              </button>
+            </div>
+
+            {emailError && (
+              <div
+                className="field-error"
+                style={{ color: "#e5484d", fontSize: 12, marginTop: 4 }}
+              >
+                {emailError}
+              </div>
+            )}
+
+            {codeSent && !emailVerified && (
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="인증번호 6자리"
+                  value={code}
+                  disabled={busy}
+                  onChange={(event) => setCode(event.target.value)}
+                  style={{ flex: 1 }}
+                />
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={busy || code.length !== 6}
+                  onClick={handleVerifyCode}
+                >
+                  확인
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="field">
@@ -211,6 +374,15 @@ export default function SignupPage() {
               disabled={busy}
               onChange={(event) => setUsername(event.target.value)}
             />
+
+            {usernameError && (
+              <div
+                className="field-error"
+                style={{ color: "#e5484d", fontSize: 12, marginTop: 4 }}
+              >
+                {usernameError}
+              </div>
+            )}
           </div>
 
           <div className="field">
