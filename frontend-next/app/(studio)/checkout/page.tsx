@@ -12,6 +12,10 @@ function CheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const changing = searchParams.get("mode") === "payment-method";
+  const creditPack = searchParams.get("product");
+  const buyingCreditPack = searchParams.get("mode") === "credit-pack";
+  const creditPackLabel = creditPack === "credit_30" ? "크레딧 30개" : "크레딧 10개";
+  const creditPackPrice = creditPack === "credit_30" ? "₩9,900" : "₩4,900";
 
   const [cardholder, setCardholder] = useState("");
   const [cardNumber, setCardNumber] = useState("");
@@ -46,7 +50,9 @@ function CheckoutContent() {
 
     const endpoint = changing
       ? "/api/billing/demo/payment-method"
-      : "/api/billing/demo/subscribe";
+      : buyingCreditPack
+        ? "/api/billing/demo/credit-packs"
+        : "/api/billing/demo/subscribe";
     const cardBrand = digits.startsWith("4")
       ? "Visa"
       : digits.startsWith("5")
@@ -57,7 +63,11 @@ function CheckoutContent() {
       const res = await apiFetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ card_brand: cardBrand, card_last4: digits.slice(-4) }),
+        body: JSON.stringify({
+          card_brand: cardBrand,
+          card_last4: digits.slice(-4),
+          ...(buyingCreditPack ? { product_id: creditPack || "credit_10" } : {}),
+        }),
       });
       const data = (await readJsonSafely(res)) as BillingSummary | null;
       if (!res.ok) throw new Error(readApiError(data, "테스트 결제를 완료하지 못했습니다"));
@@ -66,7 +76,9 @@ function CheckoutContent() {
       s.toast(
         changing
           ? "결제 방법을 변경했습니다"
-          : "테스트 결제가 완료되어 프리미엄이 적용됐습니다"
+          : buyingCreditPack
+            ? `${creditPackLabel} 구매가 완료됐습니다`
+            : "테스트 결제가 완료되어 프리미엄이 적용됐습니다"
       );
     } catch (err) {
       s.toast(err instanceof Error ? err.message : "테스트 결제를 완료하지 못했습니다");
@@ -104,12 +116,14 @@ function CheckoutContent() {
             테스트 결제
           </span>
           <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 7 }}>
-            {changing ? "결제 방법 변경" : "프리미엄 시작하기"}
+            {changing ? "결제 방법 변경" : buyingCreditPack ? "크레딧 추가 구매" : "프리미엄 시작하기"}
           </h2>
           <p style={{ fontSize: 13, color: "var(--ink-mute)", lineHeight: 1.6 }}>
             {changing
               ? "새 카드 정보를 확인하면 등록된 결제 방법이 변경됩니다."
-              : "카드 정보를 확인하면 프리미엄 테스트 권한이 바로 적용됩니다."}
+              : buyingCreditPack
+                ? "프리미엄 구독자만 구매할 수 있는 테스트 크레딧입니다."
+                : "카드 정보를 확인하면 프리미엄 테스트 권한이 바로 적용됩니다."}
           </p>
         </div>
         <div className="set-card">
@@ -126,12 +140,16 @@ function CheckoutContent() {
               }}
             >
               <div>
-                <div style={{ fontSize: 14, fontWeight: 800 }}>프리미엄 월 구독</div>
+                <div style={{ fontSize: 14, fontWeight: 800 }}>
+                  {buyingCreditPack ? creditPackLabel : "프리미엄 월 구독"}
+                </div>
                 <div style={{ fontSize: 12, color: "var(--ink-mute)", marginTop: 4 }}>
-                  테스트 이용 기간 30일
+                  {buyingCreditPack ? "구매 후 광고 생성에 사용할 수 있어요" : "테스트 이용 기간 30일"}
                 </div>
               </div>
-              <b style={{ fontSize: 18, color: "var(--gold)" }}>₩9,900</b>
+              <b style={{ fontSize: 18, color: "var(--gold)" }}>
+                {buyingCreditPack ? creditPackPrice : "₩9,900"}
+              </b>
             </div>
           )}
           <div className="field">
@@ -210,7 +228,7 @@ function CheckoutContent() {
             disabled={busy}
             onClick={submit}
           >
-            {changing ? "결제 방법 변경" : "테스트 결제 완료"}
+            {changing ? "결제 방법 변경" : buyingCreditPack ? "크레딧 구매 완료" : "테스트 결제 완료"}
           </button>
         </div>
       </div>

@@ -33,9 +33,11 @@ from ..crud.credits import (
     consume_bonus_credit,
     consume_free_credit,
     consume_premium_credit,
+    consume_purchased_credit,
     restore_bonus_credit,
     restore_free_credit,
     restore_premium_credit,
+    restore_purchased_credit,
 )
 from ..crud.history import create_history
 from ..crud.image import create_image, get_image_by_id
@@ -93,10 +95,12 @@ def _consume_generation_credit(db: Session, user_id: int) -> str:
             user_id,
             next_reset_at=subscription.current_period_end,
         ) is None:
-            raise HTTPException(
-                status_code=403,
-                detail="이번 달 프리미엄 크레딧을 모두 사용했습니다.",
-            )
+            if consume_purchased_credit(db, user_id) is None:
+                raise HTTPException(
+                    status_code=403,
+                    detail="이번 달 프리미엄 크레딧을 모두 사용했습니다. 크레딧을 추가 구매해 주세요.",
+                )
+            return "purchased"
         return "premium"
 
     if consume_free_credit(db, user_id) is None:
@@ -120,6 +124,9 @@ def _restore_generation_credit(db: Session, user_id: int, credit_type: str) -> N
                 subscription.current_period_end if subscription is not None else None
             ),
         )
+        return
+    if credit_type == "purchased":
+        restore_purchased_credit(db, user_id)
         return
     restore_free_credit(db, user_id)
 

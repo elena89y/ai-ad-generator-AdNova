@@ -8,15 +8,19 @@ from app.crud.credits import (
     consume_bonus_credit,
     consume_free_credit,
     get_bonus_credits_remaining,
+    get_purchased_credits_remaining,
     consume_premium_credit,
     get_credit_balance,
     get_credit_status,
     get_premium_credit_status,
     grant_bonus_credits,
     grant_premium_credits,
+    grant_purchased_credits,
     restore_bonus_credit,
     restore_free_credit,
     restore_premium_credit,
+    restore_purchased_credit,
+    consume_purchased_credit,
 )
 from app.database.connection import Base
 from app.database.models import User
@@ -162,6 +166,14 @@ class CreditBalanceCrudTestCase(unittest.TestCase):
             ),
             1,
         )
+
+    def test_purchased_credits_are_separate_and_can_be_restored(self) -> None:
+        self.assertEqual(get_purchased_credits_remaining(self.session, self.user.id), 0)
+        grant_purchased_credits(self.session, self.user.id, 10)
+
+        self.assertEqual(consume_purchased_credit(self.session, self.user.id), 9)
+        self.assertEqual(restore_purchased_credit(self.session, self.user.id), 10)
+        self.assertEqual(get_credit_balance(self.session, self.user.id).free_credits_remaining, 3)
 
 
 if __name__ == "__main__":
