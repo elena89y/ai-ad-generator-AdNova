@@ -45,3 +45,10 @@ backend/experiments/audit.jsonl
 # 코드 백업 파일 (git 이력이 원본 — .bak 는 추적 안 함)
 *.bak
 *.bak.*
+
+# ====== 실험 산출물 아카이브 (GCP 정리 재발 방지, 2026-07-21) ======
+# 실험 번들·스크래치 tar 는 레포에 커밋 금지 — 서버로 재업로드/디스크 재점유 방지.
+# (광고 산출물·업로드는 위 backend/results·uploads 규칙이 이미 커버)
+*.tar
+*.tar.gz
+*.tgz
