@@ -283,6 +283,13 @@ _PROP_SHAPES = (
 )
 
 
+# 면류 어휘(NOODLE-GUARD) — subject_en 기준. analyze_menu 산출 변주("cream carbonara pasta",
+#   "creamy carbonara pasta" 등)를 모두 잡도록 요리명까지 포함.
+_NOODLE_HINTS = ("noodle", "pasta", "ramen", "udon", "soba", "spaghetti", "linguine",
+                 "penne", "fettuccine", "carbonara", "naengmyeon", "japchae", "pho",
+                 "lo mein", "chow mein")
+
+
 def _props_clause(core_ingredients: list[str] | None) -> str:
     """core_ingredients → 명명된 소품 문구 (최대 2종).
 
@@ -542,9 +549,15 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
     #   subject+scene_seed 결정론(palette_gen 레시피 로테이션과 동일 패턴) — 같은 가게도
     #   재생성마다 다른 연출, 같은 시드는 재현 가능.
     if plan.domain == "food" and plan.style_key == "pop" and not is_vessel:
+        # NOODLE-GUARD(2026-07-24 라이브 실측 2회): 면류는 ①(scatter/flat-lay 압력)이 탑다운
+        #   전환과 함께 본체를 재드로잉(펜네→스파게티, 함정#4 면류 취약) — 강화 문구로도 못
+        #   막음. 면류는 ①을 로테이션에서 제외(②③④) — ③은 면류 보존 2/2 실측 성공.
+        variants = _POP_FOOD_VARIANTS
+        if any(h in subject.lower() for h in _NOODLE_HINTS):
+            variants = _POP_FOOD_VARIANTS[1:]
         idx = int(hashlib.sha256(f"{subject}:{scene_seed}".encode("utf-8"))
-                  .hexdigest()[:8], 16) % len(_POP_FOOD_VARIANTS)
-        direction = _POP_FOOD_VARIANTS[idx]
+                  .hexdigest()[:8], 16) % len(variants)
+        direction = variants[idx]
         identity_lock = _IDENTITY_LOCKS["food_pop"]
     # 자리표시자는 한 번에 치환 — {palette}+{hero} 동시 보유 플랜(food pop)에서 str.format이
     # 누락 키로 KeyError를 내지 않게 한다.
