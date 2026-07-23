@@ -354,7 +354,7 @@ export default function BillingPage() {
                 </button>
                 <button
                   type="button"
-                  style={{ padding: 14, border: "1px solid var(--gold)", borderRadius: 11, background: "rgba(242,169,59,.08)", color: "var(--ink)", textAlign: "left", cursor: "pointer" }}
+                  style={{ padding: 14, border: "1px solid var(--line)", borderRadius: 11, background: "rgba(255,255,255,.04)", color: "var(--ink)", textAlign: "left", cursor: "pointer" }}
                   onClick={() => router.push("/checkout?mode=credit-pack&product=credit_30")}
                 >
                   <b>크레딧 30개</b><br /><span style={{ color: "var(--gold)", fontWeight: 800 }}>₩9,900</span>
