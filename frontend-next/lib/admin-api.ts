@@ -3,6 +3,7 @@ import { API_BASE_URL } from "@/lib/api";
 const ADMIN_ACCESS_TOKEN_KEY = "admin_access_token";
 const ADMIN_USER_KEY = "admin_user";
 const ADMIN_REFRESH_PATH = "/auth/admin-refresh";
+const ADMIN_SESSION_EXTEND_PATH = "/auth/admin-session/extend";
 const ADMIN_LOGOUT_PATH = "/auth/logout";
 export const ADMIN_AUTH_EXPIRED_EVENT = "adnova:admin-auth-expired";
 
@@ -224,31 +225,25 @@ function buildAdminApiUrl(path: string): string {
 
 export function getAdminToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(ADMIN_ACCESS_TOKEN_KEY) || sessionStorage.getItem(ADMIN_ACCESS_TOKEN_KEY);
+  return sessionStorage.getItem(ADMIN_ACCESS_TOKEN_KEY);
 }
 
 export function getStoredAdmin(): AdminUser | null {
   if (typeof window === "undefined") return null;
   try {
     return JSON.parse(
-      localStorage.getItem(ADMIN_USER_KEY) || sessionStorage.getItem(ADMIN_USER_KEY) || "null"
+      sessionStorage.getItem(ADMIN_USER_KEY) || "null"
     ) as AdminUser | null;
   } catch {
     return null;
   }
 }
 
-export function isPersistentAdminAuth(): boolean {
-  return typeof window !== "undefined" && Boolean(localStorage.getItem(ADMIN_ACCESS_TOKEN_KEY));
-}
-
-export function storeAdminAuth(token: string, admin?: AdminUser, rememberMe = false): void {
-  const storage = rememberMe ? localStorage : sessionStorage;
-  const otherStorage = rememberMe ? sessionStorage : localStorage;
-  otherStorage.removeItem(ADMIN_ACCESS_TOKEN_KEY);
-  otherStorage.removeItem(ADMIN_USER_KEY);
-  storage.setItem(ADMIN_ACCESS_TOKEN_KEY, token);
-  if (admin) storage.setItem(ADMIN_USER_KEY, JSON.stringify(admin));
+export function storeAdminAuth(token: string, admin?: AdminUser): void {
+  localStorage.removeItem(ADMIN_ACCESS_TOKEN_KEY);
+  localStorage.removeItem(ADMIN_USER_KEY);
+  sessionStorage.setItem(ADMIN_ACCESS_TOKEN_KEY, token);
+  if (admin) sessionStorage.setItem(ADMIN_USER_KEY, JSON.stringify(admin));
 }
 
 export function clearAdminAuth(): void {
@@ -277,7 +272,7 @@ export async function refreshAdminAccessToken(): Promise<string | null> {
       .then(async (response) => {
         const token = await readAccessToken(response);
         if (!token) return null;
-        storeAdminAuth(token, getStoredAdmin() ?? undefined, isPersistentAdminAuth());
+        storeAdminAuth(token, getStoredAdmin() ?? undefined);
         return token;
       })
       .catch(() => null)
@@ -286,6 +281,22 @@ export async function refreshAdminAccessToken(): Promise<string | null> {
       });
   }
   return adminRefreshPromise;
+}
+
+export async function extendAdminSession(): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+  try {
+    const response = await fetch(buildAdminApiUrl(ADMIN_SESSION_EXTEND_PATH), {
+      method: "POST",
+      credentials: "include",
+    });
+    const token = await readAccessToken(response);
+    if (!token) return null;
+    storeAdminAuth(token, getStoredAdmin() ?? undefined);
+    return token;
+  } catch {
+    return null;
+  }
 }
 
 export async function logoutAdminSession(): Promise<void> {
