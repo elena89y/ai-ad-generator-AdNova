@@ -53,10 +53,10 @@ def render(hero: HeroAsset, spec: FormatSpec, output_dir: str) -> list[str]:
         y += heights[2]
 
     top = _cover(Image.open(cuts[DetailCutRole.TOP_VIEW]).convert("RGB"), (width, heights[3]))
-    canvas.paste(top, (0, y)); _section_label(canvas, pal, y, "01", copy.top_view_label, light=False); y += heights[3]
+    canvas.paste(top, (0, y)); _section_label(canvas, pal, y, copy.top_view_label, light=False); y += heights[3]
 
     closeup = _cover(Image.open(cuts[DetailCutRole.TEXTURE_CLOSEUP]).convert("RGB"), (width, heights[4]))
-    canvas.paste(closeup, (0, y)); _section_label(canvas, pal, y, "02", copy.closeup_caption, light=True); y += heights[4]
+    canvas.paste(closeup, (0, y)); _section_label(canvas, pal, y, copy.closeup_caption, light=True); y += heights[4]
 
     _split_section(canvas, cuts[DetailCutRole.SIDE_PROFILE], copy, pal, y, heights[5], width, margin); y += heights[5]
 
@@ -222,18 +222,18 @@ def _benefits(canvas, copy: DetailPageCopy, pal, y, height, margin, width):
                   _fit_line(bullet, width - margin * 2 - 56, 27), font=_font(27, True), fill=(30, 30, 30))
 
 
-def _section_label(canvas, pal, y, number, title, light):
+def _section_label(canvas, pal, y, title, light):
     draw = ImageDraw.Draw(canvas, "RGBA")
     fill = (*_PAPER, 232) if light else (*_INK, 205)
     text = (24, 24, 24) if light else (255, 255, 255)
-    # 라이브 실측(2026-07-21): '잔' 같은 짧은 라벨이 고정 폭 바에 떠 보임 → 텍스트 폭 맞춤.
-    label = _fit_line(title, 520 - 128 - 24, 27)
+    # 번호 제거(2026-07-23, 카드뉴스/배너와 통일) — 라벨만 남기고 텍스트 폭에 맞춘다.
+    # 라이브 실측(2026-07-21): '잔' 같은 짧은 라벨이 고정 폭 바에 떠 보이던 문제도 함께 유지.
+    label = _fit_line(title, 520 - 68 - 24, 27)
     font = _font(27, True)
     label_w = draw.textbbox((0, 0), label, font=font)[2]
-    right = max(320, min(520, 128 + label_w + 36))
+    right = max(240, min(520, 68 + label_w + 36))
     draw.rectangle((44, y + 42, right, y + 145), fill=fill)
-    draw.text((68, y + 67), number, font=_font(20, True), fill=pal["accent"])
-    draw.text((128, y + 63), label, font=font, fill=text)
+    draw.text((68, y + 68), label, font=font, fill=text)
 
 
 def _split_section(canvas, path, copy: DetailPageCopy, pal, y, height, width, margin):
@@ -242,7 +242,7 @@ def _split_section(canvas, path, copy: DetailPageCopy, pal, y, height, width, ma
     draw = ImageDraw.Draw(canvas)
     draw.rectangle((image_w, y, width, y + height), fill=pal["deep"])
     x = image_w + margin
-    draw.text((x, y + 85), "03 / PROFILE", font=_font(19, True), fill=pal["tint"])
+    draw.text((x, y + 85), "PROFILE", font=_font(19, True), fill=pal["tint"])
     draw.text((x, y + 150), copy.profile_title, font=_font(39, True), fill="white", spacing=8)
     if copy.profile_caption:
         for index, line in enumerate(_wrap_px(copy.profile_caption, _font(21), width - x - margin)[:3]):
@@ -253,7 +253,7 @@ def _lifestyle_overlay(canvas, copy: DetailPageCopy, pal, y, height, width, marg
     # 하단 33% 솔리드 → 22% 페이드 밴드(라이프스타일 컷 노출↑).
     _scrim(canvas, y + int(height * .78), y + height, width, _INK, 200, 90)
     draw = ImageDraw.Draw(canvas, "RGBA")
-    draw.text((margin, y + int(height * .82)), "04 / MOMENT", font=_font(20, True), fill=pal["tint"])
+    draw.text((margin, y + int(height * .82)), "MOMENT", font=_font(20, True), fill=pal["tint"])
     draw.text((margin, y + int(height * .88)), copy.lifestyle_line,
               font=_fit(copy.lifestyle_line, width - margin * 2, 43, 29), fill="white")
 
