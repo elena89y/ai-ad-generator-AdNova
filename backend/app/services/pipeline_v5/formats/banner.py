@@ -56,7 +56,6 @@ def _render_wide(canvas, copy: DetailPageCopy, pal, spec):
     for line in lines:
         draw.text((margin, y), line, font=font, fill="white"); y += _line_height(font)
     _cta_pill(canvas, copy.cta_label, _font("bold", 22), (margin, int(ch * .72)), fill=(255, 255, 255), fg=pal["accent"])
-    draw.text((cw - margin - 40, ch - margin - 24), "WIDE", font=_font("medium", 18), fill="white")
     return canvas
 
 
@@ -84,7 +83,6 @@ def _render_catalog(canvas, copy: DetailPageCopy, pal, spec):
     draw.text((margin, 35), copy.product_name or "상품", font=_font("bold", 25), fill=(24, 24, 24))
     draw.rectangle((0, ch - 150, cw, ch), fill=(255, 255, 255, 244))
     draw.text((margin, ch - 108), copy.intro_headline, font=_fit_headline(copy.intro_headline, cw - margin * 2, 38, 25)[1], fill=(24, 24, 24))
-    draw.text((cw - margin - 98, 38), "DETAIL", font=_font("medium", 18), fill=pal["accent"])
     return canvas
 
 
