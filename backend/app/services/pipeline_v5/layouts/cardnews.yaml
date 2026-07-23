@@ -1,0 +1,42 @@
+# 카드뉴스 레이아웃 DSL (DIRECTION_v6-1 L3) — layout_engine.render_slide 가 해석. 담당: 한의정.
+#
+# 기존 하드코딩 조판(formats/cardnews.py _*_slide)을 데이터로 이전. 픽셀 동등 검증:
+# test_layout_engine.py. 좌표=구조화 리스트, 색=palette키/named/RGB, 바인딩=copy 필드.
+# 슬라이드는 표지·스토리·디테일·CTA 4장(표지 intro / 스토리 story / 디테일 profile / CTA = 전용 문구).
+cover:
+  bg: {cut: hero}
+  elements:
+    - {type: scrim, frm: [0, [fh, 0.70]], to: [[fw, 1], [fh, 1]], color: ink, amax: 210, fade: [fh, 0.12]}
+    - {type: bar, box: [0, 0, [fw, 1], 108], color: paper, alpha: 235}
+    - {type: text, at: [[margin], 40], bind: product_name, fallback: ADNOVA SELECT, font: 25, bold: true, color: [24, 24, 24]}
+    - {type: rule, box: [[rmargin, -120], 57, [rmargin], 57], color: accent, width: 5}
+    - {type: text, at: [[margin], [fh, 0.76]], text: SIGNATURE MENU, font: 22, bold: true, color: tint, if: product_name}
+    - {type: text, at: [[margin], [fh, 0.76, 42]], bind: intro_headline, font: {fit: [62, 38]}, color: white}
+    - {type: text, at: [[margin], [fh, 0.76, 128]], bind: benefit_bullets.0, font: {fit: [28, 22]}, color: tint, if: benefit_bullets}
+story:
+  bg: {fill: deep}
+  images:
+    - {cut: top_view, at: [[fw, 0.42], 0], size: [[restw], [resth]]}
+  elements:
+    - {type: text, at: [[margin], 120], bind: product_name, fallback: 오늘의 메뉴, font: {fit: [47, 29]}, maxw: [fwm, 0.42, -2], color: white}
+    - {type: rule, box: [[margin], 270, [fwm, 0.42, -1], 270], color: tint, width: 3}
+    - {type: text, at: [[margin], 340], bind: story_title, font: 42, bold: true, color: white, wrap: 10, line_h: 62}
+    - {type: text, at: [[margin], 545], bind: story_body, transform: first_sentence, font: 26, color: tint, wrap: 12, line_h: 42, if: story_body}
+    - {type: text, at: [[margin], [fh, 1, -115]], bind: top_view_label, fallback: TOP VIEW, font: 20, bold: true, color: tint}
+detail:
+  bg: {fill: [242, 239, 232]}
+  images:
+    - {cut: texture_closeup, at: [0, 0], size: [[fw, 1], [fh, 0.66]]}
+    - {cut: side_profile, at: [[fw, 0.07], [fh, 0.69]], size: [[fw, 0.38], [fh, 0.27]]}
+  elements:
+    - {type: text, at: [[fw, 0.51], [fh, 0.70]], text: DETAIL, font: 21, bold: true, color: accent}
+    - {type: text, at: [[fw, 0.51], [fh, 0.76]], bind: profile_title, font: 46, bold: true, color: [22, 22, 22], spacing: 10}
+    - {type: text, at: [[fw, 0.51], [fh, 0.88]], bind: profile_caption, font: 23, color: [88, 84, 78], wrap: 12, line_h: 34, if: profile_caption}
+cta:
+  bg: {cut: lifestyle}
+  elements:
+    - {type: scrim, frm: [0, [fh, 0.60]], to: [[fw, 1], [fh, 1]], color: ink, amax: 220, fade: [fh, 0.14]}
+    - {type: text, at: [[margin], [fh, 0.68]], bind: product_name, fallback: SIGNATURE, font: 24, bold: true, color: tint}
+    - {type: text, at: [[margin], [fh, 0.74]], bind: cta_title, font: 52, bold: true, color: white}
+    - {type: panel, box: [[margin], [fh, 0.86], [margin, 238], [fh, 0.86, 68]], color: accent}
+    - {type: text, at: [[margin, 38], [fh, 0.86, 18]], bind: cta_label, font: 25, bold: true, color: white}
