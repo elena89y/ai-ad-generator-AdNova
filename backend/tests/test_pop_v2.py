@@ -73,7 +73,7 @@ def test_vessel_excluded_from_rotation():
 
 
 @pytest.mark.parametrize("marker", [
-    "freeze-dried chips",        # ① ingredient_world
+    "joyful pop energy",         # ① ingredient_world
     "string of small pearls",    # ② styling_cut
     "floating weightlessly",     # ③ dynamic_float
     "captured mid-pour",         # ④ gradient_action
@@ -82,3 +82,32 @@ def test_each_archetype_reachable(marker):
     """12개 시드 안에서 4아키타입 각각이 최소 1회 등장."""
     joined = " ".join(_instr(scene_seed=s) for s in range(12))
     assert marker in joined
+
+
+# --- POP-V2.1: 소품 구체명 ({props}) — "찰흙 덩어리" 핫픽스 -------------------
+
+def test_props_clause_named_shapes():
+    """재료명 → 형태 있는 소품 명사구. 치즈 우선(까르보나라→노란 큐브, 07-24 판정)."""
+    from app.services.reference_style_plans import _props_clause
+    carbonara = _props_clause(["pasta", "cream", "bacon", "parmesan"])
+    assert "yellow parmesan cubes" in carbonara
+    cake = _props_clause(["strawberry", "cream", "sponge"])
+    assert "fresh whole strawberry" in cake and "freeze-dried strawberry chips" in cake
+    assert "clearly shaped glossy props" in _props_clause(None)  # 폴백
+
+
+def test_props_placeholder_filled_and_anti_lump():
+    """{props} 잔존 금지 + 안티-덩어리 절 포함(①③ 계열)."""
+    for s in range(12):
+        instr = _instr(scene_seed=s, core_ingredients=["strawberry", "cream"])
+        assert "{props}" not in instr
+    joined = " ".join(_instr(scene_seed=s, core_ingredients=["strawberry", "cream"])
+                      for s in range(12))
+    assert "no shapeless lumps" in joined
+
+
+def test_props_without_ingredients_safe():
+    """core_ingredients 미전달(구캐시·스텁)이어도 {props}는 일반 폴백으로 채워진다."""
+    for s in range(4):
+        instr = _instr(scene_seed=s)
+        assert "{props}" not in instr

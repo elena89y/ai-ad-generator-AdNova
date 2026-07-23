@@ -24,7 +24,8 @@ def generate_scene(image_path: str, style_key: str, subject_en: str,
                    temperature: Optional[str] = None,
                    text_zone: Optional[str] = None,
                    flexible_parts: Optional[list[str]] = None,
-                   serving_type: Optional[str] = None) -> str:
+                   serving_type: Optional[str] = None,
+                   core_ingredients: Optional[list[str]] = None) -> str:
     """도메인별 StylePlan 또는 특수 포맷 지시로 Kontext 편집 후 경로를 반환한다.
 
     staging="recompose"(P5 음료 재연출): 보존 편집 대신 같은 음료의 새 연출을 지시한다.
@@ -74,7 +75,8 @@ def generate_scene(image_path: str, style_key: str, subject_en: str,
                                                   container_opacity=container_opacity,
                                                   palette_override=palette_override,
                                                   serving_type=serving_type,
-                                                  scene_seed=seed)
+                                                  scene_seed=seed,
+                                                  core_ingredients=core_ingredients)
     clip_prompt = build_clip_anchor(style_key, domain, subject_en)
 
     # 구성(composition) 유지 절 — 무드 씬 전용 (2026-07-11 콜드런 실측: editorial 이 브런치
