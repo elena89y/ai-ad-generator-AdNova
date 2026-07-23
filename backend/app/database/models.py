@@ -258,6 +258,27 @@ class UserReport(Base):
     user = relationship("User", back_populates="reports")
 
 
+class Notice(Base):
+    """사용자에게 게시하는 서비스 공지사항."""
+
+    __tablename__ = "notices"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(255), nullable=False)
+    content = Column(Text, nullable=False)
+    is_published = Column(Boolean, default=False, nullable=False, index=True)
+    published_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    created_by_admin_id = Column(Integer, nullable=False, index=True)
+    updated_by_admin_id = Column(Integer, nullable=True, index=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
+
+
 class ChatbotEvent(Base):
     """고객센터 챗봇 상담 1턴의 집계용 이벤트 — 담당: 한의정.
 

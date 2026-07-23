@@ -1881,3 +1881,9 @@
   background: rgba(91, 227, 160, 0.15);
   color: var(--ok);
 }
+
+@media (max-width: 720px) {
+  .notice-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}

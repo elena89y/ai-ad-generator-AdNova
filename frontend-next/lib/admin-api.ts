@@ -119,6 +119,37 @@ export interface AdminInquiry {
   answered_by_admin_id: number | null;
 }
 
+export type AdminReportStatus = "pending" | "in_progress" | "resolved" | "rejected";
+
+export interface AdminReport {
+  id: number;
+  user_id: number;
+  username: string;
+  email: string;
+  category: string;
+  title: string;
+  content: string;
+  advertisement_id: number | null;
+  status: AdminReportStatus;
+  admin_note: string | null;
+  handled_by_admin_id: number | null;
+  handled_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminNotice {
+  id: number;
+  title: string;
+  content: string;
+  is_published: boolean;
+  published_at: string | null;
+  created_by_admin_id: number;
+  updated_by_admin_id: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AdminSubscription {
   id: number;
   user_id: number;
