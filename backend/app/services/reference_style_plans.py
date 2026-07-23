@@ -598,9 +598,36 @@ _DESSERT_HINTS = (
 
 
 def _is_dessert_subject(subject_en: str) -> bool:
-    """subject_en(영문 상품 설명)이 케이크·베이커리 디저트인지. 접시 재플레이팅 대상 판정용."""
+    """subject_en(영문 상품 설명)이 케이크·베이커리 디저트인지. 접시 재플레이팅 대상 판정용.
+
+    ⚠️ 레거시 폴백 전용(SRV-ROUTE-001): substring이라 "rice cake soup"(떡국)도 True가 되는
+    구조적 오탐이 있다 — serving_type(LLM 의미 판정)이 있으면 그쪽이 정본, 이 함수는
+    serving_type=None(구캐시·킬스위치)일 때만 기존 동작 그대로 쓴다.
+    """
     low = (subject_en or "").lower()
     return any(hint in low for hint in _DESSERT_HINTS)
+
+
+# SRV-ROUTE-001 §4-4: 재플레이팅 부적합 가드 — food_dessert 락 문구("단일 디저트가 접시 위에
+#   평평히 누움" + 접시 교체)의 전제가 거짓이 되는 제시 형태를 이름 근거로 걸러, 안전측
+#   (락 미적용=기존 문구)으로 보낸다. serving_type 분기 안에서만 사용 — 레거시 substring
+#   경로는 바이트 동일 유지(회귀 가드).
+_REPLATE_UNSAFE_SET = ("set", "box", "gift", "assort", "bundle")    # 세트·박스·다중개체
+_REPLATE_UNSAFE_VESSEL = ("bingsu", "parfait", "affogato", "sundae", "float")  # 유리용기 디저트
+_REPLATE_UNSAFE_WHOLE = ("whole", "tier")                           # 홀케이크(기립형 다단)
+
+
+def _replate_unsafe(subject_en: str, container_desc: str | None) -> bool:
+    """디저트 접시 재플레이팅이 시각적으로 부조리해지는 케이스 판정(SRV-ROUTE-001 적대검증 방어).
+
+    - 세트·박스: 박스 정렬 상품에 '접시 교체' 지시 = 포장(상품 정체성) 파괴 — 온라인셀러 세트 보호
+    - 유리용기 디저트인데 Vision 용기 정보 없음: vessel 분류가 못 가로챈 케이스를 안전측으로
+    - 홀케이크: 락의 '평평히 누운 조각' 전제가 기립형 다단 구조와 모순 → 형태 왜곡 위험
+    """
+    low = (subject_en or "").lower()
+    if any(w in low for w in _REPLATE_UNSAFE_SET + _REPLATE_UNSAFE_WHOLE):
+        return True
+    return container_desc is None and any(w in low for w in _REPLATE_UNSAFE_VESSEL)
 
 
 def build_reference_instruction(style_key: str, domain: str | None, subject_en: str,
@@ -618,10 +645,9 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
     치환한다(CONTAINER-001). 미지정·접시류·분류 실패는 전부 기존 문구와 바이트 동일 —
     컵 변환(BUG-KTX-001)·프로핑(PLATING-001) 회귀 가드.
 
-    serving_type(SRV-ROUTE-001): 제공 형태 세분 신호 배관. 현 시점 이 함수는 소비하지 않음
-    — 디저트 재플레이팅 락 브랜치가 머지되면 tier-3 락 조건이 소비한다
-    (설계 SRV-ROUTE-001 §4-4: serving_type in ('dessert','bakery') and not _replate_unsafe(...),
-    None이면 레거시 substring — vessel 체크 선행 순서 불변).
+    serving_type(SRV-ROUTE-001 §4-4, 이 브랜치에서 소비 활성): 디저트 락 판정의 정본 —
+    serving_type in ('dessert','bakery') and not _replate_unsafe(...) 이면 food_dessert 락.
+    None이면 레거시 substring(_is_dessert_subject) — 바이트 동일. vessel 체크 선행 순서 불변.
     """
     plan = get_reference_plan(style_key, domain)
     if plan is None:
@@ -638,7 +664,16 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
     else:
         # 디저트(케이크류)는 접시를 상품이 아닌 연출요소로 보고 예쁜 접시로 재플레이팅한다.
         #   vessel(유리 디저트 용기)이 아닐 때만 — 굽 유리볼 빙수 등은 위에서 이미 보존 처리.
-        if plan.domain == "food" and _is_dessert_subject(subject):
+        # SRV-ROUTE-001 §4-4 게이트: serving_type(LLM 의미 판정)이 있으면 그것이 정본 —
+        #   substring 오탐("rice cake soup"→디저트 락, "bread" 베이커리 누락) 차단 +
+        #   재플레이팅 부적합(_replate_unsafe: 세트/박스·무Vision 유리용기·홀케이크) 가드.
+        #   None(구캐시·SERVING_TYPE_ROUTING=0)이면 레거시 substring — 바이트 동일.
+        if serving_type is not None:
+            dessert = (serving_type in ("dessert", "bakery")
+                       and not _replate_unsafe(subject, container_desc))
+        else:
+            dessert = _is_dessert_subject(subject)
+        if plan.domain == "food" and dessert:
             # DESSERT-AB: 재플레이팅(238c288) before/after 인세션 토글. 기본 on=현행(바이트 동일),
             #   DESSERT_REPLATE=0 이면 구 동작(접시 보존=freeze plate)으로 폴백 → A/B 대조군.
             if os.environ.get("DESSERT_REPLATE", "1") != "0":
