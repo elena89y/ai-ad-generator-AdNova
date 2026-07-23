@@ -35,6 +35,7 @@ class PipelineState(TypedDict, total=False):
     texture_hero: bool
     identity_parts: list
     flexible_parts: list
+    serving_type: Optional[str]  # SRV-ROUTE-001: dish|drink|dessert|bakery|object|None
     out_path: Optional[str]
     gate_passed: Optional[bool]
     attempts: int
@@ -57,15 +58,19 @@ def _do_analyze(state: PipelineState) -> PipelineState:
     from . import gpt_service
 
     analysis = gpt_service.analyze_photo(state["image_path"], state["name"])
+    # SRV-ROUTE-001: state 사영은 명시 복사라 새 필드가 조용히 탈락한다(적대검증 지적) —
+    #   serving_type을 사영에 포함. 소비 계약 자체는 분석 객체 getattr이 정본.
     if analysis is None:
         menu = gpt_service.analyze_menu(state["name"])
         state.update(subject_en=menu.subject_en, domain=menu.domain,
-                     texture_hero=menu.texture_hero, identity_parts=[], flexible_parts=[])
+                     texture_hero=menu.texture_hero, identity_parts=[], flexible_parts=[],
+                     serving_type=menu.serving_type)
     else:
         state.update(subject_en=analysis.subject_en, domain=analysis.domain,
                      texture_hero=analysis.texture_hero,
                      identity_parts=list(analysis.identity_parts),
-                     flexible_parts=list(analysis.flexible_parts))
+                     flexible_parts=list(analysis.flexible_parts),
+                     serving_type=analysis.serving_type)
     return state
 
 

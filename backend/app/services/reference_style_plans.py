@@ -404,13 +404,19 @@ def get_reference_plan(style_key: str, domain: str | None) -> ReferenceStylePlan
 
 def build_reference_instruction(style_key: str, domain: str | None, subject_en: str,
                                 container_desc: str | None = None,
-                                container_opacity: str | None = None) -> str | None:
+                                container_opacity: str | None = None,
+                                serving_type: str | None = None) -> str | None:
     """StylePlan을 Kontext용 정체성 보존 편집 지시로 변환한다.
 
     container_desc·container_opacity(analyze_photo Vision 산출)가 유리 디저트 용기(vessel)로
     분류되면 food 프리앰블과 플랜의 용기 문구를 "원본 용기 유지+프리미엄 연출" 긍정 단언으로
     치환한다(CONTAINER-001). 미지정·접시류·분류 실패는 전부 기존 문구와 바이트 동일 —
     컵 변환(BUG-KTX-001)·프로핑(PLATING-001) 회귀 가드.
+
+    serving_type(SRV-ROUTE-001): 제공 형태 세분 신호 배관. 현 시점 이 함수는 소비하지 않음
+    — 디저트 재플레이팅 락 브랜치가 머지되면 tier-3 락 조건이 소비한다
+    (설계 SRV-ROUTE-001 §4-4: serving_type in ('dessert','bakery') and not _replate_unsafe(...),
+    None이면 레거시 substring — vessel 체크 선행 순서 불변).
     """
     plan = get_reference_plan(style_key, domain)
     if plan is None:

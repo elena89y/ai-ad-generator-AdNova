@@ -597,6 +597,10 @@ class MenuAnalysis:
     texture_hero: (음식) 텍스처가 상품인가 → True 면 보존 그레이드.
     material: (사물) matte|reflective|transparent|default — 클린 보정 강도.
     lang: ko|en (원문 언어).
+    serving_type: (SRV-ROUTE-001) dish|drink|dessert|bakery|object 제공 형태 세분값.
+        food_mode(dish|cafe 2분법)가 카페 혼재군(음료+디저트+베이커리)을 못 나눠 생긴
+        휴리스틱 오분류("milk tea cake" drink 승격 등)를 LLM 의미 판정으로 대체한다.
+        None(미출력·오타·구캐시)이면 소비처가 레거시 휴리스틱으로 폴백 — 바이트 동일.
     """
     domain: str
     display_name: str
@@ -607,6 +611,7 @@ class MenuAnalysis:
     material: str
     food_mode: str    # (food) 'dish'=음식점 접시(A, in-place) | 'cafe'=카페 이산제품(B, 누끼+씬)
     lang: str
+    serving_type: Optional[str] = None  # SRV-ROUTE-001 — 기본 None(하위호환: 구캐시·스텁 무해)
 
     # 하위호환: 기존 코드가 쓰던 food_en 별칭
     @property
@@ -641,6 +646,10 @@ class PhotoAnalysis:
     #   하위호환: default 빈 리스트라 기존 호출부·캐시 무해. 비면 "전체 보존"으로 안전 폴백.
     identity_parts: list[str] = field(default_factory=list)
     flexible_parts: list[str] = field(default_factory=list)
+    # SRV-ROUTE-001: 제공 형태 세분값(MenuAnalysis와 동일 계약). 프로덕션 style 경로의
+    #   resolved_analysis는 대부분 PhotoAnalysis(UNIFIED_ANALYSIS·캐시)라 여기에도 반드시
+    #   있어야 실경로에서 작동한다. default None → 구캐시 재수화 무해.
+    serving_type: Optional[str] = None
 
     @property
     def food_en(self) -> str:
@@ -664,6 +673,10 @@ class PhotoAnalysis:
         for field, (value, allowed) in enum_fields.items():
             if value not in allowed:
                 raise ValueError(f"잘못된 {field}: {value!r}")
+        # serving_type은 optional 신호 — None 허용, 값이 있으면 5값 enum 강제(변조 캐시 방어).
+        #   파스 단계(_clamp_serving_type)가 불량값을 None으로 걸러 정상 경로에선 도달 불가.
+        if self.serving_type is not None and self.serving_type not in _SERVING_TYPES:
+            raise ValueError(f"잘못된 serving_type: {self.serving_type!r}")
         if not isinstance(self.core_ingredients, list):
             raise ValueError("core_ingredients가 배열이 아님")
         _require_ascii_prompt_text(self.subject_en, "subject_en")
@@ -682,6 +695,18 @@ _MATERIALS = ("matte", "reflective", "transparent", "default")
 _CONTAINER_OPACITIES = ("opaque", "transparent", "translucent")
 _TEMPERATURES = ("hot", "iced", "ambient")
 _VIEW_ANGLES = ("eye", "high", "top")
+# SRV-ROUTE-001: 제공 형태 5값. dessert|bakery는 v1 후단 동일(재플레이팅 별칭) — 분화는 phase2.
+_SERVING_TYPES = ("dish", "drink", "dessert", "bakery", "object")
+
+
+def _clamp_serving_type(raw: object) -> Optional[str]:
+    """serving_type 관대 클램프 — 5값 밖·결측·오타는 전부 None(레거시 폴백).
+
+    raise 금지: LLM 응답 형태 변동(함정 #6)으로 오타 1건이 파이프라인 전체를 죽이면
+    레거시보다 나쁜 장애가 된다. 소비처는 None이면 기존 휴리스틱과 바이트 동일하게 동작.
+    """
+    value = str(raw or "").strip().lower()
+    return value if value in _SERVING_TYPES else None
 
 
 def _require_ascii_prompt_text(value, field: str) -> str:  # noqa: ANN001
@@ -759,6 +784,7 @@ def analyze_menu(name: str) -> MenuAnalysis:
         material=material,
         food_mode="cafe" if str(low.get("food_mode", "dish")).lower() == "cafe" else "dish",
         lang="en" if str(low.get("lang", "")).lower().startswith("en") else "ko",
+        serving_type=_clamp_serving_type(low.get("serving_type")),
     )
 
 
@@ -857,6 +883,9 @@ def analyze_photo(image_path: str, name: str) -> Optional[PhotoAnalysis]:
             # 사물(로고 SKU)은 flexible을 무시하고 전체 보존 — object 정직성 경계(형태·색 왜곡 금지).
             identity_parts=_part_list("identity_parts"),
             flexible_parts=flexible,
+            # SRV-ROUTE-001: 반드시 .get() — food_mode(:849)류 직접 인덱싱이면 키 누락 시
+            #   KeyError→analyze_photo 상시 None(UNIFIED_ANALYSIS 전멸)이라는 침묵 실패가 된다.
+            serving_type=_clamp_serving_type(result.get("serving_type")),
         )
     except Exception as exc:  # 기존 verify_photo_subject+analyze_menu 경로로 폴백
         logger.warning("analyze_photo 실패 → 기존 분석 경로 폴백: %s", exc)
