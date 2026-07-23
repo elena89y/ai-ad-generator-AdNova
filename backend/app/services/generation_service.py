@@ -805,6 +805,8 @@ def _process_ad_impl(
                 # SRV-ROUTE-001 배관: build_reference_instruction까지 신호 전달. develop엔
                 #   아직 소비처(디저트 락)가 없어 무동작 — 락 브랜치 머지 시 tier-3가 소비.
                 "serving_type": serving_type,
+                # POP-V2.1: 팝 소품 구체명 소스 — 추상 지시는 덩어리 렌더(07-24 실측)
+                "core_ingredients": getattr(resolved_analysis, "core_ingredients", None),
             }
             if staging == "recompose":
                 scene_kwargs.update({

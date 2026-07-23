@@ -231,32 +231,81 @@ _IDENTITY_LOCKS = {
 #   공통 문법(레퍼런스 관찰): 화면 채움·제품 톤 앵커({palette}=PAL-002 적응형)·소품/액션.
 #   정직성: 소품·부유·액션 전부 "음식에 실제 보이는 재료"로 한정. gradient 는 하드 스플릿으로
 #   렌더되는 함정이 있어 "smooth softly blended ... no hard edge" 문구 필수(r1 실측 2회 재현).
+# POP-V2.1(2026-07-24 핫픽스, 아트디렉터 리포트 "소품이 찰흙 덩어리"): 소품을 추상 지시
+#   ("its own visible ingredients")로 시키면 Kontext가 형태 없는 덩어리를 빚는다(라이브 실측
+#   — 케이크 s42 분홍 스펀지 무더기, 파스타 s7 본체 재드로잉까지). 성공 케이스는 전부 명명된
+#   소품(파마산 큐브·freeze-dried strawberry slices)이었음 → {props}에 core_ingredients 기반
+#   **구체명**을 런타임 주입 + "clearly shaped, photorealistic, no shapeless lumps" 안티-덩어리
+#   절 + ①은 "Fill the scene"(씬 재구성 압력, 면류 본체 재드로잉 유발)을 "Scatter around"로
+#   낮추고 카메라 앵글·본체 고정 재단언.
 _POP_FOOD_VARIANTS: tuple[str, ...] = (
-    # ① ingredient_world — 톤온톤 재료 무리로 화면 채움 (sports_concept 유래)
-    "Fill the scene with a playful abundance of the same fresh ingredients already visible in the food, "
-    "scattered generously across the table around a scalloped gold-rimmed dessert plate, plus a few crisp "
-    "freeze-dried chips of the same fruit if the food contains fruit. Use {palette}, keeping the whole scene "
-    "tone-on-tone with the product. Bright cheerful studio light with crisp soft shadows, joyful pop energy.",
-    # ② styling_cut — 러블리 스타일링 컷 (food_metaphor/디저트 스타일링 컷 유래)
-    "Style a lovely editorial styling cut: the food on a scalloped gold-rimmed dessert plate with small "
-    "tasteful garnishes of its own visible ingredients arranged appetizingly around it on the plate, a "
-    "polished dessert fork, a soft satin ribbon and a delicate string of small pearls nearby on the table. "
-    "Use {palette}. Soft romantic pop light, sweet gift-like mood, premium styling.",
-    # ③ dynamic_float — 재료 공중 부유 + 소프트 그라데이션 (dynamic_float 유래)
-    "Surround the food with small pieces of its own visible ingredients floating weightlessly in mid-air at "
-    "clearly different heights and sizes filling the upper frame, each floating piece casting no contact "
-    "shadow, the food presented on an elegant footed dessert stand. Use {palette}, rendered as a smooth "
-    "softly blended gradient with no hard edge. Playful dynamic energy, bright studio light.",
+    # ① ingredient_world — 톤온톤 소품 무리 (sports_concept 유래)
+    "Keep the food and its camera angle exactly as photographed. Scatter {props} generously across the "
+    "table around a scalloped gold-rimmed dessert plate — every prop clearly shaped, glossy and "
+    "photorealistic, no shapeless lumps. Use {palette}, keeping the whole scene tone-on-tone with the "
+    "product. Bright cheerful studio light with crisp soft shadows, joyful pop energy.",
+    # ② styling_cut — 러블리 스타일링 컷 (food_metaphor 유래) + 오브제 다양화(구슬)
+    "Style a lovely editorial styling cut: the food on a scalloped gold-rimmed dessert plate with {props} "
+    "arranged appetizingly around it on the plate, a polished dessert fork, a soft satin ribbon, a delicate "
+    "string of small pearls and a few small glossy decorative beads nearby on the table — every object "
+    "clearly shaped and photorealistic. Use {palette}. Soft romantic pop light, sweet gift-like mood.",
+    # ③ dynamic_float — 소품 공중 부유 + 소프트 그라데이션 (dynamic_float 유래)
+    "Keep the food and its camera angle exactly as photographed, presented on an elegant footed dessert "
+    "stand. Surround it with {props} floating weightlessly in mid-air at clearly different heights and "
+    "sizes filling the upper frame — each floating piece clearly shaped, glossy and photorealistic with no "
+    "contact shadow, never shapeless lumps. Use {palette}, rendered as a smooth softly blended gradient "
+    "with no hard edge. Playful dynamic energy, bright studio light.",
     # ④ gradient_action — 그라데이션 + 자기 재료 드리즐 액션 (saturated_color_block 유래)
-    #   r3 실측(07-23): "케이크 위로" 붓게 하면 Kontext가 본체를 재드로잉(토핑 변질·층 색 붕괴)
-    #   → 액션은 접시 옆으로, 본체 온전 노출을 명시. r2 육안에서 이 구도가 액션感 충분.
+    #   r3 실측(07-23): "케이크 위로" 붓게 하면 본체 재드로잉 → 접시 옆 + 본체 온전 노출 명시.
     "A continuous glossy stream of the food's own cream or sauce pouring from above onto the plate right "
     "beside the food, captured mid-pour with a delicate splash — the food itself stays fully visible and "
-    "unchanged. A few pieces of its visible ingredients beside it on an elegant rimmed dessert plate. Use "
-    "{palette} — the table clean and seamless, no wooden surfaces, no unrelated objects — with the "
-    "background rendered as a smooth softly blended vertical gradient with no hard edge. Bold playful "
-    "composition, crisp pop lighting.",
+    "unchanged at its original camera angle. {props} beside it on an elegant rimmed dessert plate, each "
+    "clearly shaped and photorealistic. Use {palette} — the table clean and seamless, no wooden surfaces, "
+    "no unrelated objects — with the background rendered as a smooth softly blended vertical gradient with "
+    "no hard edge. Bold playful composition, crisp pop lighting.",
 )
+
+# 재료명 → 구체 소품 문구 (POP-V2.1). analyze_menu/analyze_photo 의 core_ingredients(영문 ASCII
+#   보장)를 시각적 소품 명사구로 변환 — "치즈"류는 노란 큐브, 과일류는 신선 통과일+동결건조 칩,
+#   크림류는 파이핑 로제트 등 **그릴 수 있는 형태**를 함께 준다(아트디렉터 07-24: "구슬을 넣던가
+#   파스타면 노란 치즈들을 넣던가" — 이름+형태가 있어야 덩어리가 안 나옴).
+_PROP_SHAPES = (
+    (("cheese", "parmesan", "cheddar"), "small yellow {name} cubes"),
+    (("strawberry", "berry", "blueberry", "raspberry", "cherry", "grape", "peach",
+      "mango", "banana", "apple", "lemon", "orange", "fruit"),
+     "glossy fresh whole {name} pieces and a few crisp freeze-dried {name} chips"),
+    (("cream", "whipped"), "neatly piped {name} rosettes"),
+    (("chocolate", "choco", "cocoa"), "small glossy {name} shards"),
+    (("nut", "almond", "peanut", "walnut"), "whole {name}s"),
+    (("bacon", "ham"), "crisp {name} curls"),
+    (("egg",), "small soft-boiled {name} halves"),
+    (("herb", "basil", "arugula", "rocket", "parsley", "mint"), "fresh {name} leaves"),
+)
+
+
+def _props_clause(core_ingredients: list[str] | None) -> str:
+    """core_ingredients → 명명된 소품 문구 (최대 2종).
+
+    순회는 재료 나열 순이 아니라 _PROP_SHAPES 표 순(소품 적합도 순 — 치즈·크림·과일이
+    상위): 까르보나라(pasta, cream, bacon, parmesan)에서 "노란 파마산 큐브"가 뽑히게
+    (아트디렉터 07-24 "파스타면 노란 치즈들"). 형태 매칭 없으면 첫 재료의 일반형,
+    재료 자체가 없으면 일반 폴백(안전측).
+    """
+    names = [str(i).strip().lower() for i in (core_ingredients or []) if str(i).strip()]
+    items: list[str] = []
+    for keys, shape in _PROP_SHAPES:  # 표 순 = 적합도 순
+        for name in names:
+            if any(k in name for k in keys):
+                items.append(shape.format(name=name))
+                break
+        if len(items) >= 2:
+            break
+    if not items and names:
+        items.append(f"small fresh {names[0]} pieces")
+    if not items:
+        return ("a few clearly shaped glossy props matching the food's own visible "
+                "ingredients")
+    return " and ".join(items)
 
 
 def _plan(style_key: str, domain: str, archetype: str,
@@ -456,7 +505,8 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
                                 container_opacity: str | None = None,
                                 serving_type: str | None = None,
                                 palette_override: str | None = None,
-                                scene_seed: int = 0) -> str | None:
+                                scene_seed: int = 0,
+                                core_ingredients: list[str] | None = None) -> str | None:
     """StylePlan을 Kontext용 정체성 보존 편집 지시로 변환한다.
 
     container_desc·container_opacity(analyze_photo Vision 산출)가 유리 디저트 용기(vessel)로
@@ -504,6 +554,9 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         #   팔레트 조회로 폴백(바이트 동일 — palette_override 미전달 시 회귀 없음).
         fmt_args["palette"] = (palette_override
                                or _style_palette_clause(plan.style_key, plan.domain, subject))
+    if "{props}" in direction:
+        # POP-V2.1: 소품은 core_ingredients 기반 구체명 — 추상 지시는 덩어리 렌더(라이브 실측)
+        fmt_args["props"] = _props_clause(core_ingredients)
     if "{hero}" in direction:
         fmt_args["hero"] = hero
     if "{container_clause}" in direction:
