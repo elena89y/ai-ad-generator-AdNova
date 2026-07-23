@@ -123,24 +123,41 @@ export function ProfileMenu() {
 }
 
 export function UsagePill() {
-  const { isPremium, freeLeft, freeTotal, premiumLeft, premiumTotal, billingReady } = useStudio();
+  const {
+    isPremium,
+    freeLeft,
+    freeTotal,
+    premiumLeft,
+    premiumTotal,
+    billingReady,
+    billingSummary,
+  } = useStudio();
+  const bonusCredits = billingSummary?.bonus_credits_remaining ?? 0;
+  const purchasedCredits = billingSummary?.purchased_credits_remaining ?? 0;
+
   if (!billingReady)
     return <div className="usage">사용량 확인 중</div>;
-  if (isPremium)
-    return (
-      <div className="usage">
-        <span style={{ color: "var(--gold-deep)" }}>✦</span> 프리미엄{" "}
-        <b>{premiumLeft}/{premiumTotal}회 남음</b>
-      </div>
-    );
   return (
     <div className="usage">
-      <span className="udots">
-        {Array.from({ length: freeTotal }).map((_, k) => (
-          <i key={k} className={k < freeLeft ? "on" : ""} />
-        ))}
-      </span>
-      체험 <b>{freeLeft}</b>회 남음
+      {isPremium ? (
+        <>
+          <span style={{ color: "var(--gold-deep)" }}>✦</span> 프리미엄{" "}
+          <b>{premiumLeft}/{premiumTotal}회 남음</b>
+          {bonusCredits > 0 && <> · 보너스 <b>{bonusCredits}</b></>}
+          {purchasedCredits > 0 && <> · 구매 <b>{purchasedCredits}</b></>}
+        </>
+      ) : (
+        <>
+          <span className="udots">
+            {Array.from({ length: freeTotal }).map((_, k) => (
+              <i key={k} className={k < freeLeft ? "on" : ""} />
+            ))}
+          </span>
+          체험 <b>{freeLeft}회 남음</b>
+          {bonusCredits > 0 && <> · 보너스 <b>{bonusCredits}</b></>}
+          {purchasedCredits > 0 && <> · 구매 <b>{purchasedCredits}</b></>}
+        </>
+      )}
     </div>
   );
 }
