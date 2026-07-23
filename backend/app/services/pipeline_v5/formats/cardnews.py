@@ -92,11 +92,11 @@ def _story_slide(path: str, copy: DetailPageCopy, pal, size: tuple[int, int], ma
     draw.text((margin, 120), copy.product_name or "오늘의 메뉴",
               font=_fit(copy.product_name or "오늘의 메뉴", copy_w - margin * 2, 47, 29), fill="white")
     draw.line((margin, 270, copy_w - margin, 270), fill=pal["tint"], width=3)
-    # 제목 = story_title, 본문 = story_body (표지 intro 와 다른 전용 문구).
+    # 제목 = story_title, 본문 = story_body 첫 문장(카드뉴스=요약 → 문장 중간 잘림 방지).
     for index, line in enumerate(_wrap(copy.story_title, 10)):
         draw.text((margin, 340 + index * 62), line, font=_font(42, True), fill="white")
     if copy.story_body:
-        for index, line in enumerate(_wrap(copy.story_body, 12)):
+        for index, line in enumerate(_wrap(_first_sentence(copy.story_body), 12)):
             draw.text((margin, 545 + index * 42), line, font=_font(26), fill=pal["tint"])
     # 섹션 칩 = per-product top_view_label(정적 'TOP VIEW' 대체).
     draw.text((margin, h - 115), copy.top_view_label or "TOP VIEW", font=_font(20, True), fill=pal["tint"])
@@ -140,6 +140,15 @@ def _cta_slide(path: str, copy: DetailPageCopy, pal, size: tuple[int, int], marg
     draw.rectangle((margin, int(h * .86), margin + 238, int(h * .86) + 68), fill=pal["accent"])
     draw.text((margin + 38, int(h * .86) + 18), copy.cta_label, font=_font(25, True), fill="white")
     return canvas
+
+
+def _first_sentence(text: str) -> str:
+    """본문 첫 문장만 반환 — 카드뉴스 요약용. 문장부호 없으면 전체(끝 마침표 제거)."""
+    t = (text or "").strip()
+    for sep in (". ", "! ", "? "):
+        if sep in t:
+            return t.split(sep)[0].strip()
+    return t.rstrip(".!?").strip()
 
 
 def _wrap(text: str, length: int) -> list[str]:

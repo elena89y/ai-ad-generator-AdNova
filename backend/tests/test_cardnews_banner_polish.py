@@ -85,6 +85,14 @@ def test_cardnews_palette_follows_style(tmp_path):
     assert ImageChops.difference(sa, sb).getbbox() is not None
 
 
+def test_story_body_uses_first_sentence_only():
+    from app.services.pipeline_v5.formats.cardnews import _first_sentence
+    assert _first_sentence("매일 아침 갈아 만듭니다. 색소 없이 담습니다") == "매일 아침 갈아 만듭니다"
+    assert _first_sentence("한 문장뿐입니다") == "한 문장뿐입니다"
+    assert _first_sentence("느낌표로 끝! 다음 문장") == "느낌표로 끝"
+    assert _first_sentence("") == ""
+
+
 # --- 배너 F3 -----------------------------------------------------------------
 
 def test_banner_uses_detail_copy_and_renders(tmp_path):
