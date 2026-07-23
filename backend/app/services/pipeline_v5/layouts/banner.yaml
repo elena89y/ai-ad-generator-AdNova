@@ -1,0 +1,27 @@
+# 배너 레이아웃 DSL (DIRECTION_v6-1 L4) — 정적 규격만. 담당: 한의정.
+#
+# wide/square/catalog 는 정적 좌표라 데이터화. commerce_vertical 은 하단 역산·동적 폰트라
+# 절차적 → formats/banner.py _render_vertical 코드 유지(하이브리드, §L4 접근 결정 2026-07-23).
+# margin_basis: 규격별 margin 기준(ch=세로, cw=가로) — banner.render 가 int(basis*safe_margin).
+commerce_wide:
+  margin_basis: ch
+  elements:
+    - {type: panel, box: [0, 0, [fw, 0.39], [fh, 1]], color: deep, alpha: 246}
+    - {type: text, at: [[margin], [margin]], bind: product_name, fallback: ADNOVA SELECT, font: 24, color: tint}
+    - {type: text_lines, at: [[margin], [fh, 0.30]], bind: intro_headline, fit_lines: [62, 34], maxw: [fwm, 0.39, -2], color: white}
+    - {type: cta_pill, at: [[margin], [fh, 0.72]], bind: cta_label, font: 22, fill: white, fg: accent}
+commerce_square:
+  margin_basis: cw
+  elements:
+    - {type: bar, box: [0, 0, [fw, 1], 92], color: paper, alpha: 240}
+    - {type: text, at: [[margin], 31], bind: product_name, fallback: SIGNATURE, font: 22, bold: true, color: [24, 24, 24]}
+    - {type: bar, box: [0, [fh, 0.72], [fw, 1], [fh, 1]], color: paper, alpha: 244}
+    - {type: text_lines, at: [[margin], [fh, 0.72, 45]], bind: intro_headline, fit_lines: [54, 31], maxw: [fwm, 1, -2], color: [22, 22, 22]}
+    - {type: rule, box: [[rmargin, -110], 46, [rmargin], 46], color: accent, width: 4}
+smartstore_detail:
+  margin_basis: cw
+  elements:
+    - {type: bar, box: [0, 0, [fw, 1], 108], color: white, alpha: 244}
+    - {type: text, at: [[margin], 35], bind: product_name, fallback: 상품, font: 25, bold: true, color: [24, 24, 24]}
+    - {type: bar, box: [0, [fh, 1, -150], [fw, 1], [fh, 1]], color: white, alpha: 244}
+    - {type: text, at: [[margin], [fh, 1, -108]], bind: intro_headline, font: {fit_headline: [38, 25]}, maxw: [fwm, 1, -2], color: [24, 24, 24]}
