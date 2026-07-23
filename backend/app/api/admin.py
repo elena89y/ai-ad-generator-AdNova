@@ -1,3 +1,4 @@
+import logging
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -5,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.admin_security import get_current_admin, get_current_super_admin
+from app.core.email import send_inquiry_answer_email, send_inquiry_status_email
 from app.core.security import hash_password, verify_password
 from app.core.totp import (
     build_totp_provisioning_uri,
@@ -135,6 +137,7 @@ from app.schemas.notice import (
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+logger = logging.getLogger(__name__)
 
 
 @router.post(
@@ -989,6 +992,7 @@ def update_admin_inquiry_status(
     inquiry = get_inquiry_by_id(db, inquiry_id)
     if inquiry is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문의를 찾을 수 없습니다.")
+    previous_status = inquiry.status
     try:
         inquiry = update_inquiry_status(
             db,
@@ -1009,6 +1013,15 @@ def update_admin_inquiry_status(
         db.rollback()
         admin_db.rollback()
         raise
+    if inquiry.status != previous_status and inquiry.user.is_active:
+        try:
+            send_inquiry_status_email(
+                inquiry.user.email,
+                inquiry.title,
+                inquiry.status,
+            )
+        except Exception:
+            logger.exception("문의 상태 변경 메일 발송 실패: inquiry_id=%s", inquiry.id)
     return _build_admin_inquiry_response(inquiry, inquiry.user)
 
 
@@ -1023,6 +1036,8 @@ def answer_admin_inquiry(
     inquiry = get_inquiry_by_id(db, inquiry_id)
     if inquiry is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문의를 찾을 수 없습니다.")
+    previous_answer = inquiry.answer
+    previous_status = inquiry.status
     try:
         inquiry = answer_inquiry(
             db,
@@ -1043,6 +1058,18 @@ def answer_admin_inquiry(
         db.rollback()
         admin_db.rollback()
         raise
+    if (
+        (inquiry.answer != previous_answer or inquiry.status != previous_status)
+        and inquiry.user.is_active
+    ):
+        try:
+            send_inquiry_answer_email(
+                inquiry.user.email,
+                inquiry.title,
+                inquiry.answer or "",
+            )
+        except Exception:
+            logger.exception("문의 답변 메일 발송 실패: inquiry_id=%s", inquiry.id)
     return _build_admin_inquiry_response(inquiry, inquiry.user)
 
 

@@ -122,13 +122,14 @@ class InquiryApiTestCase(unittest.TestCase):
             db=self.session,
             current_admin=self.admin_account,
         )
-        answered = answer_admin_inquiry(
-            inquiry_id=created.id,
-            request=InquiryAnswerUpdateRequest(answer="결제 내역에서 확인할 수 있습니다."),
-            db=self.session,
-            admin_db=self.admin_session,
-            current_admin=self.admin_account,
-        )
+        with patch("app.api.admin.send_inquiry_answer_email") as send_email:
+            answered = answer_admin_inquiry(
+                inquiry_id=created.id,
+                request=InquiryAnswerUpdateRequest(answer="결제 내역에서 확인할 수 있습니다."),
+                db=self.session,
+                admin_db=self.admin_session,
+                current_admin=self.admin_account,
+            )
 
         self.assertEqual(listed.total, 1)
         self.assertEqual(answered.status, "answered")
@@ -140,19 +141,50 @@ class InquiryApiTestCase(unittest.TestCase):
             .count(),
             1,
         )
+        send_email.assert_called_once_with(
+            "inquiry@example.com",
+            "결제 문의",
+            "결제 내역에서 확인할 수 있습니다.",
+        )
 
     def test_admin_can_update_inquiry_status(self) -> None:
         created = self._create_inquiry()
 
-        updated = update_admin_inquiry_status(
-            inquiry_id=created.id,
-            request=InquiryStatusUpdateRequest(status="in_progress"),
-            db=self.session,
-            admin_db=self.admin_session,
-            current_admin=self.admin_account,
-        )
+        with patch("app.api.admin.send_inquiry_status_email") as send_email:
+            updated = update_admin_inquiry_status(
+                inquiry_id=created.id,
+                request=InquiryStatusUpdateRequest(status="in_progress"),
+                db=self.session,
+                admin_db=self.admin_session,
+                current_admin=self.admin_account,
+            )
 
         self.assertEqual(updated.status, "in_progress")
+        send_email.assert_called_once_with(
+            "inquiry@example.com",
+            "결제 문의",
+            "in_progress",
+        )
+
+    def test_inquiry_status_is_saved_when_notification_email_fails(self) -> None:
+        created = self._create_inquiry()
+
+        with patch(
+            "app.api.admin.send_inquiry_status_email",
+            side_effect=RuntimeError("email failed"),
+        ):
+            updated = update_admin_inquiry_status(
+                inquiry_id=created.id,
+                request=InquiryStatusUpdateRequest(status="in_progress"),
+                db=self.session,
+                admin_db=self.admin_session,
+                current_admin=self.admin_account,
+            )
+
+        self.assertEqual(updated.status, "in_progress")
+        self.session.expire_all()
+        stored = self.session.query(SupportInquiry).filter_by(id=created.id).one()
+        self.assertEqual(stored.status, "in_progress")
 
     def test_inquiry_status_rolls_back_when_audit_log_fails(self) -> None:
         created = self._create_inquiry()
