@@ -1,15 +1,18 @@
 import logging
+from typing import Literal
 
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from app.core.email import send_credit_low_email, send_marketing_email
-from app.crud.billing import get_subscription_by_user
+from app.crud.billing import expire_ended_subscriptions, get_subscription_by_user
 from app.crud.credits import (
     get_bonus_credits_remaining,
     get_credit_status,
     get_premium_credit_status,
     get_purchased_credits_remaining,
 )
+from app.database.billing_models import Subscription
 from app.database.models import NotificationSettings, User
 
 logger = logging.getLogger(__name__)
@@ -64,9 +67,11 @@ def send_marketing_notifications(
     *,
     subject: str,
     message: str,
+    audience: Literal["all", "premium", "free", "selected"] = "all",
     user_ids: list[int] | None = None,
 ) -> tuple[int, int, int]:
     """마케팅 수신에 동의한 활성 사용자에게 메일을 발송한다."""
+    expire_ended_subscriptions(db)
     query = (
         db.query(User)
         .join(NotificationSettings, NotificationSettings.user_id == User.id)
@@ -75,7 +80,18 @@ def send_marketing_notifications(
             NotificationSettings.marketing_updates.is_(True),
         )
     )
-    if user_ids:
+    active_premium_subscription = and_(
+        Subscription.user_id == User.id,
+        Subscription.plan == "premium",
+        Subscription.status == "active",
+    )
+    if audience == "premium":
+        query = query.join(Subscription, active_premium_subscription)
+    elif audience == "free":
+        query = query.outerjoin(Subscription, active_premium_subscription).filter(
+            Subscription.id.is_(None)
+        )
+    elif audience == "selected" and user_ids:
         query = query.filter(User.id.in_(set(user_ids)))
 
     recipients = query.all()

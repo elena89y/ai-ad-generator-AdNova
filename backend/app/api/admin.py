@@ -151,6 +151,7 @@ def send_admin_marketing_notification(
         db,
         subject=request.subject,
         message=request.message,
+        audience=request.audience,
         user_ids=request.user_ids,
     )
     create_admin_audit_log(
@@ -160,7 +161,8 @@ def send_admin_marketing_notification(
         target_type="notification",
         target_id=0,
         detail=(
-            f"eligible={eligible_count}; sent={sent_count}; failed={failed_count}"
+            f"audience={request.audience}; eligible={eligible_count}; "
+            f"sent={sent_count}; failed={failed_count}"
         ),
     )
     return AdminMarketingNotificationResponse(

@@ -2,7 +2,7 @@ import re
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 from app.schemas.auth import PASSWORD_PATTERN, USERNAME_PATTERN
 
@@ -251,7 +251,17 @@ class AdminMessageResponse(BaseModel):
 class AdminMarketingNotificationRequest(BaseModel):
     subject: str = Field(min_length=1, max_length=120)
     message: str = Field(min_length=1, max_length=5000)
+    audience: Literal["all", "premium", "free", "selected"] = "all"
     user_ids: list[int] | None = None
+
+    @model_validator(mode="after")
+    def validate_audience(self):
+        if self.audience == "all" and self.user_ids:
+            # 기존 선택 회원 요청은 audience 필드 없이 user_ids만 전송했다.
+            self.audience = "selected"
+        if self.audience == "selected" and not self.user_ids:
+            raise ValueError("특정 회원 발송에는 회원을 하나 이상 선택해야 합니다.")
+        return self
 
     @field_validator("subject")
     @classmethod
