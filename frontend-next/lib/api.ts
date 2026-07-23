@@ -233,10 +233,12 @@ export async function refreshAccessToken(): Promise<string | null> {
 }
 
 export async function logoutSession(): Promise<void> {
+  // 화면 상태가 먼저 로그아웃되도록 브라우저 인증 정보를 즉시 삭제한다.
+  clearStoredAuth();
   try {
     await fetch(buildApiUrl("/auth/logout"), { method: "POST", credentials: "include" });
-  } finally {
-    clearStoredAuth();
+  } catch {
+    // 서버 요청이 실패해도 로컬 로그아웃 상태는 유지한다.
   }
 }
 
