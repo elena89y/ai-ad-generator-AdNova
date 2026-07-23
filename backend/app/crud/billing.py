@@ -18,6 +18,13 @@ DEMO_CREDIT_PACKS = {
 }
 
 
+def get_demo_credit_pack_credits(description: str) -> int | None:
+    for product in DEMO_CREDIT_PACKS.values():
+        if product["description"] == description:
+            return product["credits"]
+    return None
+
+
 def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)

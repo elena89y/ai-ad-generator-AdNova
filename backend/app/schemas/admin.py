@@ -20,6 +20,7 @@ class AdminAccountResponse(BaseModel):
     user_id: int
     username: str
     email: str
+    name: str | None = None
     role: str
     is_active: bool
     created_at: datetime
@@ -160,6 +161,7 @@ class AdminDemoRefundRequest(BaseModel):
 class AdminDemoRefundResponse(BaseModel):
     purchase: AdminPurchaseHistoryResponse
     subscription_revoked: bool
+    purchased_credits_revoked: int = Field(default=0, ge=0)
 
 
 class AdminSubscriptionResponse(BaseModel):

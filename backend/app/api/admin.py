@@ -35,6 +35,7 @@ from app.crud.admin import (
     update_user_active_status,
     update_user_premium_access,
 )
+from app.crud.billing import get_demo_credit_pack_credits
 from app.crud.chatbot_stats import get_chatbot_stats
 from app.crud.credits import get_bonus_credits_remaining, grant_bonus_credits
 from app.crud.faq_candidate import (
@@ -176,6 +177,7 @@ def _build_admin_account_response(
         user_id=admin_account.id,
         username=admin_account.username,
         email=admin_account.email,
+        name=admin_account.name,
         role=admin_account.role,
         is_active=admin_account.is_active,
         created_at=admin_account.created_at,
@@ -571,10 +573,15 @@ def refund_admin_demo_purchase(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="데모 결제 내역만 환불할 수 있습니다.",
         )
-    if purchase.item_type != "subscription":
+    if purchase.item_type not in {"subscription", "credit_pack"}:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="현재는 구독 결제만 환불할 수 있습니다.",
+            detail="구독 또는 크레딧 구매 내역만 환불할 수 있습니다.",
+        )
+    if purchase.item_type == "credit_pack" and get_demo_credit_pack_credits(purchase.description) is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="확인할 수 없는 크레딧 상품은 환불할 수 없습니다.",
         )
     if purchase.status != "paid":
         raise HTTPException(
@@ -583,7 +590,7 @@ def refund_admin_demo_purchase(
         )
 
     try:
-        subscription_revoked = refund_demo_purchase_for_admin(db, purchase)
+        subscription_revoked, purchased_credits_revoked = refund_demo_purchase_for_admin(db, purchase)
         refund_record = RefundRequest(
             purchase_id=purchase.id,
             user_id=user.id,
@@ -602,7 +609,8 @@ def refund_admin_demo_purchase(
             target_id=purchase.id,
             detail=(
                 f"reason={request.reason}; "
-                f"subscription_revoked={subscription_revoked}"
+                f"subscription_revoked={subscription_revoked}; "
+                f"purchased_credits_revoked={purchased_credits_revoked}"
             ),
         )
         db.commit()
@@ -614,6 +622,7 @@ def refund_admin_demo_purchase(
     return AdminDemoRefundResponse(
         purchase=_build_admin_purchase_response(purchase, user),
         subscription_revoked=subscription_revoked,
+        purchased_credits_revoked=purchased_credits_revoked,
     )
 
 
@@ -1039,13 +1048,15 @@ def approve_admin_refund(
         raise HTTPException(status_code=409, detail="이미 처리된 환불 신청입니다.")
     if purchase.provider != "demo":
         raise HTTPException(status_code=400, detail="데모 결제 내역만 환불할 수 있습니다.")
-    if purchase.item_type != "subscription":
-        raise HTTPException(status_code=400, detail="현재는 구독 결제만 환불할 수 있습니다.")
+    if purchase.item_type not in {"subscription", "credit_pack"}:
+        raise HTTPException(status_code=400, detail="구독 또는 크레딧 구매 내역만 환불할 수 있습니다.")
+    if purchase.item_type == "credit_pack" and get_demo_credit_pack_credits(purchase.description) is None:
+        raise HTTPException(status_code=400, detail="확인할 수 없는 크레딧 상품은 환불할 수 없습니다.")
     if purchase.status != "paid":
         raise HTTPException(status_code=409, detail="환불할 수 있는 결제 내역이 아닙니다.")
 
     try:
-        subscription_revoked = refund_demo_purchase_for_admin(db, purchase)
+        subscription_revoked, purchased_credits_revoked = refund_demo_purchase_for_admin(db, purchase)
         refund.status = "approved"
         refund.processed_at = utc_now()
         refund.processed_by_admin_id = current_admin.id
@@ -1057,7 +1068,8 @@ def approve_admin_refund(
             target_id=refund.id,
             detail=(
                 f"purchase_id={purchase.id}; amount={refund.amount}; "
-                f"subscription_revoked={subscription_revoked}"
+                f"subscription_revoked={subscription_revoked}; "
+                f"purchased_credits_revoked={purchased_credits_revoked}"
             ),
         )
         db.commit()

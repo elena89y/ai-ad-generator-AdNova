@@ -323,13 +323,13 @@ export default function AdminAccountsPage() {
                       <tr><td colSpan={4} className="px-5 py-14 text-center text-white/45">등록된 관리자 계정이 없습니다.</td></tr>
                     ) : (
                       accounts.map((account) => {
-                        const isCurrentAdmin = account.user_id === admin.id;
+                        const isCurrentAdmin = account.id === admin.id;
                         const processing = processingId === account.id;
                         return (
                           <tr key={account.id} className="transition hover:bg-white/[0.025]">
                             <td className="px-5 py-4">
                               <p className="font-bold text-white">{account.username}{isCurrentAdmin ? " (나)" : ""}</p>
-                              <p className="mt-1 text-xs text-white/45">{account.email}</p>
+                              <p className="mt-1 text-xs text-white/45">{account.name ? `${account.name} · ` : ""}{account.email}</p>
                             </td>
                             <td className="px-5 py-4">
                               <select

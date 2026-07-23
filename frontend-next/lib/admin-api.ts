@@ -152,6 +152,7 @@ export interface AdminAccount {
   user_id: number;
   username: string;
   email: string;
+  name: string | null;
   role: AdminRole;
   is_active: boolean;
   created_at: string;
@@ -176,6 +177,7 @@ export interface AdminRefund {
 export interface AdminDemoRefundResult {
   purchase: AdminPurchase;
   subscription_revoked: boolean;
+  purchased_credits_revoked: number;
 }
 
 function buildAdminApiUrl(path: string): string {
