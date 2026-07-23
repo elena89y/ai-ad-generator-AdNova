@@ -1,12 +1,12 @@
 "use client";
 
 import { type FormEvent, useEffect, useState } from "react";
-import { MailCheck, MailPlus, ShieldCheck, UsersRound } from "lucide-react";
+import { MailCheck, MailPlus, ShieldCheck, UsersRound, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/AdminShell";
 import { useAdmin } from "@/components/admin/AdminProvider";
-import { adminApiFetch } from "@/lib/admin-api";
+import { adminApiFetch, type AdminManagedUser, type AdminListResponse } from "@/lib/admin-api";
 import { readApiError, readJsonSafely } from "@/lib/api";
 
 interface MarketingResult {
@@ -27,7 +27,10 @@ export default function AdminNotificationsPage() {
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [audience, setAudience] = useState<"all" | "selected">("all");
-  const [userIds, setUserIds] = useState("");
+  const [memberSearch, setMemberSearch] = useState("");
+  const [memberResults, setMemberResults] = useState<AdminManagedUser[]>([]);
+  const [selectedMembers, setSelectedMembers] = useState<AdminManagedUser[]>([]);
+  const [searchingMembers, setSearchingMembers] = useState(false);
   const [result, setResult] = useState<MarketingResult | null>(null);
   const [notice, setNotice] = useState("");
   const [sending, setSending] = useState(false);
@@ -35,6 +38,42 @@ export default function AdminNotificationsPage() {
   useEffect(() => {
     if (ready && !admin) router.replace("/admin/login");
   }, [admin, ready, router]);
+
+  useEffect(() => {
+    if (audience !== "selected") {
+      setMemberResults([]);
+      return;
+    }
+
+    const keyword = memberSearch.trim();
+    if (!keyword) {
+      setMemberResults([]);
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      setSearchingMembers(true);
+      try {
+        const params = new URLSearchParams({ search: keyword, limit: "20" });
+        const response = await adminApiFetch(`/admin/users?${params.toString()}`);
+        const data = (await readJsonSafely(response)) as AdminListResponse<AdminManagedUser> | null;
+        if (response.ok && data) setMemberResults(data.items);
+        else setMemberResults([]);
+      } finally {
+        setSearchingMembers(false);
+      }
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [admin, audience, memberSearch]);
+
+  function toggleMember(member: AdminManagedUser): void {
+    setSelectedMembers((current) =>
+      current.some((selected) => selected.id === member.id)
+        ? current.filter((selected) => selected.id !== member.id)
+        : [...current, member],
+    );
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -50,15 +89,11 @@ export default function AdminNotificationsPage() {
 
     let selectedUserIds: number[] | undefined;
     if (audience === "selected") {
-      const values = userIds
-        .split(",")
-        .map((value) => Number(value.trim()))
-        .filter((value) => Number.isInteger(value) && value > 0);
-      if (values.length === 0) {
-        setNotice("발송할 사용자 ID를 하나 이상 입력해 주세요.");
+      if (selectedMembers.length === 0) {
+        setNotice("발송할 회원을 하나 이상 선택해 주세요.");
         return;
       }
-      selectedUserIds = [...new Set(values)];
+      selectedUserIds = selectedMembers.map((member) => member.id);
     }
 
     if (!window.confirm("선택한 대상에게 마케팅 메일을 발송할까요?")) return;
@@ -173,7 +208,6 @@ export default function AdminNotificationsPage() {
                     <span className="flex items-center gap-2 text-sm font-bold text-white">
                       <UsersRound size={16} className="text-[#a78bfa]" /> 수신 동의 회원 전체
                     </span>
-                    <span className="mt-1 block text-xs text-white/40">marketing_updates가 켜진 회원</span>
                   </label>
                   <label className={audienceCardClass(audience === "selected")}>
                     <input
@@ -187,16 +221,57 @@ export default function AdminNotificationsPage() {
                     <span className="flex items-center gap-2 text-sm font-bold text-white">
                       <MailCheck size={16} className="text-[#a78bfa]" /> 특정 회원만
                     </span>
-                    <span className="mt-1 block text-xs text-white/40">회원 ID를 쉼표로 구분</span>
+                    <span className="mt-1 block text-xs text-white/40">닉네임으로 검색해 선택</span>
                   </label>
                 </div>
                 {audience === "selected" && (
-                  <input
-                    value={userIds}
-                    onChange={(event) => setUserIds(event.target.value)}
-                    placeholder="예: 12, 27, 41"
-                    className="mt-3 h-11 w-full rounded-xl border border-white/15 bg-[#0b1729] px-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#a78bfa]"
-                  />
+                  <div className="mt-3 space-y-3">
+                    <input
+                      value={memberSearch}
+                      onChange={(event) => setMemberSearch(event.target.value)}
+                      placeholder="회원 닉네임 검색"
+                      className="h-11 w-full rounded-xl border border-white/15 bg-[#0b1729] px-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#a78bfa]"
+                    />
+                    {selectedMembers.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {selectedMembers.map((member) => (
+                          <button
+                            key={member.id}
+                            type="button"
+                            onClick={() => toggleMember(member)}
+                            className="inline-flex items-center gap-1 rounded-full border border-[#a78bfa]/40 bg-[#8b5cf6]/15 px-3 py-1 text-xs font-semibold text-[#ddd6fe]"
+                          >
+                            {member.username} <X size={13} />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {(searchingMembers || memberResults.length > 0) && (
+                      <div className="max-h-48 overflow-y-auto rounded-xl border border-white/10 bg-[#0b1729] p-1">
+                        {searchingMembers ? (
+                          <p className="px-3 py-2 text-xs text-white/45">회원 검색 중...</p>
+                        ) : (
+                          memberResults.map((member) => {
+                            const selected = selectedMembers.some((item) => item.id === member.id);
+                            return (
+                              <button
+                                key={member.id}
+                                type="button"
+                                onClick={() => toggleMember(member)}
+                                className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-white transition hover:bg-white/10"
+                              >
+                                <span>
+                                  <b>{member.username}</b>
+                                  <span className="ml-2 text-xs text-white/40">{member.email}</span>
+                                </span>
+                                <span className="text-xs text-[#c4b5fd]">{selected ? "선택됨" : "선택"}</span>
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </fieldset>
 

@@ -366,6 +366,31 @@ def get_purchased_credits_remaining(db: Session, user_id: int) -> int:
     return balance.credits_remaining if balance is not None else 0
 
 
+def revoke_purchased_credits(
+    db: Session,
+    user_id: int,
+    amount: int,
+    *,
+    commit: bool = True,
+) -> int:
+    balance = (
+        db.query(PurchasedCreditBalance)
+        .filter(PurchasedCreditBalance.user_id == user_id)
+        .first()
+    )
+    if balance is None or amount <= 0:
+        return 0
+
+    revoked = min(balance.credits_remaining, amount)
+    balance.credits_remaining -= revoked
+    if commit:
+        db.commit()
+        db.refresh(balance)
+    else:
+        db.flush()
+    return revoked
+
+
 def grant_purchased_credits(
     db: Session,
     user_id: int,

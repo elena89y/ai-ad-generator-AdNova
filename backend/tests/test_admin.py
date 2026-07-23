@@ -11,6 +11,7 @@ from app.api.admin import (
     confirm_admin_totp,
     create_admin_account_by_super_admin,
     disable_admin_totp,
+    refund_admin_demo_purchase,
     read_admin_accounts,
     read_admin_audit_logs,
     read_admin_me,
@@ -23,6 +24,7 @@ from app.core.admin_security import get_current_admin, get_current_super_admin
 from app.core.security import create_access_token, create_admin_access_token, hash_password
 from app.core.totp import decrypt_totp_secret
 from app.database.admin_models import AdminAuditLog, AdminUser
+from app.database.billing_models import PurchaseHistory, PurchasedCreditBalance
 from app.database.connection import AdminBase, Base
 from app.database.models import User
 from app.schemas.admin import (
@@ -30,6 +32,7 @@ from app.schemas.admin import (
     AdminAccountStatusUpdateRequest,
     AdminUserStatusUpdateRequest,
     AdminBonusCreditGrantRequest,
+    AdminDemoRefundRequest,
     AdminTotpDisableRequest,
     AdminTotpSetupRequest,
     AdminTotpVerifyRequest,
@@ -156,6 +159,60 @@ class AdminApiTestCase(unittest.TestCase):
 
         self.assertEqual(response.total, 2)
         self.assertEqual({item.username for item in response.items}, {"adminuser", "operator"})
+
+    def test_admin_account_search_includes_display_name(self) -> None:
+        self.admin_db.add(
+            AdminUser(
+                email="named@example.com",
+                username="namedadmin",
+                name="검색 관리자",
+                password_hash=hash_password("Password1!"),
+                role="operator",
+                is_active=True,
+            )
+        )
+        self.admin_db.commit()
+
+        response = read_admin_accounts(
+            skip=0,
+            limit=50,
+            search="검색 관리자",
+            admin_db=self.admin_db,
+            current_admin=self.admin,
+        )
+
+        self.assertEqual(response.total, 1)
+        self.assertEqual(response.items[0].name, "검색 관리자")
+
+    def test_super_admin_can_refund_credit_pack_and_revoke_remaining_credits(self) -> None:
+        purchase = PurchaseHistory(
+            user_id=self.user.id,
+            provider="demo",
+            item_type="credit_pack",
+            description="크레딧 10개 (테스트)",
+            amount=4900,
+            status="paid",
+        )
+        self.user_db.add_all(
+            [
+                purchase,
+                PurchasedCreditBalance(user_id=self.user.id, credits_remaining=10),
+            ]
+        )
+        self.user_db.commit()
+
+        response = refund_admin_demo_purchase(
+            purchase_id=purchase.id,
+            request=AdminDemoRefundRequest(reason="구매 취소 요청"),
+            db=self.user_db,
+            admin_db=self.admin_db,
+            current_admin=self.admin,
+        )
+
+        balance = self.user_db.query(PurchasedCreditBalance).filter_by(user_id=self.user.id).one()
+        self.assertEqual(response.purchased_credits_revoked, 10)
+        self.assertEqual(balance.credits_remaining, 0)
+        self.assertEqual(response.purchase.status, "refunded")
 
     def test_last_active_super_admin_cannot_be_deactivated(self) -> None:
         with self.assertRaises(HTTPException) as context:

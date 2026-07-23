@@ -192,6 +192,8 @@ export default function AdminPurchasesPage() {
       setMessage(
         data.subscription_revoked
           ? "환불을 완료하고 프리미엄 권한을 해제했습니다."
+          : data.purchased_credits_revoked > 0
+            ? `환불을 완료하고 구매 크레딧 ${data.purchased_credits_revoked}개를 회수했습니다.`
           : "환불을 완료했습니다."
       );
       setMessageKind("success");
@@ -361,7 +363,7 @@ export default function AdminPurchasesPage() {
                       </td>
                       <td className="px-5 py-4 text-white/55">{formatDate(purchase.purchased_at)}</td>
                       <td className="px-5 py-4">
-                        {canRefund && purchase.provider === "demo" && purchase.item_type === "subscription" && purchase.status === "paid" ? (
+                        {canRefund && purchase.provider === "demo" && ["subscription", "credit_pack"].includes(purchase.item_type) && purchase.status === "paid" ? (
                           <button
                             type="button"
                             onClick={() => openRefundDialog(purchase)}

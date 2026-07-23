@@ -143,7 +143,7 @@ export default function AdminRefundsPage() {
           <div>
             <p className="text-xs font-bold tracking-[0.16em] text-[#a78bfa]">REFUNDS</p>
             <h1 className="mt-2 text-3xl font-extrabold tracking-normal">환불 관리</h1>
-            <p className="mt-2 text-sm text-white/50">회원이 신청한 데모 구독 환불을 처리합니다.</p>
+            <p className="mt-2 text-sm text-white/50">회원이 신청한 데모 결제 환불을 처리합니다.</p>
           </div>
           <button
             type="button"
