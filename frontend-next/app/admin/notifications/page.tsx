@@ -1,7 +1,7 @@
 "use client";
 
 import { type FormEvent, useEffect, useState } from "react";
-import { MailCheck, MailPlus, ShieldCheck, UsersRound, X } from "lucide-react";
+import { Crown, MailCheck, MailPlus, ShieldCheck, UsersRound, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { AdminShell } from "@/components/admin/AdminShell";
@@ -15,6 +15,8 @@ interface MarketingResult {
   failed_count: number;
 }
 
+type MarketingAudience = "all" | "premium" | "free" | "selected";
+
 function audienceCardClass(active: boolean): string {
   return active
     ? "cursor-pointer rounded-xl border border-[#a78bfa]/60 bg-[#8b5cf6]/15 px-4 py-3 transition"
@@ -26,7 +28,7 @@ export default function AdminNotificationsPage() {
   const { admin, ready } = useAdmin();
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
-  const [audience, setAudience] = useState<"all" | "selected">("all");
+  const [audience, setAudience] = useState<MarketingAudience>("all");
   const [memberSearch, setMemberSearch] = useState("");
   const [memberResults, setMemberResults] = useState<AdminManagedUser[]>([]);
   const [selectedMembers, setSelectedMembers] = useState<AdminManagedUser[]>([]);
@@ -106,6 +108,7 @@ export default function AdminNotificationsPage() {
         body: JSON.stringify({
           subject: trimmedSubject,
           message: trimmedMessage,
+          audience,
           ...(selectedUserIds ? { user_ids: selectedUserIds } : {}),
         }),
       });
@@ -195,7 +198,7 @@ export default function AdminNotificationsPage() {
 
               <fieldset className="mt-5">
                 <legend className="text-xs font-semibold text-white/55">발송 대상</legend>
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                   <label className={audienceCardClass(audience === "all")}>
                     <input
                       type="radio"
@@ -206,8 +209,36 @@ export default function AdminNotificationsPage() {
                       className="sr-only"
                     />
                     <span className="flex items-center gap-2 text-sm font-bold text-white">
-                      <UsersRound size={16} className="text-[#a78bfa]" /> 수신 동의 회원 전체
+                      <UsersRound size={16} className="text-[#a78bfa]" /> 수신 동의 전체
                     </span>
+                  </label>
+                  <label className={audienceCardClass(audience === "premium")}>
+                    <input
+                      type="radio"
+                      name="audience"
+                      value="premium"
+                      checked={audience === "premium"}
+                      onChange={() => setAudience("premium")}
+                      className="sr-only"
+                    />
+                    <span className="flex items-center gap-2 text-sm font-bold text-white">
+                      <Crown size={16} className="text-[#fbbf24]" /> 프리미엄 회원
+                    </span>
+                    <span className="mt-1 block text-xs text-white/40">수신 동의 프리미엄 회원</span>
+                  </label>
+                  <label className={audienceCardClass(audience === "free")}>
+                    <input
+                      type="radio"
+                      name="audience"
+                      value="free"
+                      checked={audience === "free"}
+                      onChange={() => setAudience("free")}
+                      className="sr-only"
+                    />
+                    <span className="flex items-center gap-2 text-sm font-bold text-white">
+                      <UsersRound size={16} className="text-[#60a5fa]" /> 무료 회원
+                    </span>
+                    <span className="mt-1 block text-xs text-white/40">수신 동의 무료 회원</span>
                   </label>
                   <label className={audienceCardClass(audience === "selected")}>
                     <input

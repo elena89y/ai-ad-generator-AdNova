@@ -1,10 +1,12 @@
 import unittest
+from datetime import timedelta
 from unittest.mock import patch
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.crud.account import update_notification_settings
+from app.database.billing_models import Subscription, utc_now
 from app.database.connection import Base
 from app.database.models import CreditBalance, NotificationSettings, User
 from app.services.notification_service import (
@@ -88,3 +90,70 @@ class NotificationServiceTestCase(unittest.TestCase):
             "새 소식",
             "새 기능이 추가됐어요.",
         )
+
+    @patch("app.services.notification_service.send_marketing_email")
+    def test_marketing_mail_filters_premium_free_and_selected_audiences(self, send_email) -> None:
+        self.session.add(NotificationSettings(user_id=self.user.id, marketing_updates=True))
+        premium_user = User(
+            email="premium@example.com",
+            username="premiumuser",
+            password_hash="hash",
+            is_active=True,
+            notification_settings=NotificationSettings(marketing_updates=True),
+        )
+        opted_out_premium_user = User(
+            email="premium-optout@example.com",
+            username="premiumoptout",
+            password_hash="hash",
+            is_active=True,
+            notification_settings=NotificationSettings(marketing_updates=False),
+        )
+        self.session.add_all([premium_user, opted_out_premium_user])
+        self.session.commit()
+        self.session.add_all(
+            [
+                Subscription(
+                    user_id=premium_user.id,
+                    plan="premium",
+                    status="active",
+                    current_period_end=utc_now() + timedelta(days=30),
+                ),
+                Subscription(
+                    user_id=opted_out_premium_user.id,
+                    plan="premium",
+                    status="active",
+                    current_period_end=utc_now() + timedelta(days=30),
+                ),
+            ]
+        )
+        self.session.commit()
+
+        premium_result = send_marketing_notifications(
+            self.session,
+            subject="새 소식",
+            message="프리미엄 대상",
+            audience="premium",
+        )
+        self.assertEqual(premium_result, (1, 1, 0))
+        send_email.assert_called_once_with("premium@example.com", "새 소식", "프리미엄 대상")
+
+        send_email.reset_mock()
+        free_result = send_marketing_notifications(
+            self.session,
+            subject="새 소식",
+            message="무료 대상",
+            audience="free",
+        )
+        self.assertEqual(free_result, (1, 1, 0))
+        send_email.assert_called_once_with("notify@example.com", "새 소식", "무료 대상")
+
+        send_email.reset_mock()
+        selected_result = send_marketing_notifications(
+            self.session,
+            subject="새 소식",
+            message="선택 대상",
+            audience="selected",
+            user_ids=[self.user.id, opted_out_premium_user.id],
+        )
+        self.assertEqual(selected_result, (1, 1, 0))
+        send_email.assert_called_once_with("notify@example.com", "새 소식", "선택 대상")
