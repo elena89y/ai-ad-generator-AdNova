@@ -136,11 +136,14 @@ def test_container_default_path_keeps_measured_bug_fix_phrases() -> None:
     assert "Never convert the food, its plate or bowl into a cup" in base
     # 자리표시자가 그대로 노출되지 않아야 한다
     assert "{hero}" not in base and "{container_clause}" not in base
-    # editorial·pop의 {hero} 기본 치환도 기존 문구와 동일해야 한다
+    # editorial의 {hero} 기본 치환은 기존 문구와 동일해야 한다
     editorial = build_reference_instruction("editorial", "food", "club sandwich")
     assert "generous quiet copy space above the plate." in editorial
+    # POP-V2(2026-07-23): food×pop은 4아키타입 로테이션으로 교체 — 구 "diagonal shadow" 단언을
+    #   신 계약(자리표시자 잔존 없음 + 완화 잠금)으로 갱신. 상세 계약은 test_pop_v2.py.
     pop = build_reference_instruction("pop", "food", "club sandwich")
-    assert "diagonal shadow behind the plate." in pop
+    assert "{palette}" not in pop and "{hero}" not in pop
+    assert "You MAY replace the plain plate" in pop
 
 
 def test_vessel_container_switches_to_positive_preservation() -> None:

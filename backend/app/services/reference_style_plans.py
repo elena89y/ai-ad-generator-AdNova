@@ -207,7 +207,56 @@ _IDENTITY_LOCKS = {
         "perspective. Do not redraw, reshape, smooth, duplicate, rotate, recolor or cover the product. Change only "
         "the background, supporting surface and environmental lighting. "
     ),
+    # POP-V2(2026-07-23 아트디렉터 판정): 팝 전용 완화 잠금 — 음식 본체는 불변이되,
+    #   ① 밋밋한 앞접시("식당 앞접시" 문제)를 예쁜 디저트 접시로 교체 허용
+    #   ② 접시 위 먹음직 가니시 허용 — 단 "그 음식에 실제 보이는 재료"만(정직성: 없는 재료
+    #      위장 금지는 유지, 데코 수준만 완화). r2 시안 육안 판정으로 채택.
+    "food_pop": (
+        "This is a real plated food photograph. Keep the food itself completely unchanged: its exact shape, "
+        "layers, textures, toppings and true colors — do not redraw, resize or recolor any part of the food "
+        "itself, and never convert it into a cup, beverage or different object. "
+        "You MAY replace the plain plate with a beautiful elegant dessert plate that flatters the scene, and "
+        "you MAY add tasteful appetizing garnish using only the same ingredients already visible in the food. "
+        # PLATING-001-2/3 검증 문구 이식(pop에서 발생한 사고라 완화 잠금에도 필수 유지):
+        "The food rests naturally on its plate under normal gravity. If the food is a slice of bread, toast, "
+        "cake or similarly flat-cut item, it lies flat on its widest cut face — never a food item standing "
+        "upright, propped up, leaning against anything, or resting on a thin cut edge. "
+        "Premium food-styling quality, realistic photograph. "
+    ),
 }
+
+# POP-V2 아키타입 로테이션(2026-07-23): 레퍼런스 4아키타입(광고레퍼런스_v3_재분류_2/01_스타일무드/pop)
+#   이 STY-003 추출 과정에서 saturated_color_block 하나로 붕괴("No extra food, props, splashes,
+#   floating objects" 금지문까지 박힘)된 드리프트를 교정 — 4연출을 subject+seed 로테이션.
+#   공통 문법(레퍼런스 관찰): 화면 채움·제품 톤 앵커({palette}=PAL-002 적응형)·소품/액션.
+#   정직성: 소품·부유·액션 전부 "음식에 실제 보이는 재료"로 한정. gradient 는 하드 스플릿으로
+#   렌더되는 함정이 있어 "smooth softly blended ... no hard edge" 문구 필수(r1 실측 2회 재현).
+_POP_FOOD_VARIANTS: tuple[str, ...] = (
+    # ① ingredient_world — 톤온톤 재료 무리로 화면 채움 (sports_concept 유래)
+    "Fill the scene with a playful abundance of the same fresh ingredients already visible in the food, "
+    "scattered generously across the table around a scalloped gold-rimmed dessert plate, plus a few crisp "
+    "freeze-dried chips of the same fruit if the food contains fruit. Use {palette}, keeping the whole scene "
+    "tone-on-tone with the product. Bright cheerful studio light with crisp soft shadows, joyful pop energy.",
+    # ② styling_cut — 러블리 스타일링 컷 (food_metaphor/디저트 스타일링 컷 유래)
+    "Style a lovely editorial styling cut: the food on a scalloped gold-rimmed dessert plate with small "
+    "tasteful garnishes of its own visible ingredients arranged appetizingly around it on the plate, a "
+    "polished dessert fork, a soft satin ribbon and a delicate string of small pearls nearby on the table. "
+    "Use {palette}. Soft romantic pop light, sweet gift-like mood, premium styling.",
+    # ③ dynamic_float — 재료 공중 부유 + 소프트 그라데이션 (dynamic_float 유래)
+    "Surround the food with small pieces of its own visible ingredients floating weightlessly in mid-air at "
+    "clearly different heights and sizes filling the upper frame, each floating piece casting no contact "
+    "shadow, the food presented on an elegant footed dessert stand. Use {palette}, rendered as a smooth "
+    "softly blended gradient with no hard edge. Playful dynamic energy, bright studio light.",
+    # ④ gradient_action — 그라데이션 + 자기 재료 드리즐 액션 (saturated_color_block 유래)
+    #   r3 실측(07-23): "케이크 위로" 붓게 하면 Kontext가 본체를 재드로잉(토핑 변질·층 색 붕괴)
+    #   → 액션은 접시 옆으로, 본체 온전 노출을 명시. r2 육안에서 이 구도가 액션感 충분.
+    "A continuous glossy stream of the food's own cream or sauce pouring from above onto the plate right "
+    "beside the food, captured mid-pour with a delicate splash — the food itself stays fully visible and "
+    "unchanged. A few pieces of its visible ingredients beside it on an elegant rimmed dessert plate. Use "
+    "{palette} — the table clean and seamless, no wooden surfaces, no unrelated objects — with the "
+    "background rendered as a smooth softly blended vertical gradient with no hard edge. Bold playful "
+    "composition, crisp pop lighting.",
+)
 
 
 def _plan(style_key: str, domain: str, archetype: str,
@@ -406,7 +455,8 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
                                 container_desc: str | None = None,
                                 container_opacity: str | None = None,
                                 serving_type: str | None = None,
-                                palette_override: str | None = None) -> str | None:
+                                palette_override: str | None = None,
+                                scene_seed: int = 0) -> str | None:
     """StylePlan을 Kontext용 정체성 보존 편집 지시로 변환한다.
 
     container_desc·container_opacity(analyze_photo Vision 산출)가 유리 디저트 용기(vessel)로
@@ -424,7 +474,9 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         return None
     subject = (subject_en or "product").strip()
     identity_lock = _IDENTITY_LOCKS[plan.domain]
-    if plan.domain == "food" and classify_container(container_desc, container_opacity) == "vessel":
+    is_vessel = (plan.domain == "food"
+                 and classify_container(container_desc, container_opacity) == "vessel")
+    if is_vessel:
         container = container_desc.strip().lower()  # analyze_photo 계약상 ASCII 보장
         identity_lock = _prompts.fmt(_NS, "container.identity_lock_vessel",
                                      container=container).strip() + " "
@@ -435,6 +487,15 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         hero = _prompts.get(_NS, "container.hero_default")
         container_clause = _prompts.get(_NS, "container.realism_clause_default")
     direction = plan.direction
+    # POP-V2(2026-07-23): food×pop 은 4아키타입 로테이션 + 완화 잠금(food_pop) — vessel(유리
+    #   디저트 용기)은 용기 보존이 우선이라 제외(기존 pop direction 유지). 로테이션은
+    #   subject+scene_seed 결정론(palette_gen 레시피 로테이션과 동일 패턴) — 같은 가게도
+    #   재생성마다 다른 연출, 같은 시드는 재현 가능.
+    if plan.domain == "food" and plan.style_key == "pop" and not is_vessel:
+        idx = int(hashlib.sha256(f"{subject}:{scene_seed}".encode("utf-8"))
+                  .hexdigest()[:8], 16) % len(_POP_FOOD_VARIANTS)
+        direction = _POP_FOOD_VARIANTS[idx]
+        identity_lock = _IDENTITY_LOCKS["food_pop"]
     # 자리표시자는 한 번에 치환 — {palette}+{hero} 동시 보유 플랜(food pop)에서 str.format이
     # 누락 키로 KeyError를 내지 않게 한다.
     fmt_args: dict[str, str] = {}

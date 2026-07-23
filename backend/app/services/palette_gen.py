@@ -249,7 +249,27 @@ def _hue_name(h: float) -> str:
     return "red"
 
 
-def _phrase(hsv: tuple[float, float, float]) -> str:
+# SOFT 파스텔 변형명(PAL-002, 2026-07-23 아트디렉터 판정): "soft red" 같은 수식어+원색명은
+#   렌더에서 수식어가 팝 플랜의 saturated 언어에 밀려 원색으로 나온다(라이브 실측 — 케이크가
+#   시뻘건 배경). t2i 는 색 '이름'에 반응하므로 SOFT 계열은 이름 자체가 탈채도를 내장한
+#   파스텔 변형명으로 강제한다. hue 경계는 _HUE_NAMES 와 동일.
+_PASTEL_NAMES = (
+    (12, "blush pink"), (22, "peach"), (38, "apricot"), (48, "butter yellow"),
+    (60, "butter yellow"), (75, "lemon chiffon"), (95, "soft sage"), (140, "sage green"),
+    (165, "soft sage"), (185, "powder mint"), (200, "powder mint"), (215, "powder blue"),
+    (235, "powder blue"), (255, "lilac"), (280, "lilac"), (300, "lavender"),
+    (320, "powder pink"), (340, "powder pink"), (352, "blush pink"), (360, "blush pink"),
+)
+
+
+def _pastel_name(h: float) -> str:
+    for hi, name in _PASTEL_NAMES:
+        if h < hi:
+            return name
+    return "blush pink"
+
+
+def _phrase(hsv: tuple[float, float, float], pclass: Optional[str] = None) -> str:
     h, s, v = hsv
     if s < 0.14:  # 무채색 계열
         if v >= 0.85:
@@ -257,6 +277,10 @@ def _phrase(hsv: tuple[float, float, float]) -> str:
         if v <= 0.22:
             return "near-black charcoal"
         return "soft warm grey" if 20 <= h <= 60 else "soft grey"
+    # PAL-002: SOFT(케이크·크림류)는 파스텔 변형명 — "pastel blush pink"는 렌더가 실제로
+    #   탈채도됨(이름이 밝기를 내장). 타 제품군(ZESTY/PUNCHY 등)은 기존 대담 문구 유지.
+    if pclass == "SOFT":
+        return f"pastel {_pastel_name(h)}"
     name = _hue_name(h)
     if s >= 0.72 and v >= 0.6:
         qual = "vivid saturated"   # PAL 강화(07-22): 팝 배경 대담화 (adaptive 경로만)
@@ -295,4 +319,5 @@ def pop_palette_clause(subject_en: str, domain: Optional[str],
     recipes = _RECIPES.get(pclass, _RECIPES["SOFT"])
     recipe = recipes[_seed_int(subject_en, seed) % len(recipes)]
     bg, plane = _build_pair(field, accent, recipe, pclass, domain)
-    return f"a {_phrase(bg)} background and a clean {_phrase(plane)} table surface"
+    return (f"a {_phrase(bg, pclass)} background and "
+            f"a clean {_phrase(plane, pclass)} table surface")
