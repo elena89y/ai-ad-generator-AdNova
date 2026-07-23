@@ -26,6 +26,7 @@ class Settings:
         os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "30")
     )
     SESSION_HTTPS_ONLY: bool = os.getenv("SESSION_HTTPS_ONLY", "false").lower() == "true"
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", str(DEFAULT_UPLOAD_DIR))
     # 15MB: 폰 원본(12MB급) 수용 — 업로드 즉시 정규화(장변 2048)로 축소 저장되므로 부담 없음
     MAX_IMAGE_SIZE_MB: int = int(os.getenv("MAX_IMAGE_SIZE_MB", "15"))

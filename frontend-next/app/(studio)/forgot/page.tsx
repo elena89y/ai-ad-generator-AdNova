@@ -28,12 +28,22 @@ function ForgotContent() {
     if (!mail) return toast("이메일을 입력해 주세요");
     if (!EMAIL_PATTERN.test(mail)) return toast("이메일 형식이 올바르지 않습니다");
     if (mode === "password") {
-      setNotice({
-        title: "메일을 보냈어요.",
-        message:
-          "받은 편지함에서 재설정 링크를 확인해 주세요. 몇 분 내로 도착합니다.",
-      });
-      toast("재설정 메일을 보냈어요");
+      try {
+        const res = await apiFetch("/api/auth/password-reset/request", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: mail }),
+        });
+        const data = (await readJsonSafely(res)) as { message?: string } | null;
+        if (!res.ok) throw new Error(readApiError(data, "재설정 메일을 보내지 못했습니다"));
+        setNotice({
+          title: "메일을 확인해 주세요.",
+          message: data?.message || "가입된 이메일이라면 재설정 링크를 보냈습니다.",
+        });
+        toast("재설정 메일을 확인해 주세요");
+      } catch (err) {
+        toast(err instanceof Error ? err.message : "재설정 메일을 보내지 못했습니다");
+      }
       return;
     }
     try {
