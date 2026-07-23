@@ -223,6 +223,34 @@ class AdminMessageResponse(BaseModel):
     message: str
 
 
+class AdminMarketingNotificationRequest(BaseModel):
+    subject: str = Field(min_length=1, max_length=120)
+    message: str = Field(min_length=1, max_length=5000)
+    user_ids: list[int] | None = None
+
+    @field_validator("subject")
+    @classmethod
+    def validate_subject(cls, value: str) -> str:
+        value = value.strip()
+        if not value or "\r" in value or "\n" in value:
+            raise ValueError("메일 제목이 올바르지 않습니다.")
+        return value
+
+    @field_validator("message")
+    @classmethod
+    def validate_message(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("메일 본문이 비어 있습니다.")
+        return value
+
+
+class AdminMarketingNotificationResponse(BaseModel):
+    eligible_count: int
+    sent_count: int
+    failed_count: int
+
+
 class AdminTotpSetupRequest(BaseModel):
     current_password: str = Field(min_length=1, max_length=128)
 

@@ -7,6 +7,7 @@ import {
   CreditCard,
   KeyRound,
   LayoutDashboard,
+  MailPlus,
   LogOut,
   MessageCircleQuestion,
   MessageSquareMore,
@@ -55,6 +56,11 @@ const navigationItems = [
     href: "/admin/audit-logs",
     label: "감사 로그",
     icon: ScrollText,
+  },
+  {
+    href: "/admin/notifications",
+    label: "마케팅 알림",
+    icon: MailPlus,
   },
   {
     href: "/admin/accounts",

@@ -65,6 +65,14 @@ def send_credit_low_email(to_email: str, remaining: int) -> None:
     send_email(to_email, "[AdNova] 크레딧 소진 알림", html)
 
 
+def send_marketing_email(to_email: str, subject: str, message: str) -> None:
+    html = _base_template(
+        escape(subject),
+        f"<p style=\"white-space:pre-line;\">{escape(message)}</p>",
+    )
+    send_email(to_email, f"[AdNova] {subject}", html)
+
+
 def send_password_reset_email(to_email: str, token: str) -> None:
     reset_url = f"{settings.FRONTEND_URL}/reset-password?token={quote(token, safe='')}"
     html = _base_template(
