@@ -11,7 +11,12 @@ import { useHydrated, useStudio } from "./StudioProvider";
 
 export function Brand({ large }: { large?: boolean }) {
   return (
-    <div className={large ? "login-brand" : "brand"}>
+    <Link
+      href={large ? "/" : "/dashboard"}
+      aria-label={large ? "AdNova 홈" : "AdNova 대시보드"}
+      className={large ? "login-brand" : "brand"}
+      style={{ textDecoration: "none" }}
+    >
       <Image
         src="/brand/brand-logo.png"
         alt="AdNova — AI Ad Creator"
@@ -20,7 +25,7 @@ export function Brand({ large }: { large?: boolean }) {
         className={large ? "brand-mark-lg" : "brand-mark"}
       />
       <span className={`studio-tag${large ? " lg" : ""}`}>studio</span>
-    </div>
+    </Link>
   );
 }
 
@@ -44,7 +49,7 @@ function AvatarCircle({ className, name }: { className: string; name: string }) 
 }
 
 export function ProfileMenu() {
-  const { user, isPremium, freeLeft, clearAuth, toast } = useStudio();
+  const { user, isPremium, freeLeft, billingReady, clearAuth } = useStudio();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -62,11 +67,10 @@ export function ProfileMenu() {
     setOpen(false);
     router.push(path);
   };
-  const logout = () => {
-    clearAuth();
+  const logout = async () => {
+    await clearAuth();
     setOpen(false);
-    router.push("/login");
-    toast("로그아웃되었습니다");
+    window.location.replace("/login?message=" + encodeURIComponent("로그아웃되었습니다."));
   };
 
   return (
@@ -88,7 +92,11 @@ export function ProfileMenu() {
             <div className="nm">{name}</div>
             <div className="em">{user?.email || ""}</div>
             <span className="pf-plan">
-              {isPremium ? "프리미엄" : `무료 체험 · ${freeLeft}회 남음`}
+              {!billingReady
+                ? "플랜 확인 중"
+                : isPremium
+                  ? "프리미엄"
+                  : `무료 체험 · ${freeLeft}회 남음`}
             </span>
           </div>
         </div>
@@ -99,7 +107,8 @@ export function ProfileMenu() {
           <span className="pf-ic">👤</span> 계정 설정
         </button>
         <button className="pf-item" onClick={() => goTo("/billing")}>
-          <span className="pf-ic">✦</span> 프리미엄 업그레이드
+          <span className="pf-ic">✦</span>{" "}
+          {!billingReady ? "플랜 확인 중" : isPremium ? "구독 관리" : "프리미엄 업그레이드"}
         </button>
         <button className="pf-item" onClick={() => goTo("/support")}>
           <span className="pf-ic">💬</span> 고객센터
@@ -114,7 +123,9 @@ export function ProfileMenu() {
 }
 
 export function UsagePill() {
-  const { isPremium, freeLeft, freeTotal, premiumLeft, premiumTotal } = useStudio();
+  const { isPremium, freeLeft, freeTotal, premiumLeft, premiumTotal, billingReady } = useStudio();
+  if (!billingReady)
+    return <div className="usage">사용량 확인 중</div>;
   if (isPremium)
     return (
       <div className="usage">

@@ -175,6 +175,10 @@ export default function StudioPage() {
   }
 
   async function generate() {
+    if (!s.billingReady) {
+      s.toast("구독 정보를 확인한 뒤 광고를 생성할 수 있습니다");
+      return;
+    }
     if (s.isPremium && s.premiumLeft <= 0) {
       s.toast("이번 달 프리미엄 크레딧을 모두 사용했습니다");
       return;
@@ -231,6 +235,10 @@ export default function StudioPage() {
   }
 
   async function regenerate() {
+    if (!s.billingReady) {
+      s.toast("구독 정보를 확인한 뒤 다시 생성할 수 있습니다");
+      return;
+    }
     if (s.isPremium && s.premiumLeft <= 0) {
       s.toast("이번 달 프리미엄 크레딧을 모두 사용했습니다");
       return;

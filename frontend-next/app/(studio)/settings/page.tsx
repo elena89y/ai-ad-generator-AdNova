@@ -136,9 +136,10 @@ export default function SettingsPage() {
       setCurrentPassword("");
       setNewPassword("");
       setNewPasswordConfirm("");
-      s.clearAuth();
-      router.push("/login");
-      s.toast("비밀번호가 변경되었습니다. 새 비밀번호로 다시 로그인해주세요");
+      await s.clearAuth();
+      window.location.replace(
+        "/login?message=" + encodeURIComponent("비밀번호가 변경되었습니다. 새 비밀번호로 다시 로그인해 주세요.")
+      );
     } catch (err) {
       s.toast(err instanceof Error ? err.message : "비밀번호를 변경하지 못했습니다");
     } finally {
@@ -161,9 +162,10 @@ export default function SettingsPage() {
         const data = await readJsonSafely(res);
         throw new Error(readApiError(data, "회원 탈퇴에 실패했습니다"));
       }
-      s.clearAuth();
-      router.push("/login");
-      s.toast("회원 탈퇴가 완료되었습니다");
+      await s.clearAuth();
+      window.location.replace(
+        "/login?message=" + encodeURIComponent("회원 탈퇴가 완료되었습니다.")
+      );
     } catch (err) {
       s.toast(err instanceof Error ? err.message : "회원 탈퇴에 실패했습니다");
     } finally {
@@ -171,10 +173,9 @@ export default function SettingsPage() {
     }
   }
 
-  function handleLogout() {
-    s.clearAuth();
-    router.push("/login");
-    s.toast("로그아웃되었습니다");
+  async function handleLogout() {
+    await s.clearAuth();
+    window.location.replace("/login?message=" + encodeURIComponent("로그아웃되었습니다."));
   }
 
   async function handleNotificationSave() {

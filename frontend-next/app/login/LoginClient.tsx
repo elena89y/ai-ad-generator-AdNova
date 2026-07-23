@@ -2,17 +2,26 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { useState, type SyntheticEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState, type SyntheticEvent } from "react";
 
 import { authApi } from "@/lib/auth-api";
 import { loadUser, setToken } from "@/lib/auth";
-import { readApiError } from "@/lib/api";
+import {
+  apiFetch,
+  getToken,
+  isPersistentAuth,
+  readApiError,
+  readJsonSafely,
+  refreshAccessToken,
+  storeAuth,
+} from "@/lib/api";
 
 type OAuthProvider = "google" | "kakao" | "naver";
 
 export default function LoginClient() {
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -23,6 +32,35 @@ export default function LoginClient() {
       ""
   );
   const [isLoading, setIsLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function redirectIfSignedIn() {
+      try {
+        const activeToken = getToken() || (await refreshAccessToken());
+        if (!activeToken) return;
+
+        const response = await apiFetch("/api/account/me");
+        const user = await readJsonSafely(response);
+        const verifiedToken = getToken();
+        if (!response.ok || !verifiedToken || !user || cancelled) return;
+
+        storeAuth(verifiedToken, user as Parameters<typeof storeAuth>[1], isPersistentAuth());
+        router.replace("/dashboard");
+      } catch {
+        // 로그인 화면에서는 네트워크 오류를 일반 로그인 가능 상태로 처리합니다.
+      } finally {
+        if (!cancelled) setCheckingSession(false);
+      }
+    }
+
+    void redirectIfSignedIn();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   function startOAuth(provider: OAuthProvider): void {
     /*
@@ -83,9 +121,9 @@ export default function LoginClient() {
         user?.onboarding_completed === false ||
         user?.is_onboarded === false;
 
-      window.location.href = needsOnboarding
+      window.location.replace(needsOnboarding
         ? "/onboarding"
-        : "/studio";
+        : "/dashboard");
     } catch (error: unknown) {
       const fallbackMessage =
         error instanceof Error
@@ -109,6 +147,14 @@ export default function LoginClient() {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  if (checkingSession) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[var(--auth-background)] px-5 text-sm text-white/60">
+        로그인 상태를 확인하는 중입니다.
+      </main>
+    );
   }
 
   return (

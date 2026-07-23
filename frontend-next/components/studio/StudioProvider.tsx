@@ -40,6 +40,7 @@ interface StudioState {
   freeTotal: number;
   premiumLeft: number;
   premiumTotal: number;
+  billingReady: boolean;
   billingSummary: BillingSummary | null;
   billingPurchases: PurchaseHistory[];
   profileImageUrl: string | null;
@@ -61,7 +62,7 @@ interface StudioState {
 
   toast: (msg: string) => void;
   setAuth: (token: string, user?: AdnovaUser | null) => void;
-  clearAuth: () => void;
+  clearAuth: () => Promise<void>;
   refreshBilling: (showMessage?: boolean) => Promise<void>;
   refreshHistory: (showMessage?: boolean) => Promise<void>;
   refreshDashboardSummary: () => Promise<void>;
@@ -121,6 +122,7 @@ export default function StudioProvider({ children }: { children: React.ReactNode
     return ready ? getStoredUser() : null;
   }, [ready, authVersion]);
   const [billingSummary, setBillingSummaryState] = useState<BillingSummary | null>(null);
+  const [billingReady, setBillingReady] = useState(false);
   const [billingPurchases, setBillingPurchases] = useState<PurchaseHistory[]>([]);
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   const [ads, setAdsState] = useState<AdItem[]>([]);
@@ -155,6 +157,7 @@ export default function StudioProvider({ children }: { children: React.ReactNode
   const refreshBilling = useCallback(
     async (showMessage = false) => {
       if (!getToken()) return;
+      const requestedUserId = getStoredUser()?.id;
       try {
         const [summaryRes, purchasesRes] = await Promise.all([
           apiFetch("/api/billing/summary"),
@@ -166,8 +169,10 @@ export default function StudioProvider({ children }: { children: React.ReactNode
           throw new Error(readApiError(summary, "구독 정보를 불러오지 못했습니다"));
         if (!purchasesRes.ok)
           throw new Error(readApiError(purchases, "결제 내역을 불러오지 못했습니다"));
+        if (requestedUserId !== getStoredUser()?.id) return;
         setBillingSummaryState(summary);
         setBillingPurchases(Array.isArray(purchases) ? purchases : []);
+        setBillingReady(true);
       } catch (err) {
         if (showMessage)
           toast(err instanceof Error ? err.message : "결제 정보를 불러오지 못했습니다");
@@ -182,6 +187,7 @@ export default function StudioProvider({ children }: { children: React.ReactNode
         setAdsState([]);
         return;
       }
+      const requestedUserId = getStoredUser()?.id;
       try {
         const res = await apiFetch("/api/history?limit=50");
         const data = await readJsonSafely(res);
@@ -194,8 +200,10 @@ export default function StudioProvider({ children }: { children: React.ReactNode
               (item as { status?: string }).status === "completed"
           )
           .map((item) => historyToCard(item as Parameters<typeof historyToCard>[0]));
+        if (requestedUserId !== getStoredUser()?.id) return;
         setAdsState(cards);
       } catch (err) {
+        if (requestedUserId !== getStoredUser()?.id) return;
         setAdsState([]);
         if (showMessage)
           toast(
@@ -234,6 +242,12 @@ export default function StudioProvider({ children }: { children: React.ReactNode
   const setAuth = useCallback(
     (newToken: string, newUser?: AdnovaUser | null) => {
       storeAuth(newToken, newUser);
+      setBillingReady(false);
+      setBillingSummaryState(null);
+      setBillingPurchases([]);
+      setProfileImageUrl(null);
+      setAdsState([]);
+      setActiveItem(null);
       setAuthVersion((v) => v + 1);
       refreshBilling(false);
       refreshDashboardSummary();
@@ -241,13 +255,15 @@ export default function StudioProvider({ children }: { children: React.ReactNode
     [refreshBilling, refreshDashboardSummary]
   );
 
-  const clearAuth = useCallback(() => {
-    void logoutSession();
+  const clearAuth = useCallback(async () => {
+    const logoutPromise = logoutSession();
     setAuthVersion((v) => v + 1);
+    setBillingReady(false);
     setBillingSummaryState(null);
     setBillingPurchases([]);
     setProfileImageUrl(null);
     setAdsState([]);
+    setActiveItem(null);
     setDashState((s) => ({
       ...s,
       selectedImageId: null,
@@ -255,11 +271,12 @@ export default function StudioProvider({ children }: { children: React.ReactNode
       selectedImagePreview: null,
       currentResult: null,
     }));
+    await logoutPromise;
   }, []);
 
   useEffect(() => {
     const handleAuthExpired = () => {
-      clearAuth();
+      void clearAuth();
       if (!window.location.pathname.startsWith("/login")) {
         window.location.replace("/login?message=" + encodeURIComponent("로그인이 만료되었습니다. 다시 로그인해 주세요."));
       }
@@ -306,7 +323,11 @@ export default function StudioProvider({ children }: { children: React.ReactNode
   }, [ready, token]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      setBillingReady(false);
+      return;
+    }
+    setBillingReady(false);
     /* 마운트/로그인 직후 서버 상태 동기화 — setState는 fetch 완료 후(비동기)에만 발생 */
     queueMicrotask(() => {
       refreshBilling(false);
@@ -337,8 +358,8 @@ export default function StudioProvider({ children }: { children: React.ReactNode
     };
   }, [token]);
 
-  const isPremium = Boolean(billingSummary?.is_premium);
-  const freeLeft = billingSummary?.free_credits_remaining ?? 3;
+  const isPremium = billingReady && Boolean(billingSummary?.is_premium);
+  const freeLeft = billingSummary?.free_credits_remaining ?? 0;
   const freeTotal = billingSummary?.free_credit_limit ?? 3;
   const premiumLeft = billingSummary?.premium_credits_remaining ?? 0;
   const premiumTotal = billingSummary?.premium_credit_limit ?? 30;
@@ -353,6 +374,7 @@ export default function StudioProvider({ children }: { children: React.ReactNode
       freeTotal,
       premiumLeft,
       premiumTotal,
+      billingReady,
       billingSummary,
       billingPurchases,
       profileImageUrl,
@@ -390,6 +412,7 @@ export default function StudioProvider({ children }: { children: React.ReactNode
       freeTotal,
       premiumLeft,
       premiumTotal,
+      billingReady,
       billingSummary,
       billingPurchases,
       profileImageUrl,
