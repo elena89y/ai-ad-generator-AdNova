@@ -12,9 +12,9 @@ import {
   ADMIN_AUTH_EXPIRED_EVENT,
   adminApiFetch,
   clearAdminAuth,
+  extendAdminSession,
   getAdminToken,
   getStoredAdmin,
-  isPersistentAdminAuth,
   logoutAdminSession,
   refreshAdminAccessToken,
   storeAdminAuth,
@@ -24,8 +24,9 @@ import { readJsonSafely } from "@/lib/api";
 interface AdminContextValue {
   ready: boolean;
   admin: AdminUser | null;
-  signIn: (token: string, rememberMe?: boolean) => Promise<AdminUser>;
+  signIn: (token: string) => Promise<AdminUser>;
   signOut: () => void;
+  extendSession: () => Promise<boolean>;
   refreshAdmin: () => Promise<AdminUser | null>;
 }
 
@@ -59,7 +60,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         return null;
       }
 
-      storeAdminAuth(token, data, isPersistentAdminAuth());
+      storeAdminAuth(token, data);
       setAdmin(data);
       return data;
     } catch {
@@ -87,8 +88,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = useCallback(
-    async (token: string, rememberMe = false): Promise<AdminUser> => {
-      storeAdminAuth(token, undefined, rememberMe);
+    async (token: string): Promise<AdminUser> => {
+      storeAdminAuth(token);
       const currentAdmin = await refreshAdmin();
 
       if (!currentAdmin) {
@@ -106,8 +107,20 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     setAdmin(null);
   }, []);
 
+  const extendSession = useCallback(async (): Promise<boolean> => {
+    const token = await extendAdminSession();
+    if (!token) {
+      clearAdminAuth();
+      setAdmin(null);
+      return false;
+    }
+
+    storeAdminAuth(token, admin ?? getStoredAdmin() ?? undefined);
+    return true;
+  }, [admin]);
+
   return (
-    <AdminContext.Provider value={{ ready, admin, signIn, signOut, refreshAdmin }}>
+    <AdminContext.Provider value={{ ready, admin, signIn, signOut, extendSession, refreshAdmin }}>
       {children}
     </AdminContext.Provider>
   );

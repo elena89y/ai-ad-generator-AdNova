@@ -11,7 +11,12 @@ import { useHydrated, useStudio } from "./StudioProvider";
 
 export function Brand({ large }: { large?: boolean }) {
   return (
-    <div className={large ? "login-brand" : "brand"}>
+    <Link
+      href={large ? "/" : "/dashboard"}
+      aria-label={large ? "AdNova 홈" : "AdNova 대시보드"}
+      className={large ? "login-brand" : "brand"}
+      style={{ textDecoration: "none" }}
+    >
       <Image
         src="/brand/brand-logo.png"
         alt="AdNova — AI Ad Creator"
@@ -20,7 +25,7 @@ export function Brand({ large }: { large?: boolean }) {
         className={large ? "brand-mark-lg" : "brand-mark"}
       />
       <span className={`studio-tag${large ? " lg" : ""}`}>studio</span>
-    </div>
+    </Link>
   );
 }
 
@@ -44,7 +49,7 @@ function AvatarCircle({ className, name }: { className: string; name: string }) 
 }
 
 export function ProfileMenu() {
-  const { user, isPremium, freeLeft, clearAuth, toast } = useStudio();
+  const { user, isPremium, freeLeft, billingReady, clearAuth } = useStudio();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -62,11 +67,10 @@ export function ProfileMenu() {
     setOpen(false);
     router.push(path);
   };
-  const logout = () => {
-    clearAuth();
+  const logout = async () => {
+    await clearAuth();
     setOpen(false);
-    router.push("/login");
-    toast("로그아웃되었습니다");
+    window.location.replace("/login?message=" + encodeURIComponent("로그아웃되었습니다."));
   };
 
   return (
@@ -88,7 +92,11 @@ export function ProfileMenu() {
             <div className="nm">{name}</div>
             <div className="em">{user?.email || ""}</div>
             <span className="pf-plan">
-              {isPremium ? "프리미엄" : `무료 체험 · ${freeLeft}회 남음`}
+              {!billingReady
+                ? "플랜 확인 중"
+                : isPremium
+                  ? "프리미엄"
+                  : `무료 체험 · ${freeLeft}회 남음`}
             </span>
           </div>
         </div>
@@ -99,7 +107,8 @@ export function ProfileMenu() {
           <span className="pf-ic">👤</span> 계정 설정
         </button>
         <button className="pf-item" onClick={() => goTo("/billing")}>
-          <span className="pf-ic">✦</span> 프리미엄 업그레이드
+          <span className="pf-ic">✦</span>{" "}
+          {!billingReady ? "플랜 확인 중" : isPremium ? "구독 관리" : "프리미엄 업그레이드"}
         </button>
         <button className="pf-item" onClick={() => goTo("/support")}>
           <span className="pf-ic">💬</span> 고객센터
@@ -114,48 +123,67 @@ export function ProfileMenu() {
 }
 
 export function UsagePill() {
-  const { isPremium, freeLeft, freeTotal, premiumLeft, premiumTotal } = useStudio();
-  if (isPremium)
-    return (
-      <div className="usage">
-        <span style={{ color: "var(--gold-deep)" }}>✦</span> 프리미엄{" "}
-        <b>{premiumLeft}/{premiumTotal}회 남음</b>
-      </div>
-    );
+  const {
+    isPremium,
+    freeLeft,
+    freeTotal,
+    premiumLeft,
+    premiumTotal,
+    billingReady,
+    billingSummary,
+  } = useStudio();
+  const bonusCredits = billingSummary?.bonus_credits_remaining ?? 0;
+  const purchasedCredits = billingSummary?.purchased_credits_remaining ?? 0;
+
+  if (!billingReady)
+    return <div className="usage">사용량 확인 중</div>;
   return (
     <div className="usage">
-      <span className="udots">
-        {Array.from({ length: freeTotal }).map((_, k) => (
-          <i key={k} className={k < freeLeft ? "on" : ""} />
-        ))}
-      </span>
-      체험 <b>{freeLeft}</b>회 남음
+      {isPremium ? (
+        <>
+          <span style={{ color: "var(--gold-deep)" }}>✦</span> 프리미엄{" "}
+          <b>{premiumLeft}/{premiumTotal}회 남음</b>
+          {bonusCredits > 0 && <> · 보너스 <b>{bonusCredits}</b></>}
+          {purchasedCredits > 0 && <> · 구매 <b>{purchasedCredits}</b></>}
+        </>
+      ) : (
+        <>
+          <span className="udots">
+            {Array.from({ length: freeTotal }).map((_, k) => (
+              <i key={k} className={k < freeLeft ? "on" : ""} />
+            ))}
+          </span>
+          체험 <b>{freeLeft}회 남음</b>
+          {bonusCredits > 0 && <> · 보너스 <b>{bonusCredits}</b></>}
+          {purchasedCredits > 0 && <> · 구매 <b>{purchasedCredits}</b></>}
+        </>
+      )}
     </div>
   );
 }
 
-export function AppBar() {
+function PrimaryNav() {
   const pathname = usePathname();
-  // 광고 만들기 워크스페이스 = /studio(광고 이미지) + /templates(템플릿) — 좌측 내비로 전환
   const inWorkspace = pathname === "/studio" || pathname === "/templates";
+
+  return (
+    <nav className="appnav">
+      <Link href="/studio" className={inWorkspace ? "on" : ""}>
+        ✏️ <span className="txt">광고 만들기</span>
+      </Link>
+      <Link href="/my-ads" className={pathname === "/my-ads" ? "on" : ""}>
+        🗂 <span className="txt">내 광고</span>
+      </Link>
+    </nav>
+  );
+}
+
+export function AppBar() {
   return (
     <div className="appbar">
       <Brand />
-      <nav className="appnav">
-        <Link href="/studio" className={inWorkspace ? "on" : ""}>
-          ✏️ <span className="txt">광고 만들기</span>
-        </Link>
-        <Link href="/my-ads" className={pathname === "/my-ads" ? "on" : ""}>
-          🗂 <span className="txt">내 광고</span>
-        </Link>
-      </nav>
+      <PrimaryNav />
       <div className="right">
-        <Link
-          href="/support"
-          style={{ fontSize: 13, color: "var(--muted)", textDecoration: "none" }}
-        >
-          💬 <span className="txt">고객센터</span>
-        </Link>
         <UsagePill />
         <ProfileMenu />
       </div>
@@ -182,32 +210,17 @@ export function WorkspaceNav() {
 }
 
 export function SubBar({
-  backHref,
-  backLabel,
   showProfile = true,
   right,
 }: {
-  backHref: string;
-  backLabel: string;
   showProfile?: boolean;
   right?: React.ReactNode;
 }) {
-  const pathname = usePathname();
   return (
     <div className="subbar">
       <Brand />
-      <Link href={backHref} className="back-link" style={{ margin: "0 0 0 6px" }}>
-        ← {backLabel}
-      </Link>
+      <PrimaryNav />
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
-        {pathname !== "/support" && (
-          <Link
-            href="/support"
-            style={{ fontSize: 13, color: "var(--muted)", textDecoration: "none" }}
-          >
-            💬 고객센터
-          </Link>
-        )}
         {right}
         {showProfile && <ProfileMenu />}
       </div>

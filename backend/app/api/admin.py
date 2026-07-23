@@ -1,3 +1,4 @@
+import logging
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -5,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.admin_security import get_current_admin, get_current_super_admin
+from app.core.email import send_inquiry_answer_email, send_inquiry_status_email
 from app.core.security import hash_password, verify_password
 from app.core.totp import (
     build_totp_provisioning_uri,
@@ -18,6 +20,7 @@ from app.crud.admin import (
     count_advertisements_by_user,
     create_admin_audit_log,
     create_admin_user_account,
+    get_advertisement_for_admin,
     get_admin_account_by_id,
     get_purchase_history_for_admin,
     get_admin_summary,
@@ -28,6 +31,7 @@ from app.crud.admin import (
     list_purchase_histories_for_admin,
     list_admin_audit_logs,
     list_admin_login_failure_logs,
+    list_advertisements_for_admin,
     list_users_for_admin,
     refund_demo_purchase_for_admin,
     update_admin_account_active_status,
@@ -35,8 +39,13 @@ from app.crud.admin import (
     update_user_active_status,
     update_user_premium_access,
 )
+from app.crud.billing import get_demo_credit_pack_credits
 from app.crud.chatbot_stats import get_chatbot_stats
 from app.crud.credits import get_bonus_credits_remaining, grant_bonus_credits
+from app.crud.history import (
+    delete_generated_image_files,
+    delete_generated_result_by_advertisement,
+)
 from app.crud.faq_candidate import (
     create_faq_candidate,
     get_faq_candidate_by_id,
@@ -50,6 +59,19 @@ from app.crud.inquiry import (
     list_inquiries_for_admin,
     update_inquiry_status,
 )
+from app.crud.report import (
+    get_report_by_id,
+    list_reports_for_admin,
+    update_report_status,
+)
+from app.crud.notice import (
+    create_notice,
+    delete_notice,
+    get_notice_by_id,
+    list_notices_for_admin,
+    update_notice,
+)
+from app.services.notification_service import send_marketing_notifications
 from app.database.admin_models import AdminUser
 from app.database.billing_models import PurchaseHistory, RefundRequest, Subscription, utc_now
 from app.database.connection import get_admin_db, get_db
@@ -62,6 +84,8 @@ from app.schemas.admin import (
     AdminAccountStatusUpdateRequest,
     AdminAuditLogListResponse,
     AdminAuditLogResponse,
+    AdminAdvertisementListResponse,
+    AdminAdvertisementResponse,
     AdminBonusCreditGrantRequest,
     AdminBonusCreditGrantResponse,
     AdminDemoRefundRequest,
@@ -86,6 +110,8 @@ from app.schemas.admin import (
     AdminRefundResponse,
     AdminPasswordChangeRequest,
     AdminMessageResponse,
+    AdminMarketingNotificationRequest,
+    AdminMarketingNotificationResponse,
     AdminChatbotStatsResponse,
     AdminFaqCandidateListResponse,
     AdminFaqCandidateResponse,
@@ -97,9 +123,56 @@ from app.schemas.inquiry import (
     InquiryAnswerUpdateRequest,
     InquiryStatusUpdateRequest,
 )
+from app.schemas.report import (
+    AdminReportListResponse,
+    AdminReportResponse,
+    ReportStatusUpdateRequest,
+)
+from app.schemas.notice import (
+    AdminNoticeListResponse,
+    AdminNoticeResponse,
+    NoticeCreateRequest,
+    NoticeUpdateRequest,
+)
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+logger = logging.getLogger(__name__)
+
+
+@router.post(
+    "/notifications/marketing",
+    response_model=AdminMarketingNotificationResponse,
+)
+def send_admin_marketing_notification(
+    request: AdminMarketingNotificationRequest,
+    db: Session = Depends(get_db),
+    admin_db: Session = Depends(get_admin_db),
+    current_admin: AdminUser = Depends(get_current_super_admin),
+) -> AdminMarketingNotificationResponse:
+    eligible_count, sent_count, failed_count = send_marketing_notifications(
+        db,
+        subject=request.subject,
+        message=request.message,
+        audience=request.audience,
+        user_ids=request.user_ids,
+    )
+    create_admin_audit_log(
+        admin_db,
+        admin_user_id=current_admin.id,
+        action="notification.marketing_sent",
+        target_type="notification",
+        target_id=0,
+        detail=(
+            f"audience={request.audience}; eligible={eligible_count}; "
+            f"sent={sent_count}; failed={failed_count}"
+        ),
+    )
+    return AdminMarketingNotificationResponse(
+        eligible_count=eligible_count,
+        sent_count=sent_count,
+        failed_count=failed_count,
+    )
 
 
 def _build_refund_response(refund: RefundRequest, purchase: PurchaseHistory, user: User) -> AdminRefundResponse:
@@ -140,6 +213,7 @@ def _build_admin_account_response(
         user_id=admin_account.id,
         username=admin_account.username,
         email=admin_account.email,
+        name=admin_account.name,
         role=admin_account.role,
         is_active=admin_account.is_active,
         created_at=admin_account.created_at,
@@ -427,6 +501,39 @@ def _build_admin_inquiry_response(inquiry, user: User) -> AdminInquiryResponse:
     )
 
 
+def _build_admin_report_response(report, user: User) -> AdminReportResponse:
+    return AdminReportResponse(
+        id=report.id,
+        user_id=user.id,
+        username=user.username,
+        email=user.email,
+        category=report.category,
+        title=report.title,
+        content=report.content,
+        advertisement_id=report.advertisement_id,
+        status=report.status,
+        admin_note=report.admin_note,
+        handled_by_admin_id=report.handled_by_admin_id,
+        handled_at=report.handled_at,
+        created_at=report.created_at,
+        updated_at=report.updated_at,
+    )
+
+
+def _build_admin_notice_response(notice) -> AdminNoticeResponse:
+    return AdminNoticeResponse(
+        id=notice.id,
+        title=notice.title,
+        content=notice.content,
+        is_published=notice.is_published,
+        published_at=notice.published_at,
+        created_by_admin_id=notice.created_by_admin_id,
+        updated_by_admin_id=notice.updated_by_admin_id,
+        created_at=notice.created_at,
+        updated_at=notice.updated_at,
+    )
+
+
 def _build_admin_audit_log_response(
     audit_log,
     admin_user: AdminUser,
@@ -456,6 +563,122 @@ def _build_admin_login_failure_log_response(login_failure_log) -> AdminAuditLogR
         detail=login_failure_log.reason,
         created_at=login_failure_log.created_at,
     )
+
+
+def _build_admin_advertisement_response(
+    advertisement,
+    user: User,
+) -> AdminAdvertisementResponse:
+    output_image = advertisement.output_image
+    return AdminAdvertisementResponse(
+        id=advertisement.id,
+        user_id=user.id,
+        username=user.username,
+        email=user.email,
+        title=advertisement.title,
+        ad_type=advertisement.ad_type,
+        style=advertisement.style,
+        status=advertisement.status,
+        prompt=advertisement.prompt,
+        generated_text=advertisement.generated_text,
+        error_message=advertisement.error_message,
+        output_image_id=advertisement.output_image_id,
+        output_image_url=output_image.image_url if output_image else None,
+        created_at=advertisement.created_at,
+        updated_at=advertisement.updated_at,
+    )
+
+
+@router.get("/advertisements", response_model=AdminAdvertisementListResponse)
+def read_admin_advertisements(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    user_id: int | None = Query(None, gt=0),
+    search: str | None = Query(None, min_length=1, max_length=100),
+    status: str | None = Query(None, min_length=1, max_length=50),
+    db: Session = Depends(get_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminAdvertisementListResponse:
+    del current_admin
+    total, rows = list_advertisements_for_admin(
+        db,
+        skip=skip,
+        limit=limit,
+        user_id=user_id,
+        search=search,
+        status=status,
+    )
+    return AdminAdvertisementListResponse(
+        total=total,
+        items=[
+            _build_admin_advertisement_response(advertisement, user)
+            for advertisement, user in rows
+        ],
+    )
+
+
+@router.get(
+    "/advertisements/{advertisement_id}",
+    response_model=AdminAdvertisementResponse,
+)
+def read_admin_advertisement_detail(
+    advertisement_id: int,
+    db: Session = Depends(get_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminAdvertisementResponse:
+    del current_admin
+    row = get_advertisement_for_admin(db, advertisement_id)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="광고를 찾을 수 없습니다.",
+        )
+
+    advertisement, user = row
+    return _build_admin_advertisement_response(advertisement, user)
+
+
+@router.delete(
+    "/advertisements/{advertisement_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_admin_advertisement(
+    advertisement_id: int,
+    db: Session = Depends(get_db),
+    admin_db: Session = Depends(get_admin_db),
+    current_admin: AdminUser = Depends(get_current_super_admin),
+) -> None:
+    row = get_advertisement_for_admin(db, advertisement_id)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="광고를 찾을 수 없습니다.",
+        )
+
+    advertisement, user = row
+    try:
+        generated_file_paths = delete_generated_result_by_advertisement(
+            db,
+            advertisement,
+            commit=False,
+        )
+        create_admin_audit_log(
+            admin_db,
+            admin_user_id=current_admin.id,
+            action="advertisement.force_deleted",
+            target_type="advertisement",
+            target_id=advertisement_id,
+            detail=f"user_id={user.id}; generated_file_count={len(generated_file_paths)}",
+            commit=False,
+        )
+        db.commit()
+        admin_db.commit()
+    except Exception:
+        db.rollback()
+        admin_db.rollback()
+        raise
+
+    delete_generated_image_files(generated_file_paths)
 
 
 @router.get("/users", response_model=AdminUserListResponse)
@@ -535,10 +758,15 @@ def refund_admin_demo_purchase(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="데모 결제 내역만 환불할 수 있습니다.",
         )
-    if purchase.item_type != "subscription":
+    if purchase.item_type not in {"subscription", "credit_pack"}:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="현재는 구독 결제만 환불할 수 있습니다.",
+            detail="구독 또는 크레딧 구매 내역만 환불할 수 있습니다.",
+        )
+    if purchase.item_type == "credit_pack" and get_demo_credit_pack_credits(purchase.description) is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="확인할 수 없는 크레딧 상품은 환불할 수 없습니다.",
         )
     if purchase.status != "paid":
         raise HTTPException(
@@ -547,7 +775,7 @@ def refund_admin_demo_purchase(
         )
 
     try:
-        subscription_revoked = refund_demo_purchase_for_admin(db, purchase)
+        subscription_revoked, purchased_credits_revoked = refund_demo_purchase_for_admin(db, purchase)
         refund_record = RefundRequest(
             purchase_id=purchase.id,
             user_id=user.id,
@@ -566,7 +794,8 @@ def refund_admin_demo_purchase(
             target_id=purchase.id,
             detail=(
                 f"reason={request.reason}; "
-                f"subscription_revoked={subscription_revoked}"
+                f"subscription_revoked={subscription_revoked}; "
+                f"purchased_credits_revoked={purchased_credits_revoked}"
             ),
         )
         db.commit()
@@ -578,6 +807,7 @@ def refund_admin_demo_purchase(
     return AdminDemoRefundResponse(
         purchase=_build_admin_purchase_response(purchase, user),
         subscription_revoked=subscription_revoked,
+        purchased_credits_revoked=purchased_credits_revoked,
     )
 
 
@@ -762,6 +992,7 @@ def update_admin_inquiry_status(
     inquiry = get_inquiry_by_id(db, inquiry_id)
     if inquiry is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문의를 찾을 수 없습니다.")
+    previous_status = inquiry.status
     try:
         inquiry = update_inquiry_status(
             db,
@@ -782,6 +1013,15 @@ def update_admin_inquiry_status(
         db.rollback()
         admin_db.rollback()
         raise
+    if inquiry.status != previous_status and inquiry.user.is_active:
+        try:
+            send_inquiry_status_email(
+                inquiry.user.email,
+                inquiry.title,
+                inquiry.status,
+            )
+        except Exception:
+            logger.exception("문의 상태 변경 메일 발송 실패: inquiry_id=%s", inquiry.id)
     return _build_admin_inquiry_response(inquiry, inquiry.user)
 
 
@@ -796,6 +1036,8 @@ def answer_admin_inquiry(
     inquiry = get_inquiry_by_id(db, inquiry_id)
     if inquiry is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="문의를 찾을 수 없습니다.")
+    previous_answer = inquiry.answer
+    previous_status = inquiry.status
     try:
         inquiry = answer_inquiry(
             db,
@@ -816,7 +1058,235 @@ def answer_admin_inquiry(
         db.rollback()
         admin_db.rollback()
         raise
+    if (
+        (inquiry.answer != previous_answer or inquiry.status != previous_status)
+        and inquiry.user.is_active
+    ):
+        try:
+            send_inquiry_answer_email(
+                inquiry.user.email,
+                inquiry.title,
+                inquiry.answer or "",
+            )
+        except Exception:
+            logger.exception("문의 답변 메일 발송 실패: inquiry_id=%s", inquiry.id)
     return _build_admin_inquiry_response(inquiry, inquiry.user)
+
+
+@router.get("/reports", response_model=AdminReportListResponse)
+def read_admin_reports(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    report_status: str | None = Query(None, min_length=1, max_length=30),
+    search: str | None = Query(None, min_length=1, max_length=100),
+    db: Session = Depends(get_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminReportListResponse:
+    del current_admin
+    total, rows = list_reports_for_admin(
+        db,
+        skip=skip,
+        limit=limit,
+        report_status=report_status,
+        search=search,
+    )
+    return AdminReportListResponse(
+        total=total,
+        items=[
+            _build_admin_report_response(report, user)
+            for report, user in rows
+        ],
+    )
+
+
+@router.get("/reports/{report_id}", response_model=AdminReportResponse)
+def read_admin_report_detail(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminReportResponse:
+    del current_admin
+    report = get_report_by_id(db, report_id)
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="신고 내역을 찾을 수 없습니다.",
+        )
+    return _build_admin_report_response(report, report.user)
+
+
+@router.patch("/reports/{report_id}", response_model=AdminReportResponse)
+def update_admin_report(
+    report_id: int,
+    request: ReportStatusUpdateRequest,
+    db: Session = Depends(get_db),
+    admin_db: Session = Depends(get_admin_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminReportResponse:
+    report = get_report_by_id(db, report_id)
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="신고 내역을 찾을 수 없습니다.",
+        )
+    try:
+        report = update_report_status(
+            db,
+            report,
+            report_status=request.status,
+            admin_note=request.admin_note,
+            admin_user_id=current_admin.id,
+            commit=False,
+        )
+        create_admin_audit_log(
+            admin_db,
+            admin_user_id=current_admin.id,
+            action="report.status_updated",
+            target_type="report",
+            target_id=report.id,
+            detail=f"status={request.status}",
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        admin_db.rollback()
+        raise
+    return _build_admin_report_response(report, report.user)
+
+
+@router.get("/notices", response_model=AdminNoticeListResponse)
+def read_admin_notices(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    is_published: bool | None = None,
+    search: str | None = Query(None, min_length=1, max_length=100),
+    db: Session = Depends(get_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminNoticeListResponse:
+    del current_admin
+    total, notices = list_notices_for_admin(
+        db,
+        skip=skip,
+        limit=limit,
+        is_published=is_published,
+        search=search,
+    )
+    return AdminNoticeListResponse(
+        total=total,
+        items=[_build_admin_notice_response(notice) for notice in notices],
+    )
+
+
+@router.post(
+    "/notices",
+    response_model=AdminNoticeResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_admin_notice(
+    request: NoticeCreateRequest,
+    db: Session = Depends(get_db),
+    admin_db: Session = Depends(get_admin_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminNoticeResponse:
+    try:
+        notice = create_notice(
+            db,
+            title=request.title,
+            content=request.content,
+            is_published=request.is_published,
+            admin_user_id=current_admin.id,
+            commit=False,
+        )
+        create_admin_audit_log(
+            admin_db,
+            admin_user_id=current_admin.id,
+            action="notice.created",
+            target_type="notice",
+            target_id=notice.id,
+            detail=f"published={notice.is_published}",
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        admin_db.rollback()
+        raise
+    return _build_admin_notice_response(notice)
+
+
+@router.patch("/notices/{notice_id}", response_model=AdminNoticeResponse)
+def update_admin_notice(
+    notice_id: int,
+    request: NoticeUpdateRequest,
+    db: Session = Depends(get_db),
+    admin_db: Session = Depends(get_admin_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminNoticeResponse:
+    notice = get_notice_by_id(db, notice_id)
+    if notice is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="공지사항을 찾을 수 없습니다.",
+        )
+
+    was_published = notice.is_published
+    try:
+        notice = update_notice(
+            db,
+            notice,
+            title=request.title,
+            content=request.content,
+            is_published=request.is_published,
+            admin_user_id=current_admin.id,
+            commit=False,
+        )
+        action = "notice.updated"
+        if request.is_published is True and not was_published:
+            action = "notice.published"
+        elif request.is_published is False and was_published:
+            action = "notice.unpublished"
+        create_admin_audit_log(
+            admin_db,
+            admin_user_id=current_admin.id,
+            action=action,
+            target_type="notice",
+            target_id=notice.id,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        admin_db.rollback()
+        raise
+    return _build_admin_notice_response(notice)
+
+
+@router.delete("/notices/{notice_id}", response_model=AdminMessageResponse)
+def delete_admin_notice(
+    notice_id: int,
+    db: Session = Depends(get_db),
+    admin_db: Session = Depends(get_admin_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminMessageResponse:
+    notice = get_notice_by_id(db, notice_id)
+    if notice is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="공지사항을 찾을 수 없습니다.",
+        )
+    try:
+        delete_notice(db, notice, commit=False)
+        create_admin_audit_log(
+            admin_db,
+            admin_user_id=current_admin.id,
+            action="notice.deleted",
+            target_type="notice",
+            target_id=notice_id,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        admin_db.rollback()
+        raise
+    return AdminMessageResponse(message="공지사항이 삭제되었습니다.")
 
 
 @router.get("/users/{user_id}", response_model=AdminUserDetailResponse)
@@ -1003,13 +1473,15 @@ def approve_admin_refund(
         raise HTTPException(status_code=409, detail="이미 처리된 환불 신청입니다.")
     if purchase.provider != "demo":
         raise HTTPException(status_code=400, detail="데모 결제 내역만 환불할 수 있습니다.")
-    if purchase.item_type != "subscription":
-        raise HTTPException(status_code=400, detail="현재는 구독 결제만 환불할 수 있습니다.")
+    if purchase.item_type not in {"subscription", "credit_pack"}:
+        raise HTTPException(status_code=400, detail="구독 또는 크레딧 구매 내역만 환불할 수 있습니다.")
+    if purchase.item_type == "credit_pack" and get_demo_credit_pack_credits(purchase.description) is None:
+        raise HTTPException(status_code=400, detail="확인할 수 없는 크레딧 상품은 환불할 수 없습니다.")
     if purchase.status != "paid":
         raise HTTPException(status_code=409, detail="환불할 수 있는 결제 내역이 아닙니다.")
 
     try:
-        subscription_revoked = refund_demo_purchase_for_admin(db, purchase)
+        subscription_revoked, purchased_credits_revoked = refund_demo_purchase_for_admin(db, purchase)
         refund.status = "approved"
         refund.processed_at = utc_now()
         refund.processed_by_admin_id = current_admin.id
@@ -1021,7 +1493,8 @@ def approve_admin_refund(
             target_id=refund.id,
             detail=(
                 f"purchase_id={purchase.id}; amount={refund.amount}; "
-                f"subscription_revoked={subscription_revoked}"
+                f"subscription_revoked={subscription_revoked}; "
+                f"purchased_credits_revoked={purchased_credits_revoked}"
             ),
         )
         db.commit()

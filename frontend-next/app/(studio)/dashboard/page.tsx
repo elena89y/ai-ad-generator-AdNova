@@ -165,10 +165,18 @@ export default function DashboardPage() {
           <article style={styles.statCard}>
             <span style={styles.statLabel}>현재 플랜</span>
             <strong style={styles.planText}>
-              {studio.isPremium ? "Premium" : "Free"}
+              {!studio.billingReady
+                ? "확인 중"
+                : studio.isPremium
+                  ? "Premium"
+                  : "Free"}
             </strong>
             <span style={styles.statDescription}>
-              {studio.isPremium ? "프리미엄 기능 사용 중" : "무료 플랜 사용 중"}
+              {!studio.billingReady
+                ? "구독 정보를 불러오는 중"
+                : studio.isPremium
+                  ? "프리미엄 기능 사용 중"
+                  : "무료 플랜 사용 중"}
             </span>
           </article>
         </section>

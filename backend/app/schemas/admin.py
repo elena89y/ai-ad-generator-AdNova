@@ -2,7 +2,7 @@ import re
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 from app.schemas.auth import PASSWORD_PATTERN, USERNAME_PATTERN
 
@@ -20,6 +20,7 @@ class AdminAccountResponse(BaseModel):
     user_id: int
     username: str
     email: str
+    name: str | None = None
     role: str
     is_active: bool
     created_at: datetime
@@ -117,6 +118,29 @@ class AdminUserDetailResponse(AdminUserResponse):
     bonus_credits_remaining: int = Field(default=0, ge=0)
 
 
+class AdminAdvertisementResponse(BaseModel):
+    id: int
+    user_id: int
+    username: str
+    email: str
+    title: str | None = None
+    ad_type: str
+    style: str | None = None
+    status: str
+    prompt: str
+    generated_text: str | None = None
+    error_message: str | None = None
+    output_image_id: int | None = None
+    output_image_url: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AdminAdvertisementListResponse(BaseModel):
+    total: int
+    items: list[AdminAdvertisementResponse]
+
+
 class AdminUserStatusUpdateRequest(BaseModel):
     is_active: bool
 
@@ -160,6 +184,7 @@ class AdminDemoRefundRequest(BaseModel):
 class AdminDemoRefundResponse(BaseModel):
     purchase: AdminPurchaseHistoryResponse
     subscription_revoked: bool
+    purchased_credits_revoked: int = Field(default=0, ge=0)
 
 
 class AdminSubscriptionResponse(BaseModel):
@@ -221,6 +246,44 @@ class AdminPasswordChangeRequest(BaseModel):
 
 class AdminMessageResponse(BaseModel):
     message: str
+
+
+class AdminMarketingNotificationRequest(BaseModel):
+    subject: str = Field(min_length=1, max_length=120)
+    message: str = Field(min_length=1, max_length=5000)
+    audience: Literal["all", "premium", "free", "selected"] = "all"
+    user_ids: list[int] | None = None
+
+    @model_validator(mode="after")
+    def validate_audience(self):
+        if self.audience == "all" and self.user_ids:
+            # 기존 선택 회원 요청은 audience 필드 없이 user_ids만 전송했다.
+            self.audience = "selected"
+        if self.audience == "selected" and not self.user_ids:
+            raise ValueError("특정 회원 발송에는 회원을 하나 이상 선택해야 합니다.")
+        return self
+
+    @field_validator("subject")
+    @classmethod
+    def validate_subject(cls, value: str) -> str:
+        value = value.strip()
+        if not value or "\r" in value or "\n" in value:
+            raise ValueError("메일 제목이 올바르지 않습니다.")
+        return value
+
+    @field_validator("message")
+    @classmethod
+    def validate_message(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("메일 본문이 비어 있습니다.")
+        return value
+
+
+class AdminMarketingNotificationResponse(BaseModel):
+    eligible_count: int
+    sent_count: int
+    failed_count: int
 
 
 class AdminTotpSetupRequest(BaseModel):

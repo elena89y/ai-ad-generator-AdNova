@@ -7,6 +7,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.database.models import Advertisement, History, Image
+from app.services import image_service
 
 
 def create_history(
@@ -109,11 +110,12 @@ def _filename_from_url(url: str) -> str | None:
     return filename or None
 
 
-def delete_generated_result_by_history(db: Session, history: History) -> list[str]:
-    advertisement = history.advertisement
-    if advertisement is None:
-        return []
-
+def delete_generated_result_by_advertisement(
+    db: Session,
+    advertisement: Advertisement,
+    *,
+    commit: bool = True,
+) -> list[str]:
     output_image = advertisement.output_image
     related_histories = (
         db.query(History)
@@ -156,5 +158,29 @@ def delete_generated_result_by_history(db: Session, history: History) -> list[st
     for image in generated_images:
         db.delete(image)
 
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return file_paths
+
+
+def delete_generated_result_by_history(db: Session, history: History) -> list[str]:
+    advertisement = history.advertisement
+    if advertisement is None:
+        return []
+
+    return delete_generated_result_by_advertisement(db, advertisement)
+
+
+def delete_generated_image_files(file_paths: list[str]) -> None:
+    results_dir = image_service.RESULTS_DIR.resolve()
+    for file_path in file_paths:
+        path = Path(file_path).resolve()
+        if results_dir not in path.parents:
+            continue
+        try:
+            if path.is_file():
+                path.unlink()
+        except OSError:
+            continue

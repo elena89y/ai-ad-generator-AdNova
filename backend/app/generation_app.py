@@ -125,6 +125,9 @@ def _to_response(out: generation_service.GenerationOutput) -> GenerateAdResponse
         typography_layout=getattr(out, "typography_layout", None),
         generate_seconds=out.generate_seconds,
         harmonize_seconds=out.harmonize_seconds,
+        # SRV-ROUTE-001 phase2: 원격(GPU 서비스) 경로 — 이게 없으면 원격 배포는 상시 null.
+        #   generation_client는 화이트리스트 없이 전 필드 통과(감사 확인)라 이 한 곳이면 충분.
+        serving_type=getattr(out, "serving_type", None),
     )
 
 

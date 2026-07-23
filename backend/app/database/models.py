@@ -33,6 +33,7 @@ class User(Base):
     advertisements = relationship("Advertisement", back_populates="user")
     histories = relationship("History", back_populates="user")
     inquiries = relationship("SupportInquiry", back_populates="user")
+    reports = relationship("UserReport", back_populates="user")
     notification_settings = relationship(
         "NotificationSettings", back_populates="user", uselist=False
     )
@@ -229,6 +230,53 @@ class SupportInquiry(Base):
     )
 
     user = relationship("User", back_populates="inquiries")
+
+
+class UserReport(Base):
+    """사용자가 등록한 신고와 관리자의 처리 상태를 저장한다."""
+
+    __tablename__ = "user_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    advertisement_id = Column(Integer, nullable=True, index=True)
+    category = Column(String(50), default="other", nullable=False)
+    title = Column(String(255), nullable=False)
+    content = Column(Text, nullable=False)
+    status = Column(String(30), default="pending", nullable=False, index=True)
+    admin_note = Column(Text, nullable=True)
+    handled_by_admin_id = Column(Integer, nullable=True)
+    handled_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
+
+    user = relationship("User", back_populates="reports")
+
+
+class Notice(Base):
+    """사용자에게 게시하는 서비스 공지사항."""
+
+    __tablename__ = "notices"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(255), nullable=False)
+    content = Column(Text, nullable=False)
+    is_published = Column(Boolean, default=False, nullable=False, index=True)
+    published_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    created_by_admin_id = Column(Integer, nullable=False, index=True)
+    updated_by_admin_id = Column(Integer, nullable=True, index=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
 
 
 class ChatbotEvent(Base):

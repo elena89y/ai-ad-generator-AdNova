@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.security import get_current_user
 from app.crud.billing import get_subscription_by_user
 from app.crud.history import (
+    delete_generated_image_files,
     delete_generated_result_by_history,
     get_history_with_result_by_id,
     list_histories_by_user,
@@ -14,26 +15,9 @@ from app.crud.history import (
 from app.database.connection import get_db
 from app.database.models import User
 from app.schemas.history import HistoryResponse
-from app.services import image_service
 
 
 router = APIRouter(prefix="/history", tags=["history"])
-
-
-def _delete_generated_image_file(file_path: str | None) -> None:
-    if not file_path:
-        return
-
-    path = Path(file_path).resolve()
-    results_dir = image_service.RESULTS_DIR.resolve()
-    if results_dir not in path.parents:
-        return
-
-    try:
-        if path.is_file():
-            path.unlink()
-    except OSError:
-        return
 
 
 def _has_active_premium_subscription(db: Session, user_id: int) -> bool:
@@ -155,5 +139,4 @@ def delete_generated_result(
         )
 
     generated_file_paths = delete_generated_result_by_history(db, history)
-    for file_path in generated_file_paths:
-        _delete_generated_image_file(file_path)
+    delete_generated_image_files(generated_file_paths)

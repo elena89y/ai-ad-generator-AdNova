@@ -22,6 +22,12 @@ class Settings:
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
         os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
     )
+    ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
+        os.getenv("ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES", "15")
+    )
+    ADMIN_SESSION_EXPIRE_MINUTES: int = int(
+        os.getenv("ADMIN_SESSION_EXPIRE_MINUTES", "30")
+    )
     REFRESH_TOKEN_EXPIRE_DAYS: int = int(
         os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "30")
     )

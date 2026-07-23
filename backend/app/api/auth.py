@@ -15,7 +15,6 @@ from app.core.refresh_tokens import (
     generate_refresh_token,
     hash_refresh_token,
     issue_user_refresh_token,
-    refresh_token_expiry,
     utc_now,
 )
 from app.core.security import (
@@ -169,24 +168,95 @@ def _issue_admin_refresh_token(
     response: Response,
     *,
     admin_user: AdminUser,
-    is_persistent: bool,
+    expires_at: datetime,
 ) -> None:
     token = generate_refresh_token()
     admin_db.add(
         AdminRefreshToken(
             admin_user_id=admin_user.id,
             token_hash=hash_refresh_token(token),
-            is_persistent=is_persistent,
-            expires_at=refresh_token_expiry(settings.REFRESH_TOKEN_EXPIRE_DAYS),
+            is_persistent=False,
+            expires_at=expires_at,
         )
     )
     admin_db.commit()
-    _set_refresh_cookie(
-        response,
-        name=ADMIN_REFRESH_COOKIE_NAME,
-        token=token,
-        is_persistent=is_persistent,
+    response.set_cookie(
+        key=ADMIN_REFRESH_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        secure=settings.SESSION_HTTPS_ONLY,
+        samesite="lax",
+        path="/api/auth",
     )
+
+
+def _admin_session_expiry() -> datetime:
+    return utc_now() + timedelta(minutes=settings.ADMIN_SESSION_EXPIRE_MINUTES)
+
+
+def _admin_access_token_expiry(session_expires_at: datetime) -> timedelta:
+    if session_expires_at.tzinfo is None:
+        session_expires_at = session_expires_at.replace(tzinfo=timezone.utc)
+
+    remaining = session_expires_at - utc_now()
+    return min(
+        timedelta(minutes=settings.ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES),
+        max(remaining, timedelta(seconds=1)),
+    )
+
+
+def _create_admin_session_response(
+    admin_user: AdminUser,
+    *,
+    session_expires_at: datetime,
+) -> dict:
+    access_token = create_admin_access_token(
+        admin_user.id,
+        admin_user.role,
+        expires_delta=_admin_access_token_expiry(session_expires_at),
+    )
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "session_expires_at": session_expires_at.isoformat(),
+    }
+
+
+def _get_active_admin_session(
+    *,
+    response: Response,
+    refresh_token: str | None,
+    admin_db: Session,
+) -> tuple[AdminRefreshToken, AdminUser]:
+    if not refresh_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="관리자 로그인이 만료되었습니다.")
+
+    stored_token = (
+        admin_db.query(AdminRefreshToken)
+        .filter(AdminRefreshToken.token_hash == hash_refresh_token(refresh_token))
+        .first()
+    )
+    if (
+        stored_token is None
+        or stored_token.is_persistent
+        or stored_token.revoked_at is not None
+        or _is_expired(stored_token.expires_at)
+    ):
+        _clear_refresh_cookie(response, ADMIN_REFRESH_COOKIE_NAME)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="관리자 로그인이 만료되었습니다.")
+
+    admin_user = (
+        admin_db.query(AdminUser)
+        .filter(AdminUser.id == stored_token.admin_user_id, AdminUser.is_active.is_(True))
+        .first()
+    )
+    if admin_user is None or admin_user.role not in {"operator", "super_admin"}:
+        stored_token.revoked_at = utc_now()
+        admin_db.commit()
+        _clear_refresh_cookie(response, ADMIN_REFRESH_COOKIE_NAME)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="관리자 로그인이 만료되었습니다.")
+
+    return stored_token, admin_user
 
 
 class AvailabilityResponse(BaseModel):
@@ -485,32 +555,28 @@ def admin_login(
                 detail="인증 코드가 올바르지 않습니다.",
             )
 
+    session_expires_at = _admin_session_expiry()
     _issue_admin_refresh_token(
         admin_db,
         response,
         admin_user=admin_user,
-        is_persistent=user_data.remember_me,
+        expires_at=session_expires_at,
     )
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_admin_access_token(
-        admin_user.id,
-        admin_user.role,
-        expires_delta=access_token_expires,
+    result = _create_admin_session_response(
+        admin_user,
+        session_expires_at=session_expires_at,
     )
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": {
-            "id": admin_user.id,
-            "email": admin_user.email,
-            "username": admin_user.username,
-            "name": admin_user.name,
-            "is_active": admin_user.is_active,
-            "auth_provider": "local",
-            "is_admin": True,
-            "role": admin_user.role,
-        },
+    result["user"] = {
+        "id": admin_user.id,
+        "email": admin_user.email,
+        "username": admin_user.username,
+        "name": admin_user.name,
+        "is_active": admin_user.is_active,
+        "auth_provider": "local",
+        "is_admin": True,
+        "role": admin_user.role,
     }
+    return result
 
 
 @router.post("/find-username", response_model=UsernameFindResponse)
@@ -660,43 +726,50 @@ def admin_refresh(
     refresh_token: str | None = Cookie(default=None, alias=ADMIN_REFRESH_COOKIE_NAME),
     admin_db: Session = Depends(get_admin_db),
 ):
-    if not refresh_token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="관리자 로그인이 만료되었습니다.")
-
-    stored_token = (
-        admin_db.query(AdminRefreshToken)
-        .filter(AdminRefreshToken.token_hash == hash_refresh_token(refresh_token))
-        .first()
+    stored_token, admin_user = _get_active_admin_session(
+        response=response,
+        refresh_token=refresh_token,
+        admin_db=admin_db,
     )
-    if stored_token is None or stored_token.revoked_at is not None or _is_expired(stored_token.expires_at):
-        _clear_refresh_cookie(response, ADMIN_REFRESH_COOKIE_NAME)
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="관리자 로그인이 만료되었습니다.")
-
-    admin_user = (
-        admin_db.query(AdminUser)
-        .filter(AdminUser.id == stored_token.admin_user_id, AdminUser.is_active.is_(True))
-        .first()
-    )
-    if admin_user is None or admin_user.role not in {"operator", "super_admin"}:
-        stored_token.revoked_at = utc_now()
-        admin_db.commit()
-        _clear_refresh_cookie(response, ADMIN_REFRESH_COOKIE_NAME)
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="관리자 로그인이 만료되었습니다.")
-
+    session_expires_at = stored_token.expires_at
     stored_token.revoked_at = utc_now()
     admin_db.flush()
     _issue_admin_refresh_token(
         admin_db,
         response,
         admin_user=admin_user,
-        is_persistent=stored_token.is_persistent,
+        expires_at=session_expires_at,
     )
-    access_token = create_admin_access_token(
-        admin_user.id,
-        admin_user.role,
-        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    return _create_admin_session_response(
+        admin_user,
+        session_expires_at=session_expires_at,
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.post("/admin-session/extend")
+def extend_admin_session(
+    response: Response,
+    refresh_token: str | None = Cookie(default=None, alias=ADMIN_REFRESH_COOKIE_NAME),
+    admin_db: Session = Depends(get_admin_db),
+):
+    stored_token, admin_user = _get_active_admin_session(
+        response=response,
+        refresh_token=refresh_token,
+        admin_db=admin_db,
+    )
+    stored_token.revoked_at = utc_now()
+    admin_db.flush()
+    session_expires_at = _admin_session_expiry()
+    _issue_admin_refresh_token(
+        admin_db,
+        response,
+        admin_user=admin_user,
+        expires_at=session_expires_at,
+    )
+    return _create_admin_session_response(
+        admin_user,
+        session_expires_at=session_expires_at,
+    )
 
 
 @router.post("/logout")

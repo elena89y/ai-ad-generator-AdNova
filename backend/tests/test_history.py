@@ -48,9 +48,10 @@ class HistoryDownloadApiTestCase(unittest.TestCase):
         Base.metadata.drop_all(bind=self.engine)
         self.engine.dispose()
 
-    def _create_history(self, file_path: Path) -> History:
+    def _create_history(self, file_path: Path, user: User | None = None) -> History:
+        owner = user or self.user
         output_image = Image(
-            user_id=self.user.id,
+            user_id=owner.id,
             image_type="generated",
             original_filename="ad.png",
             file_path=str(file_path),
@@ -59,7 +60,7 @@ class HistoryDownloadApiTestCase(unittest.TestCase):
         self.session.add(output_image)
         self.session.flush()
         advertisement = Advertisement(
-            user_id=self.user.id,
+            user_id=owner.id,
             output_image_id=output_image.id,
             ad_type="image",
             prompt="test prompt",
@@ -68,7 +69,7 @@ class HistoryDownloadApiTestCase(unittest.TestCase):
         self.session.add(advertisement)
         self.session.flush()
         history = History(
-            user_id=self.user.id,
+            user_id=owner.id,
             advertisement_id=advertisement.id,
             action_type="ads.generate",
             status="completed",
@@ -194,6 +195,23 @@ class HistoryDownloadApiTestCase(unittest.TestCase):
             response.advertisement.output_image.image_url,
             "/api/ads/image/ad.png",
         )
+
+    def test_history_list_excludes_other_users(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            own_history = self._create_history(Path(temp_dir) / "own.png")
+            self._create_history(
+                Path(temp_dir) / "other.png",
+                user=self.other_user,
+            )
+
+            histories = read_histories(
+                skip=0,
+                limit=50,
+                db=self.session,
+                current_user=self.user,
+            )
+
+        self.assertEqual([history.id for history in histories], [own_history.id])
 
     def test_owner_can_read_history_detail(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

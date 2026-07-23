@@ -1,12 +1,9 @@
 """v5 커머스 배너 조판. 히어로 생성과 독립적인 결정론적 CPU 렌더러.
 
-v6-1 F3(2026-07-23) 고도화:
-  - 팔레트 연동: 남색 하드코딩(35,55,167 등) → palette(hero.style) (D4). 스타일이 다르면
-    배너 톤도 달라진다.
-  - per-product 카피: copy_for(고정 CTA '자세히 보기') → detail_copy_for(F1 엔진).
-    헤드라인 = intro_headline(후킹), CTA = cta_label(상품별). GPT 실패 시 폴백.
-  - 규격별 카피 변형(wide/square/catalog/vertical 공간 예산차 반영)은 gpt_service 카피
-    엔진 확장이 필요해 이번 범위 밖 — 현재는 4규격이 같은 intro_headline 을 _fit 로 맞춘다.
+v6-1 L4(2026-07-23) 소프트코딩(하이브리드):
+  - wide/square/smartstore_detail(정적 좌표) → layouts/banner.yaml + layout_engine.
+  - commerce_vertical(하단 역산·동적 폰트=절차적) → 여기 _render_vertical 코드 유지.
+  카피는 detail_copy_for(F1): intro_headline(후킹) + cta_label(상품별). 팔레트=hero.style(D4).
 """
 from __future__ import annotations
 
@@ -19,9 +16,8 @@ from ..commercial_copy import DetailPageCopy, detail_copy_for
 from ..compose import fit_hero
 from ..format_spec import FormatSpec
 from ..hero import HeroAsset
+from ..layout_engine import load_layout, render_elements
 from ..palette import palette
-
-_PAPER = (248, 247, 243)
 
 
 def render(hero: HeroAsset, spec: FormatSpec, output_dir: str) -> list[str]:
@@ -31,59 +27,19 @@ def render(hero: HeroAsset, spec: FormatSpec, output_dir: str) -> list[str]:
     canvas = fit_hero(img, spec, mask=mask).convert("RGB")
     copy = detail_copy_for(hero)
     pal = palette(hero.style)
-    renderers = {
-        "commerce_wide": _render_wide,
-        "commerce_square": _render_square,
-        "smartstore_detail": _render_catalog,
-        "commerce_vertical": _render_vertical,
-    }
-    canvas = renderers.get(spec.label, _render_vertical)(canvas, copy, pal, spec)
+    cw, ch = canvas.size
+    if spec.label == "commerce_vertical":
+        canvas = _render_vertical(canvas, copy, pal, spec)  # 절차적 — 코드 유지
+    else:
+        layout = load_layout("banner")[spec.label]
+        basis = ch if layout["margin_basis"] == "ch" else cw
+        margin = int(basis * spec.safe_margin)
+        ctx = {"domain": hero.domain, "density": spec.copy_density}  # L5 콘텐츠 적응
+        render_elements(canvas, layout["elements"], copy, pal, cw, ch, margin, ctx)
     cw, ch = canvas.size
     out = str(Path(output_dir) / f"banner_{cw}x{ch}_{spec.label}.jpg")
     canvas.save(out, quality=92)
     return [out]
-
-
-def _render_wide(canvas, copy: DetailPageCopy, pal, spec):
-    cw, ch = canvas.size
-    panel_w = int(cw * .39)
-    draw = ImageDraw.Draw(canvas, "RGBA")
-    draw.rectangle((0, 0, panel_w, ch), fill=(*pal["deep"], 246))
-    margin = int(ch * spec.safe_margin)
-    draw.text((margin, margin), copy.product_name or "ADNOVA SELECT", font=_font("medium", 24), fill=pal["tint"])
-    lines, font = _fit_headline(copy.intro_headline, panel_w - margin * 2, 62, 34)
-    y = int(ch * .30)
-    for line in lines:
-        draw.text((margin, y), line, font=font, fill="white"); y += _line_height(font)
-    _cta_pill(canvas, copy.cta_label, _font("bold", 22), (margin, int(ch * .72)), fill=(255, 255, 255), fg=pal["accent"])
-    return canvas
-
-
-def _render_square(canvas, copy: DetailPageCopy, pal, spec):
-    cw, ch = canvas.size
-    draw = ImageDraw.Draw(canvas, "RGBA")
-    margin = int(cw * spec.safe_margin)
-    draw.rectangle((0, 0, cw, 92), fill=(*_PAPER, 240))
-    draw.text((margin, 31), copy.product_name or "SIGNATURE", font=_font("bold", 22), fill=(24, 24, 24))
-    panel_y = int(ch * .72)
-    draw.rectangle((0, panel_y, cw, ch), fill=(*_PAPER, 244))
-    lines, font = _fit_headline(copy.intro_headline, cw - margin * 2, 54, 31)
-    y = panel_y + 45
-    for line in lines:
-        draw.text((margin, y), line, font=font, fill=(22, 22, 22)); y += _line_height(font)
-    draw.line((cw - margin - 110, 46, cw - margin, 46), fill=pal["accent"], width=4)
-    return canvas
-
-
-def _render_catalog(canvas, copy: DetailPageCopy, pal, spec):
-    cw, ch = canvas.size
-    draw = ImageDraw.Draw(canvas, "RGBA")
-    margin = int(cw * spec.safe_margin)
-    draw.rectangle((0, 0, cw, 108), fill=(255, 255, 255, 244))
-    draw.text((margin, 35), copy.product_name or "상품", font=_font("bold", 25), fill=(24, 24, 24))
-    draw.rectangle((0, ch - 150, cw, ch), fill=(255, 255, 255, 244))
-    draw.text((margin, ch - 108), copy.intro_headline, font=_fit_headline(copy.intro_headline, cw - margin * 2, 38, 25)[1], fill=(24, 24, 24))
-    return canvas
 
 
 def _render_vertical(canvas, copy: DetailPageCopy, pal, spec):

@@ -135,6 +135,9 @@ class GenerateAdResponse(BaseModel):
     harmonize_seconds: float
     purpose: AdPurpose = AdPurpose.SNS
     format_outputs: list[str] = Field(default_factory=list)
+    # SRV-ROUTE-001 phase2: 제공 형태 인식값(dish|drink|dessert|bakery|object) — 프론트
+    #   인식 라벨 정본("디저트·베이커리로 인식"). Optional이라 구 클라이언트·구 히스토리 무해.
+    serving_type: Optional[str] = None
 
 
 class RegenerateAdRequest(BaseModel):

@@ -3,10 +3,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import {
   CreditCard,
+  Flag,
   KeyRound,
   LayoutDashboard,
+  MailPlus,
+  Megaphone,
   LogOut,
   MessageCircleQuestion,
   MessageSquareMore,
@@ -14,6 +18,7 @@ import {
   RotateCcw,
   ScrollText,
   ShieldCheck,
+  TimerReset,
   UserCog,
   UsersRound,
 } from "lucide-react";
@@ -42,6 +47,16 @@ const navigationItems = [
     icon: MessageSquareMore,
   },
   {
+    href: "/admin/reports",
+    label: "신고 관리",
+    icon: Flag,
+  },
+  {
+    href: "/admin/notices",
+    label: "공지사항 관리",
+    icon: Megaphone,
+  },
+  {
     href: "/admin/faq",
     label: "FAQ 관리",
     icon: MessageCircleQuestion,
@@ -55,6 +70,11 @@ const navigationItems = [
     href: "/admin/audit-logs",
     label: "감사 로그",
     icon: ScrollText,
+  },
+  {
+    href: "/admin/notifications",
+    label: "마케팅 알림",
+    icon: MailPlus,
   },
   {
     href: "/admin/accounts",
@@ -85,7 +105,8 @@ export function AdminShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { admin, ready, signOut } = useAdmin();
+  const { admin, ready, signOut, extendSession } = useAdmin();
+  const [sessionExtended, setSessionExtended] = useState(false);
 
   if (!ready || !admin) {
     return null;
@@ -94,6 +115,16 @@ export function AdminShell({
   function handleSignOut() {
     signOut();
     router.replace("/admin/login");
+  }
+
+  async function handleExtendSession() {
+    const extended = await extendSession();
+    if (extended) {
+      setSessionExtended(true);
+      return;
+    }
+
+    router.replace("/admin/login?message=" + encodeURIComponent("관리자 로그인이 만료되었습니다. 다시 로그인해 주세요."));
   }
 
   function isNavigationActive(href: string) {
@@ -207,6 +238,18 @@ export function AdminShell({
               <span className="hidden text-sm text-white/55 sm:block">
                 {admin.username}
               </span>
+
+              <button
+                type="button"
+                onClick={handleExtendSession}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[#a78bfa]/40 px-3 py-2 text-xs font-bold text-[#ddd6fe] transition hover:border-[#c4b5fd] hover:bg-[#a78bfa]/10"
+                title="관리자 로그인 시간을 30분 연장합니다"
+              >
+                <TimerReset size={15} />
+                <span className="hidden sm:inline">
+                  {sessionExtended ? "30분 연장됨" : "세션 30분 연장"}
+                </span>
+              </button>
 
               <button
                 type="button"

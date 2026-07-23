@@ -65,6 +65,39 @@ def send_credit_low_email(to_email: str, remaining: int) -> None:
     send_email(to_email, "[AdNova] 크레딧 소진 알림", html)
 
 
+def send_marketing_email(to_email: str, subject: str, message: str) -> None:
+    html = _base_template(
+        escape(subject),
+        f"<p style=\"white-space:pre-line;\">{escape(message)}</p>",
+    )
+    send_email(to_email, f"[AdNova] {subject}", html)
+
+
+def send_inquiry_status_email(to_email: str, inquiry_title: str, inquiry_status: str) -> None:
+    status_label = {
+        "pending": "접수됨",
+        "in_progress": "처리 중",
+        "answered": "답변 완료",
+        "closed": "처리 완료",
+    }.get(inquiry_status, "변경됨")
+    html = _base_template(
+        "문의 처리 상태가 변경되었어요",
+        f"<p><b>{escape(inquiry_title)}</b> 문의가 <b>{status_label}</b> 상태로 변경되었습니다.</p>",
+    )
+    send_email(to_email, "[AdNova] 문의 처리 상태 안내", html)
+
+
+def send_inquiry_answer_email(to_email: str, inquiry_title: str, answer: str) -> None:
+    html = _base_template(
+        "문의 답변이 등록되었어요",
+        f"""<p><b>{escape(inquiry_title)}</b> 문의에 답변이 등록되었습니다.</p>
+        <div style="white-space:pre-line;background:#f4f4f5;padding:16px;border-radius:8px;">
+          {escape(answer)}
+        </div>""",
+    )
+    send_email(to_email, "[AdNova] 1:1 문의 답변 안내", html)
+
+
 def send_password_reset_email(to_email: str, token: str) -> None:
     reset_url = f"{settings.FRONTEND_URL}/reset-password?token={quote(token, safe='')}"
     html = _base_template(

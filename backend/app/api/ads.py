@@ -61,6 +61,7 @@ from ..services import (
     template_generation,
     template_service,
 )
+from ..services.notification_service import notify_credit_depletion
 from ..services.prompt_service import build_image_prompt
 from ..services.upload_validation import read_image_upload_file_sync
 
@@ -150,6 +151,8 @@ def _to_response(out: generation_service.GenerationOutput) -> GenerateAdResponse
         typography_layout=out.typography_layout,
         generate_seconds=out.generate_seconds,
         harmonize_seconds=out.harmonize_seconds,
+        # SRV-ROUTE-001 phase2: 인식 라벨 정본 — getattr 가드로 구 GenerationOutput 무해
+        serving_type=getattr(out, "serving_type", None),
     )
 
 
@@ -451,6 +454,7 @@ def generate_ad(
             result=result,
             request_data=request_data,
         )
+        notify_credit_depletion(db, current_user_id)
         return result.model_copy(update={"history_id": history_id})
     except ValueError as e:
         _restore_generation_credit(db, current_user_id, credit_type)
@@ -548,6 +552,7 @@ def regenerate_ad(
             action_type="ads.regenerate",
             request_data=request_data,
         )
+        notify_credit_depletion(db, current_user_id)
         return result.model_copy(update={"history_id": history_id})
     except ValueError as e:
         _restore_generation_credit(db, current_user_id, credit_type)

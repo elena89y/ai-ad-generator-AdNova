@@ -1,10 +1,10 @@
-"""v5 판매 상세페이지: 서로 다른 상품 사진 5컷 이상을 요구한다.
+"""v5 판매 상세페이지 — 레이아웃 DSL(layouts/detail.yaml) + layout_engine.render_page. (v6-1 L4b)
 
-v6-1 F1(2026-07-21) 고도화:
-  - 섹션별 전용 카피(detail_copy_for) — headline 3곳 복붙(D1)·하드코딩 문구(D2)·본문 부재(D3) 해소.
-  - 스타일 원장 accent 연동 팔레트(D4) — 남색 고정 제거, 스타일이 다르면 상세 톤도 다르다.
-  - 스토리 본문 길이 적응형 높이(D5) + 혜택 불릿 섹션 신설(카피가 있을 때만).
-GPT 실패 시 detail_copy_for 폴백이 종전과 같은 문구 구성을 돌려주므로 화면 회귀 없음.
+8섹션 세로 롱스크롤, story/benefits 는 카피 길이로 높이 가변(render_page 가 계산). 기존 하드코딩
+조판(_title_overlay 등)을 데이터로 이전했다. 픽셀 동등은 파일럿에서 확인(전환 전 렌더와 bbox=None).
+
+⚠️ _scrim·_select_role_cuts 는 cardnews/layout_engine 이 재사용하므로 유지. layout_engine 이
+detail_page._scrim 을 top import 하므로 render 는 layout_engine 을 지연 import(순환 방지).
 """
 from __future__ import annotations
 
@@ -12,11 +12,12 @@ import hashlib
 import logging
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 
+from ..commercial_copy import detail_copy_for
 from ..format_spec import FormatSpec
 from ..hero import DetailCut, DetailCutRole, HeroAsset
-from ..commercial_copy import DetailPageCopy, detail_copy_for
+from ..palette import palette
 from ..similarity import MAX_STRUCTURE_CORRELATION, correlation, structure_vector
 
 logger = logging.getLogger(__name__)
@@ -26,59 +27,24 @@ REQUIRED_ROLES = tuple(DetailCutRole)
 DEFAULT_CTA_TITLE = "지금 만나보세요"
 DEFAULT_CTA_LABEL = "자세히 보기"
 
-_PAPER = (248, 247, 243)
-_PAPER_WARM = (245, 243, 238)
-_INK = (18, 18, 18)
+# detail 자체 _palette 는 공용 palette 로 통일(L4b) — 참조처(테스트 등) 하위호환 alias.
+_palette = palette
 
 
 def render(hero: HeroAsset, spec: FormatSpec, output_dir: str) -> list[str]:
+    """상세페이지 8섹션을 DSL 레이아웃(세로 스택·가변 높이)으로 조판한다."""
+    from ..layout_engine import load_layout, render_page  # 지연 import(순환 방지)
+
     cuts = {cut.role: cut.image_path for cut in _select_role_cuts(hero)}
-    width = spec.canvas[0]
-    margin = int(width * spec.safe_margin)
+    by_name = {role.value: cuts[role] for role in DetailCutRole}
     copy = detail_copy_for(hero)
-    pal = _palette(hero.style)
-
-    story_lines, story_h = _story_metrics(copy, width, margin)
-    benefits_h = _benefits_height(copy)
-    heights = (940, story_h, benefits_h, 760, 720, 650, 820, 320)
-    total_h = sum(heights)
-    canvas = Image.new("RGB", (width, total_h), "white")
-    y = 0
-
-    hero_section = _cover(Image.open(cuts[DetailCutRole.HERO]).convert("RGB"), (width, heights[0]))
-    canvas.paste(hero_section, (0, y)); _title_overlay(canvas, copy, pal, y, heights[0], width); y += heights[0]
-    _story(canvas, copy, pal, story_lines, y, heights[1], margin, width); y += heights[1]
-    if benefits_h:
-        _benefits(canvas, copy, pal, y, heights[2], margin, width)
-        y += heights[2]
-
-    top = _cover(Image.open(cuts[DetailCutRole.TOP_VIEW]).convert("RGB"), (width, heights[3]))
-    canvas.paste(top, (0, y)); _section_label(canvas, pal, y, copy.top_view_label, light=False); y += heights[3]
-
-    closeup = _cover(Image.open(cuts[DetailCutRole.TEXTURE_CLOSEUP]).convert("RGB"), (width, heights[4]))
-    canvas.paste(closeup, (0, y)); _section_label(canvas, pal, y, copy.closeup_caption, light=True); y += heights[4]
-
-    _split_section(canvas, cuts[DetailCutRole.SIDE_PROFILE], copy, pal, y, heights[5], width, margin); y += heights[5]
-
-    lifestyle = _cover(Image.open(cuts[DetailCutRole.LIFESTYLE]).convert("RGB"), (width, heights[6]))
-    canvas.paste(lifestyle, (0, y)); _lifestyle_overlay(canvas, copy, pal, y, heights[6], width, margin); y += heights[6]
-
-    _cta(canvas, copy, pal, y, heights[7], margin, width)
-    out = Path(output_dir) / f"detail_{width}x{total_h}_{spec.label}.jpg"
+    pal = palette(hero.style)
+    ctx = {"domain": hero.domain, "density": spec.copy_density}  # L5 콘텐츠 적응
+    width = spec.canvas[0]
+    canvas = render_page(width, load_layout("detail"), by_name, copy, pal, spec.safe_margin, ctx=ctx)
+    out = Path(output_dir) / f"detail_{width}x{canvas.height}_{spec.label}.jpg"
     canvas.save(out, quality=93)
     return [str(out)]
-
-
-def _palette(style_key) -> dict:
-    """스타일 원장(styles/specs.yaml) accent 기반 팔레트 (D4: 남색 하드코딩 제거).
-
-    accent=원색(라벨·버튼), deep=진한 변형(패널 배경), tint=밝은 변형(어두운 배경 위 보조 텍스트).
-    """
-    from ...style_specs import get_spec
-    accent = tuple(get_spec(style_key or "editorial").accent)
-    deep = tuple(int(c * .78) for c in accent)
-    tint = tuple(int(c + (255 - c) * .78) for c in accent)
-    return {"accent": accent, "deep": deep, "tint": tint}
 
 
 def _unique_images(paths: tuple[str, ...]) -> list[str]:
@@ -95,7 +61,9 @@ def _unique_images(paths: tuple[str, ...]) -> list[str]:
 
 
 def _select_role_cuts(hero: HeroAsset) -> list[DetailCut]:
-    """필수 구도 5종을 고정 순서로 선택하고 내용·역할 중복을 거부한다."""
+    """필수 구도 5종을 고정 순서로 선택하고 내용·역할 중복을 거부한다.
+
+    cardnews.render 도 이 함수를 재사용(다구도 검증 단일 소스)."""
     if not hero.detail_cuts:
         raise ValueError(
             "상세페이지 컷에 구도 역할이 필요합니다: "
@@ -115,19 +83,11 @@ def _select_role_cuts(hero: HeroAsset) -> list[DetailCut]:
             raise ValueError("같은 이미지 내용을 서로 다른 상세페이지 구도로 사용할 수 없습니다")
         structure = structure_vector(path)
         for existing_role, existing in structures:
-            # GATE-001(2026-07-20, 임시방편): 4개 구도(top_view/texture_closeup/side_profile/
-            # lifestyle) 전부 생성 단계(generation_app._generate_with_retry)에서 이미 히어로와
-            # 비교하며 여러 변형을 재시도해 최선의 결과를 골라온 뒤다. 원본이 이미 단순한 구도인
-            # 상품(마우스, 문어모양 괄사 실측)은 그 최선의 결과조차 임계값을 못 넘을 수 있는데,
-            # 여기서 hero와 다시 같은 기준으로 걸러버리면 5장 다 만들어놓고 전체를 실패시키는
-            # 문제가 재발한다. 생성 단계의 재시도를 최종 판정으로 신뢰하고 hero가 낀 쌍은
-            # 재검증하지 않는다.
-            # [2026-07-21 개정] 위 "알려진 한계"의 전제는 낡았다 — 생성 단계가 이미
-            # "지금까지 확정된 **모든 컷**"과 비교하며 재시도하고, 전 변형 소진 시 최저상관
-            # 결과를 의도적으로 채택한다(_generate_with_retry). 여기서 같은 임계값으로 다시
-            # 하드 실패시키면 상류의 그 결정을 기각해 "5장 만들고 전체 날리기"가 재발한다
-            # (라이브 실측: 김치찌개 상세 561s 생성 → 400 → 전량 폐기). 비-히어로 쌍의
-            # 유사는 경고 로그로 강등 — 완전 동일(해시 중복)만 하드 실패로 남긴다.
+            # GATE-001(2026-07-20)/개정(07-21): 4개 구도는 생성 단계(generation_app.
+            # _generate_with_retry)에서 이미 "확정된 모든 컷"과 비교하며 재시도해 최선을 골라온
+            # 뒤다. 여기서 같은 임계값으로 다시 하드 실패시키면 "5장 만들고 전체 날리기"가 재발
+            # (라이브 실측: 김치찌개 상세 561s 생성 → 400 → 전량 폐기). 비-히어로 쌍의 유사는
+            # 경고 로그로 강등, 완전 동일(해시 중복)만 하드 실패.
             if DetailCutRole.HERO in (existing_role, cut.role):
                 continue
             if correlation(existing, structure) >= MAX_STRUCTURE_CORRELATION:
@@ -144,20 +104,10 @@ def _select_role_cuts(hero: HeroAsset) -> list[DetailCut]:
     return [by_role[role] for role in REQUIRED_ROLES]
 
 
-def _cover(image: Image.Image, size: tuple[int, int]) -> Image.Image:
-    w, h = size
-    scale = max(w / image.width, h / image.height)
-    resized = image.resize((int(image.width * scale), int(image.height * scale)), Image.LANCZOS)
-    left, top = (resized.width - w) // 2, (resized.height - h) // 2
-    return resized.crop((left, top, left + w, top + h))
-
-
 def _scrim(canvas, y_top: int, y_bottom: int, width: int, rgb: tuple, amax: int, fade: int):
-    """제품 이미지 위 타이포 배경 — 솔리드 대신 위쪽 페이드 밴드.
+    """제품 이미지 위 타이포 배경 — 솔리드 대신 위쪽 페이드 밴드(제품 노출↑).
 
-    메인은 이미지(사용자 피드백 2026-07-21): 하단에만 얇게 깔고 상단은 투명하게 페이드해
-    제품이 덜 가려지도록 한다. 밴드 하부는 amax 로 불투명해 흰 타이포 가독성 유지.
-    """
+    layout_engine.render_elements 의 scrim 요소가 이 함수를 호출한다(단일 소스)."""
     h = int(y_bottom - y_top)
     if h <= 0:
         return
@@ -169,144 +119,3 @@ def _scrim(canvas, y_top: int, y_bottom: int, width: int, rgb: tuple, amax: int,
     overlay.putalpha(ramp.resize((width, h)))
     region = canvas.crop((0, int(y_top), width, int(y_top) + h)).convert("RGBA")
     canvas.paste(Image.alpha_composite(region, overlay).convert("RGB"), (0, int(y_top)))
-
-
-def _title_overlay(canvas, copy: DetailPageCopy, pal, y, height, width):
-    draw = ImageDraw.Draw(canvas, "RGBA")
-    draw.rectangle((0, y, width, y + 104), fill=(*_PAPER, 242))
-    # 하단 32% 솔리드 → 20% 페이드 밴드(제품 노출↑). 타이포는 밴드 하부(불투명)로 내림.
-    _scrim(canvas, y + int(height * .80), y + height, width, _INK, 205, 80)
-    margin = int(width * .07)
-    draw.text((margin, y + 37), copy.product_name or "ADNOVA SELECT", font=_font(22, True), fill=(24, 24, 24))
-    draw.line((width - margin - 100, y + 52, width - margin, y + 52), fill=pal["accent"], width=4)
-    draw.text((margin, y + int(height * .84)), copy.product_name, font=_font(23, True), fill=pal["tint"])
-    font = _fit(copy.intro_headline, width - margin * 2, 52, 34)
-    draw.text((margin, y + int(height * .90)), copy.intro_headline, font=font, fill="white")
-
-
-def _story_metrics(copy: DetailPageCopy, width, margin) -> tuple[list[str], int]:
-    """스토리 본문을 픽셀 폭 기준으로 줄바꿈하고 섹션 높이를 계산한다 (D5 적응형)."""
-    lines = _wrap_px(copy.story_body, _font(22), width - margin * 2) if copy.story_body else []
-    # 라벨 64 + 제목 118~ + 본문 시작 205 + 줄당 38 + 하단 여백·룰 90. 종전 390 미만 금지.
-    height = max(390, 295 + max(len(lines), 1) * 38 + 90)
-    return lines, height
-
-
-def _story(canvas, copy: DetailPageCopy, pal, body_lines, y, height, margin, width):
-    draw = ImageDraw.Draw(canvas)
-    draw.rectangle((0, y, width, y + height), fill=_PAPER_WARM)
-    draw.text((margin, y + 64), "PRODUCT STORY", font=_font(20, True), fill=pal["accent"])
-    font = _fit(copy.story_title, width - margin * 2, 43, 29)
-    draw.text((margin, y + 118), copy.story_title, font=font, fill=(25, 25, 25))
-    for index, line in enumerate(body_lines):
-        draw.text((margin, y + 205 + index * 38), line, font=_font(22), fill=(90, 90, 90))
-    draw.line((margin, y + height - 56, width - margin, y + height - 56), fill=(190, 187, 180), width=1)
-
-
-def _benefits_height(copy: DetailPageCopy) -> int:
-    """혜택 불릿 섹션 높이 — 카피가 없으면 0(섹션 생략, 폴백 렌더는 종전과 동일 구성)."""
-    if not copy.benefit_bullets:
-        return 0
-    return 96 + len(copy.benefit_bullets) * 72 + 48
-
-
-def _benefits(canvas, copy: DetailPageCopy, pal, y, height, margin, width):
-    draw = ImageDraw.Draw(canvas)
-    draw.rectangle((0, y, width, y + height), fill="white")
-    draw.text((margin, y + 48), "WHY THIS", font=_font(20, True), fill=pal["accent"])
-    for index, bullet in enumerate(copy.benefit_bullets):
-        row_y = y + 96 + index * 72
-        draw.ellipse((margin, row_y + 8, margin + 34, row_y + 42), fill=pal["accent"])
-        draw.text((margin + 9, row_y + 13), f"{index + 1}", font=_font(19, True), fill="white")
-        draw.text((margin + 56, row_y + 8),
-                  _fit_line(bullet, width - margin * 2 - 56, 27), font=_font(27, True), fill=(30, 30, 30))
-
-
-def _section_label(canvas, pal, y, title, light):
-    draw = ImageDraw.Draw(canvas, "RGBA")
-    fill = (*_PAPER, 232) if light else (*_INK, 205)
-    text = (24, 24, 24) if light else (255, 255, 255)
-    # 번호 제거(2026-07-23, 카드뉴스/배너와 통일) — 라벨만 남기고 텍스트 폭에 맞춘다.
-    # 라이브 실측(2026-07-21): '잔' 같은 짧은 라벨이 고정 폭 바에 떠 보이던 문제도 함께 유지.
-    label = _fit_line(title, 520 - 68 - 24, 27)
-    font = _font(27, True)
-    label_w = draw.textbbox((0, 0), label, font=font)[2]
-    right = max(240, min(520, 68 + label_w + 36))
-    draw.rectangle((44, y + 42, right, y + 145), fill=fill)
-    draw.text((68, y + 68), label, font=font, fill=text)
-
-
-def _split_section(canvas, path, copy: DetailPageCopy, pal, y, height, width, margin):
-    image_w = int(width * .56)
-    canvas.paste(_cover(Image.open(path).convert("RGB"), (image_w, height)), (0, y))
-    draw = ImageDraw.Draw(canvas)
-    draw.rectangle((image_w, y, width, y + height), fill=pal["deep"])
-    x = image_w + margin
-    draw.text((x, y + 85), "PROFILE", font=_font(19, True), fill=pal["tint"])
-    draw.text((x, y + 150), copy.profile_title, font=_font(39, True), fill="white", spacing=8)
-    if copy.profile_caption:
-        for index, line in enumerate(_wrap_px(copy.profile_caption, _font(21), width - x - margin)[:3]):
-            draw.text((x, y + 310 + index * 34), line, font=_font(21), fill=pal["tint"])
-
-
-def _lifestyle_overlay(canvas, copy: DetailPageCopy, pal, y, height, width, margin):
-    # 하단 33% 솔리드 → 22% 페이드 밴드(라이프스타일 컷 노출↑).
-    _scrim(canvas, y + int(height * .78), y + height, width, _INK, 200, 90)
-    draw = ImageDraw.Draw(canvas, "RGBA")
-    draw.text((margin, y + int(height * .82)), "MOMENT", font=_font(20, True), fill=pal["tint"])
-    draw.text((margin, y + int(height * .88)), copy.lifestyle_line,
-              font=_fit(copy.lifestyle_line, width - margin * 2, 43, 29), fill="white")
-
-
-def _cta(canvas, copy: DetailPageCopy, pal, y, height, margin, width):
-    draw = ImageDraw.Draw(canvas)
-    draw.rectangle((0, y, width, y + height), fill=(22, 22, 22))
-    draw.text((margin, y + 62), copy.cta_title, font=_font(36, True), fill="white")
-    draw.rectangle((margin, y + 172, margin + 220, y + 238), fill=pal["accent"])
-    draw.text((margin + 34, y + 190), copy.cta_label, font=_font(23, True), fill="white")
-
-
-def _font(size, bold=False):
-    root = Path(__file__).resolve().parents[4] / "assets" / "fonts"
-    return ImageFont.truetype(str(root / ("Pretendard-Bold.otf" if bold else "Pretendard-Medium.otf")), size)
-
-
-def _fit(text, max_width, start, minimum):
-    draw = ImageDraw.Draw(Image.new("RGB", (1, 1)))
-    for size in range(start, minimum - 1, -2):
-        font = _font(size, True)
-        if draw.textbbox((0, 0), text, font=font)[2] <= max_width:
-            return font
-    return _font(minimum, True)
-
-
-def _fit_line(text: str, max_width: int, size: int) -> str:
-    """폭을 넘는 한 줄 라벨을 말줄임으로 자른다(레이아웃 침범 방지)."""
-    draw = ImageDraw.Draw(Image.new("RGB", (1, 1)))
-    font = _font(size, True)
-    if draw.textbbox((0, 0), text, font=font)[2] <= max_width:
-        return text
-    while text and draw.textbbox((0, 0), text + "…", font=font)[2] > max_width:
-        text = text[:-1]
-    return text + "…"
-
-
-def _wrap_px(text: str, font, max_width: int) -> list[str]:
-    """픽셀 폭 기준 어절 줄바꿈 — 본문 문장용 (글자수 기준 _wrap 과 달리 폰트 실측)."""
-    draw = ImageDraw.Draw(Image.new("RGB", (1, 1)))
-    lines, current = [], ""
-    for word in (text or "").split():
-        candidate = f"{current} {word}".strip()
-        if current and draw.textbbox((0, 0), candidate, font=font)[2] > max_width:
-            lines.append(current)
-            current = word
-        else:
-            current = candidate
-    if current:
-        lines.append(current)
-    return lines
-
-
-def _height(font):
-    box = font.getbbox("가Ag")
-    return int((box[3] - box[1]) * 1.25)

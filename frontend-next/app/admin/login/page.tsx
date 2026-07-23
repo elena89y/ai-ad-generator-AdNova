@@ -23,7 +23,6 @@ export default function AdminLoginPage() {
   const [totpCode, setTotpCode] = useState("");
   const [requiresTotp, setRequiresTotp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -63,7 +62,6 @@ export default function AdminLoginPage() {
           body: JSON.stringify({
             username: username.trim(),
             password,
-            remember_me: rememberMe,
             ...(requiresTotp ? { totp_code: totpCode } : {}),
           }),
         }
@@ -80,7 +78,7 @@ export default function AdminLoginPage() {
         throw new Error(errorMessage);
       }
 
-      await signIn(data.access_token, rememberMe);
+      await signIn(data.access_token);
       router.replace("/admin");
     } catch (error) {
       setMessage(
@@ -281,17 +279,6 @@ export default function AdminLoginPage() {
               </button>
             </div>
           </div>
-
-          <label className="flex items-center gap-2 text-sm text-white/55">
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              disabled={loading}
-              onChange={(event) => setRememberMe(event.target.checked)}
-              className="size-4 accent-[var(--accent-deep)]"
-            />
-            로그인 유지
-          </label>
 
           <button
             type="submit"

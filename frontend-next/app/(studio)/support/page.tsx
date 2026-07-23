@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { apiFetch, readApiError, readJsonSafely } from "@/lib/api";
 import { useStudio } from "@/components/studio/StudioProvider";
@@ -37,11 +38,26 @@ interface InquiryItem {
   answered_at?: string | null;
 }
 
+interface NoticePreview {
+  id: number;
+  title: string;
+  published_at: string;
+}
+
 function formatInquiryDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat("ko-KR", {
     year: "numeric",
+    month: "numeric",
+    day: "numeric",
+  }).format(date);
+}
+
+function formatNoticeDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("ko-KR", {
     month: "numeric",
     day: "numeric",
   }).format(date);
@@ -61,6 +77,7 @@ export default function SupportPage() {
   const [loadingInquiries, setLoadingInquiries] = useState(false);
   const [inquiries, setInquiries] = useState<InquiryItem[]>([]);
   const [openInquiryId, setOpenInquiryId] = useState<number | null>(null);
+  const [recentNotices, setRecentNotices] = useState<NoticePreview[]>([]);
 
   useEffect(() => {
     if (!token) {
@@ -95,6 +112,25 @@ export default function SupportPage() {
       cancelled = true;
     };
   }, [token, toast]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRecentNotices() {
+      try {
+        const res = await apiFetch("/notices?limit=3");
+        const data = (await readJsonSafely(res)) as { items?: NoticePreview[] } | null;
+        if (res.ok && !cancelled) setRecentNotices(data?.items || []);
+      } catch {
+        if (!cancelled) setRecentNotices([]);
+      }
+    }
+
+    void loadRecentNotices();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // 챗봇 근거 칩 딥링크(#faq-id): 해당 항목 자동 펼침 + 스크롤
   useEffect(() => {
@@ -181,7 +217,7 @@ export default function SupportPage() {
 
   return (
     <section>
-      <SubBar backHref="/studio" backLabel="대시보드" />
+      <SubBar />
       <div className="page" style={{ maxWidth: 760 }}>
         <div style={{ textAlign: "center", margin: "10px 0 24px" }}>
           <h2 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-.5px", marginBottom: 6 }}>
@@ -220,6 +256,63 @@ export default function SupportPage() {
             />
           </div>
         </div>
+
+        <section
+          style={{
+            margin: "0 0 26px",
+            border: "1px solid var(--line)",
+            borderRadius: 14,
+            overflow: "hidden",
+            background: "#211F27",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              padding: "15px 16px",
+              borderBottom: recentNotices.length ? "1px solid var(--line)" : 0,
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800 }}>공지사항</div>
+              <div style={{ marginTop: 3, color: "var(--ink-mute)", fontSize: 12 }}>
+                서비스 운영 소식과 중요한 안내를 확인하세요.
+              </div>
+            </div>
+            <Link href="/notices" style={{ color: "var(--gold)", textDecoration: "none", fontSize: 12, fontWeight: 800, whiteSpace: "nowrap" }}>
+              전체 보기 →
+            </Link>
+          </div>
+          {recentNotices.length === 0 ? (
+            <div style={{ padding: "15px 16px", color: "var(--ink-mute)", fontSize: 12.5 }}>
+              새로운 공지사항이 없습니다.
+            </div>
+          ) : (
+            recentNotices.map((notice) => (
+              <Link
+                key={notice.id}
+                href={`/notices?notice=${notice.id}`}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 14,
+                  padding: "13px 16px",
+                  borderTop: "1px solid var(--line)",
+                  color: "var(--ink)",
+                  textDecoration: "none",
+                  fontSize: 13,
+                }}
+              >
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 700 }}>{notice.title}</span>
+                <span style={{ flexShrink: 0, color: "var(--ink-mute)", fontSize: 11.5 }}>{formatNoticeDate(notice.published_at)}</span>
+              </Link>
+            ))
+          )}
+        </section>
 
         <div
           style={{

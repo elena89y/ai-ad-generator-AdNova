@@ -1,10 +1,10 @@
 from datetime import timedelta
 
 from sqlalchemy import func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
-from app.crud.billing import expire_ended_subscriptions
-from app.crud.credits import grant_premium_credits
+from app.crud.billing import expire_ended_subscriptions, get_demo_credit_pack_credits
+from app.crud.credits import grant_premium_credits, revoke_purchased_credits
 from app.crud.retention import WITHDRAWN_USERNAME
 from app.database.admin_models import (
     AdminAuditLog,
@@ -150,6 +150,7 @@ def list_admin_accounts(
             or_(
                 AdminUser.username.ilike(keyword),
                 AdminUser.email.ilike(keyword),
+                AdminUser.name.ilike(keyword),
             )
         )
 
@@ -299,6 +300,57 @@ def get_user_for_admin(
 
 def count_advertisements_by_user(db: Session, user_id: int) -> int:
     return db.query(Advertisement).filter(Advertisement.user_id == user_id).count()
+
+
+def list_advertisements_for_admin(
+    db: Session,
+    *,
+    skip: int,
+    limit: int,
+    user_id: int | None = None,
+    search: str | None = None,
+    status: str | None = None,
+) -> tuple[int, list[tuple[Advertisement, User]]]:
+    query = (
+        db.query(Advertisement, User)
+        .join(User, User.id == Advertisement.user_id)
+        .options(joinedload(Advertisement.output_image))
+    )
+    if user_id is not None:
+        query = query.filter(Advertisement.user_id == user_id)
+    if search:
+        keyword = f"%{search}%"
+        query = query.filter(
+            or_(
+                Advertisement.title.ilike(keyword),
+                User.username.ilike(keyword),
+                User.email.ilike(keyword),
+            )
+        )
+    if status:
+        query = query.filter(Advertisement.status == status)
+
+    total = query.count()
+    rows = (
+        query.order_by(Advertisement.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    return total, rows
+
+
+def get_advertisement_for_admin(
+    db: Session,
+    advertisement_id: int,
+) -> tuple[Advertisement, User] | None:
+    return (
+        db.query(Advertisement, User)
+        .join(User, User.id == Advertisement.user_id)
+        .options(joinedload(Advertisement.output_image))
+        .filter(Advertisement.id == advertisement_id)
+        .first()
+    )
 
 
 def update_user_active_status(
@@ -468,39 +520,50 @@ def get_purchase_history_for_admin(
 def refund_demo_purchase_for_admin(
     db: Session,
     purchase: PurchaseHistory,
-) -> bool:
+) -> tuple[bool, int]:
     purchase.status = "refunded"
 
-    subscription = (
-        db.query(Subscription)
-        .filter(Subscription.user_id == purchase.user_id)
-        .first()
-    )
-    has_other_paid_subscription = (
-        db.query(PurchaseHistory.id)
-        .filter(
-            PurchaseHistory.user_id == purchase.user_id,
-            PurchaseHistory.item_type == "subscription",
-            PurchaseHistory.status == "paid",
-            PurchaseHistory.id != purchase.id,
-        )
-        .first()
-        is not None
-    )
-
     subscription_revoked = False
-    if (
-        subscription is not None
-        and subscription.plan == "premium"
-        and subscription.status == "active"
-        and subscription.provider != "admin"
-        and not has_other_paid_subscription
-    ):
-        subscription.plan = "free"
-        subscription.status = "inactive"
-        subscription.cancel_at_period_end = False
-        subscription.cancel_requested_at = None
-        subscription_revoked = True
+    purchased_credits_revoked = 0
+    if purchase.item_type == "subscription":
+        subscription = (
+            db.query(Subscription)
+            .filter(Subscription.user_id == purchase.user_id)
+            .first()
+        )
+        has_other_paid_subscription = (
+            db.query(PurchaseHistory.id)
+            .filter(
+                PurchaseHistory.user_id == purchase.user_id,
+                PurchaseHistory.item_type == "subscription",
+                PurchaseHistory.status == "paid",
+                PurchaseHistory.id != purchase.id,
+            )
+            .first()
+            is not None
+        )
+
+        if (
+            subscription is not None
+            and subscription.plan == "premium"
+            and subscription.status == "active"
+            and subscription.provider != "admin"
+            and not has_other_paid_subscription
+        ):
+            subscription.plan = "free"
+            subscription.status = "inactive"
+            subscription.cancel_at_period_end = False
+            subscription.cancel_requested_at = None
+            subscription_revoked = True
+    elif purchase.item_type == "credit_pack":
+        credits = get_demo_credit_pack_credits(purchase.description)
+        if credits is not None:
+            purchased_credits_revoked = revoke_purchased_credits(
+                db,
+                purchase.user_id,
+                credits,
+                commit=False,
+            )
 
     db.flush()
-    return subscription_revoked
+    return subscription_revoked, purchased_credits_revoked

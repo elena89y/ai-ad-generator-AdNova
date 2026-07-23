@@ -1,4 +1,7 @@
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 import pyotp
 
@@ -10,8 +13,12 @@ from sqlalchemy.orm import sessionmaker
 from app.api.admin import (
     confirm_admin_totp,
     create_admin_account_by_super_admin,
+    delete_admin_advertisement,
     disable_admin_totp,
+    refund_admin_demo_purchase,
     read_admin_accounts,
+    read_admin_advertisement_detail,
+    read_admin_advertisements,
     read_admin_audit_logs,
     read_admin_me,
     grant_admin_user_bonus_credits,
@@ -23,17 +30,20 @@ from app.core.admin_security import get_current_admin, get_current_super_admin
 from app.core.security import create_access_token, create_admin_access_token, hash_password
 from app.core.totp import decrypt_totp_secret
 from app.database.admin_models import AdminAuditLog, AdminUser
+from app.database.billing_models import PurchaseHistory, PurchasedCreditBalance
 from app.database.connection import AdminBase, Base
-from app.database.models import User
+from app.database.models import Advertisement, History, Image, User
 from app.schemas.admin import (
     AdminAccountCreateRequest,
     AdminAccountStatusUpdateRequest,
     AdminUserStatusUpdateRequest,
     AdminBonusCreditGrantRequest,
+    AdminDemoRefundRequest,
     AdminTotpDisableRequest,
     AdminTotpSetupRequest,
     AdminTotpVerifyRequest,
 )
+from app.services import image_service
 
 
 class AdminApiTestCase(unittest.TestCase):
@@ -157,6 +167,60 @@ class AdminApiTestCase(unittest.TestCase):
         self.assertEqual(response.total, 2)
         self.assertEqual({item.username for item in response.items}, {"adminuser", "operator"})
 
+    def test_admin_account_search_includes_display_name(self) -> None:
+        self.admin_db.add(
+            AdminUser(
+                email="named@example.com",
+                username="namedadmin",
+                name="검색 관리자",
+                password_hash=hash_password("Password1!"),
+                role="operator",
+                is_active=True,
+            )
+        )
+        self.admin_db.commit()
+
+        response = read_admin_accounts(
+            skip=0,
+            limit=50,
+            search="검색 관리자",
+            admin_db=self.admin_db,
+            current_admin=self.admin,
+        )
+
+        self.assertEqual(response.total, 1)
+        self.assertEqual(response.items[0].name, "검색 관리자")
+
+    def test_super_admin_can_refund_credit_pack_and_revoke_remaining_credits(self) -> None:
+        purchase = PurchaseHistory(
+            user_id=self.user.id,
+            provider="demo",
+            item_type="credit_pack",
+            description="크레딧 10개 (테스트)",
+            amount=4900,
+            status="paid",
+        )
+        self.user_db.add_all(
+            [
+                purchase,
+                PurchasedCreditBalance(user_id=self.user.id, credits_remaining=10),
+            ]
+        )
+        self.user_db.commit()
+
+        response = refund_admin_demo_purchase(
+            purchase_id=purchase.id,
+            request=AdminDemoRefundRequest(reason="구매 취소 요청"),
+            db=self.user_db,
+            admin_db=self.admin_db,
+            current_admin=self.admin,
+        )
+
+        balance = self.user_db.query(PurchasedCreditBalance).filter_by(user_id=self.user.id).one()
+        self.assertEqual(response.purchased_credits_revoked, 10)
+        self.assertEqual(balance.credits_remaining, 0)
+        self.assertEqual(response.purchase.status, "refunded")
+
     def test_last_active_super_admin_cannot_be_deactivated(self) -> None:
         with self.assertRaises(HTTPException) as context:
             update_admin_account_status_by_super_admin(
@@ -217,6 +281,112 @@ class AdminApiTestCase(unittest.TestCase):
         ).one()
         self.assertEqual(audit_log.target_id, self.user.id)
         self.assertIn("amount=12", audit_log.detail)
+
+    def test_super_admin_can_manage_advertisements_without_deleting_input_image(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            results_dir = Path(temp_dir) / "results"
+            results_dir.mkdir()
+            input_path = Path(temp_dir) / "product.png"
+            input_path.write_bytes(b"input")
+            filenames = ["ad.png", "ad-clean.png", "ad-banner.jpg"]
+            for filename in filenames:
+                (results_dir / filename).write_bytes(b"generated")
+
+            input_image = Image(
+                user_id=self.user.id,
+                image_type="upload",
+                original_filename="product.png",
+                file_path=str(input_path),
+                image_url="/uploads/product.png",
+            )
+            generated_images = [
+                Image(
+                    user_id=self.user.id,
+                    image_type="generated",
+                    original_filename=filename,
+                    stored_filename=filename,
+                    file_path=str(results_dir / filename),
+                    image_url=f"/api/ads/image/{filename}",
+                )
+                for filename in filenames
+            ]
+            self.user_db.add_all([input_image, *generated_images])
+            self.user_db.flush()
+
+            advertisement = Advertisement(
+                user_id=self.user.id,
+                input_image_id=input_image.id,
+                output_image_id=generated_images[0].id,
+                title="테스트 라떼",
+                ad_type="poster",
+                prompt="test prompt",
+                style="pop",
+                status="completed",
+            )
+            self.user_db.add(advertisement)
+            self.user_db.flush()
+            self.user_db.add(
+                History(
+                    user_id=self.user.id,
+                    advertisement_id=advertisement.id,
+                    action_type="ads.generate",
+                    status="completed",
+                    response_data=json.dumps(
+                        {
+                            "image_url": "/api/ads/image/ad.png",
+                            "image_without_typography_url": "/api/ads/image/ad-clean.png",
+                            "format_outputs": ["/api/ads/image/ad-banner.jpg"],
+                        }
+                    ),
+                )
+            )
+            self.user_db.commit()
+
+            listing = read_admin_advertisements(
+                skip=0,
+                limit=50,
+                user_id=self.user.id,
+                search="라떼",
+                status="completed",
+                db=self.user_db,
+                current_admin=self.admin,
+            )
+            self.assertEqual(listing.total, 1)
+            self.assertEqual(listing.items[0].output_image_url, "/api/ads/image/ad.png")
+
+            detail = read_admin_advertisement_detail(
+                advertisement_id=advertisement.id,
+                db=self.user_db,
+                current_admin=self.admin,
+            )
+            self.assertEqual(detail.username, self.user.username)
+            self.assertEqual(detail.title, "테스트 라떼")
+
+            original_results_dir = image_service.RESULTS_DIR
+            image_service.RESULTS_DIR = results_dir
+            try:
+                delete_admin_advertisement(
+                    advertisement_id=advertisement.id,
+                    db=self.user_db,
+                    admin_db=self.admin_db,
+                    current_admin=self.admin,
+                )
+            finally:
+                image_service.RESULTS_DIR = original_results_dir
+
+            self.assertIsNotNone(self.user_db.get(Image, input_image.id))
+            self.assertTrue(input_path.is_file())
+            for image in generated_images:
+                self.assertIsNone(self.user_db.get(Image, image.id))
+            for filename in filenames:
+                self.assertFalse((results_dir / filename).exists())
+            self.assertIsNone(self.user_db.get(Advertisement, advertisement.id))
+            self.assertEqual(
+                self.admin_db.query(AdminAuditLog)
+                .filter_by(action="advertisement.force_deleted")
+                .count(),
+                1,
+            )
 
     def test_audit_log_api_reads_admin_database(self) -> None:
         self.admin_db.add(
