@@ -181,7 +181,7 @@ export default function SupportPage() {
 
   return (
     <section>
-      <SubBar backHref="/dashboard" backLabel="홈으로" />
+      <SubBar />
       <div className="page" style={{ maxWidth: 760 }}>
         <div style={{ textAlign: "center", margin: "10px 0 24px" }}>
           <h2 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-.5px", marginBottom: 6 }}>

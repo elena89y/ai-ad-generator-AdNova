@@ -210,7 +210,7 @@ export default function SettingsPage() {
 
   return (
     <section>
-      <SubBar backHref="/studio" backLabel="대시보드" />
+      <SubBar />
       <div className="page">
         <div className="page-head">
           <div>
