@@ -7,6 +7,7 @@ from app.crud.billing import (
     get_payment_method_by_user,
     get_subscription_by_user,
     list_purchase_histories_by_user,
+    purchase_demo_credit_pack,
     resume_subscription,
     schedule_subscription_cancellation,
     update_demo_payment_method,
@@ -16,6 +17,7 @@ from app.crud.credits import (
     PREMIUM_MONTHLY_CREDITS,
     get_bonus_credits_remaining,
     get_credit_status,
+    get_purchased_credits_remaining,
     get_premium_credit_status,
 )
 from app.database.billing_models import PurchaseHistory, RefundRequest, Subscription
@@ -23,6 +25,7 @@ from app.database.connection import get_db
 from app.database.models import User
 from app.schemas.billing import (
     BillingSummaryResponse,
+    CreditPackRequest,
     DemoCardRequest,
     PurchaseHistoryResponse,
     RefundRequestCreate,
@@ -59,6 +62,7 @@ def _build_summary(db: Session, user_id: int) -> BillingSummaryResponse:
         free_credit_limit=DEFAULT_FREE_CREDITS,
         next_free_credit_at=next_refill_at,
         bonus_credits_remaining=get_bonus_credits_remaining(db, user_id),
+        purchased_credits_remaining=get_purchased_credits_remaining(db, user_id),
         premium_credits_remaining=(
             premium_balance.credits_remaining if premium_balance else None
         ),
@@ -164,6 +168,25 @@ def change_demo_payment_method(
         card_brand=request.card_brand,
         card_last4=request.card_last4,
     )
+    return _build_summary(db, current_user.id)
+
+
+@router.post("/demo/credit-packs", response_model=BillingSummaryResponse)
+def purchase_credit_pack(
+    request: CreditPackRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> BillingSummaryResponse:
+    try:
+        purchase_demo_credit_pack(
+            db,
+            current_user.id,
+            product_id=request.product_id,
+            card_brand=request.card_brand,
+            card_last4=request.card_last4,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     return _build_summary(db, current_user.id)
 
 
