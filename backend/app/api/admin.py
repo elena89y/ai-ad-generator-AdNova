@@ -50,6 +50,7 @@ from app.crud.inquiry import (
     list_inquiries_for_admin,
     update_inquiry_status,
 )
+from app.services.notification_service import send_marketing_notifications
 from app.database.admin_models import AdminUser
 from app.database.billing_models import PurchaseHistory, RefundRequest, Subscription, utc_now
 from app.database.connection import get_admin_db, get_db
@@ -86,6 +87,8 @@ from app.schemas.admin import (
     AdminRefundResponse,
     AdminPasswordChangeRequest,
     AdminMessageResponse,
+    AdminMarketingNotificationRequest,
+    AdminMarketingNotificationResponse,
     AdminChatbotStatsResponse,
     AdminFaqCandidateListResponse,
     AdminFaqCandidateResponse,
@@ -100,6 +103,39 @@ from app.schemas.inquiry import (
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+@router.post(
+    "/notifications/marketing",
+    response_model=AdminMarketingNotificationResponse,
+)
+def send_admin_marketing_notification(
+    request: AdminMarketingNotificationRequest,
+    db: Session = Depends(get_db),
+    admin_db: Session = Depends(get_admin_db),
+    current_admin: AdminUser = Depends(get_current_super_admin),
+) -> AdminMarketingNotificationResponse:
+    eligible_count, sent_count, failed_count = send_marketing_notifications(
+        db,
+        subject=request.subject,
+        message=request.message,
+        user_ids=request.user_ids,
+    )
+    create_admin_audit_log(
+        admin_db,
+        admin_user_id=current_admin.id,
+        action="notification.marketing_sent",
+        target_type="notification",
+        target_id=0,
+        detail=(
+            f"eligible={eligible_count}; sent={sent_count}; failed={failed_count}"
+        ),
+    )
+    return AdminMarketingNotificationResponse(
+        eligible_count=eligible_count,
+        sent_count=sent_count,
+        failed_count=failed_count,
+    )
 
 
 def _build_refund_response(refund: RefundRequest, purchase: PurchaseHistory, user: User) -> AdminRefundResponse:

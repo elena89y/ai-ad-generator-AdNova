@@ -61,6 +61,7 @@ from ..services import (
     template_generation,
     template_service,
 )
+from ..services.notification_service import notify_credit_depletion
 from ..services.prompt_service import build_image_prompt
 from ..services.upload_validation import read_image_upload_file_sync
 
@@ -451,6 +452,7 @@ def generate_ad(
             result=result,
             request_data=request_data,
         )
+        notify_credit_depletion(db, current_user_id)
         return result.model_copy(update={"history_id": history_id})
     except ValueError as e:
         _restore_generation_credit(db, current_user_id, credit_type)
@@ -548,6 +550,7 @@ def regenerate_ad(
             action_type="ads.regenerate",
             request_data=request_data,
         )
+        notify_credit_depletion(db, current_user_id)
         return result.model_copy(update={"history_id": history_id})
     except ValueError as e:
         _restore_generation_credit(db, current_user_id, credit_type)

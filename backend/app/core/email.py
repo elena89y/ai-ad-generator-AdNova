@@ -61,3 +61,11 @@ def send_credit_low_email(to_email: str, remaining: int) -> None:
         f"<p>남은 크레딧: <b>{remaining}개</b>. 플랜 & 결제에서 충전할 수 있어요.</p>",
     )
     send_email(to_email, "[AdNova] 크레딧 소진 알림", html)
+
+
+def send_marketing_email(to_email: str, subject: str, message: str) -> None:
+    html = _base_template(
+        escape(subject),
+        f"<p style=\"white-space:pre-line;\">{escape(message)}</p>",
+    )
+    send_email(to_email, f"[AdNova] {subject}", html)
