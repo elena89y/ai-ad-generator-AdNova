@@ -5,9 +5,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   CreditCard,
+  Flag,
   KeyRound,
   LayoutDashboard,
   MailPlus,
+  Megaphone,
   LogOut,
   MessageCircleQuestion,
   MessageSquareMore,
@@ -41,6 +43,16 @@ const navigationItems = [
     href: "/admin/inquiries",
     label: "1:1 문의",
     icon: MessageSquareMore,
+  },
+  {
+    href: "/admin/reports",
+    label: "신고 관리",
+    icon: Flag,
+  },
+  {
+    href: "/admin/notices",
+    label: "공지사항 관리",
+    icon: Megaphone,
   },
   {
     href: "/admin/faq",

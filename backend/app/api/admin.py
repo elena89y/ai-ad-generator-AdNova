@@ -62,6 +62,13 @@ from app.crud.report import (
     list_reports_for_admin,
     update_report_status,
 )
+from app.crud.notice import (
+    create_notice,
+    delete_notice,
+    get_notice_by_id,
+    list_notices_for_admin,
+    update_notice,
+)
 from app.services.notification_service import send_marketing_notifications
 from app.database.admin_models import AdminUser
 from app.database.billing_models import PurchaseHistory, RefundRequest, Subscription, utc_now
@@ -118,6 +125,12 @@ from app.schemas.report import (
     AdminReportListResponse,
     AdminReportResponse,
     ReportStatusUpdateRequest,
+)
+from app.schemas.notice import (
+    AdminNoticeListResponse,
+    AdminNoticeResponse,
+    NoticeCreateRequest,
+    NoticeUpdateRequest,
 )
 
 
@@ -499,6 +512,20 @@ def _build_admin_report_response(report, user: User) -> AdminReportResponse:
         handled_at=report.handled_at,
         created_at=report.created_at,
         updated_at=report.updated_at,
+    )
+
+
+def _build_admin_notice_response(notice) -> AdminNoticeResponse:
+    return AdminNoticeResponse(
+        id=notice.id,
+        title=notice.title,
+        content=notice.content,
+        is_published=notice.is_published,
+        published_at=notice.published_at,
+        created_by_admin_id=notice.created_by_admin_id,
+        updated_by_admin_id=notice.updated_by_admin_id,
+        created_at=notice.created_at,
+        updated_at=notice.updated_at,
     )
 
 
@@ -1096,6 +1123,141 @@ def update_admin_report(
         admin_db.rollback()
         raise
     return _build_admin_report_response(report, report.user)
+
+
+@router.get("/notices", response_model=AdminNoticeListResponse)
+def read_admin_notices(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    is_published: bool | None = None,
+    search: str | None = Query(None, min_length=1, max_length=100),
+    db: Session = Depends(get_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminNoticeListResponse:
+    del current_admin
+    total, notices = list_notices_for_admin(
+        db,
+        skip=skip,
+        limit=limit,
+        is_published=is_published,
+        search=search,
+    )
+    return AdminNoticeListResponse(
+        total=total,
+        items=[_build_admin_notice_response(notice) for notice in notices],
+    )
+
+
+@router.post(
+    "/notices",
+    response_model=AdminNoticeResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_admin_notice(
+    request: NoticeCreateRequest,
+    db: Session = Depends(get_db),
+    admin_db: Session = Depends(get_admin_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminNoticeResponse:
+    try:
+        notice = create_notice(
+            db,
+            title=request.title,
+            content=request.content,
+            is_published=request.is_published,
+            admin_user_id=current_admin.id,
+            commit=False,
+        )
+        create_admin_audit_log(
+            admin_db,
+            admin_user_id=current_admin.id,
+            action="notice.created",
+            target_type="notice",
+            target_id=notice.id,
+            detail=f"published={notice.is_published}",
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        admin_db.rollback()
+        raise
+    return _build_admin_notice_response(notice)
+
+
+@router.patch("/notices/{notice_id}", response_model=AdminNoticeResponse)
+def update_admin_notice(
+    notice_id: int,
+    request: NoticeUpdateRequest,
+    db: Session = Depends(get_db),
+    admin_db: Session = Depends(get_admin_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminNoticeResponse:
+    notice = get_notice_by_id(db, notice_id)
+    if notice is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="공지사항을 찾을 수 없습니다.",
+        )
+
+    was_published = notice.is_published
+    try:
+        notice = update_notice(
+            db,
+            notice,
+            title=request.title,
+            content=request.content,
+            is_published=request.is_published,
+            admin_user_id=current_admin.id,
+            commit=False,
+        )
+        action = "notice.updated"
+        if request.is_published is True and not was_published:
+            action = "notice.published"
+        elif request.is_published is False and was_published:
+            action = "notice.unpublished"
+        create_admin_audit_log(
+            admin_db,
+            admin_user_id=current_admin.id,
+            action=action,
+            target_type="notice",
+            target_id=notice.id,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        admin_db.rollback()
+        raise
+    return _build_admin_notice_response(notice)
+
+
+@router.delete("/notices/{notice_id}", response_model=AdminMessageResponse)
+def delete_admin_notice(
+    notice_id: int,
+    db: Session = Depends(get_db),
+    admin_db: Session = Depends(get_admin_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminMessageResponse:
+    notice = get_notice_by_id(db, notice_id)
+    if notice is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="공지사항을 찾을 수 없습니다.",
+        )
+    try:
+        delete_notice(db, notice, commit=False)
+        create_admin_audit_log(
+            admin_db,
+            admin_user_id=current_admin.id,
+            action="notice.deleted",
+            target_type="notice",
+            target_id=notice_id,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        admin_db.rollback()
+        raise
+    return AdminMessageResponse(message="공지사항이 삭제되었습니다.")
 
 
 @router.get("/users/{user_id}", response_model=AdminUserDetailResponse)
