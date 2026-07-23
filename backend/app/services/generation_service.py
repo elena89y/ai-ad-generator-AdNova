@@ -109,6 +109,9 @@ class GenerationOutput:
     image_with_typography_path: Optional[str] = None
     typography_layout: Optional[str] = None
     domain: str = "food"      # food | drink | object (r.style_domain 우선, 없으면 r.domain, DETAIL-001)
+    # SRV-ROUTE-001 phase2: 제공 형태 인식값. default None이라 legacy run_generation·
+    #   template_generation(analyze_menu 안 거침) 생산자는 무수정으로 유효.
+    serving_type: Optional[str] = None
 
 
 def run_generation(
@@ -357,6 +360,7 @@ def run_from_upload_v2(
                 image_with_typography_path=variants.with_typography_path,
                 typography_layout=variants.layout_key,
                 domain=getattr(r, "style_domain", None) or getattr(r, "domain", "food"),
+                serving_type=getattr(r, "serving_type", None),  # SRV-ROUTE-001 phase2
             )
 
 
@@ -446,6 +450,7 @@ def rerun_v2(
                 image_with_typography_path=variants.with_typography_path,
                 typography_layout=variants.layout_key,
                 domain=getattr(r, "style_domain", None) or getattr(r, "domain", "food"),
+                serving_type=getattr(r, "serving_type", None),  # SRV-ROUTE-001 phase2
             )
 
 
@@ -467,6 +472,7 @@ class ProcessedAd:
     style: Optional[str] = None       # 디자인시스템 스타일 키(있으면 style_gen 경로)
     aesthetic: Optional[float] = None # NIMA 심미 점수(플라이휠 라벨)
     style_domain: Optional[str] = None  # food | drink | object (_resolve_style_domain 결과, DETAIL-001)
+    serving_type: Optional[str] = None  # SRV-ROUTE-001 phase2: 응답 노출용 캐리어 (분석→응답 유일 통로)
 
 
 def build_typography_variants(
@@ -738,6 +744,9 @@ def _process_ad_impl(
 
     t0 = time.time()
     text_zone: Optional[str] = None
+    # SRV-ROUTE-001 phase2: 응답 노출 캐리어 초기값 — style 분기 밖(router 경로)에서도
+    #   ProcessedAd 생성 시 참조되므로 상단 초기화 필수(NameError 방지, 적대검증 지적).
+    serving_type: Optional[str] = None
 
     # 스타일 지정 시: style_gen 씬 생성(정체성 보존 편집), 아니면 기존 이름기반 라우팅
     if style:
@@ -866,6 +875,11 @@ def _process_ad_impl(
         final = route.output_path
         subject_en, domain, engine = route.subject_en, route.domain, route.engine
         selected_seed = 0 if seed is None else seed
+        # SRV-ROUTE-001 phase2: router 경로도 주입 analysis가 있으면 인식값 노출.
+        #   (RouteResult는 미보유 — analysis=None이면 router 내부 재분석 값은 못 꺼냄,
+        #   스튜디오 흐름은 항상 style 경로라 실효 영향 없음. 감사 결정.)
+        if analysis is not None and os.environ.get("SERVING_TYPE_ROUTING", "1") != "0":
+            serving_type = getattr(analysis, "serving_type", None)
 
     # 문구 (FR-09) — 상품명 + 리터치 이미지 기반. 톤은 EDITORIAL 기본.
     product = ProductInfo(name=name)
@@ -902,6 +916,7 @@ def _process_ad_impl(
         seconds=round(time.time() - t0, 2), seed=selected_seed,
         style=style, aesthetic=aesthetic,
         style_domain=style_domain if style else None,
+        serving_type=serving_type,  # SRV-ROUTE-001 phase2: 응답 노출 캐리어
     )
 
     return result

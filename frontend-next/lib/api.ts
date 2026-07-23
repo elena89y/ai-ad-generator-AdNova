@@ -91,6 +91,11 @@ export interface GenerateResult {
   // 용도별 결과(카드뉴스·배너·상세페이지)가 화면에 아예 표시되지 않던 원인.
   format_outputs?: string[];
   purpose?: string;
+  // SRV-ROUTE-001 phase2: 백엔드 인식값(dish|drink|dessert|bakery|object) — 인식 라벨 정본.
+  serving_type?: string;
+  // 클라이언트 주입(응답 아님): 생성 시점 상품명 — 이름을 바꿔 입력 중일 때 이전 생성의
+  // serving_type 라벨이 눌러붙는 stale 표시 방지 가드.
+  client_prod_name?: string;
 }
 
 export interface AdItem {
