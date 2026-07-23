@@ -162,28 +162,28 @@ export function UsagePill() {
   );
 }
 
-export function AppBar() {
+function PrimaryNav() {
   const pathname = usePathname();
-  // 광고 만들기 워크스페이스 = /studio(광고 이미지) + /templates(템플릿) — 좌측 내비로 전환
   const inWorkspace = pathname === "/studio" || pathname === "/templates";
+
+  return (
+    <nav className="appnav">
+      <Link href="/studio" className={inWorkspace ? "on" : ""}>
+        ✏️ <span className="txt">광고 만들기</span>
+      </Link>
+      <Link href="/my-ads" className={pathname === "/my-ads" ? "on" : ""}>
+        🗂 <span className="txt">내 광고</span>
+      </Link>
+    </nav>
+  );
+}
+
+export function AppBar() {
   return (
     <div className="appbar">
       <Brand />
-      <nav className="appnav">
-        <Link href="/studio" className={inWorkspace ? "on" : ""}>
-          ✏️ <span className="txt">광고 만들기</span>
-        </Link>
-        <Link href="/my-ads" className={pathname === "/my-ads" ? "on" : ""}>
-          🗂 <span className="txt">내 광고</span>
-        </Link>
-      </nav>
+      <PrimaryNav />
       <div className="right">
-        <Link
-          href="/support"
-          style={{ fontSize: 13, color: "var(--muted)", textDecoration: "none" }}
-        >
-          💬 <span className="txt">고객센터</span>
-        </Link>
         <UsagePill />
         <ProfileMenu />
       </div>
@@ -210,32 +210,17 @@ export function WorkspaceNav() {
 }
 
 export function SubBar({
-  backHref,
-  backLabel,
   showProfile = true,
   right,
 }: {
-  backHref: string;
-  backLabel: string;
   showProfile?: boolean;
   right?: React.ReactNode;
 }) {
-  const pathname = usePathname();
   return (
     <div className="subbar">
       <Brand />
-      <Link href={backHref} className="back-link" style={{ margin: "0 0 0 6px" }}>
-        ← {backLabel}
-      </Link>
+      <PrimaryNav />
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
-        {pathname !== "/support" && (
-          <Link
-            href="/support"
-            style={{ fontSize: 13, color: "var(--muted)", textDecoration: "none" }}
-          >
-            💬 고객센터
-          </Link>
-        )}
         {right}
         {showProfile && <ProfileMenu />}
       </div>

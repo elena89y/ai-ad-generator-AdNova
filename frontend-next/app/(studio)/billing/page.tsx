@@ -65,7 +65,7 @@ export default function BillingPage() {
   if (!s.ready || !s.token || !s.billingReady) {
     return (
       <section>
-        <SubBar backHref="/dashboard" backLabel="홈으로" />
+        <SubBar />
         <div className="page" style={{ maxWidth: 720, textAlign: "center", paddingTop: 96 }}>
           {!s.ready || !s.token ? "로그인 정보를 확인하는 중입니다." : "구독 정보를 확인하는 중입니다."}
         </div>
@@ -76,8 +76,6 @@ export default function BillingPage() {
   return (
     <section>
       <SubBar
-        backHref="/dashboard"
-        backLabel="홈으로"
         right={
           <span className="credits">
             {isPremium ? (
