@@ -18,6 +18,7 @@ from app.crud.admin import (
     count_advertisements_by_user,
     create_admin_audit_log,
     create_admin_user_account,
+    get_advertisement_for_admin,
     get_admin_account_by_id,
     get_purchase_history_for_admin,
     get_admin_summary,
@@ -28,6 +29,7 @@ from app.crud.admin import (
     list_purchase_histories_for_admin,
     list_admin_audit_logs,
     list_admin_login_failure_logs,
+    list_advertisements_for_admin,
     list_users_for_admin,
     refund_demo_purchase_for_admin,
     update_admin_account_active_status,
@@ -38,6 +40,10 @@ from app.crud.admin import (
 from app.crud.billing import get_demo_credit_pack_credits
 from app.crud.chatbot_stats import get_chatbot_stats
 from app.crud.credits import get_bonus_credits_remaining, grant_bonus_credits
+from app.crud.history import (
+    delete_generated_image_files,
+    delete_generated_result_by_advertisement,
+)
 from app.crud.faq_candidate import (
     create_faq_candidate,
     get_faq_candidate_by_id,
@@ -64,6 +70,8 @@ from app.schemas.admin import (
     AdminAccountStatusUpdateRequest,
     AdminAuditLogListResponse,
     AdminAuditLogResponse,
+    AdminAdvertisementListResponse,
+    AdminAdvertisementResponse,
     AdminBonusCreditGrantRequest,
     AdminBonusCreditGrantResponse,
     AdminDemoRefundRequest,
@@ -494,6 +502,122 @@ def _build_admin_login_failure_log_response(login_failure_log) -> AdminAuditLogR
         detail=login_failure_log.reason,
         created_at=login_failure_log.created_at,
     )
+
+
+def _build_admin_advertisement_response(
+    advertisement,
+    user: User,
+) -> AdminAdvertisementResponse:
+    output_image = advertisement.output_image
+    return AdminAdvertisementResponse(
+        id=advertisement.id,
+        user_id=user.id,
+        username=user.username,
+        email=user.email,
+        title=advertisement.title,
+        ad_type=advertisement.ad_type,
+        style=advertisement.style,
+        status=advertisement.status,
+        prompt=advertisement.prompt,
+        generated_text=advertisement.generated_text,
+        error_message=advertisement.error_message,
+        output_image_id=advertisement.output_image_id,
+        output_image_url=output_image.image_url if output_image else None,
+        created_at=advertisement.created_at,
+        updated_at=advertisement.updated_at,
+    )
+
+
+@router.get("/advertisements", response_model=AdminAdvertisementListResponse)
+def read_admin_advertisements(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    user_id: int | None = Query(None, gt=0),
+    search: str | None = Query(None, min_length=1, max_length=100),
+    status: str | None = Query(None, min_length=1, max_length=50),
+    db: Session = Depends(get_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminAdvertisementListResponse:
+    del current_admin
+    total, rows = list_advertisements_for_admin(
+        db,
+        skip=skip,
+        limit=limit,
+        user_id=user_id,
+        search=search,
+        status=status,
+    )
+    return AdminAdvertisementListResponse(
+        total=total,
+        items=[
+            _build_admin_advertisement_response(advertisement, user)
+            for advertisement, user in rows
+        ],
+    )
+
+
+@router.get(
+    "/advertisements/{advertisement_id}",
+    response_model=AdminAdvertisementResponse,
+)
+def read_admin_advertisement_detail(
+    advertisement_id: int,
+    db: Session = Depends(get_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> AdminAdvertisementResponse:
+    del current_admin
+    row = get_advertisement_for_admin(db, advertisement_id)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="광고를 찾을 수 없습니다.",
+        )
+
+    advertisement, user = row
+    return _build_admin_advertisement_response(advertisement, user)
+
+
+@router.delete(
+    "/advertisements/{advertisement_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_admin_advertisement(
+    advertisement_id: int,
+    db: Session = Depends(get_db),
+    admin_db: Session = Depends(get_admin_db),
+    current_admin: AdminUser = Depends(get_current_super_admin),
+) -> None:
+    row = get_advertisement_for_admin(db, advertisement_id)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="광고를 찾을 수 없습니다.",
+        )
+
+    advertisement, user = row
+    try:
+        generated_file_paths = delete_generated_result_by_advertisement(
+            db,
+            advertisement,
+            commit=False,
+        )
+        create_admin_audit_log(
+            admin_db,
+            admin_user_id=current_admin.id,
+            action="advertisement.force_deleted",
+            target_type="advertisement",
+            target_id=advertisement_id,
+            detail=f"user_id={user.id}; generated_file_count={len(generated_file_paths)}",
+            commit=False,
+        )
+        db.commit()
+        admin_db.commit()
+    except Exception:
+        db.rollback()
+        admin_db.rollback()
+        raise
+
+    delete_generated_image_files(generated_file_paths)
 
 
 @router.get("/users", response_model=AdminUserListResponse)
