@@ -111,3 +111,30 @@ def test_props_without_ingredients_safe():
     for s in range(4):
         instr = _instr(scene_seed=s)
         assert "{props}" not in instr
+
+
+# --- NOODLE-GUARD: 면류는 ①(scatter) 제외 — 본체 재드로잉 라이브 2회 실측 ------
+
+@pytest.mark.parametrize("subject", [
+    "creamy carbonara pasta", "cream carbonara pasta", "spicy ramen noodles",
+    "cold buckwheat soba", "japchae glass noodles", "beef pho",
+])
+def test_noodle_never_gets_scatter_archetype(subject):
+    """면류 subject는 전 시드에서 ①(마커: 'joyful pop energy')이 절대 안 나와야 한다 —
+    유닛 보증이 GPU 1샷보다 강함(전수)."""
+    for s in range(24):
+        instr = _instr(subject=subject, scene_seed=s)
+        assert "joyful pop energy" not in instr, (subject, s)
+        assert "You MAY replace the plain plate" in instr  # 완화 잠금은 유지
+
+
+def test_noodle_still_rotates_among_three():
+    """면류도 ②③④ 3종 로테이션은 유지(단일 고정 아님)."""
+    outs = {_instr(subject="creamy carbonara pasta", scene_seed=s) for s in range(12)}
+    assert len(outs) >= 2
+
+
+def test_non_noodle_keeps_four():
+    """비면류(케이크)는 4종 그대로 — ① 마커가 12시드 안에 등장."""
+    joined = " ".join(_instr(scene_seed=s) for s in range(12))
+    assert "joyful pop energy" in joined
