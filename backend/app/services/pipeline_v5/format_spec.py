@@ -10,12 +10,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 from typing import Literal
+
+import yaml
 
 from ...schemas.ads import AdPurpose
 
 HeroFit = Literal["cover", "contain", "reflow"]
 CopyDensity = Literal["minimal", "medium", "dense"]
+
+# 규격 데이터 원장(L1 소프트코딩): format_spec.py 옆 format_specs.yaml.
+# 새 규격·사이즈는 코드가 아니라 YAML 에서 — test_format_specs_snapshot 이 값 변경 감지.
+_SPECS_PATH = Path(__file__).parent / "format_specs.yaml"
 
 
 @dataclass(frozen=True)
@@ -38,38 +46,34 @@ class FormatSpec:
         return w / h
 
 
-# --- 포맷별 규격 레지스트리 -------------------------------------------------
+# --- 포맷별 규격 레지스트리 (format_specs.yaml 로드) -------------------------
 # 한 purpose 가 복수 규격을 가질 수 있다. 리스트 = 자동 생성 팩(순서 = 대표 우선순위).
-_SPECS: dict[AdPurpose, list[FormatSpec]] = {
-    AdPurpose.SNS: [
-        FormatSpec(AdPurpose.SNS, (1080, 1080), "cover", "medium", 0.06, "square"),
-    ],
-    # 배너 = 커머스/스마트스토어 디지털 전용. 자동 팩(히어로 1장 → 전 규격 동시 생성).
-    AdPurpose.BANNER: [
-        FormatSpec(AdPurpose.BANNER, (1080, 1080), "cover", "minimal", 0.05,
-                   "commerce_square", note="스마트스토어 썸네일·피드 카드 (1:1)"),
-        FormatSpec(AdPurpose.BANNER, (1920, 600), "cover", "minimal", 0.05,
-                   "commerce_wide", note="웹/이벤트 상단 와이드 배너 (3.2:1)"),
-        FormatSpec(AdPurpose.BANNER, (860, 860), "cover", "minimal", 0.05,
-                   "smartstore_detail", note="스마트스토어 상세 상단(폭860 관례)"),
-        FormatSpec(AdPurpose.BANNER, (1080, 1350), "cover", "minimal", 0.06,
-                   "commerce_vertical", note="모바일 커머스 세로 프로모 (4:5)"),
-    ],
-    AdPurpose.CARD_NEWS: [
-        # 4:5 세로. slides 는 compose 단계에서 카피 블록 수로 결정(표지+본문N+CTA).
-        FormatSpec(AdPurpose.CARD_NEWS, (1080, 1350), "cover", "medium", 0.07, "cover"),
-    ],
-    AdPurpose.FLYER: [
-        # A4 300dpi 세로. 히어로는 상단 히어로존만, 하단은 정보블록(메뉴·가격·매장).
-        FormatSpec(AdPurpose.FLYER, (2480, 3508), "contain", "dense", 0.08, "A4"),
-    ],
-    # 상세페이지 = 커머스 핵심. 스마트스토어 폭 860 세로 롱스크롤(섹션 조판).
-    # canvas H 는 섹션 수로 가변 → 여기 값은 최소 높이 힌트, 실제는 detail_page 가 결정.
-    AdPurpose.DETAIL_PAGE: [
-        FormatSpec(AdPurpose.DETAIL_PAGE, (860, 2600), "reflow", "dense", 0.06,
-                   "smartstore", note="스마트스토어 상세 롱스크롤(폭860·섹션 가변)"),
-    ],
-}
+@lru_cache(maxsize=1)
+def _load_specs() -> dict[AdPurpose, list[FormatSpec]]:
+    """format_specs.yaml → {AdPurpose: [FormatSpec]}. 값 변경은 스냅샷 테스트가 감지."""
+    with open(_SPECS_PATH, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    if not isinstance(data, dict) or "specs" not in data:
+        raise ValueError(f"포맷 규격 원장 형식 오류: {_SPECS_PATH}")
+    specs: dict[AdPurpose, list[FormatSpec]] = {}
+    for pkey, items in data["specs"].items():
+        purpose = AdPurpose(pkey)
+        specs[purpose] = [
+            FormatSpec(
+                purpose=purpose,
+                canvas=tuple(it["canvas"]),
+                hero_fit=it["hero_fit"],
+                copy_density=it["copy_density"],
+                safe_margin=it.get("safe_margin", 0.06),
+                label=it.get("label", ""),
+                note=it.get("note", ""),
+            )
+            for it in items
+        ]
+    return specs
+
+
+_SPECS: dict[AdPurpose, list[FormatSpec]] = _load_specs()
 
 
 def specs_for(purpose: AdPurpose) -> list[FormatSpec]:
