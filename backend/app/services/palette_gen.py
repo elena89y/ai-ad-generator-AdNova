@@ -94,18 +94,26 @@ def _matches(tokens: list[str], hints: tuple[str, ...]) -> bool:
     return False
 
 
-def _classify(subject_en: str, domain: Optional[str]) -> str:
+def _classify(subject_en: str, domain: Optional[str],
+              serving_type: Optional[str] = None) -> str:
     if domain == "object":
         return "OBJECT"
+    # PAL-004(2026-07-24 라이브 원색 사고, historyId=213): serving_type=dessert|bakery 는
+    #   LLM 의미 판정이 정본 — 무조건 SOFT(파스텔 네이밍). "딸기 초코 생크림 케이크"가
+    #   '초코' 힌트로 RICH에 낚여 "a red background"(알몸 원색)를 받은 실측 재현 완료.
+    if serving_type in ("dessert", "bakery"):
+        return "SOFT"
     tokens = _tokens(subject_en)
     if _matches(tokens, _ZESTY_HINTS):
         return "ZESTY"
     if _matches(tokens, _PUNCHY_HINTS):
         return "PUNCHY"
-    if _matches(tokens, _RICH_HINTS):
-        return "RICH"
+    # SOFT(케이크·크림류)를 RICH(초코·커피)보다 먼저 — 초코 케이크는 케이크다(동일 사고의
+    #   serving_type 미전달 경로 방어. 순수 초코·커피 단품만 RICH로).
     if _matches(tokens, _SOFT_HINTS):
         return "SOFT"
+    if _matches(tokens, _RICH_HINTS):
+        return "RICH"
     return "SOFT"
 
 
@@ -291,7 +299,9 @@ def _phrase(hsv: tuple[float, float, float], pclass: Optional[str] = None) -> st
     elif s < 0.58:
         qual = "muted"
     else:
-        qual = ""
+        # PAL-004: 무수식(알몸 색명, 예: "red") 금지 — 렌더가 원색으로 직행하는 구멍.
+        #   vivid 문턱(s≥0.72·v≥0.6) 미달의 중채도는 "rich"로 한정.
+        qual = "rich"
     return f"{qual} {name}".strip()
 
 
@@ -300,15 +310,107 @@ def _seed_int(subject_en: str, seed: Optional[int]) -> int:
     return d ^ (int(seed) & 0xFF if seed is not None else 0)
 
 
+# --- PAL-003(2026-07-24): 파스텔·모노톤 롤아웃 — pop과 같은 "제품 무관 고정 팔레트" 원죄를
+#   같은 추출 엔진으로 교정. 문구 '형태'는 기존 검증된 스타일 언어를 유지(파스텔="pale…low
+#   muted table plane", 모노톤="strict … monochrome environment using … only")하고 색만
+#   제품에서 도출한다. 제품 색 자체는 절대 안 건드림(배경·테이블만 — 기존 direction의
+#   "Keep all food colors fully natural/true" 절이 이중 방어).
+# 모노톤 딥 전용 hue 네이밍 — 일반 _HUE_NAMES(orange 등)는 저명도 모노크롬 환경명으로
+#   부적합(커피가 "deep orange" 실측). 딥 모노톤은 어두운 관용색명이 렌더 언어.
+_MONO_DEEP_NAMES = (
+    (12, "burgundy"), (42, "espresso brown"), (75, "deep olive"), (140, "forest green"),
+    (200, "deep teal"), (255, "midnight blue"), (320, "deep plum"), (352, "burgundy wine"),
+    (360, "burgundy"),
+)
+
+
+def _mono_deep_name(h: float) -> str:
+    for hi, name in _MONO_DEEP_NAMES:
+        if h < hi:
+            return name
+    return "burgundy"
+
+
+def _anchor_hue(subject_en: str, image_path: Optional[str]) -> tuple[float, bool]:
+    """(hue, 유채확신) — 의미(키워드) 우선, 미매치 시 이미지 추출.
+
+    pop은 하모니 회전이라 추출 오염(중앙 크롭 우드)이 완충되지만, 모노톤·파스텔은 단일
+    hue가 전부라 오염이 직격(실측: 딸기케이크→orange 모노톤). 색 함의 키워드가 있으면
+    그것이 정본, 없을 때만 이미지에서.
+    """
+    low = (subject_en or "").lower()
+    for keys, hue in _SUBJECT_HUE:
+        if any(k in low for k in keys):
+            return hue, True
+    extracted = _extract_colors(image_path)
+    if extracted is not None:
+        fh, fs, _ = extracted[0]
+        return fh, fs >= 0.18
+    return 35.0, True  # 웜 뉴트럴 — 무난한 브라운 계열
+
+
+def _pastel_clause(subject_en: str, domain: Optional[str],
+                   image_path: Optional[str], seed: Optional[int]) -> str:
+    fh, _ = _anchor_hue(subject_en, image_path)
+    # SOFT 하모니 로테이션: 톤온톤 / 유사색 / 소프트 보색 — 배경은 제품 조화, 플레인은 보조
+    recipes = ((0.0, 28.0), (-28.0, 28.0), (158.0, 0.0))
+    bg_off, plane_off = recipes[_seed_int(subject_en, seed) % len(recipes)]
+    bg = _appetite_gate((_rot(fh, bg_off), 0.3, 0.9), "SOFT", domain)
+    plane = _appetite_gate((_rot(fh, plane_off), 0.25, 0.86), "SOFT", domain)
+    if domain == "object":
+        return (f"a pale {_pastel_name(bg[0])} background and one low matte "
+                f"{_pastel_name(plane[0])} pedestal behind the product")
+    return (f"a pale {_pastel_name(bg[0])} background and a low muted "
+            f"{_pastel_name(plane[0])} table plane")
+
+
+def _monotone_clause(subject_en: str, domain: Optional[str],
+                     image_path: Optional[str], seed: Optional[int]) -> str:
+    fh, chromatic = _anchor_hue(subject_en, image_path)
+    # 제품이 사실상 무채색이면 기존 도브그레이 유지(적응 근거 없음 — 안전측)
+    if not chromatic:
+        return ("a strict pale dove-gray monochrome environment using soft gray, "
+                "warm white and pale taupe only")
+    deep_name = _mono_deep_name(fh)
+    pale_name = _pastel_name(fh)
+    variants = (
+        f"a strict deep {deep_name} monochrome environment using {deep_name}, "
+        "charcoal and black only",
+        f"a strict pale {pale_name} monochrome environment using soft {pale_name}, "
+        "warm white and pale taupe only",
+    )
+    return variants[_seed_int(subject_en, seed) % len(variants)]
+
+
+def style_palette_clause(style_key: str, subject_en: str, domain: Optional[str],
+                         image_path: Optional[str] = None,
+                         seed: Optional[int] = None,
+                         serving_type: Optional[str] = None) -> Optional[str]:
+    """스타일별 적응형 팔레트 통합 진입점(PAL-003). 미지원 스타일은 None(기존 고정 조회).
+
+    serving_type(PAL-004): dessert|bakery 는 제품군 SOFT 강제 — 이름 힌트 오분류
+    ('초코 케이크'→RICH→원색) 방어의 정본 신호.
+    """
+    if style_key == "pop":
+        return pop_palette_clause(subject_en, domain, image_path, seed,
+                                  serving_type=serving_type)
+    if style_key == "pastel":
+        return _pastel_clause(subject_en, domain, image_path, seed)
+    if style_key == "monotone":
+        return _monotone_clause(subject_en, domain, image_path, seed)
+    return None
+
+
 def pop_palette_clause(subject_en: str, domain: Optional[str],
                        image_path: Optional[str] = None,
-                       seed: Optional[int] = None) -> str:
+                       seed: Optional[int] = None,
+                       serving_type: Optional[str] = None) -> str:
     """제품 적응형 팝 배경 팔레트 문구. `_POP_PALETTES` 고정 조회의 드롭인 대체.
 
     image_path 로 제품 색을 추출(불가 시 subject_en 기반 hue 폴백) → 제품군 분류 →
     하모니 레시피 로테이션 → S/V 대역 clamp + 식욕 게이트 → 배경/테이블 2색 영어 문구.
     """
-    pclass = _classify(subject_en, domain)
+    pclass = _classify(subject_en, domain, serving_type)
     extracted = _extract_colors(image_path)
     if extracted is not None:
         field, accent = extracted

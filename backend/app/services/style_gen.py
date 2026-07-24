@@ -61,15 +61,17 @@ def generate_scene(image_path: str, style_key: str, subject_en: str,
     # food 프리앰블·용기 문구를 원본 용기 유지 긍정 단언으로 치환. None이면 기존 문구 그대로.
     from .reference_style_plans import (build_clip_anchor, build_reference_instruction,
                                         normalize_style)
-    # PAL-001(2026-07-21): 팝 스타일 배경색을 제품 적응형 생성기로 도출(고정 _POP_PALETTES 대체).
-    #   입력 이미지에서 제품 색 추출 → 제품군 분류 → 하모니 레시피 로테이션. 다른 스타일은 미적용
-    #   (파스텔·모노톤은 롤아웃 후속). palette_override 미전달 스타일은 기존 문구와 바이트 동일.
+    # PAL-001→003: 배경 팔레트를 제품 적응형 생성기로 도출(고정 _STYLE_PALETTES 대체).
+    #   pop(PAL-001) 데 이어 파스텔·모노톤 롤아웃(PAL-003, 2026-07-24) — 스타일별 문구 형태는
+    #   유지하고 색만 제품에서. 미지원 스타일(에디토리얼 등)은 None → 기존 문구 바이트 동일.
     palette_override = None
-    # PAL-AB: 적응형 팔레트(PAL-001) before/after 인세션 토글. 기본 on=현행(바이트 동일),
-    #   PAL_ADAPTIVE=0 이면 고정 _POP_PALETTES 폴백(구 동작) → A/B 대조군.
-    if normalize_style(style_key) == "pop" and os.environ.get("PAL_ADAPTIVE", "1") != "0":
+    # PAL-AB: 적응형 팔레트 before/after 인세션 토글. PAL_ADAPTIVE=0 이면 고정 팔레트
+    #   폴백(구 동작) → A/B 대조군·킬스위치.
+    if os.environ.get("PAL_ADAPTIVE", "1") != "0":
         from . import palette_gen
-        palette_override = palette_gen.pop_palette_clause(subject_en, domain, image_path, seed)
+        palette_override = palette_gen.style_palette_clause(
+            normalize_style(style_key) or "", subject_en, domain, image_path, seed,
+            serving_type=serving_type)
     reference_instr = build_reference_instruction(style_key, domain, subject_en,
                                                   container_desc=container_desc,
                                                   container_opacity=container_opacity,

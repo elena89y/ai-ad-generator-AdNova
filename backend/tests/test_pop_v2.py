@@ -134,6 +134,24 @@ def test_noodle_still_rotates_among_three():
     assert len(outs) >= 2
 
 
+@pytest.mark.parametrize("style,bad_marker", [
+    ("monotone", "color-immersion"),   # ③ brand — 면류 4/4 재드로잉
+    ("pastel", "shimmering silk"),     # ① dreamy — 면류 4/4 재드로잉
+])
+def test_noodle_excludes_unsafe_variants_all_styles(style, bad_marker):
+    """면류 안전 서브셋(실측 통과분만): 전 시드에서 위험 변형 절대 미발생 + 잠금 보강절.
+    ⚠️ 보강절에 'egg' 같은 위험 명사 금지(부정문 조건화 소환 실측)."""
+    for s in range(24):
+        instr = _instr(style=style, subject="cream carbonara pasta", scene_seed=s,
+                       serving_type="dish")
+        assert bad_marker not in instr, (style, s)
+        assert "never convert penne into spaghetti" in instr
+        assert "egg" not in instr
+    # 비면류(케이크)는 해당 변형 여전히 도달 가능
+    joined = " ".join(_instr(style=style, scene_seed=s) for s in range(12))
+    assert bad_marker in joined
+
+
 def test_non_noodle_keeps_four():
     """비면류(케이크)는 4종 그대로 — ① 마커가 12시드 안에 등장."""
     joined = " ".join(_instr(scene_seed=s) for s in range(12))
