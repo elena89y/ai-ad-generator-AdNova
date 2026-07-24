@@ -18,6 +18,7 @@ import {
   deleteStoredAd,
   downloadHistoryResult,
   downloadImageUrl,
+  exportSnsPost,
 } from "@/lib/sns";
 import { useStudio } from "@/components/studio/StudioProvider";
 import { AuthenticatedImage } from "@/components/studio/AuthenticatedImage";
@@ -28,6 +29,17 @@ const TABS = [
   { p: "x", label: "X" },
   { p: "threads", label: "Threads" },
 ];
+
+const SHARE_GUIDES: Record<string, string> = {
+  instagram:
+    "이미지는 Instagram 게시물에 자동으로 첨부돼요.\n게시글 문구는 자동 입력되지 않으므로 캡션란에 붙여넣어 주세요.",
+  facebook:
+    "이미지는 Facebook 게시물에 자동으로 첨부돼요.\n게시글 문구는 자동 입력되지 않을 수 있으므로 게시물 작성란에 붙여넣어 주세요.",
+  x:
+    "이미지와 문구가 X 작성 화면에 함께 전달돼요.\n기기나 앱 환경에 따라 문구가 보이지 않으면 문구 복사를 이용해 주세요.",
+  threads:
+    "이미지와 문구가 Threads 작성 화면에 함께 전달돼요.\n기기나 앱 환경에 따라 문구가 보이지 않으면 문구 복사를 이용해 주세요.",
+};
 
 function AdNovaWatermark() {
   return (
@@ -68,6 +80,7 @@ function DetailContent() {
   const [platform, setPlatform] = useState("instagram");
   const [loading, setLoading] = useState(false);
   const [typographyOn, setTypographyOn] = useState(true);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
 
   const requestedHistoryId = Number(searchParams.get("historyId"));
 
@@ -141,6 +154,22 @@ function DetailContent() {
     };
   }, [historyId, item?.historyId, router, s]);
 
+  useEffect(() => {
+    if (!shareModalOpen) return;
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setShareModalOpen(false);
+      }
+    }
+
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [shareModalOpen]);
+
   if (!s.ready || !s.token) {
     return (
       <div className="page">
@@ -171,7 +200,27 @@ function DetailContent() {
     : item.img;
 
   function openShare() {
-    if (!item) return;
+    setShareModalOpen(true);
+  }
+
+  async function copyShareText() {
+    const shareText = [copy.head, copy.body, copy.tags]
+      .filter(Boolean)
+      .join("\n\n");
+
+    try {
+      await navigator.clipboard.writeText(shareText);
+      s.toast("게시글 문구를 복사했어요.");
+    } catch {
+      s.toast("문구를 복사하지 못했습니다. 문구를 직접 선택해 복사해 주세요.");
+    }
+  }
+
+  async function shareCurrentPlatform() {
+    if (!item) {
+      s.toast("공유할 광고 정보를 찾을 수 없습니다.");
+      return;
+    }
 
     const shareItem = hasTypographyPair
       ? {
@@ -181,15 +230,24 @@ function DetailContent() {
         }
       : item;
 
-    s.openShare(
-      shareItem,
-      historyId
-        ? `/detail?historyId=${historyId}`
-        : "/detail",
-      platform,
-    );
-
-    router.push("/share");
+    try {
+      await exportSnsPost(
+        platform,
+        {
+          ...shareItem,
+          copyHead: copy.head,
+          copyBody: copy.body,
+          copyTags: copy.tags,
+        },
+        s.toast,
+      );
+    } catch (error) {
+      s.toast(
+        error instanceof Error
+          ? error.message
+          : "SNS 공유를 실행하지 못했습니다.",
+      );
+    }
   }
 
   async function downloadFormat(
@@ -395,14 +453,16 @@ function DetailContent() {
 
             <div className="detail-actions">
               <button
+                type="button"
                 className="oa"
                 onClick={openShare}
               >
-                ↗ 공유
+                ⤴ 공유
               </button>
 
               {s.isPremium && (
                 <button
+                  type="button"
                   className="oa download"
                   onClick={() =>
                     hasTypographyPair
@@ -422,6 +482,7 @@ function DetailContent() {
               )}
 
               <button
+                type="button"
                 className="oa delete"
                 onClick={deleteAd}
               >
@@ -571,6 +632,7 @@ function DetailContent() {
                   </button>
                 ))}
               </div>
+
 
               <div
                 style={{
@@ -762,6 +824,239 @@ function DetailContent() {
           </div>
         )}
       </div>
+
+
+      {shareModalOpen && (
+        <div
+          role="presentation"
+          onClick={() => setShareModalOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+            background: "rgba(0, 0, 0, 0.68)",
+            backdropFilter: "blur(6px)",
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="share-modal-title"
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "min(100%, 480px)",
+              maxHeight: "calc(100vh - 40px)",
+              overflowY: "auto",
+              padding: 22,
+              border: "1px solid var(--line)",
+              borderRadius: 18,
+              background: "#1d1c22",
+              boxShadow: "0 24px 70px rgba(0, 0, 0, 0.55)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 16,
+                marginBottom: 18,
+              }}
+            >
+              <div>
+                <h3
+                  id="share-modal-title"
+                  style={{
+                    margin: 0,
+                    fontSize: 19,
+                  }}
+                >
+                  SNS에 공유하기
+                </h3>
+
+                <p
+                  style={{
+                    margin: "6px 0 0",
+                    fontSize: 12,
+                    color: "var(--ink-mute)",
+                  }}
+                >
+                  공유할 플랫폼과 문구를 확인하세요.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                aria-label="공유창 닫기"
+                onClick={() => setShareModalOpen(false)}
+                style={{
+                  width: 34,
+                  height: 34,
+                  border: "1px solid var(--line)",
+                  borderRadius: 9,
+                  background: "transparent",
+                  color: "var(--ink-soft)",
+                  fontSize: 19,
+                  cursor: "pointer",
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: 6,
+                marginBottom: 16,
+              }}
+            >
+              {TABS.map((tab) => (
+                <button
+                  key={tab.p}
+                  type="button"
+                  className={`shtab${
+                    platform === tab.p ? " on" : ""
+                  }`}
+                  onClick={() => setPlatform(tab.p)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div
+              style={{
+                marginBottom: 14,
+                padding: "11px 13px",
+                border: "1px solid rgba(139, 92, 246, 0.3)",
+                borderRadius: 11,
+                background: "rgba(139, 92, 246, 0.09)",
+                fontSize: 12,
+                lineHeight: 1.6,
+                color: "var(--ink-soft)",
+                whiteSpace: "pre-line",
+              }}
+            >
+              💡 {SHARE_GUIDES[platform]}
+            </div>
+
+            <div
+              style={{
+                position: "relative",
+                overflow: "hidden",
+                marginBottom: 16,
+                border: "1px solid var(--line)",
+                borderRadius: 12,
+                background: "#16151a",
+              }}
+            >
+              <AuthenticatedImage
+                src={detailImageSrc}
+                alt="공유할 광고 이미지"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  maxHeight: 260,
+                  objectFit: "contain",
+                }}
+              />
+
+              {!s.isPremium && <AdNovaWatermark />}
+            </div>
+
+            <div
+              style={{
+                padding: 15,
+                border: "1px solid var(--line)",
+                borderRadius: 12,
+                background: "#18171c",
+              }}
+            >
+              <div
+                style={{
+                  marginBottom: 8,
+                  fontSize: 15,
+                  fontWeight: 700,
+                  fontFamily: "var(--serif)",
+                  fontStyle: "italic",
+                }}
+              >
+                {copy.head}
+              </div>
+
+              <div
+                style={{
+                  fontSize: 12.5,
+                  lineHeight: 1.65,
+                  color: "var(--ink-soft)",
+                  whiteSpace: "pre-line",
+                }}
+              >
+                {copy.body}
+              </div>
+
+              {copy.tags && (
+                <div
+                  style={{
+                    marginTop: 9,
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    color: "var(--gold)",
+                    whiteSpace: "pre-line",
+                  }}
+                >
+                  {copy.tags}
+                </div>
+              )}
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 9,
+                marginTop: 18,
+              }}
+            >
+              <button
+                type="button"
+                className="oa"
+                onClick={() => setShareModalOpen(false)}
+              >
+                취소
+              </button>
+
+              <button
+                type="button"
+                className="oa"
+                onClick={() => void copyShareText()}
+              >
+                📋 문구 복사
+              </button>
+
+              <button
+                type="button"
+                className="oa download"
+                onClick={() => void shareCurrentPlatform()}
+              >
+                {platform === "instagram"
+                  ? "⤴ Instagram으로 공유"
+                  : platform === "facebook"
+                    ? "⤴ Facebook으로 공유"
+                    : platform === "x"
+                      ? "⤴ X로 공유"
+                      : "⤴ Threads로 공유"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </section>
   );
 }

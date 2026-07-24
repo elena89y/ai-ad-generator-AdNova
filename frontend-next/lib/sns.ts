@@ -79,9 +79,9 @@ export async function exportSnsPost(
     /*
      * 2. 문구를 클립보드에 미리 복사
      *
-     * Instagram 등 일부 앱은 공유된 text를
-     * 게시물 본문에 넣지 않을 수 있기 때문에
-     * 사용자가 직접 붙여넣을 수 있도록 복사한다.
+     * SNS 앱과 기기 환경에 따라 공유된 text가
+     * 게시물 본문에 자동 입력되지 않을 수 있기 때문에
+     * 사용자가 직접 붙여넣을 수 있도록 미리 복사한다.
      */
     await copyTextSafely(postText);
 
@@ -146,10 +146,17 @@ export async function exportSnsPost(
     );
 
     /*
-     * 6. 모바일 파일 공유 가능 여부 확인
+     * 6. 모바일 기기 및 파일 공유 가능 여부 확인
+     *
+     * Windows도 navigator.share를 지원할 수 있으므로
+     * 모바일 기기에서만 운영체제 공유 시트를 사용한다.
      */
-    const canShareImage =
+    const isMobileDevice =
       typeof navigator !== "undefined" &&
+      /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    const canShareImage =
+      isMobileDevice &&
       typeof navigator.share === "function" &&
       typeof navigator.canShare === "function" &&
       navigator.canShare({
@@ -159,8 +166,9 @@ export async function exportSnsPost(
     /*
      * 7. 모바일: 운영체제 공유 시트 실행
      *
-     * 사용자가 Instagram, Facebook, X, Threads 등을
-     * 직접 선택하고 내용을 수정한 뒤 게시한다.
+     * Instagram, Facebook, X, Threads 모두
+     * 기기나 앱 환경에 따라 문구 자동 입력 여부가 달라질 수 있다.
+     * 문구는 이미 클립보드에 복사되어 있다.
      */
     if (canShareImage) {
       await navigator.share({
@@ -170,7 +178,7 @@ export async function exportSnsPost(
       });
 
       toast(
-        "공유창을 열었어요. 문구가 자동 입력되지 않으면 붙여넣기 해주세요"
+        "이미지를 공유했어요. 문구가 자동 입력되지 않으면 붙여넣어 주세요."
       );
 
       return;
@@ -185,9 +193,7 @@ export async function exportSnsPost(
     downloadShareImage(imageFile);
 
     const shareUrls: Record<string, string> = {
-      x: `https://twitter.com/intent/tweet?text=${encodeURIComponent(
-        postText
-      )}`,
+      x: `https://x.com/intent/post?text=${encodeURIComponent(postText)}`,
       facebook: "https://www.facebook.com/",
       instagram: "https://www.instagram.com/",
       threads: "https://www.threads.net/",
@@ -233,11 +239,22 @@ export async function exportSnsPost(
 }
 
 export async function deleteStoredAd(historyId?: number): Promise<void> {
-  if (!historyId) throw new Error("삭제할 광고 이력을 찾을 수 없습니다");
-  const res = await apiFetch(`/api/history/${historyId}/result`, { method: "DELETE" });
+  if (!historyId) {
+    throw new Error("삭제할 광고 이력을 찾을 수 없습니다");
+  }
+
+  const res = await apiFetch(
+    `/api/history/${historyId}/result`,
+    {
+      method: "DELETE",
+    }
+  );
+
   if (!res.ok) {
     const data = await readJsonSafely(res);
-    throw new Error(readApiError(data, "광고 삭제에 실패했습니다"));
+    throw new Error(
+      readApiError(data, "광고 삭제에 실패했습니다")
+    );
   }
 }
 
@@ -249,24 +266,39 @@ export async function downloadHistoryResult(
     toast("다운로드할 광고 이력을 찾을 수 없습니다");
     return;
   }
+
   try {
-    const res = await apiFetch(`/api/history/${historyId}/result/download`);
+    const res = await apiFetch(
+      `/api/history/${historyId}/result/download`
+    );
+
     if (!res.ok) {
       const data = await readJsonSafely(res);
-      throw new Error(readApiError(data, "광고 이미지를 다운로드하지 못했습니다"));
+      throw new Error(
+        readApiError(data, "광고 이미지를 다운로드하지 못했습니다")
+      );
     }
+
     const blob = await res.blob();
     const objectUrl = URL.createObjectURL(blob);
     const link = document.createElement("a");
+
     link.href = objectUrl;
     link.download = "adnova-ad.png";
+
     document.body.appendChild(link);
     link.click();
     link.remove();
+
     URL.revokeObjectURL(objectUrl);
+
     toast("고해상도 원본을 다운로드했어요");
   } catch (err) {
-    toast(err instanceof Error ? err.message : "광고 이미지를 다운로드하지 못했습니다");
+    toast(
+      err instanceof Error
+        ? err.message
+        : "광고 이미지를 다운로드하지 못했습니다"
+    );
   }
 }
 
@@ -289,8 +321,8 @@ function getImageExtension(mimeType: string): string {
 
 function downloadShareImage(file: File): void {
   const objectUrl = URL.createObjectURL(file);
-
   const link = document.createElement("a");
+
   link.href = objectUrl;
   link.download = file.name;
 
@@ -307,28 +339,46 @@ export async function downloadImageUrl(
 ): Promise<void> {
   try {
     const res = await apiFetch(imageUrl);
+
     if (!res.ok) {
       throw new Error("광고 이미지를 다운로드하지 못했습니다");
     }
+
     const blob = await res.blob();
     const objectUrl = URL.createObjectURL(blob);
     const link = document.createElement("a");
+
     link.href = objectUrl;
     link.download = "adnova-ad.png";
+
     document.body.appendChild(link);
     link.click();
     link.remove();
+
     URL.revokeObjectURL(objectUrl);
+
     toast("이미지를 다운로드했어요");
   } catch (err) {
-    toast(err instanceof Error ? err.message : "광고 이미지를 다운로드하지 못했습니다");
+    toast(
+      err instanceof Error
+        ? err.message
+        : "광고 이미지를 다운로드하지 못했습니다"
+    );
   }
 }
 
-// 헬퍼 추가
 function toFullUrl(url: string): string {
-  if (/^https?:\/\//i.test(url)) return url;
-  const path = toAbsoluteUrl(url) || url;   // API base 경로 보정
-  if (/^https?:\/\//i.test(path)) return path;
-  return `${window.location.origin}${path.startsWith("/") ? "" : "/"}${path}`;
+  if (/^https?:\/\//i.test(url)) {
+    return url;
+  }
+
+  const path = toAbsoluteUrl(url) || url;
+
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+
+  return `${window.location.origin}${
+    path.startsWith("/") ? "" : "/"
+  }${path}`;
 }
