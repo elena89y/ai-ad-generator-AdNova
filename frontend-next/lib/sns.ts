@@ -23,9 +23,9 @@ export const PLATFORM_NAMES: Record<string, string> = {
 };
 
 /* POST /api/export/sns
- * → SNS 문구 생성
- * → 문구 클립보드 복사
- * → 모바일: 이미지 + 문구를 공유 시트로 전달
+ * → SNS 내보내기 API 호출
+ * → 상세 화면의 플랫폼별 문구를 클립보드에 복사
+ * → 모바일: 이미지 + 상세 화면 문구를 공유 시트로 전달
  * → PC: 이미지 다운로드 + SNS 페이지 열기
  */
 export async function exportSnsPost(
@@ -47,9 +47,13 @@ export async function exportSnsPost(
 
   try {
     /*
-     * 1. 백엔드에서 SNS용 문구 생성
-     */
-    const res = await apiFetch("/api/export/sns", {
+    * 1. 백엔드 SNS 내보내기 API 호출
+    *
+    * 기존 export API 연동은 유지한다.
+    * 다만 백엔드가 반환한 post_text는 실제 공유 문구로 사용하지 않고,
+    * 상세 화면에 표시된 플랫폼별 카피를 그대로 공유한다.
+    */
+    const exportResponse = await apiFetch("/api/export/sns", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -57,36 +61,57 @@ export async function exportSnsPost(
       body: JSON.stringify({
         platform,
         image_url: toFullUrl(item.img),
-        product_name: item.productName || item.hl || "광고 상품",
-        headline: item.copyHead || item.hl || null,
-        description: item.copyBody || null,
-        style: item.style || null,
+        product_name:
+          item.productName || item.hl || "광고 상품",
+        headline:
+          item.copyHead || item.hl || null,
+        description:
+          item.copyBody || null,
+        style:
+          item.style || null,
       }),
     });
 
-    const data = (await readJsonSafely(res)) as {
-      post_text?: string;
-    } | null;
+    const exportData = await readJsonSafely(exportResponse);
 
-    if (!res.ok || !data?.post_text) {
+    if (!exportResponse.ok) {
       throw new Error(
-        readApiError(data, "SNS 공유 문구를 만들지 못했습니다")
+        readApiError(
+          exportData,
+          "SNS 공유 정보를 생성하지 못했습니다"
+        )
       );
     }
 
-    const postText = data.post_text;
+    /*
+    * 2. 상세 화면에 표시된 플랫폼별 문구를 그대로 사용
+    *
+    * 백엔드 응답의 exportData.post_text는 사용하지 않는다.
+    */
+    const postText = [
+      item.copyHead,
+      item.copyBody,
+      item.copyTags,
+    ]
+      .filter(
+        (value): value is string =>
+          Boolean(value?.trim())
+      )
+      .map((value) => value.trim())
+      .join("\n\n");
+
+    if (!postText) {
+      toast("공유할 게시글 문구가 없습니다");
+      return;
+    }
 
     /*
-     * 2. 문구를 클립보드에 미리 복사
-     *
-     * SNS 앱과 기기 환경에 따라 공유된 text가
-     * 게시물 본문에 자동 입력되지 않을 수 있기 때문에
-     * 사용자가 직접 붙여넣을 수 있도록 미리 복사한다.
-     */
+    * 3. 문구를 클립보드에 미리 복사
+    */
     await copyTextSafely(postText);
 
     /*
-     * 3. 공유할 이미지 다운로드
+     * 4. 공유할 이미지 다운로드
      *
      * 저장된 광고라면 history 다운로드 API를 우선 사용한다.
      * 해당 API는 인증된 원본 이미지를 반환한다.
@@ -124,7 +149,7 @@ export async function exportSnsPost(
     }
 
     /*
-     * 4. 이미지 응답을 Blob으로 변환
+     * 5. 이미지 응답을 Blob으로 변환
      */
     const imageBlob = await imageResponse.blob();
 
@@ -133,7 +158,7 @@ export async function exportSnsPost(
     }
 
     /*
-     * 5. Blob을 공유 가능한 File 객체로 변환
+     * 6. Blob을 공유 가능한 File 객체로 변환
      */
     const extension = getImageExtension(imageBlob.type);
 
@@ -146,7 +171,7 @@ export async function exportSnsPost(
     );
 
     /*
-     * 6. 모바일 기기 및 파일 공유 가능 여부 확인
+     * 7. 모바일 기기 및 파일 공유 가능 여부 확인
      *
      * Windows도 navigator.share를 지원할 수 있으므로
      * 모바일 기기에서만 운영체제 공유 시트를 사용한다.
@@ -164,7 +189,7 @@ export async function exportSnsPost(
       });
 
     /*
-     * 7. 모바일: 운영체제 공유 시트 실행
+     * 8. 모바일: 운영체제 공유 시트 실행
      *
      * Instagram, Facebook, X, Threads 모두
      * 기기나 앱 환경에 따라 문구 자동 입력 여부가 달라질 수 있다.
@@ -185,7 +210,7 @@ export async function exportSnsPost(
     }
 
     /*
-     * 8. PC 또는 파일 공유 미지원 환경
+     * 9. PC 또는 파일 공유 미지원 환경
      *
      * 이미지를 다운로드하고
      * 선택한 SNS 페이지를 새 창으로 연다.
