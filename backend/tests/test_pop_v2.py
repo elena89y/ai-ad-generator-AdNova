@@ -162,3 +162,12 @@ def test_non_noodle_keeps_four():
     """비면류(케이크)는 4종 그대로 — ① 마커가 12시드 안에 등장."""
     joined = " ".join(_instr(scene_seed=s) for s in range(12))
     assert "joyful pop energy" in joined
+
+
+def test_retouch_clause_present():
+    """RETOUCH-001: 스타일 로테이션·디저트 락 모두 '보정 허용(변형 금지)' 절 포함 —
+    본체가 폰사진 노출 그대로 남는 이질감(07-24 아트디렉터) 방지."""
+    pop = _instr(scene_seed=0)
+    assert "DO retouch the food photographically" in pop
+    dessert = _instr(style="editorial")   # 케이크+비-pop → food_dessert 락
+    assert "DO retouch the dessert photographically" in dessert

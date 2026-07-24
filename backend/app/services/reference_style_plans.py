@@ -357,9 +357,13 @@ _IDENTITY_LOCKS = {
         "angle — never standing upright or propped on its edge. It is a slice or piece of cake or dessert lying "
         "flat on its widest base, the same way it was photographed. There is no cup, mug, tumbler, lid or straw "
         "anywhere in this image. "
-        "Edit this exact dessert photograph. Keep the dessert itself completely unchanged: its exact shape, "
-        "layers, cream, frosting, toppings, fruit, crumb, texture and true colors — do not add, remove, redraw, "
-        "resize, recolor or rearrange any part of the dessert. "
+        "Edit this exact dessert photograph. Keep the dessert itself structurally unchanged: its exact shape, "
+        "layers, cream, frosting, toppings, fruit, crumb, texture and hue identity — do not add, remove, redraw, "
+        "resize, repaint or rearrange any part of the dessert. "
+        # RETOUCH-001(2026-07-24): 본체가 폰사진 노출 그대로 보존되는 이질감 교정 — 보정 O/변형 X.
+        "DO retouch the dessert photographically like a professional food advertisement: brighten its exposure, "
+        "remove any haze, and add crisp appetizing gloss and fresh natural vibrancy to what is already there — "
+        "enhancing only, with the same hues, never restyling the dessert. Remove any screenshot interface elements, app icons, buttons, watermarks or overlaid graphics from the photo — they are not part of the food or the scene. "
         # 핵심 개정: '접시 고정'을 풀되 대상은 '용기(접시)'로 한정, 케이크는 위에서 보존한다.
         "You SHOULD replace the plain plate underneath with a distinctly beautiful designer dessert plate worthy "
         "of a high-end patisserie — an artisanal ceramic with a refined sculpted or scalloped rim, a delicate "
@@ -396,9 +400,15 @@ _IDENTITY_LOCKS = {
     #   ② 접시 위 먹음직 가니시 허용 — 단 "그 음식에 실제 보이는 재료"만(정직성: 없는 재료
     #      위장 금지는 유지, 데코 수준만 완화). r2 시안 육안 판정으로 채택.
     "food_pop": (
-        "This is a real plated food photograph. Keep the food itself completely unchanged: its exact shape, "
-        "layers, textures, toppings and true colors — do not redraw, resize or recolor any part of the food "
+        "This is a real plated food photograph. Keep the food itself structurally unchanged: its exact shape, "
+        "layers, textures, toppings and hue identity — do not redraw, resize or repaint any part of the food "
         "itself, and never convert it into a cup, beverage or different object. "
+        # RETOUCH-001(2026-07-24 아트디렉터: "원본 유지하되 먹음직스럽게 — 뿌연 사진 그대로는
+        #   너무 별로"): 배경·소품은 스튜디오급인데 본체가 폰사진 노출 그대로라 이질감 —
+        #   프로 푸드 리터치를 명시 허용(보정 O / 변형 X). A모드 리터치 철학의 스타일 경로 이식.
+        "DO retouch the food photographically like a professional food advertisement: brighten its "
+        "exposure, remove any haze, and add crisp appetizing gloss and fresh natural vibrancy to what is "
+        "already there — enhancing only, with the same hues, never restyling the food. Remove any screenshot interface elements, app icons, buttons, watermarks or overlaid graphics from the photo — they are not part of the food or the scene. "
         "You MAY replace the plain plate with a beautiful elegant dessert plate that flatters the scene, and "
         "you MAY add tasteful appetizing garnish using only the same ingredients already visible in the food. "
         # PLATING-001-2/3 검증 문구 이식(pop에서 발생한 사고라 완화 잠금에도 필수 유지):
