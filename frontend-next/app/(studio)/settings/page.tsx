@@ -15,6 +15,7 @@ import {
   toAbsoluteUrl,
 } from "@/lib/api";
 import { useHydrated, useStudio } from "@/components/studio/StudioProvider";
+import { useAuthenticatedImage } from "@/components/studio/AuthenticatedImage";
 import { SubBar } from "@/components/studio/chrome";
 
 export default function SettingsPage() {
@@ -35,7 +36,9 @@ export default function SettingsPage() {
   const [activeNav, setActiveNav] = useState("setProfile");
 
   const social = hydrated ? isSocialAuthUser() : false;
-  const avatarPhoto = hydrated ? s.profileImageUrl || "" : "";
+  const { displaySrc: avatarPhoto } = useAuthenticatedImage(
+    hydrated ? s.profileImageUrl : ""
+  );
 
   useEffect(() => {
     if (s.ready && !s.token) router.replace("/login");

@@ -21,20 +21,15 @@ function requiresToken(src: string): boolean {
 
     return (
       url.pathname.startsWith("/api/ads/image/") ||
-      url.pathname.startsWith("/api/ads/template-thumb/") // v6 T4 템플릿 썸네일도 인증 필요
+      url.pathname.startsWith("/api/ads/template-thumb/") || // v6 T4 템플릿 썸네일도 인증 필요
+      url.pathname.startsWith("/api/account/profile-image/")
     );
   } catch {
     return false;
   }
 }
 
-export function AuthenticatedImage({
-  src,
-  alt,
-  className,
-  style,
-  ...props
-}: AuthenticatedImageProps) {
+export function useAuthenticatedImage(src?: string | null) {
   const [displaySrc, setDisplaySrc] = useState("");
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [retryKey, setRetryKey] = useState(0);
@@ -106,6 +101,26 @@ export function AuthenticatedImage({
     };
   }, [src, retryKey]);
 
+  return {
+    displaySrc,
+    loadState,
+    retry: () => setRetryKey((value) => value + 1),
+    markError: () => {
+      setDisplaySrc("");
+      setLoadState("error");
+    },
+  };
+}
+
+export function AuthenticatedImage({
+  src,
+  alt,
+  className,
+  style,
+  ...props
+}: AuthenticatedImageProps) {
+  const { displaySrc, loadState, retry, markError } = useAuthenticatedImage(src);
+
   if (!displaySrc || loadState !== "ready") {
     const stateStyle: CSSProperties = {
       ...style,
@@ -129,7 +144,7 @@ export function AuthenticatedImage({
                 type="button"
                 onClick={(event) => {
                   event.stopPropagation();
-                  setRetryKey((value) => value + 1);
+                  retry();
                 }}
                 style={{
                   border: "1px solid rgba(255,255,255,.22)",
@@ -160,10 +175,7 @@ export function AuthenticatedImage({
       alt={alt ?? ""}
       className={className}
       style={style}
-      onError={() => {
-        setDisplaySrc("");
-        setLoadState("error");
-      }}
+      onError={markError}
     />
   );
 }

@@ -95,10 +95,16 @@ def read_profile_image(
 def read_profile_image_file(
     image_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> FileResponse:
+    """로그인한 사용자가 본인 프로필 사진만 조회한다."""
     image = (
         db.query(Image)
-        .filter(Image.id == image_id, Image.image_type == "profile")
+        .filter(
+            Image.id == image_id,
+            Image.user_id == current_user.id,
+            Image.image_type == "profile",
+        )
         .first()
     )
     upload_dir = Path(settings.UPLOAD_DIR).resolve()
