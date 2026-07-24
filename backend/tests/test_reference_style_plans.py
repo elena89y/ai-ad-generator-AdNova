@@ -108,7 +108,9 @@ def test_food_identity_lock_forbids_propped_up_food_styling() -> None:
     assert "propped up" in instruction
     assert "leaning against anything" in instruction
     assert "slice of bread, toast, cake" in instruction
-    assert "never a food item standing upright" in instruction
+    # RETOUCH-003-2: T5 512토큰 예산 압축으로 "never a food item standing upright" →
+    #   "never standing upright" (가드 의미 동일, test_t5_budget이 예산을 고정)
+    assert "never standing upright" in instruction
 
 
 def test_container_default_path_keeps_measured_bug_fix_phrases() -> None:
