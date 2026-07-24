@@ -449,6 +449,78 @@ _POP_FOOD_VARIANTS: tuple[str, ...] = (
     "no hard edge. Bold playful composition, crisp pop lighting.",
 )
 
+# STYLE-V2(2026-07-24, 아트디렉터 판정 "팝과 차이 없다·그릇 엉망·소품 없어 단조"): 모노톤·
+#   파스텔도 pop과 동일한 아키타입 붕괴 상태였음 — 레퍼런스(01_스타일무드/monotone·pastel)의
+#   각 3아키타입을 로테이션으로 복원. 그릇(스타일 무드 매칭)·소품({props} 재료 기반+비식품
+#   무드 오브제) 포함. {palette}=PAL-003 적응형 절.
+_MONO_FOOD_VARIANTS: tuple[str, ...] = (
+    # ① dark_color_lock — 딥 모노크롬 + 톤 매칭 박스·리본 오브제 스택 (레퍼런스: 블랙 기프트박스)
+    "Set a dramatic dark color-lock scene: the food on a matte charcoal stone plate, a neat stack of "
+    "tone-matched gift boxes and a satin ribbon in the same deep hue arranged behind it, with {props} "
+    "beside the plate. Use {palette}. Keep the food's true colors vivid and isolated against the "
+    "monochrome surroundings. Precise warm rim light and one bold diagonal shadow, premium editorial "
+    "quality, every object clearly shaped and photorealistic.",
+    # ② gold_blush_luxury v3 (구 pale_color_lock — r2 실패: 앞접시 2장 겹침·파스텔과 혼동.
+    #   아트디렉터 07-24: "밝게 하려면 골드+핑크" → 페일 락을 골드+블러시 럭셔리로 재정의,
+    #   주얼리 캠페인 급 고급감. 접시=골드림 마블 슬랩 단일.)
+    "Set a luxurious bright scene in blush and gold: the food kept exactly as photographed, presented "
+    "on a single polished pale marble slab plate with a thin brushed-gold rim — one plate only, never "
+    "stacked plates — resting on a low marble pedestal. Behind it one small polished gold sphere and "
+    "a short round gold pillar-stand as decor. Use {palette} with warm golden accents. Elegant "
+    "directional light with one long refined shadow; the food's true colors isolated. Premium "
+    "jewelry-campaign quality, every object clearly shaped and photorealistic.",
+    # ③ brand_color_lock — 주조색 몰입 + 대각 구도 (레퍼런스: smize 레드 몰입. r-pasta 실측:
+    #   연한 제품은 몰입이 밍밍해짐 → 색족의 가장 딥한 톤으로 몰입 채도 강화 + 본체 고정 명시)
+    "Set a bold color-immersion scene: the food kept exactly as photographed, while the background, "
+    "table surface and a smooth ceramic plate are all drenched in the same color family — use the "
+    "deepest, most saturated tone of {palette} for the immersion. The food's true colors stand out as "
+    "the only contrast, with {props} placed sparsely beside the plate. Dynamic diagonal framing, "
+    "crisp studio light, every object clearly shaped and photorealistic.",
+)
+
+_PASTEL_FOOD_VARIANTS: tuple[str, ...] = (
+    # ① dreamy_float v3 — 쉬머 실크 표면 (r2: 유리 접시는 성공, 표면 쉬머 약함 + 아트디렉터
+    #   07-24 "부드러운 소품 = 쉬머 천·실크, 팝과 차이가 없다" → 파스텔의 소품 언어는 재료가
+    #   아니라 소프트 텍스타일. 표면 자체를 흐르는 쉬머 실크로.)
+    "Create a dreamy pastel scene: the food on a wavy fluted opalescent glass dessert plate, set on "
+    "flowing shimmering silk fabric with a soft satin sheen, gentle folds catching the light all "
+    "around — never a flat solid background. Use {palette} as the silk's tint. Only a few small "
+    "{props} tucked into the silk folds. Soft diffused dreamy light with gentle bokeh; keep all food "
+    "colors fully natural, never pastel-tinted.",
+    # ② soft_pedestal — 새틴/시폰 드레이프 위 (레퍼런스: 핑크 시폰 팔찌. r1 통과작 — 실크·시폰
+    #   레이어링만 보강)
+    "Style the food on a scalloped pastel ceramic plate set on softly draped silk satin fabric with "
+    "gentle flowing folds, a sheer chiffon layer drifting at the edge of frame. Use {palette}. A few "
+    "{props} nestled in the fabric folds, each clearly shaped. High-key soft light, tender gift-like "
+    "romantic mood; keep all food colors fully natural.",
+    # ③ pastel_product_hero v3 — 파스텔 공간 감성 + 실크 러너 (아트디렉터 07-24: 소프트
+    #   텍스타일이 파스텔의 소품 언어 — 리넨 냅킨 대신 실크 러너로 팝과 차별화)
+    "Place the food on a scalloped wavy-rim pastel ceramic plate set on a flowing silk table runner "
+    "with a soft sheen, in an airy pastel room corner: a softly textured plaster wall with a gentle "
+    "gradient of window light — never a flat solid background — a small pastel ceramic vase with "
+    "baby's breath and a pastel mug nearby, a few {props} beside the plate. Use {palette} as the "
+    "room's tint. Calm serene styling, every object clearly shaped and photorealistic; keep all food "
+    "colors fully natural, never pastel-tinted.",
+)
+
+# 스타일 → food 변형 로테이션 (pop 메커니즘 일반화). 완화 잠금(food_pop)은 3스타일 공용 —
+#   내용이 팝 전용이 아니라 "본체 불변 + 접시 교체 + 실재 재료 가니시" 중립 계약.
+_STYLE_FOOD_VARIANTS: dict[str, tuple[str, ...]] = {
+    "pop": _POP_FOOD_VARIANTS,
+    "monotone": _MONO_FOOD_VARIANTS,
+    "pastel": _PASTEL_FOOD_VARIANTS,
+}
+
+# 면류 안전 변형 인덱스(실측 통과분만 — "펜네 무조건 보존" 아트디렉터 하드 요구, 07-24):
+#   pop: ①scatter 제외 / monotone: ③brand 몰입 제외(4/4 재드로잉) / pastel: ①dreamy 전면
+#   실크 제외(4/4). 케이크·디저트 등 비면류는 전 변형 로테이션 유지.
+_NOODLE_SAFE_IDX: dict[str, tuple[int, ...]] = {
+    "pop": (1, 2, 3),
+    "monotone": (0, 1),
+    "pastel": (1, 2),
+}
+
+
 # 재료명 → 구체 소품 문구 (POP-V2.1). analyze_menu/analyze_photo 의 core_ingredients(영문 ASCII
 #   보장)를 시각적 소품 명사구로 변환 — "치즈"류는 노란 큐브, 과일류는 신선 통과일+동결건조 칩,
 #   크림류는 파이핑 로제트 등 **그릴 수 있는 형태**를 함께 준다(아트디렉터 07-24: "구슬을 넣던가
@@ -462,7 +534,8 @@ _PROP_SHAPES = (
     (("chocolate", "choco", "cocoa"), "small glossy {name} shards"),
     (("nut", "almond", "peanut", "walnut"), "whole {name}s"),
     (("bacon", "ham"), "crisp {name} curls"),
-    (("egg",), "small soft-boiled {name} halves"),
+    # egg 는 소품 부적합(2026-07-24 아트디렉터): 크림소스에 녹는 재료를 반숙/후라이 형태로
+    #   올리는 연출은 그 요리의 실제 서빙과 다름 — 소품 후보에서 제외.
     (("herb", "basil", "arugula", "rocket", "parsley", "mint"), "fresh {name} leaves"),
 )
 
@@ -793,24 +866,39 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
     #   디저트 용기)은 용기 보존이 우선이라 제외(기존 pop direction 유지). 로테이션은
     #   subject+scene_seed 결정론(palette_gen 레시피 로테이션과 동일 패턴) — 같은 가게도
     #   재생성마다 다른 연출, 같은 시드는 재현 가능.
-    # 락 우선순위(머지 정합 2026-07-24): pop이면 food_pop이 디저트 락을 덮는다(의도 — 접시
-    #   교체·가니시 허용이 food_pop에 이미 포함). 디저트 재플레이팅 락은 비-pop 스타일 전용.
-    pop_v2 = plan.domain == "food" and plan.style_key == "pop" and not is_vessel
-    if pop_v2:
-        # NOODLE-GUARD(2026-07-24 라이브 실측 2회): 면류는 ①(scatter/flat-lay 압력)이 탑다운
-        #   전환과 함께 본체를 재드로잉(펜네→스파게티, 함정#4 면류 취약) — 강화 문구로도 못
-        #   막음. 면류는 ①을 로테이션에서 제외(②③④) — ③은 면류 보존 2/2 실측 성공.
-        variants = _POP_FOOD_VARIANTS
-        if any(h in subject.lower() for h in _NOODLE_HINTS):
-            variants = _POP_FOOD_VARIANTS[1:]
+    # 락 우선순위(머지 정합 2026-07-24): styled 로테이션(pop·monotone·pastel)이면 food_pop
+    #   공용 완화 잠금이 디저트 락을 덮는다(의도 — 접시 교체·가니시 허용 포함). 디저트
+    #   재플레이팅 락은 비-로테이션 스타일(에디토리얼·리얼리즘 등) 전용.
+    styled_v2 = (plan.domain == "food" and plan.style_key in _STYLE_FOOD_VARIANTS
+                 and not is_vessel)
+    if styled_v2:
+        variants = _STYLE_FOOD_VARIANTS[plan.style_key]
+        is_noodle = any(h in subject.lower() for h in _NOODLE_HINTS)
+        # NOODLE-GUARD 변형 서브셋(2026-07-24 실측 확정): 전면 재구성 강도가 높은 변형은 면을
+        #   재드로잉한다(pop① scatter, mono③ brand 몰입 4/4, pastel① dreamy 전면 실크 4/4 —
+        #   프롬프트 보강으로도 못 막음). 면류는 각 스타일에서 실측 통과 변형만 로테이션:
+        #   pop {②③④} · monotone {dark, gold} · pastel {pedestal, hero}. 비면류는 전 변형.
+        if is_noodle:
+            safe = _NOODLE_SAFE_IDX.get(plan.style_key)
+            if safe:
+                variants = tuple(variants[i] for i in safe)
         idx = int(hashlib.sha256(f"{subject}:{scene_seed}".encode("utf-8"))
                   .hexdigest()[:8], 16) % len(variants)
         direction = variants[idx]
-        identity_lock = _IDENTITY_LOCKS["food_pop"]
+        identity_lock = _IDENTITY_LOCKS["food_pop"]  # 3스타일 공용 완화 잠금(중립 계약)
+        # NOODLE-GUARD 레이어2: 면 전용 보강절(긍정 단언). ⚠️ 'egg' 같은 명사는 부정문에
+        #   넣어도 조건화로 소환됨(brand 실측 — 정중앙 계란 후라이) → 위험 명사 자체를 쓰지
+        #   않는다(BUG-KTX-001 계열 교훈 재확인).
+        if is_noodle:
+            identity_lock += (
+                "The noodles keep their exact pasta type, thickness, shape, count and arrangement "
+                "as photographed — never convert penne into spaghetti or redraw the noodles — and "
+                "do not add any topping that is not visible in the original photo. "
+            )
     # DIV-2: scene_tone 미지정(기본)이면 무변경 → 바이트 동일. 지정 시에만 표면/배경 스팬을
     #   입력 사진 톤에 맞춰 교체(다양성의 원천 = 유저 사진). 자리표시자 치환보다 먼저 수행.
-    #   pop 로테이션 변형에는 대응 스팬이 없으므로 비-pop 방향에만 적용.
-    if scene_tone is not None and not pop_v2:
+    #   styled 로테이션 변형에는 대응 스팬이 없으므로 비-로테이션 방향에만 적용.
+    if scene_tone is not None and not styled_v2:
         direction = _apply_scene_tone(plan.domain, plan.style_key, direction,
                                       scene_tone, subject, scene_seed)
     # 자리표시자는 한 번에 치환 — {palette}+{hero} 동시 보유 플랜(food pop)에서 str.format이
