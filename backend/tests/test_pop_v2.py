@@ -165,9 +165,34 @@ def test_non_noodle_keeps_four():
 
 
 def test_retouch_clause_present():
-    """RETOUCH-001: 스타일 로테이션·디저트 락 모두 '보정 허용(변형 금지)' 절 포함 —
-    본체가 폰사진 노출 그대로 남는 이질감(07-24 아트디렉터) 방지."""
+    """RETOUCH-001→003: 짭짤한 음식=절제형 보정, 디저트=tpl_47급 이상화(같은 제품 인식 +
+    무발명 경계) — '전혀 먹음직스럽지 않다'(07-24 아트디렉터) 판정 반영."""
     pop = _instr(scene_seed=0)
-    assert "DO retouch the food photographically" in pop
-    dessert = _instr(style="editorial")   # 케이크+비-pop → food_dessert 락
-    assert "DO retouch the dessert photographically" in dessert
+    assert "DO retouch the food photographically" in pop           # 공용 절제형(전 음식)
+    # 디저트: 스타일 로테이션·food_dessert 락 모두 이상화 절
+    pop_dessert = _instr(scene_seed=0, serving_type="dessert")
+    assert "Idealize this dessert" in pop_dessert
+    editorial_dessert = _instr(style="editorial")   # 케이크+비-pop → food_dessert 락(레거시 substring)
+    assert "Idealize this dessert" in editorial_dessert
+    assert "never add ingredients, layers or decoration" in editorial_dessert  # 무발명 경계
+    # 짭짤한 음식은 이상화 미적용
+    savory = _instr(subject="grilled beef", serving_type="dish", scene_seed=0)
+    assert "Idealize this dessert" not in savory
+
+# --- RETOUCH-004: 초코 디저트 질감 어휘 등길이 맞교환 ---------------------------
+
+def test_choco_dessert_texture_swap():
+    """초코 디저트는 generic 질감 절 → fudgy·ganache 수사(무발명: 기존 크림의 렌더 수사).
+    비초코 디저트는 generic 유지, 짭짤(예: 초코 글레이즈 립)은 이상화 자체가 없어 미작동."""
+    from app.services.reference_style_plans import _IDEALIZE_TEX_GENERIC
+    choco_kw = dict(serving_type="dessert",
+                    core_ingredients=["strawberry", "chocolate", "cream"])
+    pop_choco = _instr(subject="strawberry chocolate cream cake", scene_seed=0, **choco_kw)
+    assert "fudgy" in pop_choco and "ganache" in pop_choco
+    assert _IDEALIZE_TEX_GENERIC not in pop_choco
+    ed_choco = _instr(style="editorial", subject="strawberry chocolate cream cake", **choco_kw)
+    assert "fudgy" in ed_choco                       # food_dessert 락 경로도 동일
+    bb = _instr(subject="blueberry cream cake", scene_seed=0, serving_type="dessert")
+    assert "fudgy" not in bb and _IDEALIZE_TEX_GENERIC in bb
+    savory = _instr(subject="chocolate glazed pork ribs", scene_seed=0, serving_type="dish")
+    assert "fudgy" not in savory and "Idealize" not in savory

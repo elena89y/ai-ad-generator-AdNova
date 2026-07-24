@@ -308,6 +308,31 @@ def classify_container(container_desc: str | None,
         return "vessel"
     return "default"
 
+# RETOUCH-003: tpl_47(identity_grade=loose) 정본 이상화 절 — 디저트 전용.
+#   "같은 제품으로 인식 + 무발명" 경계 안에서 최상의 광고 버전으로 끌어올린다.
+#   ⚠️ 길이 예산(RETOUCH-003-2 실측): 잠금이 씬 지시보다 앞이라 T5 512토큰 초과 시 씬이
+#   잘림 — 이상화 3/3에서 팔레트·소품 소실, 우드 테이블 폴백. append 금지, 절제형 리터치
+#   절(_RETOUCH_RESTRAINED)과 맞교환할 것. 'warm light'도 우드 프라이어를 당겨 제거.
+# RETOUCH-004: 질감 절을 제품별 상수로 분리 — 초코 디저트는 generic(스펀지·과일 일반론)이
+#   약해 크럼블리하게 남는다(2차 시안 아트디렉터 관찰) → 초코 전용 어휘로 **등길이 맞교환**
+#   (append 금지는 여기도 동일). 'ganache'는 기존 크림의 렌더 수사(simile)로만 — 무발명 유지.
+_IDEALIZE_TEX_GENERIC = (
+    "moist airy sponge with visible pores, silky luscious cream with a dewy sheen, glossy juicy fruit"
+)
+_IDEALIZE_TEX_CHOCO = (
+    "moist fudgy chocolate sponge, its cream silky and glossy like soft ganache, deep cocoa "
+    "color, glossy juicy fruit"
+)
+_DESSERT_IDEALIZE = (
+    "Do NOT paste the original photo as-is. Idealize this dessert into its most appetizing premium "
+    "advertising version — the same dessert, clearly recognizable, with the same layers, ingredients "
+    "and decoration. Rich appetizing light, deep natural color, " + _IDEALIZE_TEX_GENERIC + ", "
+    "a real photograph, never plastic or "
+    "over-smoothed, and never add ingredients, layers or decoration beyond the original. "
+    "Remove any screenshot UI elements, icons, buttons or watermarks. "
+)
+
+
 _IDENTITY_LOCKS = {
     "food": (
         # BUG-KTX-001-2(2026-07-20): "realism" 스타일에서 컵 변환이 재발(negative 문구만으로는
@@ -352,34 +377,33 @@ _IDENTITY_LOCKS = {
     #   재플레이팅 허용(사용자 지시 2026-07-21 "예쁜 그릇 써 디저트잖아"). product-understanding
     #   상품=보존/용기=조정. 단 BUG-KTX-001(접시→컵)·PLATING-001(붕뜸/기울어짐) 가드는 그대로 유지:
     #   디저트는 여전히 컵/음료 아님, 평평히 접지. 케이크 자체(층·크림·토핑·색)는 완전 보존.
+    # RETOUCH-003-2 압축(2026-07-24): 이 락 단독 544 T5토큰 = 예산(512) 단독 초과 —
+    #   씬 지시가 통째로 잘려 우드 폴백(에디토리얼 우드 편차 3회의 유력 원인). 가드의
+    #   핵심 명사(cup·takeaway·propped·contact shadow)와 테스트 마커는 보존하고 수사만 압축.
     "food_dessert": (
-        "This is a plated dessert photograph resting flat on a table, photographed from above or at a gentle "
-        "angle — never standing upright or propped on its edge. It is a slice or piece of cake or dessert lying "
-        "flat on its widest base, the same way it was photographed. There is no cup, mug, tumbler, lid or straw "
-        "anywhere in this image. "
-        "Edit this exact dessert photograph. Keep the dessert itself structurally unchanged: its exact shape, "
-        "layers, cream, frosting, toppings, fruit, crumb, texture and hue identity — do not add, remove, redraw, "
-        "resize, repaint or rearrange any part of the dessert. "
+        "This is a plated dessert photograph resting flat on its widest base on a table, photographed "
+        "from above or at a gentle angle — never standing upright or propped on its edge. There is no "
+        "cup, mug, tumbler, lid or straw. "
+        "Edit this exact dessert photograph. Keep the dessert structurally unchanged: the same shape, "
+        "layers, cream, toppings, fruit and hue identity — never add, remove, redraw or rearrange any "
+        "part of it. "
         # RETOUCH-001(2026-07-24): 본체가 폰사진 노출 그대로 보존되는 이질감 교정 — 보정 O/변형 X.
-        "DO retouch the dessert photographically like a professional food advertisement: brighten its exposure, "
-        "remove any haze, and add crisp appetizing gloss and fresh natural vibrancy to what is already there — "
-        "enhancing only, with the same hues, never restyling the dessert. Remove any screenshot interface elements, app icons, buttons, watermarks or overlaid graphics from the photo — they are not part of the food or the scene. "
+        # RETOUCH-003(2026-07-24 아트디렉터 "전혀 먹음직스럽지 않다"): 절제형 보정(-002)의 천장
+        #   확인 — tpl_47(케익 단면 템플릿, identity_grade=loose) 정본 철학으로 승격: 원본을
+        #   그대로 붙여넣지 않고 '같은 제품으로 인식되는 선'에서 최상의 광고 버전으로 이상화.
+        #   정직성 경계 유지: 없는 재료·층·데코 발명 금지.
+        + _DESSERT_IDEALIZE +
         # 핵심 개정: '접시 고정'을 풀되 대상은 '용기(접시)'로 한정, 케이크는 위에서 보존한다.
-        "You SHOULD replace the plain plate underneath with a distinctly beautiful designer dessert plate worthy "
-        "of a high-end patisserie — an artisanal ceramic with a refined sculpted or scalloped rim, a delicate "
-        "handcrafted texture or a subtle elegant tone (soft blush, sage, matte charcoal or gold-rimmed), "
-        "thoughtfully styled to elevate the dessert like a fine-dining plated course. Make the plate itself a "
-        "clearly premium, considered element, not a plain white dish. Restyle only the plate, not the dessert. "
+        "You SHOULD replace the plain plate with a designer dessert plate worthy of a high-end "
+        "patisserie — artisanal ceramic, sculpted or scalloped rim, soft blush, sage, matte charcoal "
+        "or gold-rimmed, never a plain white dish. Restyle only the plate, not the dessert. "
         # BUG-KTX-001 가드 유지: 재플레이팅이 접시를 컵/그릇으로 변형시키지 않도록 명시.
-        "Never turn the dessert or its plate into a cup, mug, takeaway container, drinking glass, bowl of liquid "
-        "or any different kind of object — it must remain a solid plated dessert on a flat dessert plate, never a "
-        "beverage. "
+        "Never turn the dessert or its plate into a cup, mug, takeaway container or any different "
+        "object — it stays a solid plated dessert, never a beverage. "
         # PLATING-001 가드 유지: 붕뜸/기울어짐 방지.
-        "The dessert must rest fully and flatly on the new plate with its whole base in contact, casting a single "
-        "realistic contact shadow as if simply set down under normal gravity. Never leave it floating, tilted "
-        "upright, propped up, leaned back or resting on a thin cut edge. "
-        "Change the background, table surface, camera framing and environmental lighting to match the requested "
-        "scene. "
+        "It rests fully and flatly on the new plate with a single realistic contact shadow under "
+        "normal gravity — never floating, tilted upright, propped up or resting on a thin cut edge. "
+        "Change the background, table surface, framing and lighting to match the requested scene. "
     ),
     "drink": (
         "Edit this exact drink photograph. Preserve every source pixel belonging to the drink and its vessel. "
@@ -395,29 +419,41 @@ _IDENTITY_LOCKS = {
         "perspective. Do not redraw, reshape, smooth, duplicate, rotate, recolor or cover the product. Change only "
         "the background, supporting surface and environmental lighting. "
     ),
-    # POP-V2(2026-07-23 아트디렉터 판정): 팝 전용 완화 잠금 — 음식 본체는 불변이되,
-    #   ① 밋밋한 앞접시("식당 앞접시" 문제)를 예쁜 디저트 접시로 교체 허용
-    #   ② 접시 위 먹음직 가니시 허용 — 단 "그 음식에 실제 보이는 재료"만(정직성: 없는 재료
-    #      위장 금지는 유지, 데코 수준만 완화). r2 시안 육안 판정으로 채택.
-    "food_pop": (
-        "This is a real plated food photograph. Keep the food itself structurally unchanged: its exact shape, "
-        "layers, textures, toppings and hue identity — do not redraw, resize or repaint any part of the food "
-        "itself, and never convert it into a cup, beverage or different object. "
-        # RETOUCH-001(2026-07-24 아트디렉터: "원본 유지하되 먹음직스럽게 — 뿌연 사진 그대로는
-        #   너무 별로"): 배경·소품은 스튜디오급인데 본체가 폰사진 노출 그대로라 이질감 —
-        #   프로 푸드 리터치를 명시 허용(보정 O / 변형 X). A모드 리터치 철학의 스타일 경로 이식.
-        "DO retouch the food photographically like a professional food advertisement: brighten its "
-        "exposure, remove any haze, and add crisp appetizing gloss and fresh natural vibrancy to what is "
-        "already there — enhancing only, with the same hues, never restyling the food. Remove any screenshot interface elements, app icons, buttons, watermarks or overlaid graphics from the photo — they are not part of the food or the scene. "
-        "You MAY replace the plain plate with a beautiful elegant dessert plate that flatters the scene, and "
-        "you MAY add tasteful appetizing garnish using only the same ingredients already visible in the food. "
-        # PLATING-001-2/3 검증 문구 이식(pop에서 발생한 사고라 완화 잠금에도 필수 유지):
-        "The food rests naturally on its plate under normal gravity. If the food is a slice of bread, toast, "
-        "cake or similarly flat-cut item, it lies flat on its widest cut face — never a food item standing "
-        "upright, propped up, leaning against anything, or resting on a thin cut edge. "
-        "Premium food-styling quality, realistic photograph. "
-    ),
 }
+
+# POP-V2(2026-07-23 아트디렉터 판정): 팝 전용 완화 잠금 — 음식 본체는 불변이되,
+#   ① 밋밋한 앞접시("식당 앞접시" 문제)를 예쁜 디저트 접시로 교체 허용
+#   ② 접시 위 먹음직 가니시 허용 — 단 "그 음식에 실제 보이는 재료"만(정직성: 없는 재료
+#      위장 금지는 유지, 데코 수준만 완화). r2 시안 육안 판정으로 채택.
+# RETOUCH-003-2: 헤드/리터치/테일 3분할 — 디저트는 리터치 절만 _DESSERT_IDEALIZE로
+#   맞교환한다(append 금지: T5 512토큰 예산 — 초과분은 뒤쪽 씬 지시부터 잘려 팔레트·소품
+#   소실, 이상화 1차 GPU 실측 3/3 우드 폴백).
+_FOOD_POP_HEAD = (
+    "This is a real plated food photograph. Keep the food structurally unchanged: the same shape, "
+    "layers, textures, toppings and hue identity — never redraw, resize or repaint any part of it, "
+    "never convert it into a cup, beverage or different object. "
+)
+# RETOUCH-001(2026-07-24 아트디렉터: "원본 유지하되 먹음직스럽게 — 뿌연 사진 그대로는
+#   너무 별로"): 배경·소품은 스튜디오급인데 본체가 폰사진 노출 그대로라 이질감 —
+#   프로 푸드 리터치를 명시 허용(보정 O / 변형 X). A모드 리터치 철학의 스타일 경로 이식.
+# RETOUCH-002: tpl_47 질감 어휘 이식 — moist/airy/velvety 조건부 강화("퍼석" 방지)
+_RETOUCH_RESTRAINED = (
+    "DO retouch the food photographically like a professional food advertisement: brighten exposure, "
+    "remove haze — sponge and crumb moist and airy with visible pores, cream silky with a dewy sheen, "
+    "fruit glistening juicy, sauces glossy, never dry, crumbly or matte, never plastic or "
+    "over-smoothed. Enhance only what is already there, with the same hues, never restyling the food. "
+    "Remove any screenshot UI elements, icons, buttons or watermarks. "
+)
+_FOOD_POP_TAIL = (
+    "You MAY replace the plain plate with a beautiful elegant dessert plate, and you MAY add "
+    "tasteful appetizing garnish using only the same ingredients already visible in the food. "
+    # PLATING-001-2/3 검증 문구 이식(pop에서 발생한 사고라 완화 잠금에도 필수 유지):
+    "The food rests naturally on its plate under normal gravity; a slice of bread, toast, cake or "
+    "flat-cut item lies flat on its widest cut face — never standing upright, propped up, leaning "
+    "against anything, or resting on a thin cut edge. "
+    "Premium food-styling quality, realistic photograph. "
+)
+_IDENTITY_LOCKS["food_pop"] = _FOOD_POP_HEAD + _RETOUCH_RESTRAINED + _FOOD_POP_TAIL
 
 # POP-V2 아키타입 로테이션(2026-07-23): 레퍼런스 4아키타입(광고레퍼런스_v3_재분류_2/01_스타일무드/pop)
 #   이 STY-003 추출 과정에서 saturated_color_block 하나로 붕괴("No extra food, props, splashes,
@@ -895,16 +931,30 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         idx = int(hashlib.sha256(f"{subject}:{scene_seed}".encode("utf-8"))
                   .hexdigest()[:8], 16) % len(variants)
         direction = variants[idx]
-        identity_lock = _IDENTITY_LOCKS["food_pop"]  # 3스타일 공용 완화 잠금(중립 계약)
+        # 3스타일 공용 완화 잠금(중립 계약). RETOUCH-003: 디저트는 절제형 리터치 절을
+        #   tpl_47급 이상화로 맞교환(같은 제품 인식 + 무발명 경계) — append가 아닌 교체
+        #   (T5 512토큰 예산: 초과 시 뒤쪽 씬 지시가 잘려 팔레트·소품 소실, GPU 실측 3/3).
+        #   짭짤한 음식·serving_type 미상(구캐시)은 절제형 유지(재드로잉 리스크).
+        if serving_type in ("dessert", "bakery"):
+            identity_lock = _FOOD_POP_HEAD + _DESSERT_IDEALIZE + _FOOD_POP_TAIL
+        else:
+            identity_lock = _IDENTITY_LOCKS["food_pop"]
         # NOODLE-GUARD 레이어2: 면 전용 보강절(긍정 단언). ⚠️ 'egg' 같은 명사는 부정문에
         #   넣어도 조건화로 소환됨(brand 실측 — 정중앙 계란 후라이) → 위험 명사 자체를 쓰지
         #   않는다(BUG-KTX-001 계열 교훈 재확인).
         if is_noodle:
             identity_lock += (
-                "The noodles keep their exact pasta type, thickness, shape, count and arrangement "
-                "as photographed — never convert penne into spaghetti or redraw the noodles — and "
-                "do not add any topping that is not visible in the original photo. "
+                "The noodles keep their exact pasta type, thickness and arrangement — never convert "
+                "penne into spaghetti or redraw them; add no topping not visible in the original. "
             )
+    # RETOUCH-004: 초코 디저트는 이상화의 generic 질감 절(스펀지 pores·일반 크림)이 약해
+    #   크럼블리하게 남는다(2차 시안 관찰) — 초코 전용 어휘(fudgy·ganache 수사)로 등길이
+    #   맞교환. 이상화 절이 실제로 들어간 잠금(food_dessert·styled 디저트)에만 작동하고,
+    #   비초코·비디저트는 replace 미매치로 바이트 동일.
+    if "Idealize this dessert" in identity_lock:
+        blob = " ".join([subject.lower()] + [str(i).lower() for i in (core_ingredients or [])])
+        if "choco" in blob:
+            identity_lock = identity_lock.replace(_IDEALIZE_TEX_GENERIC, _IDEALIZE_TEX_CHOCO, 1)
     # DIV-2: scene_tone 미지정(기본)이면 무변경 → 바이트 동일. 지정 시에만 표면/배경 스팬을
     #   입력 사진 톤에 맞춰 교체(다양성의 원천 = 유저 사진). 자리표시자 치환보다 먼저 수행.
     #   styled 로테이션 변형에는 대응 스팬이 없으므로 비-로테이션 방향에만 적용.
