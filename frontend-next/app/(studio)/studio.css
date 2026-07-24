@@ -667,6 +667,13 @@
   font-weight: 500;
   color: var(--ink-mute);
 }
+.rail-hint {
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--ink-mute);
+  margin: 7px 0 0;
+}
 .rail-input {
   width: 100%;
   padding: 10px 12px;
