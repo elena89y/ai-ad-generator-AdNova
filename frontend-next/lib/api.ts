@@ -15,6 +15,7 @@ const SESSION_ACCESS_TOKEN_KEY = ACCESS_TOKEN_KEY;
 const SESSION_USER_KEY = USER_KEY;
 export const AUTH_EXPIRED_EVENT = "adnova:auth-expired";
 let refreshPromise: Promise<string | null> | null = null;
+const USER_LOGOUT_PATH = "/auth/user-logout";
 
 function buildApiUrl(path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -243,7 +244,7 @@ export async function logoutSession(): Promise<void> {
   // 화면 상태가 먼저 로그아웃되도록 브라우저 인증 정보를 즉시 삭제한다.
   clearStoredAuth();
   try {
-    await fetch(buildApiUrl("/auth/logout"), { method: "POST", credentials: "include" });
+    await fetch(buildApiUrl(USER_LOGOUT_PATH), { method: "POST", credentials: "include" });
   } catch {
     // 서버 요청이 실패해도 로컬 로그아웃 상태는 유지한다.
   }
@@ -255,9 +256,9 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
   if (
     response.status === 401 &&
     path !== "/auth/refresh" &&
-    path !== "/auth/logout" &&
+    path !== USER_LOGOUT_PATH &&
     path !== "/api/auth/refresh" &&
-    path !== "/api/auth/logout"
+    path !== "/api" + USER_LOGOUT_PATH
   ) {
     const refreshedToken = await refreshAccessToken();
     if (refreshedToken) response = await requestApi(path, options, refreshedToken);

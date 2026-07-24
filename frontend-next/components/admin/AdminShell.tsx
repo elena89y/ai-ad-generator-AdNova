@@ -112,8 +112,8 @@ export function AdminShell({
     return null;
   }
 
-  function handleSignOut() {
-    signOut();
+  async function handleSignOut() {
+    await signOut();
     router.replace("/admin/login");
   }
 

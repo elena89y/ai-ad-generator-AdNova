@@ -13,19 +13,32 @@ import {
 import { readApiError, readJsonSafely } from "@/lib/api";
 
 const ACTION_LABELS: Record<string, string> = {
+  "notification.marketing_sent": "마케팅 알림 발송",
   "admin.account_created": "관리자 계정 지정",
   "admin.role_updated": "관리자 권한 변경",
   "admin.status_updated": "관리자 계정 상태 변경",
   "admin.password_changed": "관리자 비밀번호 변경",
   "admin.login_failed": "관리자 로그인 실패",
+  "admin.totp_setup_started": "관리자 2단계 인증 설정 시작",
+  "admin.totp_enabled": "관리자 2단계 인증 활성화",
+  "admin.totp_disabled": "관리자 2단계 인증 해제",
   "user.status_updated": "회원 계정 상태 변경",
   "user.subscription_updated": "회원 플랜 변경",
   "user.bonus_credits_granted": "보너스 크레딧 지급",
+  "advertisement.force_deleted": "광고 강제 삭제",
   "purchase.refunded": "결제 환불",
   "refund.approved": "환불 신청 승인",
   "refund.rejected": "환불 신청 거절",
   "inquiry.status_updated": "문의 상태 변경",
   "inquiry.answered": "문의 답변 등록",
+  "report.status_updated": "신고 상태 변경",
+  "notice.created": "공지사항 작성",
+  "notice.updated": "공지사항 수정",
+  "notice.published": "공지사항 게시",
+  "notice.unpublished": "공지사항 게시 취소",
+  "notice.deleted": "공지사항 삭제",
+  "faq_candidate.approved": "FAQ 후보 승인",
+  "faq_candidate.dismissed": "FAQ 후보 반려",
 };
 
 const TARGET_LABELS: Record<string, string> = {
@@ -36,6 +49,11 @@ const TARGET_LABELS: Record<string, string> = {
   purchase: "결제",
   refund: "환불 신청",
   inquiry: "문의",
+  advertisement: "광고",
+  report: "신고",
+  notice: "공지사항",
+  faq_candidate: "FAQ 후보",
+  notification: "알림",
 };
 
 function formatDate(value: string): string {

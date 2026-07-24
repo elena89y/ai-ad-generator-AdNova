@@ -780,16 +780,50 @@ def logout(
     db: Session = Depends(get_db),
     admin_db: Session = Depends(get_admin_db),
 ):
-    if user_refresh_token:
-        db.query(UserRefreshToken).filter(
-            UserRefreshToken.token_hash == hash_refresh_token(user_refresh_token)
-        ).update({UserRefreshToken.revoked_at: utc_now()}, synchronize_session=False)
-        db.commit()
-    if admin_refresh_token:
-        admin_db.query(AdminRefreshToken).filter(
-            AdminRefreshToken.token_hash == hash_refresh_token(admin_refresh_token)
-        ).update({AdminRefreshToken.revoked_at: utc_now()}, synchronize_session=False)
-        admin_db.commit()
+    _revoke_user_refresh_token(db, user_refresh_token)
+    _revoke_admin_refresh_token(admin_db, admin_refresh_token)
     _clear_refresh_cookie(response, USER_REFRESH_COOKIE_NAME)
     _clear_refresh_cookie(response, ADMIN_REFRESH_COOKIE_NAME)
     return {"message": "로그아웃되었습니다."}
+
+
+@router.post("/user-logout")
+def logout_user(
+    response: Response,
+    user_refresh_token: str | None = Cookie(default=None, alias=USER_REFRESH_COOKIE_NAME),
+    db: Session = Depends(get_db),
+):
+    _revoke_user_refresh_token(db, user_refresh_token)
+    _clear_refresh_cookie(response, USER_REFRESH_COOKIE_NAME)
+    return {"message": "로그아웃되었습니다."}
+
+
+@router.post("/admin-logout")
+def logout_admin(
+    response: Response,
+    admin_refresh_token: str | None = Cookie(default=None, alias=ADMIN_REFRESH_COOKIE_NAME),
+    admin_db: Session = Depends(get_admin_db),
+):
+    _revoke_admin_refresh_token(admin_db, admin_refresh_token)
+    _clear_refresh_cookie(response, ADMIN_REFRESH_COOKIE_NAME)
+    return {"message": "로그아웃되었습니다."}
+
+
+def _revoke_user_refresh_token(db: Session, refresh_token: str | None) -> None:
+    if not refresh_token:
+        return
+
+    db.query(UserRefreshToken).filter(
+        UserRefreshToken.token_hash == hash_refresh_token(refresh_token)
+    ).update({UserRefreshToken.revoked_at: utc_now()}, synchronize_session=False)
+    db.commit()
+
+
+def _revoke_admin_refresh_token(admin_db: Session, refresh_token: str | None) -> None:
+    if not refresh_token:
+        return
+
+    admin_db.query(AdminRefreshToken).filter(
+        AdminRefreshToken.token_hash == hash_refresh_token(refresh_token)
+    ).update({AdminRefreshToken.revoked_at: utc_now()}, synchronize_session=False)
+    admin_db.commit()

@@ -16,10 +16,12 @@ from app.api.auth import (
     find_username,
     login,
     logout,
+    logout_admin,
+    logout_user,
     refresh,
     request_password_reset,
 )
-from app.core.refresh_tokens import issue_user_refresh_token
+from app.core.refresh_tokens import hash_refresh_token, issue_user_refresh_token
 from app.core.security import (
     create_admin_access_token,
     get_current_user,
@@ -431,6 +433,80 @@ class AuthApiTestCase(unittest.TestCase):
 
         stored_token = self.session.query(UserRefreshToken).one()
         self.assertIsNotNone(stored_token.revoked_at)
+
+    def test_user_logout_keeps_admin_refresh_token(self) -> None:
+        admin_user = AdminUser(
+            email="admin@example.com",
+            username="admin",
+            password_hash=hash_password("Password1!"),
+            is_active=True,
+            role="super_admin",
+        )
+        self.admin_session.add(admin_user)
+        self.admin_session.commit()
+
+        user_response = Response()
+        login(
+            user_data=UserLogin(username="loginuser", password="Password1!"),
+            response=user_response,
+            db=self.session,
+            admin_db=self.admin_session,
+        )
+        user_cookie = user_response.headers["set-cookie"].split(";", 1)[0].split("=", 1)[1]
+
+        admin_response = Response()
+        admin_login(
+            user_data=AdminLoginRequest(username="admin", password="Password1!"),
+            response=admin_response,
+            admin_db=self.admin_session,
+        )
+        admin_cookie = admin_response.headers["set-cookie"].split(";", 1)[0].split("=", 1)[1]
+
+        logout_user(response=Response(), user_refresh_token=user_cookie, db=self.session)
+
+        self.assertIsNotNone(self.session.query(UserRefreshToken).one().revoked_at)
+        admin_token = self.admin_session.query(AdminRefreshToken).one()
+        self.assertIsNone(admin_token.revoked_at)
+        self.assertEqual(admin_token.token_hash, hash_refresh_token(admin_cookie))
+
+    def test_admin_logout_keeps_user_refresh_token(self) -> None:
+        admin_user = AdminUser(
+            email="admin@example.com",
+            username="admin",
+            password_hash=hash_password("Password1!"),
+            is_active=True,
+            role="super_admin",
+        )
+        self.admin_session.add(admin_user)
+        self.admin_session.commit()
+
+        user_response = Response()
+        login(
+            user_data=UserLogin(username="loginuser", password="Password1!"),
+            response=user_response,
+            db=self.session,
+            admin_db=self.admin_session,
+        )
+        user_cookie = user_response.headers["set-cookie"].split(";", 1)[0].split("=", 1)[1]
+
+        admin_response = Response()
+        admin_login(
+            user_data=AdminLoginRequest(username="admin", password="Password1!"),
+            response=admin_response,
+            admin_db=self.admin_session,
+        )
+        admin_cookie = admin_response.headers["set-cookie"].split(";", 1)[0].split("=", 1)[1]
+
+        logout_admin(
+            response=Response(),
+            admin_refresh_token=admin_cookie,
+            admin_db=self.admin_session,
+        )
+
+        user_token = self.session.query(UserRefreshToken).one()
+        self.assertIsNone(user_token.revoked_at)
+        self.assertEqual(user_token.token_hash, hash_refresh_token(user_cookie))
+        self.assertIsNotNone(self.admin_session.query(AdminRefreshToken).one().revoked_at)
 
     def test_social_login_session_keeps_provider_on_refresh_token(self) -> None:
         response = Response()

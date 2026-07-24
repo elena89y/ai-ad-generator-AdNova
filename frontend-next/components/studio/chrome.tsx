@@ -204,7 +204,10 @@ function AccountActions({ showUsage = false }: { showUsage?: boolean }) {
 
 function PrimaryNav() {
   const pathname = usePathname();
+  const { user } = useStudio();
   const inWorkspace = pathname === "/studio" || pathname === "/templates";
+
+  if (!user) return null;
 
   return (
     <nav className="appnav">

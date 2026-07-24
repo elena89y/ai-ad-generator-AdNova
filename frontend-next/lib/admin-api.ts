@@ -4,7 +4,7 @@ const ADMIN_ACCESS_TOKEN_KEY = "admin_access_token";
 const ADMIN_USER_KEY = "admin_user";
 const ADMIN_REFRESH_PATH = "/auth/admin-refresh";
 const ADMIN_SESSION_EXTEND_PATH = "/auth/admin-session/extend";
-const ADMIN_LOGOUT_PATH = "/auth/logout";
+const ADMIN_LOGOUT_PATH = "/auth/admin-logout";
 export const ADMIN_AUTH_EXPIRED_EVENT = "adnova:admin-auth-expired";
 
 let adminRefreshPromise: Promise<string | null> | null = null;
@@ -305,6 +305,8 @@ export async function logoutAdminSession(): Promise<void> {
       method: "POST",
       credentials: "include",
     });
+  } catch {
+    // 서버 요청이 실패해도 브라우저의 관리자 로그인 정보는 삭제한다.
   } finally {
     clearAdminAuth();
   }
