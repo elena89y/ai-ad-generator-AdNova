@@ -221,7 +221,8 @@ export const CATALOG: CatalogTemplate[] = [
       "영양돌솥밥"
     ],
     "request_examples": [
-      "콜아웃 선 더 깔끔하게"
+      "재료 이름 더 크게",
+      "설명 글씨 또렷하게"
     ]
   },
   {
@@ -1214,7 +1215,8 @@ export const CATALOG: CatalogTemplate[] = [
       "크로플"
     ],
     "request_examples": [
-      "콜아웃 선 더 깔끔하게"
+      "확대 부분 더 또렷하게",
+      "설명 글씨 크게"
     ]
   },
   {

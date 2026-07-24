@@ -200,6 +200,10 @@ export default function TemplateApplyPage() {
                   onChange={(e) => setProductName(e.target.value)}
                   placeholder={`예: ${tpl.name_examples?.join(", ") ?? tpl.name}`}
                 />
+                <p className="rail-hint">
+                  비워두면 이미지를 분석해 SNS 문구(인스타·페북·스레드·X)까지 자동 생성해요.
+                  상품명을 입력하면 그 이름으로 더 정확하게 만들어드려요.
+                </p>
               </div>
 
               <div>

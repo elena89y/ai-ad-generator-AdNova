@@ -938,6 +938,42 @@ def detect_material(image_path: str) -> str:
     return m if m in _MATERIALS else "default"
 
 
+def describe_product(image_path: str) -> str:
+    """광고 이미지 → 짧은 한국어 상품명 하나 (Vision 1회).
+
+    템플릿 생성에서 상품명 미입력 시 SNS 문구가 "상품 정보를 주세요" 메타 문구로
+    나오던 문제(2026-07-24) 대응 — 이미지에서 상품명을 유추해 문구 생성을 그라운딩한다.
+    이름이 있으면 호출하지 않는다(불필요 Vision 비용 방지). 실패 시 "" 반환.
+    """
+    try:
+        client = _get_client()
+        with open(image_path, "rb") as f:
+            image_b64 = base64.b64encode(f.read()).decode("utf-8")
+        media_type, _ = mimetypes.guess_type(image_path)
+        if media_type is None or not media_type.startswith("image/"):
+            media_type = "image/jpeg"
+        prompt = (
+            "이 광고 이미지 속 주인공 제품/음식이 무엇인지 한국어 상품명 하나로만 답하라. "
+            "예: '딸기 롤케이크', '수제 비누', '아이스 아메리카노'. 5단어 이내로 이름만, "
+            '설명·문장·수식어 없이. JSON {"name": "..."} 형식으로만 답한다.'
+        )
+        response = client.chat.completions.create(
+            model=GPT_MODEL,
+            messages=[{"role": "user", "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url",
+                 "image_url": {"url": f"data:{media_type};base64,{image_b64}"}},
+            ]}],
+            response_format={"type": "json_object"},
+        )
+        _record_usage("describe_product", response)
+        result = json.loads(response.choices[0].message.content)
+        return str(result.get("name", "")).strip()
+    except Exception:  # noqa: BLE001 — 그라운딩 실패는 문구 없이 진행(치명적 아님)
+        logger.exception("describe_product 실패 — 상품명 유추 건너뜀")
+        return ""
+
+
 def detect_ingredients(image_path: str, n: int = 3) -> list[dict]:
     """음식 사진 → 명확히 구분되는 재료 n개 + 표면 위 상대좌표 (Vision).
 
