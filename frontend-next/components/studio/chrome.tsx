@@ -7,6 +7,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { avatarHue, getDisplayName } from "@/lib/api";
+import { useAuthenticatedImage } from "./AuthenticatedImage";
 import { useHydrated, useStudio } from "./StudioProvider";
 
 export function Brand({ large }: { large?: boolean }) {
@@ -33,17 +34,18 @@ function AvatarCircle({ className, name }: { className: string; name: string }) 
   const hydrated = useHydrated();
   const { profileImageUrl } = useStudio();
   const photo = hydrated ? profileImageUrl || "" : "";
+  const { displaySrc } = useAuthenticatedImage(photo);
   const initial = (name || "A").trim().charAt(0).toUpperCase();
   const hue = avatarHue(name);
-  const style = photo
-    ? { backgroundImage: `url("${photo}")`, color: "transparent" }
+  const style = displaySrc
+    ? { backgroundImage: `url("${displaySrc}")`, color: "transparent" }
     : {
         background: `linear-gradient(135deg,hsl(${hue} 48% 42%),hsl(${(hue + 42) % 360} 58% 56%))`,
         color: "#fff",
       };
   return (
     <span className={className} style={style}>
-      {photo ? "" : initial}
+      {displaySrc ? "" : initial}
     </span>
   );
 }

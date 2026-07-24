@@ -20,6 +20,7 @@ from app.api.account import (
     read_current_user,
     read_notification_settings,
     read_profile_image,
+    read_profile_image_file,
     upload_profile_image,
 )
 from app.core.config import settings
@@ -176,6 +177,42 @@ class AccountApiTestCase(unittest.TestCase):
                     .file_path
                 ).exists()
             )
+
+    def test_profile_image_is_available_only_to_owner(self) -> None:
+        other_user = User(
+            email="other@example.com",
+            username="otheruser",
+            password_hash=hash_password(self.password),
+            is_active=True,
+        )
+        self.session.add(other_user)
+        self.session.commit()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            upload_dir = Path(temp_dir) / "uploads"
+            with patch.object(settings, "UPLOAD_DIR", str(upload_dir)):
+                uploaded = asyncio.run(
+                    upload_profile_image(
+                        file=self._profile_upload("profile.png"),
+                        db=self.session,
+                        current_user=self.user,
+                    )
+                )
+                response = read_profile_image_file(
+                    uploaded.image_id,
+                    db=self.session,
+                    current_user=self.user,
+                )
+
+                with self.assertRaises(HTTPException) as context:
+                    read_profile_image_file(
+                        uploaded.image_id,
+                        db=self.session,
+                        current_user=other_user,
+                    )
+
+                self.assertTrue(Path(response.path).is_file())
+                self.assertEqual(context.exception.status_code, 404)
 
     def test_wrong_current_password_is_rejected(self) -> None:
         with self.assertRaises(HTTPException) as context:
