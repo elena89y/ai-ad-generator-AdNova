@@ -192,3 +192,16 @@ def test_pal004_no_bare_color_names():
             for m in re.finditer(r"a ([a-z-]+) background", clause):
                 assert m.group(1) not in ("red", "orange", "pink", "green", "cyan",
                                           "magenta", "violet"), (subj, s, clause)
+
+
+def test_pal005_no_saturated_token_ever():
+    """PAL-005(설계 v1 정본 회귀): 적응형 절에 'saturated' 토큰 금지 — 07-22 '강하게'
+    실험(기각)의 잔재가 원색 플랫 배경의 소스였음. 설계엔 원색 단색 배경이 없다
+    (ZESTY/PUNCHY도 보색 '조합'+60-30-10+앵커)."""
+    from app.services.palette_gen import style_palette_clause as spc
+    for style in ("pop", "pastel", "monotone"):
+        for subj in ("strawberry choco cream cake", "pink lemonade", "fried chicken",
+                     "americano coffee"):
+            for s in range(6):
+                clause = spc(style, subj, "food", None, s)
+                assert "saturated" not in clause, (style, subj, s, clause)

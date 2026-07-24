@@ -291,7 +291,11 @@ def _phrase(hsv: tuple[float, float, float], pclass: Optional[str] = None) -> st
         return f"pastel {_pastel_name(h)}"
     name = _hue_name(h)
     if s >= 0.72 and v >= 0.6:
-        qual = "vivid saturated"   # PAL 강화(07-22): 팝 배경 대담화 (adaptive 경로만)
+        # PAL-005(2026-07-24): "vivid saturated"(07-22 '강하게' 실험 잔재 — 아트디렉터가
+        #   기각한 실험의 문구가 잔존해 원색 플랫 배경의 소스가 됨) 제거. 설계 v1 정본엔
+        #   원색 단색 배경이 없음(ZESTY/PUNCHY도 '보색 조합+60-30-10+앵커') — 고채도
+        #   의도는 "bright"로 유지하되 'saturated' 원색 소환 토큰은 금지.
+        qual = "bright"
     elif s >= 0.5 and v < 0.45:
         qual = "rich deep"
     elif s < 0.45 and v >= 0.8:
