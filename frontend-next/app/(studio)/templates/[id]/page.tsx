@@ -8,7 +8,6 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import {
-  ALLOWED_IMAGE_TYPES,
   apiFetch,
   getToken,
   readApiError,
@@ -53,19 +52,16 @@ export default function TemplateApplyPage() {
       s.toast("이미지는 최대 15MB까지 업로드할 수 있습니다.");
       return;
     }
-    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-      s.toast("jpg, png, webp 이미지만 업로드할 수 있습니다");
-      return;
-    }
     const fd = new FormData();
     fd.append("file", file);
     try {
       s.toast("이미지를 업로드하는 중입니다");
       const res = await apiFetch("/api/images/upload", { method: "POST", body: fd });
-      const data = (await readJsonSafely(res)) as { image_id?: number } | null;
-      if (!res.ok || !data?.image_id) throw new Error(readApiError(data, "이미지 업로드에 실패했습니다"));
+      const data = (await readJsonSafely(res)) as { image_id?: number; image_url?: string } | null;
+      if (!res.ok || !data?.image_id || !data.image_url)
+        throw new Error(readApiError(data, "이미지 업로드에 실패했습니다"));
       setImageId(data.image_id);
-      setPreview(URL.createObjectURL(file));
+      setPreview(toAbsoluteUrl(data.image_url));
       setResultUrl("");
     } catch (err) {
       s.toast(err instanceof Error ? err.message : "이미지 업로드에 실패했습니다");
@@ -188,13 +184,12 @@ export default function TemplateApplyPage() {
                   }}
                 >
                   {preview ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={preview} alt="업로드" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                    <AuthenticatedImage src={preview} alt="업로드" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                   ) : (
                     "클릭하거나 사진을 끌어다 놓으세요"
                   )}
                 </button>
-                <input ref={fileRef} type="file" accept="image/*" hidden onChange={handleUpload} />
+                <input ref={fileRef} type="file" accept="image/*,.heic,.heif" hidden onChange={handleUpload} />
               </div>
 
               <div>

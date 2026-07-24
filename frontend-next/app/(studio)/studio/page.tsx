@@ -4,7 +4,6 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
-  ALLOWED_IMAGE_TYPES,
   AdItem,
   GenerateResult,
   PlatformCopy,
@@ -157,10 +156,6 @@ export default function StudioPage() {
     if (!file) return;
     if (file.size > MAX_IMAGE_SIZE) {
       s.toast("이미지는 최대 15MB까지 업로드할 수 있습니다.");
-      return;
-    }
-    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-      s.toast("jpg, png, webp 이미지만 업로드할 수 있습니다");
       return;
     }
     const previousPreview = selectedImagePreviewRef.current;
@@ -638,7 +633,7 @@ export default function StudioPage() {
             <input
               ref={fileRef}
               type="file"
-              accept="image/*"
+              accept="image/*,.heic,.heif"
               hidden
               onChange={handleImageUpload}
             />

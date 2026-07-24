@@ -305,7 +305,7 @@ export default function SettingsPage() {
                 <input
                   ref={avatarFileRef}
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
+                  accept="image/*,.heic,.heif"
                   style={{ display: "none" }}
                   onChange={handleAvatarUpload}
                 />

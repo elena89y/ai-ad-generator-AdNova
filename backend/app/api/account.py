@@ -34,7 +34,10 @@ from app.schemas.account import (
 from app.schemas.auth import UserResponse
 from app.schemas.image import ImageUploadResponse
 from app.services import image_service
-from app.services.upload_validation import read_image_upload_file
+from app.services.upload_validation import (
+    normalized_content_type_for_suffix,
+    read_image_upload_file,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -156,7 +159,7 @@ async def upload_profile_image(
             original_filename=original_filename,
             stored_filename=stored_filename,
             file_path=str(upload_path),
-            content_type=file.content_type,
+            content_type=normalized_content_type_for_suffix(suffix),
             file_size=len(content),
             commit=False,
         )
