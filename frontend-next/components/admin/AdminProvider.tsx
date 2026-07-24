@@ -25,7 +25,7 @@ interface AdminContextValue {
   ready: boolean;
   admin: AdminUser | null;
   signIn: (token: string) => Promise<AdminUser>;
-  signOut: () => void;
+  signOut: () => Promise<void>;
   extendSession: () => Promise<boolean>;
   refreshAdmin: () => Promise<AdminUser | null>;
 }
@@ -64,8 +64,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       setAdmin(data);
       return data;
     } catch {
-      setAdmin(getStoredAdmin());
-      return getStoredAdmin();
+      clearAdminAuth();
+      setAdmin(null);
+      return null;
     }
   }, []);
 
@@ -102,8 +103,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     [refreshAdmin]
   );
 
-  const signOut = useCallback(() => {
-    void logoutAdminSession();
+  const signOut = useCallback(async () => {
+    await logoutAdminSession();
     setAdmin(null);
   }, []);
 
