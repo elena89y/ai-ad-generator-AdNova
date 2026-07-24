@@ -1,0 +1,4 @@
+seed: 42
+items:
+  - {file: 떡볶이.jpg, expected_mode: dish, subject_en: tteokbokki, name: 떡볶이}
+  - {file: 김치찌개.jpg, expected_mode: dish, subject_en: kimchi stew, name: 김치찌개}

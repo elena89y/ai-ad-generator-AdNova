@@ -535,6 +535,39 @@ def unload_pipelines(keep: tuple = ()) -> None:
     logger.info(f"파이프라인 언로드 (keep={keep}) — VRAM 확보")
 
 
+def classify_scene_tone(image_path: str, mask_path: str | None = None) -> str:
+    """입력 사진의 톤(warm/cool/neutral)을 픽셀 통계로 분류 — Vision API 0, 결정론.
+
+    DIV-2 사진-톤 매칭의 신호원: 표면/배경 풀에서 입력과 조화되는 톤 버킷을 고르기 위함
+    (다양성의 원천을 프리셋이 아니라 유저 사진으로 — 설계메모 §1). 사물(mask 有)은 제품
+    영역만 봐 피사체 톤을, 음식/음료(mask 無)는 중앙 가중 전체를 본다(가장자리 소품 영향 축소).
+    warm-cool 축 = 평균 R−B(웜=적/황, 쿨=청). 채도(chroma) 낮으면 무채색이라 neutral.
+    임계는 홀드아웃 11종 실측 튜닝(김치찌개/떡볶이=강웜, 텀블러/헤드폰=무채색).
+    """
+    import numpy as np
+
+    arr = np.asarray(Image.open(image_path).convert("RGB"), dtype=np.float32)
+    h, w = arr.shape[:2]
+    if mask_path and Path(mask_path).exists():
+        m = np.asarray(Image.open(mask_path).convert("L").resize((w, h)), dtype=np.float32)
+        sel = m > 40
+    else:
+        yy, xx = np.mgrid[0:h, 0:w]
+        sel = np.sqrt(((xx - w / 2) / (w * 0.5)) ** 2 + ((yy - h / 2) / (h * 0.5)) ** 2) < 0.75
+    if sel.sum() < 50:
+        sel = np.ones((h, w), bool)
+    px = arr[sel]
+    warmth = float(px[:, 0].mean() - px[:, 2].mean()) / 255.0
+    chroma = float((px.max(1) - px.min(1)).mean()) / 255.0
+    if chroma < 0.07:      # 거의 무채색(흰 텀블러·다크 헤드폰) → 톤 중립
+        return "neutral"
+    if warmth > 0.05:
+        return "warm"
+    if warmth < -0.03:     # 쿨은 드물어 임계 완화
+        return "cool"
+    return "neutral"
+
+
 def _flat_color_background(
     product_rgba: Image.Image, product_mask: Image.Image, mode: str = "editorial"
 ) -> Image.Image:
@@ -598,6 +631,7 @@ def _flat_color_background(
     if mode == "studio":
         # 클린 스튜디오 스윕 (C모드 사물 제품컷): 중립 밝은 그라데이션 + 중앙 소프트광.
         #   음식·카페와 달리 사물은 '먹음직'이 아니라 '정확·깔끔'이 목표 → 무채색 배경.
+        #   (REVERT 2026-07-22: 딥톤+헤일로+바닥반사 강화는 육안 개선 미미해 아트디렉터 폐기.)
         top = np.array([248.0, 248.0, 249.0])
         bot = np.array([225.0, 223.0, 222.0])
         t = np.linspace(0, 1, h)[:, None, None]

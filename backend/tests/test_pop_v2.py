@@ -46,11 +46,17 @@ def test_palette_placeholder_filled():
 
 
 def test_non_pop_styles_unchanged():
-    """editorial 등 타 스타일은 scene_seed 유무와 바이트 동일 — 회귀 없음."""
-    base = _instr(style="editorial")
-    with_seed = _instr(style="editorial", scene_seed=7)
+    """editorial 등 타 스타일은 scene_seed 유무와 바이트 동일 — 회귀 없음.
+
+    (디저트 락 브랜치 정합 2026-07-24: 케이크 픽스처는 이 브랜치에서 의도적으로
+    food_dessert 락을 받으므로, 기본 food 잠금 검증은 비-디저트 음식으로.)"""
+    base = _instr(style="editorial", subject="club sandwich")
+    with_seed = _instr(style="editorial", subject="club sandwich", scene_seed=7)
     assert base == with_seed
-    assert _IDENTITY_LOCKS["food"] .split(".")[0] in base  # 기존 food 잠금 유지
+    assert _IDENTITY_LOCKS["food"].split(".")[0] in base  # 기존 food 잠금 유지
+    # 케이크+비-pop은 이 브랜치의 의도된 변화 = 디저트 재플레이팅 락 (상세: test_dessert_replate_gate)
+    cake = _instr(style="editorial")
+    assert "plated dessert photograph" in cake
 
 
 def test_drink_object_pop_unchanged():

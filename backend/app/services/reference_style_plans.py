@@ -22,6 +22,161 @@ class ReferenceStylePlan:
     archetype: str
     reference_ids: tuple[str, ...]
     direction: str
+    # REAL-001: 사진적 사실감 finish 프로파일. 기본 "none"(무주입) → 모든 기존 지시는
+    #   바이트 동일(스냅샷·회귀 가드). 실험 arm이 build_*_instruction(finish_profile=...)로
+    #   덮어써 리얼리즘 절을 켠다. 루브릭 근거 = 픽바이트 레퍼런스 관찰(자연광 논리·재질
+    #   사실감·절제색·공간 그라운딩). 모드 불가지 — food/object/drink 전부 동일 절 적용.
+    finish_profile: str = "none"
+
+
+# REAL-001 리얼리즘 finish 절 (생성 프롬프트 → 영어. 함정 #1: 한글 금지).
+#   trailing space 포함 = direction과 금지꼬리 사이에 자연 삽입, "none"은 빈 문자열이라
+#   기존 조립과 바이트 동일.
+_FINISH_CLAUSES: dict[str, str] = {
+    "none": "",
+    "photographic": (
+        "Strongly regrade this into a true-to-life photograph: pronounced soft directional window "
+        "light with clear contact shadows and bright natural highlight rolloff, crisp accurate "
+        "material texture with visible fine surface detail, and a rich warm natural color grade — "
+        "deeper, punchier tones that still read as a real photograph, never plastic, CGI or "
+        "oversaturated. Keep the subject firmly grounded in a real physical setting with a softly "
+        "defined background, never a flat studio void or a blurred bokeh blur. "
+    ),
+}
+
+
+def _finish_clause(profile: str | None) -> str:
+    """finish_profile → 삽입 절. 미지정·미등록은 무주입("")으로 안전 폴백."""
+    return _FINISH_CLAUSES.get((profile or "none"), "")
+
+
+# --- DIV-2: 사진-톤 매칭 표면·배경 풀 ------------------------------------------
+# 설계메모 §3 DIV-2: "스타일당 1문장 → 템플릿+슬롯, 무드별 표면/배경 풀에서 사진 톤 매칭".
+#   다양성의 원천을 프리셋 6개가 아니라 유저 입력 사진으로 옮긴다 — image_service.
+#   classify_scene_tone(픽셀 통계, API 0)이 warm/cool/neutral 을 주면 조화되는 버킷에서 고른다.
+#
+# 방식(BYTE-IDENTITY): scene_tone 미지정(OFF/기본)이면 direction 문자열을 건드리지 않는다 →
+#   기존 스냅샷·회귀와 완전 동일(무위험). 지정 시에만 v0 스팬을 톤-매칭 후보로 str.replace.
+#   후보는 관사·명사(table/wall/surface/tabletop/sweep)까지 포함한 완결 구로 문법 파손 없음.
+# 적용 대상 = 표면/배경이 고정된 editorial·realism·warm_organic (pop/pastel/monotone 은 이미
+#   {palette}로 subject별 변동). object/editorial 배경은 구조적 프롭이라 표면만 슬롯.
+_SCENE_SPANS: dict[tuple[str, str], dict[str, str]] = {
+    ("food", "editorial"): {"surface": "a muted cream stone table",
+                            "background": "a pale warm-gray background"},
+    ("food", "realism"): {"surface": "a dark charcoal stone table",
+                         "background": "a softly blurred neutral dining background"},
+    ("food", "warm_organic"): {"surface": "a pale travertine table",
+                              "background": "a softly textured beige wall"},
+    ("drink", "editorial"): {"surface": "a pale cream stone table",
+                            "background": "a very light cool-gray background"},
+    ("drink", "realism"): {"surface": "a clean warm-gray stone tabletop",
+                          "background": "a softly sunlit neutral wall"},
+    ("drink", "warm_organic"): {"surface": "a pale travertine table",
+                               "background": "a softly textured beige wall"},
+    ("object", "editorial"): {"surface": "a cool off-white studio sweep"},
+    ("object", "realism"): {"surface": "a light gray limestone surface",
+                           "background": "a softly sunlit neutral wall"},
+    ("object", "warm_organic"): {"surface": "a pale travertine surface",
+                                "background": "a softly textured beige wall"},
+}
+
+# 각 (domain, mood, slot) → {warm/cool/neutral: [후보...]}. v0(현행 스팬)은 자기 톤 버킷 선두.
+#   trailing 명사는 스팬과 일치(문법 유지). 빈 버킷은 neutral→v0 순으로 폴백.
+_SCENE_POOLS: dict[tuple[str, str], dict[str, dict[str, list[str]]]] = {
+    ("food", "editorial"): {
+        "surface": {"neutral": ["a muted cream stone table", "a soft greige microcement table"],
+                    "warm": ["a warm oak wood table", "a honey travertine table"],
+                    "cool": ["a cool pale concrete table", "a light grey terrazzo table"]},
+        "background": {"neutral": ["a pale warm-gray background", "a soft stone-white background"],
+                       "warm": ["a soft ecru background", "a warm sand-beige background"],
+                       "cool": ["a very light cool-gray background", "a pale slate-gray background"]},
+    },
+    ("food", "realism"): {
+        "surface": {"neutral": ["a dark charcoal stone table", "a honed slate table"],
+                    "warm": ["a weathered walnut wood table", "a warm terracotta tiled table"],
+                    "cool": ["a cool grey concrete table"]},
+        "background": {"neutral": ["a softly blurred neutral dining background"],
+                       "warm": ["a softly blurred warm restaurant background",
+                                "a blurred amber-lit dining background"],
+                       "cool": ["a softly blurred cool grey dining background"]},
+    },
+    ("food", "warm_organic"): {
+        "surface": {"warm": ["a pale travertine table", "a raw oak table"],
+                    "neutral": ["a limewash concrete table"], "cool": []},
+        "background": {"warm": ["a softly textured beige wall", "a warm clay-plaster wall"],
+                       "neutral": ["a soft sand-toned wall"], "cool": []},
+    },
+    ("drink", "editorial"): {
+        "surface": {"neutral": ["a pale cream stone table", "a soft greige microcement table"],
+                    "warm": ["a warm oak wood table"], "cool": ["a cool pale concrete table"]},
+        "background": {"cool": ["a very light cool-gray background", "a pale slate-gray background"],
+                       "neutral": ["a soft stone-white background"], "warm": ["a soft ecru background"]},
+    },
+    ("drink", "realism"): {
+        "surface": {"neutral": ["a clean warm-gray stone tabletop", "a honed pale concrete tabletop"],
+                    "warm": ["a warm oak wood tabletop"], "cool": ["a cool grey stone tabletop"]},
+        "background": {"warm": ["a softly sunlit neutral wall", "a soft warm plaster wall"],
+                       "neutral": ["a soft pale grey wall"], "cool": ["a cool morning-lit wall"]},
+    },
+    ("drink", "warm_organic"): {
+        "surface": {"warm": ["a pale travertine table", "a raw oak table"],
+                    "neutral": ["a limewash concrete table"], "cool": []},
+        "background": {"warm": ["a softly textured beige wall", "a warm clay-plaster wall"],
+                       "neutral": ["a soft sand-toned wall"], "cool": []},
+    },
+    ("object", "editorial"): {
+        "surface": {"neutral": ["a cool off-white studio sweep", "a soft warm-white studio sweep"],
+                    "warm": ["a soft sand studio sweep"], "cool": ["a cool light-grey studio sweep"]},
+    },
+    ("object", "realism"): {
+        "surface": {"neutral": ["a light gray limestone surface", "a honed pale concrete surface"],
+                    "warm": ["a pale oak plank surface"], "cool": ["a cool grey stone surface"]},
+        "background": {"warm": ["a softly sunlit neutral wall", "a soft warm plaster wall"],
+                       "neutral": ["a soft pale grey wall"], "cool": ["a cool morning-lit wall"]},
+    },
+    ("object", "warm_organic"): {
+        "surface": {"warm": ["a pale travertine surface", "a raw oak surface"],
+                    "neutral": ["an unglazed stoneware surface"], "cool": []},
+        "background": {"warm": ["a softly textured beige wall", "a warm clay-plaster wall"],
+                       "neutral": ["a soft sand-toned wall"], "cool": []},
+    },
+}
+
+
+def _scene_pick(pool_slot: dict[str, list[str]], tone: str, subject: str, seed: int) -> str | None:
+    """톤 버킷에서 결정론적 선택. 매칭 톤 → neutral 순 폴백. subject·seed 로 가게별·재생성별 변동.
+
+    seed 를 선형 가산이 아니라 해시에 접는다 — subject 에 slot salt(_apply_scene_tone)가 이미
+    붙어 있어 "subject:slot:seed" 해시가 되므로 surface·background 가 slot·seed 양축으로 독립
+    선택된다(동조 방지, 무대 조합↑). 파이썬 내장 hash()는 프로세스마다 달라 결정론 깨짐 → hashlib.
+    """
+    import hashlib
+
+    base = int(hashlib.md5(f"{subject}:{seed}".encode("utf-8")).hexdigest()[:8], 16)
+    for t in (tone, "neutral"):
+        cands = pool_slot.get(t) or []
+        if cands:
+            return cands[base % len(cands)]
+    return None
+
+
+def _apply_scene_tone(domain: str, mood: str, direction: str, tone: str,
+                      subject: str, seed: int) -> str:
+    """direction 의 표면/배경 스팬을 입력 톤에 맞춰 교체(DIV-2). 스팬 미발견·후보 없음은 무변경."""
+    spans = _SCENE_SPANS.get((domain, mood))
+    pools = _SCENE_POOLS.get((domain, mood))
+    if not spans or not pools:
+        return direction
+    for slot in ("surface", "background"):
+        span = spans.get(slot)
+        pool = pools.get(slot)
+        if not span or not pool or span not in direction:
+            continue
+        # slot 별로 subject 를 salt → surface·background 가 독립 선택(동조 방지, 무대 조합↑).
+        pick = _scene_pick(pool, tone, f"{subject}:{slot}", seed)
+        if pick and pick != span:
+            direction = direction.replace(span, pick, 1)
+    return direction
 
 
 _STYLE_ALIASES = {
@@ -190,6 +345,35 @@ _IDENTITY_LOCKS = {
         "anything, resting on a thin cut edge, or otherwise unsupported — this is a flat lay or gently-angled "
         "tabletop shot, never a propped-up or upright food-styling shot. This rule applies with no exceptions, "
         "regardless of camera angle, background color or lighting mood. "
+        "Change the background, table surface, camera framing and environmental lighting to match the requested "
+        "scene. "
+    ),
+    # 디저트(케이크·타르트·베이커리 등): 접시는 '상품'이 아니라 '연출(용기)' → 예쁜 디저트 접시로
+    #   재플레이팅 허용(사용자 지시 2026-07-21 "예쁜 그릇 써 디저트잖아"). product-understanding
+    #   상품=보존/용기=조정. 단 BUG-KTX-001(접시→컵)·PLATING-001(붕뜸/기울어짐) 가드는 그대로 유지:
+    #   디저트는 여전히 컵/음료 아님, 평평히 접지. 케이크 자체(층·크림·토핑·색)는 완전 보존.
+    "food_dessert": (
+        "This is a plated dessert photograph resting flat on a table, photographed from above or at a gentle "
+        "angle — never standing upright or propped on its edge. It is a slice or piece of cake or dessert lying "
+        "flat on its widest base, the same way it was photographed. There is no cup, mug, tumbler, lid or straw "
+        "anywhere in this image. "
+        "Edit this exact dessert photograph. Keep the dessert itself completely unchanged: its exact shape, "
+        "layers, cream, frosting, toppings, fruit, crumb, texture and true colors — do not add, remove, redraw, "
+        "resize, recolor or rearrange any part of the dessert. "
+        # 핵심 개정: '접시 고정'을 풀되 대상은 '용기(접시)'로 한정, 케이크는 위에서 보존한다.
+        "You SHOULD replace the plain plate underneath with a distinctly beautiful designer dessert plate worthy "
+        "of a high-end patisserie — an artisanal ceramic with a refined sculpted or scalloped rim, a delicate "
+        "handcrafted texture or a subtle elegant tone (soft blush, sage, matte charcoal or gold-rimmed), "
+        "thoughtfully styled to elevate the dessert like a fine-dining plated course. Make the plate itself a "
+        "clearly premium, considered element, not a plain white dish. Restyle only the plate, not the dessert. "
+        # BUG-KTX-001 가드 유지: 재플레이팅이 접시를 컵/그릇으로 변형시키지 않도록 명시.
+        "Never turn the dessert or its plate into a cup, mug, takeaway container, drinking glass, bowl of liquid "
+        "or any different kind of object — it must remain a solid plated dessert on a flat dessert plate, never a "
+        "beverage. "
+        # PLATING-001 가드 유지: 붕뜸/기울어짐 방지.
+        "The dessert must rest fully and flatly on the new plate with its whole base in contact, casting a single "
+        "realistic contact shadow as if simply set down under normal gravity. Never leave it floating, tilted "
+        "upright, propped up, leaned back or resting on a thin cut edge. "
         "Change the background, table surface, camera framing and environmental lighting to match the requested "
         "scene. "
     ),
@@ -580,12 +764,58 @@ def get_reference_plan(style_key: str, domain: str | None) -> ReferenceStylePlan
     return _PLANS[(normalize_domain(domain), style)]
 
 
+# 디저트 판정(2026-07-21): food 도메인 안에서 케이크·타르트류를 골라 접시 재플레이팅 잠금을
+#   적용한다. subject_en(analyze_menu 영문)만으로 판정 → build_reference_instruction 단일 지점
+#   결정(별도 배선 불필요). vessel(유리 디저트 용기) 분류가 우선이므로 빙수·파르페는 해당 없음.
+_DESSERT_HINTS = (
+    "cake", "cheesecake", "cupcake", "shortcake", "gateau", "tart", "tarte", "pie",
+    "macaron", "macaroon", "pastry", "croissant", "cookie", "brownie", "waffle",
+    "pancake", "muffin", "scone", "pudding", "mousse", "tiramisu", "eclair", "donut",
+    "doughnut", "parfait", "dessert", "roll cake",
+)
+
+
+def _is_dessert_subject(subject_en: str) -> bool:
+    """subject_en(영문 상품 설명)이 케이크·베이커리 디저트인지. 접시 재플레이팅 대상 판정용.
+
+    ⚠️ 레거시 폴백 전용(SRV-ROUTE-001): substring이라 "rice cake soup"(떡국)도 True가 되는
+    구조적 오탐이 있다 — serving_type(LLM 의미 판정)이 있으면 그쪽이 정본, 이 함수는
+    serving_type=None(구캐시·킬스위치)일 때만 기존 동작 그대로 쓴다.
+    """
+    low = (subject_en or "").lower()
+    return any(hint in low for hint in _DESSERT_HINTS)
+
+
+# SRV-ROUTE-001 §4-4: 재플레이팅 부적합 가드 — food_dessert 락 문구("단일 디저트가 접시 위에
+#   평평히 누움" + 접시 교체)의 전제가 거짓이 되는 제시 형태를 이름 근거로 걸러, 안전측
+#   (락 미적용=기존 문구)으로 보낸다. serving_type 분기 안에서만 사용 — 레거시 substring
+#   경로는 바이트 동일 유지(회귀 가드).
+_REPLATE_UNSAFE_SET = ("set", "box", "gift", "assort", "bundle")    # 세트·박스·다중개체
+_REPLATE_UNSAFE_VESSEL = ("bingsu", "parfait", "affogato", "sundae", "float")  # 유리용기 디저트
+_REPLATE_UNSAFE_WHOLE = ("whole", "tier")                           # 홀케이크(기립형 다단)
+
+
+def _replate_unsafe(subject_en: str, container_desc: str | None) -> bool:
+    """디저트 접시 재플레이팅이 시각적으로 부조리해지는 케이스 판정(SRV-ROUTE-001 적대검증 방어).
+
+    - 세트·박스: 박스 정렬 상품에 '접시 교체' 지시 = 포장(상품 정체성) 파괴 — 온라인셀러 세트 보호
+    - 유리용기 디저트인데 Vision 용기 정보 없음: vessel 분류가 못 가로챈 케이스를 안전측으로
+    - 홀케이크: 락의 '평평히 누운 조각' 전제가 기립형 다단 구조와 모순 → 형태 왜곡 위험
+    """
+    low = (subject_en or "").lower()
+    if any(w in low for w in _REPLATE_UNSAFE_SET + _REPLATE_UNSAFE_WHOLE):
+        return True
+    return container_desc is None and any(w in low for w in _REPLATE_UNSAFE_VESSEL)
+
+
 def build_reference_instruction(style_key: str, domain: str | None, subject_en: str,
                                 container_desc: str | None = None,
                                 container_opacity: str | None = None,
-                                serving_type: str | None = None,
+                                finish_profile: str | None = None,
                                 palette_override: str | None = None,
+                                scene_tone: str | None = None,
                                 scene_seed: int = 0,
+                                serving_type: str | None = None,
                                 core_ingredients: list[str] | None = None) -> str | None:
     """StylePlan을 Kontext용 정체성 보존 편집 지시로 변환한다.
 
@@ -594,10 +824,9 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
     치환한다(CONTAINER-001). 미지정·접시류·분류 실패는 전부 기존 문구와 바이트 동일 —
     컵 변환(BUG-KTX-001)·프로핑(PLATING-001) 회귀 가드.
 
-    serving_type(SRV-ROUTE-001): 제공 형태 세분 신호 배관. 현 시점 이 함수는 소비하지 않음
-    — 디저트 재플레이팅 락 브랜치가 머지되면 tier-3 락 조건이 소비한다
-    (설계 SRV-ROUTE-001 §4-4: serving_type in ('dessert','bakery') and not _replate_unsafe(...),
-    None이면 레거시 substring — vessel 체크 선행 순서 불변).
+    serving_type(SRV-ROUTE-001 §4-4, 이 브랜치에서 소비 활성): 디저트 락 판정의 정본 —
+    serving_type in ('dessert','bakery') and not _replate_unsafe(...) 이면 food_dessert 락.
+    None이면 레거시 substring(_is_dessert_subject) — 바이트 동일. vessel 체크 선행 순서 불변.
     """
     plan = get_reference_plan(style_key, domain)
     if plan is None:
@@ -614,6 +843,22 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         container_clause = _prompts.fmt(_NS, "container.realism_clause_vessel",
                                         container=container)
     else:
+        # 디저트(케이크류)는 접시를 상품이 아닌 연출요소로 보고 예쁜 접시로 재플레이팅한다.
+        #   vessel(유리 디저트 용기)이 아닐 때만 — 굽 유리볼 빙수 등은 위에서 이미 보존 처리.
+        # SRV-ROUTE-001 §4-4 게이트: serving_type(LLM 의미 판정)이 있으면 그것이 정본 —
+        #   substring 오탐("rice cake soup"→디저트 락, "bread" 베이커리 누락) 차단 +
+        #   재플레이팅 부적합(_replate_unsafe: 세트/박스·무Vision 유리용기·홀케이크) 가드.
+        #   None(구캐시·SERVING_TYPE_ROUTING=0)이면 레거시 substring — 바이트 동일.
+        if serving_type is not None:
+            dessert = (serving_type in ("dessert", "bakery")
+                       and not _replate_unsafe(subject, container_desc))
+        else:
+            dessert = _is_dessert_subject(subject)
+        if plan.domain == "food" and dessert:
+            # DESSERT-AB: 재플레이팅(238c288) before/after 인세션 토글. 기본 on=현행(바이트 동일),
+            #   DESSERT_REPLATE=0 이면 구 동작(접시 보존=freeze plate)으로 폴백 → A/B 대조군.
+            if os.environ.get("DESSERT_REPLATE", "1") != "0":
+                identity_lock = _IDENTITY_LOCKS["food_dessert"]
         hero = _prompts.get(_NS, "container.hero_default")
         container_clause = _prompts.get(_NS, "container.realism_clause_default")
     direction = plan.direction
@@ -621,12 +866,13 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
     #   디저트 용기)은 용기 보존이 우선이라 제외(기존 pop direction 유지). 로테이션은
     #   subject+scene_seed 결정론(palette_gen 레시피 로테이션과 동일 패턴) — 같은 가게도
     #   재생성마다 다른 연출, 같은 시드는 재현 가능.
-    if (plan.domain == "food" and plan.style_key in _STYLE_FOOD_VARIANTS
-            and not is_vessel):
+    # 락 우선순위(머지 정합 2026-07-24): styled 로테이션(pop·monotone·pastel)이면 food_pop
+    #   공용 완화 잠금이 디저트 락을 덮는다(의도 — 접시 교체·가니시 허용 포함). 디저트
+    #   재플레이팅 락은 비-로테이션 스타일(에디토리얼·리얼리즘 등) 전용.
+    styled_v2 = (plan.domain == "food" and plan.style_key in _STYLE_FOOD_VARIANTS
+                 and not is_vessel)
+    if styled_v2:
         variants = _STYLE_FOOD_VARIANTS[plan.style_key]
-        # NOODLE-GUARD(2026-07-24 라이브 실측 2회): 면류는 pop ①(scatter/flat-lay 압력)이
-        #   탑다운 전환과 함께 본체를 재드로잉(펜네→스파게티, 함정#4) — 강화 문구로도 못
-        #   막음. 면류는 pop ①을 로테이션에서 제외(②③④) — ③은 면류 보존 2/2 실측 성공.
         is_noodle = any(h in subject.lower() for h in _NOODLE_HINTS)
         # NOODLE-GUARD 변형 서브셋(2026-07-24 실측 확정): 전면 재구성 강도가 높은 변형은 면을
         #   재드로잉한다(pop① scatter, mono③ brand 몰입 4/4, pastel① dreamy 전면 실크 4/4 —
@@ -649,6 +895,12 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
                 "as photographed — never convert penne into spaghetti or redraw the noodles — and "
                 "do not add any topping that is not visible in the original photo. "
             )
+    # DIV-2: scene_tone 미지정(기본)이면 무변경 → 바이트 동일. 지정 시에만 표면/배경 스팬을
+    #   입력 사진 톤에 맞춰 교체(다양성의 원천 = 유저 사진). 자리표시자 치환보다 먼저 수행.
+    #   styled 로테이션 변형에는 대응 스팬이 없으므로 비-로테이션 방향에만 적용.
+    if scene_tone is not None and not styled_v2:
+        direction = _apply_scene_tone(plan.domain, plan.style_key, direction,
+                                      scene_tone, subject, scene_seed)
     # 자리표시자는 한 번에 치환 — {palette}+{hero} 동시 보유 플랜(food pop)에서 str.format이
     # 누락 키로 KeyError를 내지 않게 한다.
     fmt_args: dict[str, str] = {}
@@ -666,9 +918,11 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         fmt_args["container_clause"] = container_clause
     if fmt_args:
         direction = direction.format(**fmt_args)
+    # REAL-001: finish_profile 미지정 시 plan 기본값("none") → 절 무주입 → 바이트 동일.
+    finish = _finish_clause(finish_profile if finish_profile is not None else plan.finish_profile)
     return (
         f"The photographed subject is {subject}. "
-        f"{identity_lock}{direction} "
+        f"{identity_lock}{direction} {finish}"
         "Do not generate any new logo, label, lettering, watermark or advertising copy."
     )
 
@@ -756,7 +1010,10 @@ def build_recompose_instruction(style_key: str, subject_en: str,
                                 container_desc: str | None = None,
                                 temperature: str | None = None,
                                 text_zone: str | None = None,
-                                flexible_parts: list[str] | None = None) -> str | None:
+                                flexible_parts: list[str] | None = None,
+                                finish_profile: str | None = None,
+                                scene_tone: str | None = None,
+                                scene_seed: int = 0) -> str | None:
     """P5 음료 재연출 지시 — 보존 편집이 아니라 같은 음료의 '새 연출'을 만든다.
 
     재연출 계약(원본 승계): 같은 음료·토핑 / 앵글·구도 자유 / 외래 재료·손·글자 금지 /
@@ -793,11 +1050,17 @@ def build_recompose_instruction(style_key: str, subject_en: str,
     # 재연출 계약의 "identical ice/toppings as photographed"와 충돌한다(그 음료의 진짜 얼음까지
     # 지우라는 뜻으로 읽힘). 씬 묘사만 취하고 금지는 아래 계약 문장이 일원화해서 담당한다.
     raw_direction = plan.direction
+    # DIV-2: scene_tone 미지정이면 무변경(바이트 동일). 지정 시 표면/배경을 입력 톤에 맞춰 교체.
+    if scene_tone is not None:
+        raw_direction = _apply_scene_tone(plan.domain, plan.style_key, raw_direction,
+                                          scene_tone, subject, scene_seed)
     if "{palette}" in raw_direction:  # PALETTE-001: build_reference_instruction과 동일 치환
         raw_direction = raw_direction.format(palette=_style_palette_clause(plan.style_key, plan.domain, subject))
     scene_direction = ". ".join(
         s.rstrip(".") for s in raw_direction.split(". ") if not s.strip().startswith("No ")
     ) + "."
+    # REAL-001: 미지정 시 plan 기본값("none") → 무주입 → 바이트 동일.
+    finish = _finish_clause(finish_profile if finish_profile is not None else plan.finish_profile)
     return (
         f"Restage this {subject} into a new advertisement composition. "
         f"{vessel_clause}"
@@ -805,6 +1068,7 @@ def build_recompose_instruction(style_key: str, subject_en: str,
         f"dynamic advertising shot. {staging_txt}{effect_txt} "
         f"{scene_direction} "
         f"Leave clean empty copy space in the {zone} area. "
+        f"{finish}"
         "Do not add any new ingredients, fruit, garnish, props, hands or people. "
         "Do not generate any new logo, label, lettering, watermark or advertising copy."
     )

@@ -63,8 +63,12 @@ def top_view_prompt(domain: str, angle: int = 90) -> str:
             f"Rotate the camera to a steep downward angle, tilted about {angle} degrees from directly "
             "overhead, clearly different from a straight-on side view."
         )
+    # FMT-BG(2026-07-22): 섹션별 배경 변주 — 육안 정본이 "4컷 배경 동일"을 포착(corr이 못 잡는 축).
+    #   top_view는 위에서 본 '부드러운 매트 표면 + 은은한 그림자'로, side_profile(그라디언트)·
+    #   texture(무배경)·lifestyle(실장면)과 시각적으로 구분. 소품 추가는 금지(함정 #7 환각 방지).
     return (
-        f"{angle_clause} {preserve} Clean tabletop, no added props, no hands, no text, no logo, no watermark."
+        f"{angle_clause} {preserve} Shot from above on a smooth matte surface with a soft directional "
+        "shadow, no added props, no hands, no text, no logo, no watermark."
     )
 
 
@@ -122,12 +126,15 @@ _TEXTURE_PRESERVE = {
     "food": "Preserve exact ingredients, color and material.",
     "object": "Preserve exact shape, color, label and material.",
 }
+# FMT-BG(2026-07-22): texture는 '프레임을 꽉 채운 무배경 매크로'로 강제 — 배경이 아예 없어
+#   다른 섹션(표면/그라디언트/실장면)과 최대로 구분되고, 원본 배경이 딸려오는 문제도 차단.
 _TEXTURE_CLOSEUP_FRAMINGS: tuple[str, ...] = (
-    "a tight macro detail crop of the product's real surface texture",
-    "an extremely tight macro crop filling the frame, offset to a different part of the product than a "
-    "straight front view",
-    "a medium macro close-up from a slightly different angle than a straight front view, with more "
-    "surrounding surface visible",
+    "a tight macro detail crop of the product's real surface texture that fills the entire frame "
+    "with no visible background",
+    "an extremely tight macro crop filling the whole frame with no visible background, offset to a "
+    "different part of the product than a straight front view",
+    "a medium macro close-up filling the frame with no visible background, from a slightly different "
+    "angle than a straight front view, with more surrounding surface visible",
 )
 
 
@@ -154,9 +161,11 @@ def side_profile_prompt(domain: str, angle: int = 90) -> str:
         f"Rotate the camera {angle} degrees around the product's vertical axis relative to the original "
         "framing, still at eye level, clearly different from the original angle."
     )
+    # FMT-BG(2026-07-22): '무배경/평면' 대신 부드러운 스튜디오 그라디언트 배경 — top_view(표면)·
+    #   texture(무배경)·lifestyle(실장면)과 배경축에서 구분. 소품 추가 없이 배경 톤만 변주(환각 방지).
     return (
-        f"{angle_clause} {preserve} Clean neutral background, no added props, no hands, no text, no logo, "
-        "no watermark."
+        f"{angle_clause} {preserve} Set against a soft seamless studio gradient backdrop (not a plain "
+        "flat wall), no added props, no hands, no text, no logo, no watermark."
     )
 
 

@@ -70,6 +70,7 @@ def _clarity(rgb, amount):
 
 
 def _gloss(rgb, amount):
+    # REVERT 2026-07-22: 적응형 니(percentile)는 item1 강화 폐기와 함께 원복(고정 0.62).
     if amount <= 0:
         return rgb
     lum = rgb @ np.array([0.299, 0.587, 0.114], np.float32)

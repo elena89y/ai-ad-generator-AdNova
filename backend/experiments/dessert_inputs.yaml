@@ -1,0 +1,4 @@
+seed: 42
+items:
+  - {file: 딸기롤케이크.jpg, expected_mode: dish, subject_en: strawberry roll cake slice, name: 딸기롤케이크}
+  - {file: 딸기생크림케이크.jpg, expected_mode: dish, subject_en: strawberry cream cake slice, name: 딸기생크림케이크}
