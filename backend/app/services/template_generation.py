@@ -29,7 +29,6 @@ import re
 import secrets
 import shutil
 import time
-from dataclasses import replace
 from pathlib import Path
 
 from . import api_image_service, gpt_service, image_service, template_crop, template_service
@@ -181,10 +180,10 @@ def _generate_impl(
     # 상품명 미입력 → 이미지에서 상품명 유추(Vision 1회). 안 하면 문구가 "상품 정보를 주세요"
     # 메타 문구로 나와 SNS 4채널이 사실상 비게 됨(2026-07-24). 유추한 이름으로 메인 카피 +
     # SNS 문구를 함께 그라운딩한다. 이름이 있으면 호출하지 않는다(Vision 비용 방지).
-    if not product.name.strip():
+    if not (product.name or "").strip():
         derived = gpt_service.describe_product(str(final))
         if derived:
-            product = replace(product, name=derived)
+            product = product.model_copy(update={"name": derived})  # ProductInfo=Pydantic
             logger.info("template: 상품명 미입력 → 이미지에서 '%s' 유추(문구 그라운딩)", derived)
 
     # 문구 — 정상 경로와 동일한 _generate_copy 라우터(copy_graph 품질 게이트 공유). 실패해도 폴백.
