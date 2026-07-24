@@ -280,6 +280,13 @@ def _platform_copy_instruction(product_context: str, style: StylePreset,
         honesty=honesty, ground=ground, fix=fix, persona=persona)
 
 
+# 플랫폼별 해시태그 하드 상한 — 공유 파이프라인(export_service)의 태그 생성이 07-24 제거되며
+# 태그 개수 보장을 카피 생성으로 이관. 값은 기존 PLATFORM_CONFIG.max_hashtags 미러(X=280자 규격상 15).
+_PLATFORM_MAX_HASHTAGS: dict[str, int] = {
+    "instagram": 30, "facebook": 30, "x": 15, "threads": 30,
+}
+
+
 def generate_platform_copy(
     product: ProductInfo,
     style: StylePreset,
@@ -316,10 +323,12 @@ def generate_platform_copy(
     out: dict[str, dict] = {}
     for plat in _PLATFORM_PERSONA:
         blk = result.get(plat) or {}
+        tags = [str(h).strip() for h in (blk.get("hashtags") or []) if str(h).strip()]
+        cap = _PLATFORM_MAX_HASHTAGS.get(plat)
         out[plat] = {
             "headline": str(blk.get("headline", "")).strip(),
             "body": str(blk.get("body", "")).strip(),
-            "hashtags": [str(h).strip() for h in (blk.get("hashtags") or []) if str(h).strip()],
+            "hashtags": tags[:cap] if cap is not None else tags,
         }
     return out
 
