@@ -817,14 +817,18 @@ export default function StudioPage() {
               )}
               <div
                 className="compare-grid"
-                style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr",
+                  alignItems: "start",
+                  gap: 16,
+                }}
               >
                 <div
                   style={{
                     position: "relative",
                     borderRadius: 14,
                     overflow: "hidden",
-                    minHeight: 360,
                     background: "#0d0d10",
                   }}
                 >
@@ -832,11 +836,10 @@ export default function StudioPage() {
                   <img
                     src={beforeSrc}
                     style={{
-                      position: "absolute",
-                      inset: 0,
+                      display: "block",
                       width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
+                      height: "auto",
+                      objectFit: "contain",
                     }}
                     alt="원본"
                   />
@@ -862,18 +865,16 @@ export default function StudioPage() {
                     position: "relative",
                     borderRadius: 14,
                     overflow: "hidden",
-                    minHeight: 360,
                     background: "#0d0d10",
                   }}
                 >
                   <AuthenticatedImage
                     src={toAbsoluteUrl(resultImageUrl(result))}
                     style={{
-                      position: "absolute",
-                      inset: 0,
+                      display: "block",
                       width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
+                      height: "auto",
+                      objectFit: "contain",
                     }}
                     alt="AI 광고"
                   />
