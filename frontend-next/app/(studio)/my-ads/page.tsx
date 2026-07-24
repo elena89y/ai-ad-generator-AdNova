@@ -8,7 +8,7 @@ import { useStudio } from "@/components/studio/StudioProvider";
 import { AppBar } from "@/components/studio/chrome";
 import { AuthenticatedImage } from "@/components/studio/AuthenticatedImage";
 
-const FILTERS = ["all", "모노톤", "웜 빈티지", "팝 비비드", "에디토리얼", "리얼리즘", "파스텔"];
+const FILTERS = ["all", "템플릿", "모노톤", "웜 빈티지", "팝 비비드", "에디토리얼", "리얼리즘", "파스텔"];
 
 export default function MyAdsPage() {
   const s = useStudio();
@@ -32,7 +32,11 @@ export default function MyAdsPage() {
     return () => document.removeEventListener("click", close);
   }, []);
 
-  const list = s.ads.filter((a) => filter === "all" || a.style === filter);
+  const list = s.ads.filter((ad) => {
+    if (filter === "all") return true;
+    if (filter === "템플릿") return ad.isTemplate;
+    return !ad.isTemplate && ad.style === filter;
+  });
 
   function openDetail(item: AdItem) {
     s.openDetail(item);
@@ -92,7 +96,13 @@ export default function MyAdsPage() {
           {list.length === 0 ? (
             <div className="empty-my">
               <div className="big">🗂</div>
-              <h3>{filter === "all" ? "아직 만든 광고가 없어요" : "이 스타일 광고가 없어요"}</h3>
+              <h3>
+                {filter === "all"
+                  ? "아직 만든 광고가 없어요"
+                  : filter === "템플릿"
+                    ? "템플릿으로 만든 광고가 없어요"
+                    : "이 스타일 광고가 없어요"}
+              </h3>
               <p>다른 스타일을 골라보거나 새 광고를 만들어보세요.</p>
             </div>
           ) : (

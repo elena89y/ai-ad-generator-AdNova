@@ -363,6 +363,10 @@ export default function StudioProvider({ children }: { children: React.ReactNode
   const freeTotal = billingSummary?.free_credit_limit ?? 3;
   const premiumLeft = billingSummary?.premium_credits_remaining ?? 0;
   const premiumTotal = billingSummary?.premium_credit_limit ?? 30;
+  const setDashboardState = useCallback<StudioState["setDashboardState"]>(
+    (patch) => setDashState((state) => ({ ...state, ...patch })),
+    []
+  );
 
   const value = useMemo<StudioState>(
     () => ({
@@ -391,7 +395,7 @@ export default function StudioProvider({ children }: { children: React.ReactNode
       refreshHistory,
       refreshDashboardSummary,
       setAds: setAdsState,
-      setDashboardState: (patch) => setDashState((s) => ({ ...s, ...patch })),
+      setDashboardState,
       openDetail: (item) => setActiveItem(item),
       openShare: (item, from, platform) => {
         setActiveItem(item);
@@ -428,6 +432,7 @@ export default function StudioProvider({ children }: { children: React.ReactNode
       refreshBilling,
       refreshHistory,
       refreshDashboardSummary,
+      setDashboardState,
       upgradeOpen,
     ]
   );

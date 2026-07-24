@@ -6,7 +6,7 @@
    서버 template_id = tpl_{NN}_{id} (catalog_v1.json 키). identity_grade 보존은 서버가 처리. */
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import {
   ALLOWED_IMAGE_TYPES,
   apiFetch,
@@ -47,17 +47,14 @@ export default function TemplateApplyPage() {
     if (s.ready && !s.token) router.replace("/login");
   }, [s.ready, s.token, router]);
 
-  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+  async function uploadProductImage(file: File | undefined) {
     if (!file) return;
     if (file.size > 15 * 1024 * 1024) {
       s.toast("이미지는 최대 15MB까지 업로드할 수 있습니다.");
-      e.target.value = "";
       return;
     }
     if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
       s.toast("jpg, png, webp 이미지만 업로드할 수 있습니다");
-      e.target.value = "";
       return;
     }
     const fd = new FormData();
@@ -72,9 +69,18 @@ export default function TemplateApplyPage() {
       setResultUrl("");
     } catch (err) {
       s.toast(err instanceof Error ? err.message : "이미지 업로드에 실패했습니다");
-    } finally {
-      e.target.value = "";
     }
+  }
+
+  function handleUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    void uploadProductImage(file);
+  }
+
+  function handleImageDrop(event: DragEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    void uploadProductImage(event.dataTransfer.files?.[0]);
   }
 
   async function generate() {
@@ -107,6 +113,8 @@ export default function TemplateApplyPage() {
       const data = (await readJsonSafely(res)) as { image_url?: string } | null;
       if (!res.ok || !data?.image_url) throw new Error(readApiError(data, "광고 생성에 실패했습니다"));
       setResultUrl(toAbsoluteUrl(data.image_url) ?? "");
+      s.refreshBilling(false);
+      s.refreshHistory(false);
       s.refreshDashboardSummary();
       s.toast("광고가 완성됐어요");
     } catch (err) {
@@ -170,6 +178,8 @@ export default function TemplateApplyPage() {
                 <button
                   type="button"
                   onClick={() => fileRef.current?.click()}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={handleImageDrop}
                   style={{
                     width: "100%", aspectRatio: "1/1", maxHeight: 300, borderRadius: 12,
                     border: "1px dashed var(--line)", background: "rgba(255,255,255,.03)",
@@ -181,7 +191,7 @@ export default function TemplateApplyPage() {
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={preview} alt="업로드" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
                   ) : (
-                    "클릭해서 제품 사진 올리기"
+                    "클릭하거나 사진을 끌어다 놓으세요"
                   )}
                 </button>
                 <input ref={fileRef} type="file" accept="image/*" hidden onChange={handleUpload} />
