@@ -31,15 +31,41 @@ class UploadValidationTestCase(unittest.TestCase):
 
         self.assertEqual(context.exception.status_code, 400)
 
-    def test_image_format_must_match_metadata(self) -> None:
+    def test_image_format_metadata_mismatch_is_accepted(self) -> None:
+        detected_format = validate_image_content(
+            make_png_bytes(),
+            suffix=".jpg",
+            content_type="image/jpeg",
+        )
+
+        self.assertEqual(detected_format, "PNG")
+
+    def test_unsupported_image_format_is_rejected(self) -> None:
+        buffer = BytesIO()
+        Image.new("RGB", (4, 4), color="white").save(buffer, format="GIF")
+
         with self.assertRaises(HTTPException) as context:
-            validate_image_content(
-                make_png_bytes(),
-                suffix=".jpg",
-                content_type="image/jpeg",
-            )
+            validate_image_content(buffer.getvalue())
 
         self.assertEqual(context.exception.status_code, 400)
+
+    def test_reader_accepts_mismatched_filename_and_content_type(self) -> None:
+        from starlette.datastructures import UploadFile as StarletteUploadFile
+
+        from app.services.upload_validation import read_image_upload_file_sync
+
+        upload = StarletteUploadFile(
+            file=BytesIO(make_png_bytes()),
+            filename="kakao-photo.jpg",
+            headers={"content-type": "image/jpeg"},
+        )
+
+        original_filename, suffix, normalized = read_image_upload_file_sync(upload)
+
+        self.assertEqual(original_filename, "kakao-photo.jpg")
+        self.assertEqual(suffix, ".jpg")
+        with Image.open(BytesIO(normalized)) as image:
+            self.assertEqual(image.format, "JPEG")
 
 
 if __name__ == "__main__":

@@ -21,6 +21,7 @@ itsdangerous
 openai
 langfuse  # Langfuse 트레이싱 — app/core/observability.py 에서 초기화
 Pillow
+pillow-heif
 rembg
 
 # onnxruntime-gpu 1.27+ = CUDA 13 빌드 — torch(CU13 스택)와 라이브러리 공유. 1.26 이하(CU12)와 혼용 금지
