@@ -110,6 +110,7 @@ export interface AdItem {
   productName: string;
   style: string;
   rawStyle?: string;
+  isTemplate?: boolean;
   date: string;
   createdAt?: string;
   inputImg: string;
@@ -435,6 +436,7 @@ export function historyToCard(history: HistoryEntry): AdItem {
     productName: ad.title || copy.head,
     style,
     rawStyle: ad.style,
+    isTemplate: Boolean(templateId),
     date: formatDateLabel(history.created_at),
     createdAt: history.created_at,
     inputImg: "",

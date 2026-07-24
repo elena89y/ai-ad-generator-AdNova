@@ -117,6 +117,7 @@ export default function StudioPage() {
     "사진만 넣으면 배경·구도는 AI가 알아서 잡아줘요."
   );
   const stepTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const selectedImagePreviewRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (s.ready && !s.token) router.replace("/login");
@@ -162,11 +163,15 @@ export default function StudioPage() {
       s.toast("jpg, png, webp 이미지만 업로드할 수 있습니다");
       return;
     }
+    const previousPreview = selectedImagePreviewRef.current;
+    if (previousPreview?.startsWith("blob:")) URL.revokeObjectURL(previousPreview);
+    const nextPreview = URL.createObjectURL(file);
+    selectedImagePreviewRef.current = nextPreview;
     setSelectedImageFile(file);
     s.setDashboardState({
       selectedImageId: null,
       selectedImageUrl: null,
-      selectedImagePreview: URL.createObjectURL(file),
+      selectedImagePreview: nextPreview,
       currentResult: null,
     });
     setUploadInfo(`선택한 이미지: ${file.name}`);
@@ -184,6 +189,9 @@ export default function StudioPage() {
   }
 
   function removeSelectedImage() {
+    const preview = selectedImagePreviewRef.current;
+    if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
+    selectedImagePreviewRef.current = null;
     setSelectedImageFile(null);
     s.setDashboardState({
       selectedImageId: null,
@@ -196,11 +204,20 @@ export default function StudioPage() {
   }
 
   useEffect(() => {
-    const previewUrl = s.selectedImagePreview;
-    return () => {
-      if (previewUrl?.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
-    };
+    selectedImagePreviewRef.current = s.selectedImagePreview;
   }, [s.selectedImagePreview]);
+
+  useEffect(() => {
+    return () => {
+      const preview = selectedImagePreviewRef.current;
+      if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
+      s.setDashboardState({
+        selectedImageId: null,
+        selectedImageUrl: null,
+        selectedImagePreview: null,
+      });
+    };
+  }, [s.setDashboardState]);
 
   function startLoadingSteps() {
     let i = 0;

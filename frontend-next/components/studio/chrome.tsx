@@ -110,6 +110,9 @@ export function ProfileMenu() {
           <span className="pf-ic">✦</span>{" "}
           {!billingReady ? "플랜 확인 중" : isPremium ? "구독 관리" : "프리미엄 업그레이드"}
         </button>
+        <button className="pf-item" onClick={() => goTo("/notices")}>
+          <span className="pf-ic">📣</span> 공지사항
+        </button>
         <button className="pf-item" onClick={() => goTo("/support")}>
           <span className="pf-ic">💬</span> 고객센터
         </button>
@@ -124,6 +127,7 @@ export function ProfileMenu() {
 
 export function UsagePill() {
   const {
+    user,
     isPremium,
     freeLeft,
     freeTotal,
@@ -135,7 +139,7 @@ export function UsagePill() {
   const bonusCredits = billingSummary?.bonus_credits_remaining ?? 0;
   const purchasedCredits = billingSummary?.purchased_credits_remaining ?? 0;
 
-  if (!billingReady)
+  if (!user || !billingReady)
     return <div className="usage">사용량 확인 중</div>;
   return (
     <div className="usage">
@@ -162,6 +166,40 @@ export function UsagePill() {
   );
 }
 
+function AccountActions({ showUsage = false }: { showUsage?: boolean }) {
+  const { ready, user } = useStudio();
+
+  if (!ready) return null;
+  if (!user) {
+    return (
+      <Link
+        href="/login"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          minHeight: 34,
+          padding: "0 13px",
+          border: "1px solid var(--line)",
+          borderRadius: 9,
+          color: "var(--ink)",
+          fontSize: 12,
+          fontWeight: 800,
+          textDecoration: "none",
+        }}
+      >
+        로그인
+      </Link>
+    );
+  }
+
+  return (
+    <>
+      {showUsage && <UsagePill />}
+      <ProfileMenu />
+    </>
+  );
+}
+
 function PrimaryNav() {
   const pathname = usePathname();
   const inWorkspace = pathname === "/studio" || pathname === "/templates";
@@ -184,8 +222,7 @@ export function AppBar() {
       <Brand />
       <PrimaryNav />
       <div className="right">
-        <UsagePill />
-        <ProfileMenu />
+        <AccountActions showUsage />
       </div>
     </div>
   );
@@ -222,7 +259,7 @@ export function SubBar({
       <PrimaryNav />
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
         {right}
-        {showProfile && <ProfileMenu />}
+        {showProfile && <AccountActions />}
       </div>
     </div>
   );
