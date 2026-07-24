@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { AdItem, FORMAT_LABELS, normalizePlatformCopy } from "@/lib/api";
-import { SNS_LIST, deleteStoredAd, exportSnsPost } from "@/lib/sns";
+import { AdItem, FORMAT_LABELS } from "@/lib/api";
+import { deleteStoredAd } from "@/lib/sns";
 import { useStudio } from "@/components/studio/StudioProvider";
 import { AppBar } from "@/components/studio/chrome";
 import { AuthenticatedImage } from "@/components/studio/AuthenticatedImage";
@@ -14,7 +14,6 @@ export default function MyAdsPage() {
   const s = useStudio();
   const router = useRouter();
   const [filter, setFilter] = useState("all");
-  const [openSns, setOpenSns] = useState<number | null>(null);
 
   useEffect(() => {
     if (s.ready && !s.token) router.replace("/login");
@@ -24,12 +23,6 @@ export default function MyAdsPage() {
     s.refreshHistory(true);
     s.refreshDashboardSummary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    const close = () => setOpenSns(null);
-    document.addEventListener("click", close);
-    return () => document.removeEventListener("click", close);
   }, []);
 
   const list = s.ads.filter((ad) => {
@@ -43,19 +36,6 @@ export default function MyAdsPage() {
     router.push(item.historyId ? `/detail?historyId=${item.historyId}` : "/detail");
   }
 
-  async function share(platformName: string, platform: string, item: AdItem) {
-    setOpenSns(null);
-    const copy = normalizePlatformCopy(item.platformCopies?.[platform], {
-      head: item.copyHead || item.hl || "",
-      body: item.copyBody || "",
-      tags: item.copyTags || "",
-    });
-    await exportSnsPost(
-      platform,
-      { ...item, copyHead: copy.head, copyBody: copy.body, copyTags: copy.tags },
-      s.toast
-    );
-  }
 
   async function delCard(item: AdItem) {
     try {
@@ -76,7 +56,7 @@ export default function MyAdsPage() {
         <div className="page-head">
           <div>
             <h2>내 광고</h2>
-            <p className="lead">만든 광고를 다시 보고, SNS에 공유하거나 정리할 수 있어요.</p>
+            <p className="lead">만든 광고를 다시 확인하거나 정리할 수 있어요.</p>
           </div>
         </div>
 
@@ -150,28 +130,16 @@ export default function MyAdsPage() {
                   <div className="card-actions">
                     <div className="share-wrap">
                       <button
+                        type="button"
                         className="a-btn"
                         onClick={(e) => {
+                          e.preventDefault();
                           e.stopPropagation();
-                          setOpenSns(openSns === gi ? null : gi);
+                          openDetail(a);
                         }}
                       >
-                        ↗️ SNS 공유
+                        🔎 자세히 보기
                       </button>
-                      <div className={`sns-menu${openSns === gi ? " on" : ""}`}>
-                        {SNS_LIST.map((sns) => (
-                          <button
-                            key={sns.k}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              share(sns.n, sns.p, a);
-                            }}
-                          >
-                            <span className={`si ${sns.k}`}>{sns.n[0]}</span>
-                            {sns.n}에 공유
-                          </button>
-                        ))}
-                      </div>
                     </div>
                     <button
                       className="a-btn del"
