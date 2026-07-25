@@ -22,7 +22,8 @@ function requiresToken(src: string): boolean {
     return (
       url.pathname.startsWith("/api/ads/image/") ||
       url.pathname.startsWith("/api/ads/template-thumb/") || // v6 T4 템플릿 썸네일도 인증 필요
-      url.pathname.startsWith("/api/account/profile-image/")
+      url.pathname.startsWith("/api/account/profile-image/") ||
+      url.pathname.startsWith("/api/images/") // 업로드 응답 image_url=/api/images/{id} (인증 필요)
     );
   } catch {
     return false;
