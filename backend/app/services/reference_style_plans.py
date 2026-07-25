@@ -429,28 +429,33 @@ _IDENTITY_LOCKS = {
 #   맞교환한다(append 금지: T5 512토큰 예산 — 초과분은 뒤쪽 씬 지시부터 잘려 팔레트·소품
 #   소실, 이상화 1차 GPU 실측 3/3 우드 폴백).
 _FOOD_POP_HEAD = (
-    "This is a real plated food photograph. Keep the food structurally unchanged: the same shape, "
-    "layers, textures, toppings and hue identity — never redraw, resize or repaint any part of it, "
-    "never convert it into a cup, beverage or different object. "
+    "This is a real plated food photograph. Keep the food structurally unchanged — same shape, layers, "
+    "textures, toppings and hue identity, never redrawn, resized, repainted or turned into a cup or "
+    "different object. "
+    # COLOR-LOCK(2026-07-25 아트디렉터: 팝에서 다크 초코 베이스가 주황 스펀지로 변색=정체성 위반).
+    #   각 층 원본 색을 못 박아 밝은 씬 압력의 warming을 차단(예산 위해 압축).
+    "Keep each layer its exact original color: dark chocolate stays dark brown, never recolored, warmed "
+    "or lightened into a different tone. "
 )
 # RETOUCH-001(2026-07-24 아트디렉터: "원본 유지하되 먹음직스럽게 — 뿌연 사진 그대로는
 #   너무 별로"): 배경·소품은 스튜디오급인데 본체가 폰사진 노출 그대로라 이질감 —
 #   프로 푸드 리터치를 명시 허용(보정 O / 변형 X). A모드 리터치 철학의 스타일 경로 이식.
 # RETOUCH-002: tpl_47 질감 어휘 이식 — moist/airy/velvety 조건부 강화("퍼석" 방지)
 _RETOUCH_RESTRAINED = (
-    "DO retouch the food photographically like a professional food advertisement: brighten exposure, "
-    "remove haze — sponge and crumb moist and airy with visible pores, cream silky with a dewy sheen, "
-    "fruit glistening juicy, sauces glossy, never dry, crumbly or matte, never plastic or "
-    "over-smoothed. Enhance only what is already there, with the same hues, never restyling the food. "
-    "Remove any screenshot UI elements, icons, buttons or watermarks. "
+    "Retouch it like a professional food ad: brighten exposure, remove haze — sponge moist and airy "
+    "with visible pores, cream silky with a dewy sheen, fruit glossy and juicy, sauces glossy, never "
+    "dry, matte or plastic. Enhance only what is there, same hues, never restyling. Remove any "
+    "screenshot UI, icons or watermarks. "
 )
 _FOOD_POP_TAIL = (
-    "You MAY replace the plain plate with a beautiful elegant dessert plate, and you MAY add "
-    "tasteful appetizing garnish using only the same ingredients already visible in the food. "
-    # PLATING-001-2/3 검증 문구 이식(pop에서 발생한 사고라 완화 잠금에도 필수 유지):
-    "The food rests naturally on its plate under normal gravity; a slice of bread, toast, cake or "
-    "flat-cut item lies flat on its widest cut face — never standing upright, propped up, leaning "
-    "against anything, or resting on a thin cut edge. "
+    "You MAY replace the plain plate with a beautiful dessert plate and add tasteful garnish using "
+    "only the same ingredients already visible. "
+    # NO-CUTLERY(2026-07-25 아트디렉터: 파스텔에 원본 플라스틱 포크 딸려옴 — 환각 아닌 소스
+    #   캐리오버라 제거 명시). 재연출은 디저트만.
+    "Show only the dessert — no fork or cutlery carried over from the original photo. "
+    # PLATING-001-2/3(pop 사고 이력이라 완화 잠금에도 유지, 예산 위해 압축):
+    "The food rests flat on its plate under gravity; a slice of cake or flat-cut item lies on its "
+    "widest cut face, never standing upright, propped up or leaning. "
     "Premium food-styling quality, realistic photograph. "
 )
 _IDENTITY_LOCKS["food_pop"] = _FOOD_POP_HEAD + _RETOUCH_RESTRAINED + _FOOD_POP_TAIL
@@ -476,7 +481,7 @@ _POP_FOOD_VARIANTS: tuple[str, ...] = (
     "product. Bright cheerful studio light with crisp soft shadows, joyful pop energy.",
     # ② styling_cut — 러블리 스타일링 컷 (food_metaphor 유래) + 오브제 다양화(구슬)
     "Style a lovely editorial styling cut: the food on a scalloped gold-rimmed dessert plate with {props} "
-    "arranged appetizingly around it on the plate, a polished dessert fork, a soft satin ribbon, a delicate "
+    "arranged appetizingly around it on the plate, a soft satin ribbon, a delicate "
     "string of small pearls and a few small glossy decorative beads nearby on the table — every object "
     "clearly shaped and photorealistic. Use {palette}. Soft romantic pop light, sweet gift-like mood.",
     # ③ dynamic_float — 소품 공중 부유 + 소프트 그라데이션 (dynamic_float 유래)
@@ -549,12 +554,87 @@ _PASTEL_FOOD_VARIANTS: tuple[str, ...] = (
     "colors fully natural, never pastel-tinted.",
 )
 
-# 스타일 → food 변형 로테이션 (pop 메커니즘 일반화). 완화 잠금(food_pop)은 3스타일 공용 —
+# STYLE-V3(2026-07-25, 아트디렉터 6무드 피드백): editorial/realism/warm_organic 도 pop/mono/
+#   pastel 처럼 아키타입 로테이션으로 고도화. 각 스타일 고유 접시·소품·구도 — editorial=warm 과
+#   접시 판박이 문제 해결(각자 시그니처 접시 명시), warm=빈티지 소품 추가(현 "no wood" 억제 역전).
+#   팔레트 미지원 스타일이라 {palette} 대신 시그니처 톤을 문구에 박음. {props}=재료 기반 가니시.
+#   ※ 이 3스타일도 food_pop 공용 완화 잠금(본체 불변+접시 교체+가니시)을 받는다.
+# STYLE-V3.1(2026-07-26 아트디렉터: "editorial/realism/warm 접시가 또 식당 앞접시. 고급스럽고
+#   다양한 모양 + 하드코딩 반대"). 접시를 프롬프트에 박지 않고 데이터 레지스트리에서 시드로
+#   모양 선택({plate} 자리표시자) → 모양 다양성 + 스타일별 마감(톤)만 고정해 정체성 유지.
+#   {palette}/{props} 와 동일한 소프트코딩 패턴. "never a plain restaurant plate" 부정으로 앞접시 차단.
+# STYLE-V3.3(2026-07-26 아트디렉터: v3.2 rim은 살았으나 "8종이 전부 둥근 접시+rim 변형 —
+#   형태가 고정". 평평한 접시·원기둥(받침/케이크스탠드)·프리폼 등 FORM 다양성 요구).
+#   → 레지스트리를 rim 변형이 아니라 **서빙 형태(FORM)** 로 재구성. 스타일 대비 마감은 유지
+#   (차콜림/반응유약/골드림 = 저대비 앞접시 렌더 회피, v3.2에서 확증).
+_PLATE_SHAPES: tuple[str, ...] = (
+    "a flat round plate with a fluted scalloped rim",
+    "a footed cake stand raised on a short cylindrical pedestal",
+    "a low pedestal dish lifted on a slim cylindrical foot",
+    "a shallow wide coupe with gently curved walls",
+    "an organic freeform platter with an irregular hand-shaped edge",
+    "a lotus-form dish with layered petal tiers",
+    "a square plate with softly rounded corners and a raised lip",
+    "a hand-thrown stoneware plate with a rippled uneven rim",
+)
+_STYLE_PLATE_FINISH: dict[str, str] = {
+    "editorial": "in crisp white porcelain with a fine dark charcoal rim line",
+    "realism": "in earthy speckled stoneware with a raw reactive-glaze edge",
+    "warm_organic": "in warm cream ceramic with a bold brushed-gold rim",
+}
+
+def _plate_clause(style_key: str, subject: str, seed: int) -> str:
+    """프리미엄 접시 — 레지스트리에서 subject:seed 로 **서빙 형태(FORM)** 선택(형태 다양성) +
+    스타일 대비 마감(정체성·가시성). 하드코딩 고정 접시 아님, 결정론 로테이션."""
+    idx = int(hashlib.sha256(f"{subject}:{seed}:plate".encode("utf-8")).hexdigest()[:8], 16) \
+        % len(_PLATE_SHAPES)
+    finish = _STYLE_PLATE_FINISH.get(style_key, "in refined premium ceramic")
+    return (f"{_PLATE_SHAPES[idx]} {finish}, a striking premium designer serving piece — its distinct "
+            "form and rim clearly visible around the dessert, never a plain undecorated plate")
+
+_EDITORIAL_FOOD_VARIANTS: tuple[str, ...] = (
+    # ① magazine_minimal — {plate} + 여백
+    "Plate the food on {plate}, on a muted cream stone table against a pale warm-gray wall. One softly "
+    "folded linen napkin edge and a few {props} placed with restraint, with generous quiet copy space "
+    "to one side. Soft directional window light and one gentle shadow, refined minimalist magazine "
+    "composition, every object clearly shaped and photorealistic.",
+    # ② sculptural_negative — 조형 오브제 + 넓은 네거티브 스페이스
+    "Plate the food on {plate}, on a pale greige surface, with a single sculptural pale-stone object "
+    "and a few {props} arranged asymmetrically amid wide negative space. Crisp soft-box editorial light "
+    "with one clean shadow, elevated minimalist high-end composition, every object clearly shaped and "
+    "photorealistic.",
+)
+_REALISM_FOOD_VARIANTS: tuple[str, ...] = (
+    # ① natural_cafe — 실제 카페 창가 (냅킨↔포크 연상 차단 위해 냅킨 제거, 컵만)
+    "Photograph the food true to life on {plate}, on a real cafe table beside a sunlit window, a "
+    "ceramic coffee cup resting naturally nearby and a few {props} beside the plate. Soft natural "
+    "morning light with a realistic shallow depth of field, candid documentary feel, every object "
+    "clearly shaped and photorealistic.",
+    # ② home_table — 가정 식탁 + 리넨 러너·물잔
+    "Photograph the food on {plate}, on a warm-gray home dining table with a linen runner, a glass of "
+    "water and a few {props} placed casually around it. Natural window light and a true-to-life "
+    "everyday-premium mood with gentle depth of field, every object clearly shaped and photorealistic.",
+)
+_WARM_FOOD_VARIANTS: tuple[str, ...] = (
+    # ① vintage_patisserie — {plate} + 황동 서버·앤티크 레이스
+    "Style the food on {plate}, on an aged warm-oak wood table, with a brass cake server, a piece of "
+    "antique lace linen and a few {props} arranged nearby. Soft golden side light, nostalgic old-world "
+    "patisserie mood in rich warm tones, every object clearly shaped and photorealistic.",
+    # ② rustic_warm — {plate} + 황동 포트·마른 밀
+    "Style the food on {plate}, on a weathered warm-wood surface, with a small aged brass pot, a sprig "
+    "of dried wheat and a few {props} beside it. Warm amber light with soft shadows, cozy vintage "
+    "bakery feel, every object clearly shaped and photorealistic.",
+)
+
+# 스타일 → food 변형 로테이션 (pop 메커니즘 일반화). 완화 잠금(food_pop)은 6스타일 공용 —
 #   내용이 팝 전용이 아니라 "본체 불변 + 접시 교체 + 실재 재료 가니시" 중립 계약.
 _STYLE_FOOD_VARIANTS: dict[str, tuple[str, ...]] = {
     "pop": _POP_FOOD_VARIANTS,
     "monotone": _MONO_FOOD_VARIANTS,
     "pastel": _PASTEL_FOOD_VARIANTS,
+    "editorial": _EDITORIAL_FOOD_VARIANTS,
+    "realism": _REALISM_FOOD_VARIANTS,
+    "warm_organic": _WARM_FOOD_VARIANTS,
 }
 
 # 면류 안전 변형 인덱스(실측 통과분만 — "펜네 무조건 보존" 아트디렉터 하드 요구, 07-24):
@@ -915,8 +995,12 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
     # 락 우선순위(머지 정합 2026-07-24): styled 로테이션(pop·monotone·pastel)이면 food_pop
     #   공용 완화 잠금이 디저트 락을 덮는다(의도 — 접시 교체·가니시 허용 포함). 디저트
     #   재플레이팅 락은 비-로테이션 스타일(에디토리얼·리얼리즘 등) 전용.
+    # STYLE-V3(2026-07-26): editorial/realism/warm 도 styled 로테이션 편입 → 재플레이팅 안전
+    #   가드(_replate_unsafe: 기프트세트/박스·홀케이크·무Vision 유리용기)를 styled 경로에도
+    #   적용. 부적합 디저트는 로테이션·접시교체 대신 플레인 food 락(씬 고정)으로 폴백.
     styled_v2 = (plan.domain == "food" and plan.style_key in _STYLE_FOOD_VARIANTS
-                 and not is_vessel)
+                 and not is_vessel
+                 and not _replate_unsafe(subject, container_desc))
     if styled_v2:
         variants = _STYLE_FOOD_VARIANTS[plan.style_key]
         is_noodle = any(h in subject.lower() for h in _NOODLE_HINTS)
@@ -972,6 +1056,9 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
     if "{props}" in direction:
         # POP-V2.1: 소품은 core_ingredients 기반 구체명 — 추상 지시는 덩어리 렌더(라이브 실측)
         fmt_args["props"] = _props_clause(core_ingredients)
+    if "{plate}" in direction:
+        # STYLE-V3.1: 접시는 레지스트리에서 시드로 모양 선택(하드코딩 반대) + 스타일 마감
+        fmt_args["plate"] = _plate_clause(plan.style_key, subject, scene_seed)
     if "{hero}" in direction:
         fmt_args["hero"] = hero
     if "{container_clause}" in direction:
