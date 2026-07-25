@@ -567,6 +567,10 @@ _PASTEL_FOOD_VARIANTS: tuple[str, ...] = (
 #   형태가 고정". 평평한 접시·원기둥(받침/케이크스탠드)·프리폼 등 FORM 다양성 요구).
 #   → 레지스트리를 rim 변형이 아니라 **서빙 형태(FORM)** 로 재구성. 스타일 대비 마감은 유지
 #   (차콜림/반응유약/골드림 = 저대비 앞접시 렌더 회피, v3.2에서 확증).
+# STYLE-V3.4(2026-07-26): "square plate" 제거 — Kontext가 케이크 접시를 사각으로 못 그리고
+#   (라운드 렌더), realism s14 에서 케이크를 돔→평평 원반으로 재드로잉(정체성 위반, 아트디렉터
+#   적발). 접시 형태는 케이크 본체를 재구성하지 않는 것만 유지(스탠드=케이크 그대로 올림,
+#   나머지=rim만). 남은 7형태는 셰이프 안전 실측분.
 _PLATE_SHAPES: tuple[str, ...] = (
     "a flat round plate with a fluted scalloped rim",
     "a footed cake stand raised on a short cylindrical pedestal",
@@ -574,7 +578,6 @@ _PLATE_SHAPES: tuple[str, ...] = (
     "a shallow wide coupe with gently curved walls",
     "an organic freeform platter with an irregular hand-shaped edge",
     "a lotus-form dish with layered petal tiers",
-    "a square plate with softly rounded corners and a raised lip",
     "a hand-thrown stoneware plate with a rippled uneven rim",
 )
 _STYLE_PLATE_FINISH: dict[str, str] = {
