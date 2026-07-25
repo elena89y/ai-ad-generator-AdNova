@@ -141,13 +141,17 @@ def test_non_cafe_gate_unchanged():
 
 # --- 배관: build_reference_instruction은 아직 무동작 --------------------------
 
-def test_build_reference_instruction_ignores_serving_type_for_now():
-    """develop엔 디저트 락이 없으므로 serving_type 유무와 지시문이 동일해야 한다
-    (락 브랜치 머지 시 이 테스트를 tier-3 계약 테스트로 대체)."""
-    base = build_reference_instruction("editorial", "food", "strawberry cake")
+def test_build_reference_instruction_consumes_serving_type():
+    """tier-3 계약(STYLE-V3): serving_type=dessert 는 이제 실제로 소비된다 — food 무드가
+    styled 로테이션이고, dessert 면 이상화(idealize) 절로 스왑되므로 지시문이 달라진다.
+    (구 'ignores_serving_type' 테스트를 계약 변경에 맞춰 대체.)"""
+    base = build_reference_instruction("editorial", "food", "strawberry cake", scene_seed=0)
     with_st = build_reference_instruction("editorial", "food", "strawberry cake",
-                                          serving_type="dessert")
-    assert base == with_st
+                                          scene_seed=0, serving_type="dessert")
+    assert base != with_st
+    assert "Idealize this dessert" in with_st        # dessert → 이상화 스왑
+    assert "Idealize this dessert" not in build_reference_instruction(
+        "editorial", "food", "grilled beef", scene_seed=0, serving_type="dish")  # dish → 미적용
 
 
 # --- 킬스위치 ----------------------------------------------------------------

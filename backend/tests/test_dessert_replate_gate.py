@@ -1,47 +1,39 @@
-"""SRV-ROUTE-001 §4-4 — 디저트 재플레이팅 락의 serving_type 게이트 (이관 테스트).
+"""STYLE-V3(2026-07-26) — 디저트 재연출 게이트.
 
-계약: serving_type이 있으면 락 판정의 정본(dessert|bakery + _replate_unsafe 가드),
-None이면 레거시 substring(_is_dessert_subject)과 바이트 동일. vessel 분류 선행 불변.
+editorial/realism/warm 이 styled 아키타입 로테이션으로 편입되며 구 food_dessert 락은 폐기.
+디저트 특별 처리는 이제 styled 경로 안에서:
+  - dessert|bakery(비-unsafe) → 이상화 스왑(_IDEALIZE) + 접시 레지스트리(_STYLED)
+  - dish → styled 로테이션은 받되 이상화 미적용(재드로잉 리스크)
+재플레이팅 안전가드 _replate_unsafe(세트/박스·홀케이크·무Vision 유리용기)는 styled_v2 로 이관 —
+부적합 디저트는 로테이션·접시교체 없이 플레인 food 락(씬 고정)으로 폴백. vessel 분류 선행 불변.
 """
 import pytest
 
-from app.services.reference_style_plans import (_is_dessert_subject,
-                                                _replate_unsafe,
+from app.services.reference_style_plans import (_replate_unsafe,
                                                 build_reference_instruction)
 
-_LOCK_MARK = "plated dessert photograph"  # food_dessert 락 고유 문구
+_IDEALIZE = "Idealize this dessert"           # 디저트 이상화 스왑(dessert|bakery)
+_STYLED = "premium designer serving piece"    # styled 로테이션 + 접시 레지스트리 주입
 
 
 def _instr(subject, **kw):
-    return build_reference_instruction("editorial", "food", subject, **kw)
+    return build_reference_instruction("editorial", "food", subject, scene_seed=0, **kw)
 
 
-# --- P1/P2 수정 확인: substring 오탐·누락을 serving_type이 교정 -----------------
+# --- 디저트 이상화 게이트 (serving_type 정본) -----------------------------------
 
-def test_rice_cake_soup_no_lock_with_dish():
-    """P1: 떡국(rice cake soup)은 레거시 substring이 오탐(락)하지만 dish면 락 없음."""
-    assert _is_dessert_subject("rice cake soup") is True          # 레거시 버그 존재 증명
-    assert _LOCK_MARK in _instr("rice cake soup")                 # None → 레거시(오탐 유지)
-    assert _LOCK_MARK not in _instr("rice cake soup", serving_type="dish")  # 교정
-
-
-def test_bread_gets_lock_with_bakery():
-    """P2: 앙버터(bread)는 레거시가 누락하지만 bakery면 락 적용."""
-    assert _is_dessert_subject("butter red bean bread") is False  # 레거시 누락 증명
-    assert _LOCK_MARK not in _instr("butter red bean bread")
-    assert _LOCK_MARK in _instr("butter red bean bread", serving_type="bakery")
+def test_dessert_gets_idealize_and_styled():
+    """dessert/bakery(비-unsafe)는 styled 아키타입 + 이상화 스왑 둘 다."""
+    for st in ("dessert", "bakery"):
+        out = _instr("strawberry cream cake", serving_type=st)
+        assert _IDEALIZE in out and _STYLED in out, st
 
 
-def test_cake_lock_both_paths():
-    """케이크는 신구 경로 모두 락 — 동작 동일성."""
-    assert _LOCK_MARK in _instr("strawberry cream cake")
-    assert _LOCK_MARK in _instr("strawberry cream cake", serving_type="dessert")
-
-
-def test_none_is_byte_identical_to_legacy():
-    """serving_type=None이면 레거시와 지시문 바이트 동일(킬스위치·구캐시 안전망)."""
-    for subject in ("strawberry cream cake", "rice cake soup", "kimchi stew"):
-        assert _instr(subject) == _instr(subject, serving_type=None)
+def test_dish_styled_but_no_idealize():
+    """dish(짭짤)는 styled 로테이션은 받되 이상화는 미적용(면류 재드로잉 계열 리스크)."""
+    out = _instr("grilled beef", serving_type="dish")
+    assert _STYLED in out
+    assert _IDEALIZE not in out
 
 
 def test_dessert_bakery_equivalence():
@@ -51,42 +43,46 @@ def test_dessert_bakery_equivalence():
 
 
 @pytest.mark.parametrize("st", ["dish", "drink", "object"])
-def test_non_dessert_types_never_lock(st):
-    assert _LOCK_MARK not in _instr("strawberry cream cake", serving_type=st)
+def test_non_dessert_types_never_idealize(st):
+    assert _IDEALIZE not in _instr("strawberry cream cake", serving_type=st)
 
 
-# --- _replate_unsafe 가드 (적대검증 HIGH 방어) --------------------------------
+# --- _replate_unsafe: styled 제외 → 플레인 food 락 폴백 (안전가드 이관) ----------
 
-def test_gift_set_skips_lock():
-    """세트·박스 상품: 박스 정렬에 '접시 교체' 지시 금지 — 온라인셀러 보호."""
+def test_gift_set_not_styled():
+    """세트·박스: 박스 정렬에 '접시 교체' 금지 → styled 제외, 이상화·접시교체 없음."""
     assert _replate_unsafe("macaron gift set", None) is True
-    assert _LOCK_MARK not in _instr("macaron gift set", serving_type="dessert")
+    out = _instr("macaron gift set", serving_type="dessert")
+    assert _STYLED not in out and _IDEALIZE not in out
 
 
-def test_bingsu_without_vision_skips_lock():
-    """유리용기 디저트 + Vision 용기 정보 없음 → 안전측(락 미적용)."""
+def test_bingsu_without_vision_not_styled():
+    """유리용기 디저트 + Vision 용기 정보 없음 → 안전측(styled 제외)."""
     assert _replate_unsafe("strawberry bingsu", None) is True
-    assert _LOCK_MARK not in _instr("strawberry bingsu", serving_type="dessert")
-    # Vision 정보가 있으면(접시로 확인) 가드 해제 — 락 적용 가능
+    assert _STYLED not in _instr("strawberry bingsu", serving_type="dessert")
+    # Vision 정보가 있으면(접시로 확인) 가드 해제
     assert _replate_unsafe("strawberry bingsu", "plate") is False
 
 
-def test_whole_cake_skips_lock():
-    """홀케이크(기립형): '평평히 누운 조각' 전제 모순 → 락 금지."""
+def test_whole_cake_not_styled():
+    """홀케이크(기립형): '평평히 누운 조각' 전제 모순 → styled 제외."""
     assert _replate_unsafe("whole strawberry cake", None) is True
-    assert _LOCK_MARK not in _instr("whole strawberry cake", serving_type="dessert")
+    assert _STYLED not in _instr("whole strawberry cake", serving_type="dessert")
 
 
-def test_plain_slice_not_unsafe():
+def test_plain_slice_styled():
+    """평범한 조각 케이크는 unsafe 아님 → styled + 이상화."""
     assert _replate_unsafe("strawberry cream cake slice", "plate") is False
+    out = _instr("strawberry cream cake slice", serving_type="dessert")
+    assert _STYLED in out and _IDEALIZE in out
 
 
 # --- vessel 선행 순서 회귀 -----------------------------------------------------
 
-def test_vessel_precedes_serving_type():
-    """유리 디저트 용기(vessel) 분류가 락보다 선행 — serving_type 유무와 무관 동일."""
+def test_vessel_precedes_styling():
+    """유리 디저트 용기(vessel) 분류가 styled 보다 선행 — 용기 보존, serving_type 무관 동일."""
     kw = dict(container_desc="glass", container_opacity="transparent")
     base = _instr("mango bingsu", **kw)
     with_st = _instr("mango bingsu", serving_type="dessert", **kw)
     assert base == with_st
-    assert _LOCK_MARK not in base  # vessel 경로는 food_dessert 락이 아님(용기 보존)
+    assert _STYLED not in base  # vessel 경로는 styled 아키타입이 아님(용기 보존)

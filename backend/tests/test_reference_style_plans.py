@@ -106,10 +106,11 @@ def test_food_identity_lock_forbids_propped_up_food_styling() -> None:
     instruction = build_reference_instruction("pop", "food", "french toast")
     assert instruction is not None
     assert "propped up" in instruction
-    assert "leaning against anything" in instruction
-    assert "slice of bread, toast, cake" in instruction
-    # RETOUCH-003-2: T5 512토큰 예산 압축으로 "never a food item standing upright" →
-    #   "never standing upright" (가드 의미 동일, test_t5_budget이 예산을 고정)
+    # 2026-07-25 색보존·no-cutlery 추가분 예산 확보 위해 가드 문구 추가 압축(의미 동일):
+    #   "leaning against anything"→"or leaning", "slice of bread, toast, cake"→"slice of cake
+    #   or flat-cut item". test_t5_budget이 512 예산을 고정.
+    assert "leaning" in instruction
+    assert "slice of cake or flat-cut item" in instruction
     assert "never standing upright" in instruction
 
 
@@ -133,14 +134,16 @@ def test_container_default_path_keeps_measured_bug_fix_phrases() -> None:
         assert build_reference_instruction(
             "realism", "food", "club sandwich",
             container_desc=desc, container_opacity=opacity) == base, (desc, opacity)
-    assert "There is no cup, mug, tumbler, lid or straw anywhere" in base
-    assert "the plate resting flat on a dark charcoal stone table" in base
-    assert "Never convert the food, its plate or bowl into a cup" in base
-    # 자리표시자가 그대로 노출되지 않아야 한다
-    assert "{hero}" not in base and "{container_clause}" not in base
-    # editorial의 {hero} 기본 치환은 기존 문구와 동일해야 한다
+    # STYLE-V3(2026-07-26): realism food 은 styled food_pop 락 — 컵 변환 가드는 food_pop 문구로.
+    #   CONTAINER-001 byte-identity(위 루프)는 vessel 게이트가 styled 앞이라 그대로 유효.
+    assert "turned into a cup or different object" in base
+    assert "The food rests flat on its plate" in base
+    # 자리표시자 잔존 금지
+    assert "{plate}" not in base and "{props}" not in base and "{palette}" not in base
+    # editorial 도 styled — 접시 레지스트리·완화 잠금 정상 주입, 자리표시자 잔존 없음
     editorial = build_reference_instruction("editorial", "food", "club sandwich")
-    assert "generous quiet copy space above the plate." in editorial
+    assert "premium designer serving piece" in editorial
+    assert "{plate}" not in editorial
     # POP-V2(2026-07-23): food×pop은 4아키타입 로테이션으로 교체 — 구 "diagonal shadow" 단언을
     #   신 계약(자리표시자 잔존 없음 + 완화 잠금)으로 갱신. 상세 계약은 test_pop_v2.py.
     pop = build_reference_instruction("pop", "food", "club sandwich")

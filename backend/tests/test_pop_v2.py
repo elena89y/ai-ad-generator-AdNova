@@ -45,18 +45,19 @@ def test_palette_placeholder_filled():
         assert "background" in instr
 
 
-def test_non_pop_styles_unchanged():
-    """editorial 등 타 스타일은 scene_seed 유무와 바이트 동일 — 회귀 없음.
-
-    (디저트 락 브랜치 정합 2026-07-24: 케이크 픽스처는 이 브랜치에서 의도적으로
-    food_dessert 락을 받으므로, 기본 food 잠금 검증은 비-디저트 음식으로.)"""
-    base = _instr(style="editorial", subject="club sandwich")
-    with_seed = _instr(style="editorial", subject="club sandwich", scene_seed=7)
-    assert base == with_seed
-    assert _IDENTITY_LOCKS["food"].split(".")[0] in base  # 기존 food 잠금 유지
-    # 케이크+비-pop은 이 브랜치의 의도된 변화 = 디저트 재플레이팅 락 (상세: test_dessert_replate_gate)
-    cake = _instr(style="editorial")
-    assert "plated dessert photograph" in cake
+def test_editorial_realism_warm_now_styled():
+    """STYLE-V3(2026-07-26): editorial/realism/warm_organic food 도 로테이션으로 고도화 —
+    이제 시드로 변형이 바뀌고(단일 연출 아님) food_pop 공용 완화 잠금을 받는다.
+    (구 test_non_pop_styles_unchanged 를 계약 변경에 맞춰 대체.)"""
+    for style in ("editorial", "realism", "warm_organic"):
+        outs = {_instr(style=style, subject="chocolate cream cake", scene_seed=s,
+                       serving_type="dessert", core_ingredients=["chocolate", "cream"])
+                for s in range(12)}
+        assert len(outs) >= 3, style                          # 로테이션 실효
+        one = _instr(style=style, subject="chocolate cream cake", scene_seed=0,
+                     serving_type="dessert", core_ingredients=["chocolate", "cream"])
+        assert "You MAY replace the plain plate" in one       # food_pop 완화 잠금
+        assert "premium designer serving piece" in one        # 접시 레지스트리 주입
 
 
 def test_drink_object_pop_unchanged():
@@ -168,11 +169,11 @@ def test_retouch_clause_present():
     """RETOUCH-001→003: 짭짤한 음식=절제형 보정, 디저트=tpl_47급 이상화(같은 제품 인식 +
     무발명 경계) — '전혀 먹음직스럽지 않다'(07-24 아트디렉터) 판정 반영."""
     pop = _instr(scene_seed=0)
-    assert "DO retouch the food photographically" in pop           # 공용 절제형(전 음식)
+    assert "Retouch it like a professional food ad" in pop          # 공용 절제형(전 음식, 압축판)
     # 디저트: 스타일 로테이션·food_dessert 락 모두 이상화 절
     pop_dessert = _instr(scene_seed=0, serving_type="dessert")
     assert "Idealize this dessert" in pop_dessert
-    editorial_dessert = _instr(style="editorial")   # 케이크+비-pop → food_dessert 락(레거시 substring)
+    editorial_dessert = _instr(style="editorial", serving_type="dessert")  # STYLE-V3: styled+idealize
     assert "Idealize this dessert" in editorial_dessert
     assert "never add ingredients, layers or decoration" in editorial_dessert  # 무발명 경계
     # 짭짤한 음식은 이상화 미적용
@@ -196,3 +197,60 @@ def test_choco_dessert_texture_swap():
     assert "fudgy" not in bb and _IDEALIZE_TEX_GENERIC in bb
     savory = _instr(subject="chocolate glazed pork ribs", scene_seed=0, serving_type="dish")
     assert "fudgy" not in savory and "Idealize" not in savory
+
+
+# --- 2026-07-25 아트디렉터 6무드 피드백: 팝 색보존 + 포크 제거 --------------------
+
+def test_pop_color_lock_present():
+    """팝에서 다크 초코 베이스가 주황 스펀지로 변색되던 것 차단(color-lock, 공용 락)."""
+    for style in ("pop", "monotone", "pastel"):
+        instr = _instr(style=style, subject="chocolate cream cake", scene_seed=0,
+                       serving_type="dessert", core_ingredients=["chocolate", "cream"])
+        assert "dark chocolate stays dark brown" in instr, style
+        assert "recolored" in instr
+
+
+def test_no_cutlery_carryover():
+    """원본 잡기물(플라스틱 포크)이 재연출로 딸려오지 않게 — 공용 락 no-cutlery 절.
+    팝②의 의도적 'polished dessert fork'도 제거(전 시드에서 미등장)."""
+    joined = " ".join(_instr(style="pastel", subject="chocolate cream cake", scene_seed=s,
+                             serving_type="dessert", core_ingredients=["chocolate", "cream"])
+                      for s in range(12))
+    assert "no fork or cutlery carried over from the original" in joined
+    pop_joined = " ".join(_instr(style="pop", subject="strawberry cream cake", scene_seed=s)
+                          for s in range(12))
+    assert "polished dessert fork" not in pop_joined   # 팝② 의도적 포크 제거
+
+
+# --- STYLE-V3: editorial/realism/warm 고도화 + 접시 레지스트리 --------------------
+
+def test_plate_registry_form_diversity():
+    """접시는 하드코딩 고정이 아니라 _PLATE_SHAPES 레지스트리에서 subject:seed 로테이션 —
+    editorial 24시드에서 복수 FORM(평평·원기둥 스탠드·프리폼 등)이 실제로 등장(다양성)."""
+    from app.services.reference_style_plans import _PLATE_SHAPES, _plate_clause
+    forms = {_plate_clause("editorial", "chocolate cream cake", s).split(" in ")[0]
+             for s in range(24)}
+    assert len(forms) >= 4, f"접시 FORM 다양성 부족(고정 의심): {len(forms)}"
+    # 데이터 레지스트리에 '평평' 과 '원기둥(스탠드/페데스탈)' 형태가 실재
+    joined = " ".join(_PLATE_SHAPES)
+    assert "flat round plate" in joined
+    assert "cake stand" in joined or "pedestal" in joined
+
+
+def test_plate_clause_style_finish_and_no_placeholder():
+    """스타일별 대비 마감(정체성) + {plate} 자리표시자 잔존 없음."""
+    from app.services.reference_style_plans import _plate_clause
+    assert "charcoal rim" in _plate_clause("editorial", "cake", 0)   # editorial=차콜림 화이트
+    assert "brushed-gold rim" in _plate_clause("warm_organic", "cake", 0)  # warm=골드림
+    for style in ("editorial", "realism", "warm_organic"):
+        instr = _instr(style=style, subject="chocolate cream cake", scene_seed=3,
+                       serving_type="dessert", core_ingredients=["chocolate", "cream"])
+        assert "{plate}" not in instr and "{props}" not in instr
+
+
+def test_style_v3_no_palette_pollution():
+    """editorial/realism/warm 은 팔레트 미지원 → {palette} 미사용, 'None' 오염 없음."""
+    for style in ("editorial", "realism", "warm_organic"):
+        instr = _instr(style=style, subject="chocolate cream cake", scene_seed=0,
+                       serving_type="dessert", core_ingredients=["chocolate", "cream"])
+        assert "{palette}" not in instr and " None " not in instr

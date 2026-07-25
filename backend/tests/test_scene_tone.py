@@ -14,9 +14,17 @@ from app.services import reference_style_plans as R
 from app.services.image_service import classify_scene_tone
 
 
+# STYLE-V3(2026-07-26): food editorial/realism/warm 이 아키타입 로테이션(_STYLE_FOOD_VARIANTS)
+#   으로 전환 → styled_v2 경로라 scene_tone(표면 톤 적응) 미적용. scene_tone 은 이제 drink/object
+#   무드에만 유효(food 무드는 아키타입이 표면 다양성 담당). food 스팬은 dead 데이터.
+def _non_food_spans():
+    return {k: v for k, v in R._SCENE_SPANS.items() if k[0] != "food"}
+
+
 def test_scene_tone_off_is_byte_identical():
-    """scene_tone 미지정 = 기존 문구 그대로. 모든 슬롯 보유 플랜에서 v0 스팬 잔류."""
-    for (dom, mood), spans in R._SCENE_SPANS.items():
+    """scene_tone 미지정 = 기존 문구 그대로. drink/object 슬롯 플랜에서 v0 스팬 잔류.
+    (food 무드는 styled 로테이션이라 scene_tone 미적용 — 제외.)"""
+    for (dom, mood), spans in _non_food_spans().items():
         off = R.build_reference_instruction(mood, dom, "test subject")
         assert off is not None
         for span in spans.values():
@@ -24,27 +32,27 @@ def test_scene_tone_off_is_byte_identical():
 
 
 def test_scene_tone_spans_all_present():
-    """②: 모든 (domain,mood) 의 표면/배경 스팬이 direction 에 실제 존재 → 교체 유효."""
-    for (dom, mood), spans in R._SCENE_SPANS.items():
+    """②: drink/object (domain,mood) 표면/배경 스팬이 direction 에 실제 존재 → 교체 유효."""
+    for (dom, mood), spans in _non_food_spans().items():
         ins = R.build_reference_instruction(mood, dom, "widget")
         for slot, span in spans.items():
             assert span in ins, f"{dom}/{mood}.{slot} 스팬 미발견 → 교체 죽음"
 
 
 def test_scene_tone_adapts_surface():
-    """③: 입력 톤에 따라 표면이 달라진다 (food/realism warm ≠ cool)."""
-    warm = R.build_reference_instruction("realism", "food", "kimchi stew", scene_tone="warm")
-    cool = R.build_reference_instruction("realism", "food", "kimchi stew", scene_tone="cool")
+    """③: 입력 톤에 따라 표면이 달라진다 (drink/realism warm ≠ cool)."""
+    warm = R.build_reference_instruction("realism", "drink", "iced americano", scene_tone="warm")
+    cool = R.build_reference_instruction("realism", "drink", "iced americano", scene_tone="cool")
     assert warm != cool
-    # v0(neutral 다크차콜)이 warm/cool 에서 각각 톤 버킷으로 교체됨
-    assert "a dark charcoal stone table" not in warm
-    assert "a dark charcoal stone table" not in cool
+    # v0(neutral)이 warm/cool 에서 각각 톤 버킷으로 교체됨
+    assert "a clean warm-gray stone tabletop" not in warm
+    assert "a clean warm-gray stone tabletop" not in cool
 
 
 def test_scene_tone_deterministic():
     """④: 동일 subject·tone·seed 2회 호출 결과 동일 (hashlib 고정, PYTHONHASHSEED 무관)."""
-    a = R.build_reference_instruction("realism", "food", "galbi", scene_tone="warm", scene_seed=2)
-    b = R.build_reference_instruction("realism", "food", "galbi", scene_tone="warm", scene_seed=2)
+    a = R.build_reference_instruction("realism", "drink", "latte", scene_tone="warm", scene_seed=2)
+    b = R.build_reference_instruction("realism", "drink", "latte", scene_tone="warm", scene_seed=2)
     assert a == b
 
 
@@ -59,8 +67,9 @@ def test_scene_tone_surface_background_decoupled():
                         if c in ins:
                             s, b = (c, b) if slot == "surface" else (s, c)
         return (s, b)
+    # drink/warm_organic/warm = surface 2 × background 2 = 4조합(독립 선택 검증에 충분).
     combos = {stage(R.build_reference_instruction(
-        "realism", "food", "kimchi stew", scene_tone="warm", scene_seed=k)) for k in range(6)}
+        "warm_organic", "drink", "latte", scene_tone="warm", scene_seed=k)) for k in range(6)}
     assert len(combos) >= 3, f"무대 조합 다양성 부족: {len(combos)}"
 
 
