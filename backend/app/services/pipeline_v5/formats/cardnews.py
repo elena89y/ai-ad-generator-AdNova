@@ -26,18 +26,19 @@ _SLIDE_NAMES = ("cover", "story", "detail", "cta")
 
 def render(hero: HeroAsset, spec: FormatSpec, output_dir: str) -> list[str]:
     """표지·스토리·디테일·CTA 4슬라이드를 DSL 레이아웃으로 조판한다."""
-    cuts = {cut.role: cut.image_path for cut in _select_role_cuts(hero)}
-    by_name = {role.value: cuts[role] for role in DetailCutRole}
+    selected = _select_role_cuts(hero)
+    by_name = {cut.role.value: cut.image_path for cut in selected}
+    masks = {cut.role.value: cut.mask_path for cut in selected if cut.mask_path} or None
     copy = detail_copy_for(hero)
     pal = palette(hero.style)
-    ctx = {"domain": hero.domain, "density": spec.copy_density}  # L5 콘텐츠 적응
+    ctx = {"domain": hero.domain, "density": spec.copy_density, "style": hero.style}  # L5/폰트 적응
     layout = load_layout("cardnews")
     size = spec.canvas
 
     output = Path(output_dir)
     paths: list[str] = []
     for index, name in enumerate(_SLIDE_NAMES, start=1):
-        slide = render_slide(size, layout[name], by_name, copy, pal, spec.safe_margin, ctx=ctx)
+        slide = render_slide(size, layout[name], by_name, copy, pal, spec.safe_margin, ctx=ctx, masks=masks)
         path = output / f"cardnews_{index:02d}_{name}_{size[0]}x{size[1]}.jpg"
         slide.save(path, quality=93)
         paths.append(str(path))

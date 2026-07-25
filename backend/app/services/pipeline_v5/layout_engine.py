@@ -24,7 +24,7 @@ from functools import lru_cache
 from pathlib import Path
 
 import yaml
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageStat
 
 from .formats.detail_page import _scrim
 
@@ -45,19 +45,59 @@ _NAMED = {
 }
 
 
-def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
+# 폰트 패밀리 — DSL font_family 로 선택(단조로움 해소·세련). 기본 sans=Pretendard.
+_FONTS = {
+    "sans": "Pretendard-Medium.otf",
+    "sans_bold": "Pretendard-Bold.otf",
+    "serif": "MaruBuri-Bold.ttf",          # 한글 명조(헤드라인 세련)
+    "display": "PlayfairDisplay.ttf",      # 영문 매거진 세리프(키커)
+    "grotesk": "SpaceGrotesk-Medium.ttf",  # 영문 모던
+    "condensed": "BebasNeue-Regular.ttf",  # 임팩트 대문자 키커
+}
+
+
+# 스타일 원장 head_font/sub_font(kind) → 폰트 파일. '생성된 광고 스타일에 맞는 폰트'
+# 자동 선택용(font_role: head/sub). styles/specs.yaml 의 kind 값과 1:1.
+_KIND_FONTS = {
+    "serif_elegant": "MaruBuri-Bold.ttf",      # 매거진 명조(editorial/realism/warm_vintage)
+    "gothic": "Pretendard-Medium.otf",
+    "gothic_bold": "Pretendard-Bold.otf",
+    "display_heavy": "BlackHanSans-Regular.ttf",  # 볼드 임팩트(pop/monotone/object_studio)
+    "display_round": "Jua-Regular.ttf",           # 둥근(pastel_float)
+    "condensed": "Paperlogy-8ExtraBold.ttf",      # 콘덴스트 임팩트(pop_split/object_splash)
+}
+
+
+def _font(size: int, bold: bool = False, family: str | None = None,
+          font_file: str | None = None) -> ImageFont.FreeTypeFont:
     root = Path(__file__).resolve().parents[3] / "assets" / "fonts"
-    name = "Pretendard-Bold.otf" if bold else "Pretendard-Medium.otf"
+    if font_file:
+        name = font_file
+    elif family:
+        name = _FONTS.get(family, _FONTS["sans"])
+    else:
+        name = _FONTS["sans_bold"] if bold else _FONTS["sans"]
     return ImageFont.truetype(str(root / name), size)
 
 
-def _fit(text: str, max_width: int, start: int, minimum: int) -> ImageFont.FreeTypeFont:
+def _style_font_file(ctx: dict | None, role: str) -> str | None:
+    """ctx 의 style → styles/specs.yaml head_font/sub_font(kind) → 폰트 파일."""
+    if not ctx or not ctx.get("style"):
+        return None
+    from ..style_specs import get_spec
+    spec = get_spec(ctx["style"])
+    kind = spec.head_font if role == "head" else spec.sub_font
+    return _KIND_FONTS.get(kind)
+
+
+def _fit(text: str, max_width: int, start: int, minimum: int,
+         family: str | None = None, font_file: str | None = None) -> ImageFont.FreeTypeFont:
     draw = ImageDraw.Draw(Image.new("RGB", (1, 1)))
     for size in range(start, minimum - 1, -2):
-        font = _font(size, True)
+        font = _font(size, True, family, font_file)
         if draw.textbbox((0, 0), text, font=font)[2] <= max_width:
             return font
-    return _font(minimum, True)
+    return _font(minimum, True, family, font_file)
 
 
 def _wrap(text: str, length: int) -> list[str]:
@@ -138,8 +178,11 @@ def _bind_text(el: dict, copy) -> str:
         val = getattr(copy, ref, "") or ""
     if not val:
         return el.get("fallback", "")
-    if el.get("transform") == "first_sentence":
+    tf = el.get("transform")
+    if tf == "first_sentence":
         return _first_sentence(val)
+    if tf == "upper":
+        return val.upper()
     return val
 
 
@@ -163,16 +206,20 @@ def _cond(el: dict, copy, ctx: dict | None = None) -> bool:
     return True
 
 
-def _font_of(el: dict, text: str, W: int, H: int, margin: int) -> ImageFont.FreeTypeFont:
+def _font_of(el: dict, text: str, W: int, H: int, margin: int,
+             ctx: dict | None = None) -> ImageFont.FreeTypeFont:
+    fam = el.get("font_family")  # 고정 패밀리(serif/display/grotesk/condensed…)
+    # font_role: head/sub → 스타일(ctx)에 맞는 폰트 자동 선택(스타일 원장 head_font/sub_font).
+    ff = _style_font_file(ctx, el["font_role"]) if el.get("font_role") else None
     f = el["font"]
     if isinstance(f, dict):
         mw = el.get("maxw")
         maxw = _r(mw, W, H, margin) if mw is not None else W - 2 * margin
         if "fit" in f:  # 단일 라인 축소(카드뉴스)
-            return _fit(text, maxw, f["fit"][0], f["fit"][1])
+            return _fit(text, maxw, f["fit"][0], f["fit"][1], fam, ff)
         if "fit_headline" in f:  # 1~2줄 허용 크기의 폰트만 취함(배너 catalog 단일 draw)
-            return _fit_headline(text, maxw, f["fit_headline"][0], f["fit_headline"][1])[1]
-    return _font(f, el.get("bold", False))
+            return _fit_headline(text, maxw, f["fit_headline"][0], f["fit_headline"][1], font_file=ff)[1]
+    return _font(f, el.get("bold", False), fam, ff)
 
 
 def _paste_image(canvas: Image.Image, el: dict, cuts: dict, W: int, H: int, margin: int,
@@ -201,8 +248,12 @@ def render_elements(canvas: Image.Image, elements: list[dict], copy, pal,
             continue
         t = el["type"]
         if t == "scrim":
-            _scrim(canvas, rr(el["frm"][1]), rr(el["to"][1]), W,
-                   _color(el["color"], pal), el["amax"], rr(el["fade"]))
+            if "box" in el:  # 방향성 그라디언트(배너 솔리드 패널·바 대체) — box+anchor
+                _grad_scrim(canvas, [rr(c) for c in el["box"]], _color(el["color"], pal),
+                            el["amax"], el.get("anchor", "bottom"), el.get("fade_frac", 1.0))
+            else:  # 기존 세로 밴드(frm/to+fade)
+                _scrim(canvas, rr(el["frm"][1]), rr(el["to"][1]), W,
+                       _color(el["color"], pal), el["amax"], rr(el["fade"]))
             draw = ImageDraw.Draw(canvas, "RGBA")  # scrim 이 canvas 를 갈아끼우므로 재바인딩
         elif t in ("bar", "panel"):
             box = [rr(c) for c in el["box"]]
@@ -213,7 +264,7 @@ def render_elements(canvas: Image.Image, elements: list[dict], copy, pal,
             draw.line(box, fill=_color(el["color"], pal), width=el.get("width", 1))
         elif t == "text":
             s = _bind_text(el, copy)
-            font = _font_of(el, s, W, H, margin)
+            font = _font_of(el, s, W, H, margin, ctx)
             fill = _color(el["color"], pal)
             x, y0 = rr(el["at"][0]), rr(el["at"][1])
             if "wrap" in el:  # 글자 수 기준(카드뉴스)
@@ -234,7 +285,8 @@ def render_elements(canvas: Image.Image, elements: list[dict], copy, pal,
             s = _bind_text(el, copy)
             mw = el["maxw"]
             maxw = _r(mw, W, H, margin) if isinstance(mw, list) else mw
-            lines, font = _fit_headline(s, maxw, el["fit_lines"][0], el["fit_lines"][1])
+            ff = _style_font_file(ctx, el["font_role"]) if el.get("font_role") else None
+            lines, font = _fit_headline(s, maxw, el["fit_lines"][0], el["fit_lines"][1], font_file=ff)
             x, y0 = rr(el["at"][0]), rr(el["at"][1])
             lh = _line_height(font)
             for i, line in enumerate(lines):
@@ -284,11 +336,12 @@ def _ellipsize(text: str, font, max_width: int, draw) -> str:
     return (value.rstrip() + suffix) if value else suffix
 
 
-def _fit_headline(text: str, max_width: int, max_size: int, min_size: int):
+def _fit_headline(text: str, max_width: int, max_size: int, min_size: int,
+                  font_file: str | None = None):
     clean = " ".join((text or "광고 이미지").split())
     probe = ImageDraw.Draw(Image.new("RGB", (1, 1)))
     for size in range(max_size, min_size - 1, -2):
-        font = _font(size, True)
+        font = _font(size, True, font_file=font_file)
         if probe.textbbox((0, 0), clean, font=font)[2] <= max_width:
             return [clean], font
         lines = _split_two_lines(clean)
@@ -296,7 +349,7 @@ def _fit_headline(text: str, max_width: int, max_size: int, min_size: int):
             probe.textbbox((0, 0), line, font=font)[2] <= max_width for line in lines
         ):
             return lines, font
-    font = _font(min_size, True)
+    font = _font(min_size, True, font_file=font_file)
     return [_ellipsize(clean, font, max_width, probe)], font
 
 
@@ -317,8 +370,202 @@ def _cta_pill(img: Image.Image, text: str, font, xy, pad: int = 20,
     draw.text((x + pad, y + int(pad * 0.6)), text, font=font, fill=fg)
 
 
+# --- 이미지 인식 오버레이 배치(B) + 스타일 아키타입(A) ---------------------------
+# 구도를 한 틀로 고정하지 않는다. bg-컷 섹션의 타이포는 (A) 스타일 원장 head_font(kind)로
+# 정렬·라이트스크림 성향을 고르고, (B) 컷 이미지의 위/아래 밴드 중 '덜 복잡한(여백) 쪽'을
+# 골라 스크림+글자를 얹는다. 같은 레이아웃이라도 광고 이미지마다 글자 위치·명암이 달라진다.
+_OVERLAY_TRACE = None  # 진단용 훅: 리스트를 주입하면 _draw_overlay 가 배치 결정을 append(기본 무부하)
+_ARCHETYPES = {
+    # kind(head_font) → {정렬, 밝은영역에 검정글자 허용(에디토리얼 미니멀)}
+    "serif_elegant": {"align": "left", "allow_light": True},    # editorial/warm_vintage/realism
+    "display_heavy": {"align": "left", "allow_light": False},   # pop/monotone — 강한 임팩트
+    "display_round": {"align": "center", "allow_light": True},  # pastel — 둥근·중앙
+    "condensed": {"align": "left", "allow_light": False},       # pop_split/object_splash
+    "gothic": {"align": "left", "allow_light": True},
+    "gothic_bold": {"align": "left", "allow_light": True},
+}
+
+
+def _archetype(ctx: dict | None) -> dict:
+    """ctx.style → 스타일 원장 head_font(kind) → 구도 아키타입(정렬·명암 성향)."""
+    if ctx and ctx.get("style"):
+        from ..style_specs import get_spec
+        kind = get_spec(ctx["style"]).head_font
+        return _ARCHETYPES.get(kind, _ARCHETYPES["gothic"])
+    return _ARCHETYPES["gothic"]
+
+
+def _band_stats(canvas: Image.Image, box: tuple) -> tuple[float, float]:
+    """밴드의 (평균 밝기, 복잡도). 복잡도=엣지 강도 평균(높을수록 디테일 많음=글자 얹기 나쁨)."""
+    region = canvas.crop(box).convert("L")
+    lum = ImageStat.Stat(region).mean[0]
+    busy = ImageStat.Stat(region.filter(ImageFilter.FIND_EDGES)).mean[0]
+    return lum, busy
+
+
+# 상단 밴드 선택 기준: (상대) 25%↑ 더 깔끔 AND (절대) 최소차↑. 근소차는 하단 우선(커머스 관습).
+# 실측 튜닝(2026-07-24): 실사진 edge busy 스케일이 1~18로 압축돼 절대 bias 6은 과보수적(거의 항상
+# 하단=단조) → 스케일 불변 상대 규칙 + 노이즈 방지 절대 하한. 실컷 3도메인 A/B 로 검증.
+_BAND_REL = 0.75
+_BAND_MIN = 2.0
+_MASK_MIN = 13.0     # 마스크 점유 최소차(0~255, ≈5%p) — 제품이 뚜렷하게 적은 밴드만 상단 채택
+_SIDE_SECTION = 115.0  # 좌우정렬은 컷 전체 점유율이 이 미만(≈45%, 여백 있는 컷)일 때만 — 꽉 찬 클로즈업 제외
+_SIDE_EMPTY = 64.0    # 그리고 우측 점유율이 이 미만(≈25%, 진짜 여백)일 때만 우측 정렬(이중 안전)
+
+
+def _choose_band(canvas: Image.Image, W: int, H: int, block_h: int, margin: int,
+                 mask: Image.Image | None = None) -> tuple[str, float, float, float]:
+    """텍스트 블록을 얹을 밴드(top/bottom) 선택. (band, 밝기, top_score, bot_score).
+
+    mask(전경 누끼, L) 있으면 '제품 점유율'로 판정(정확) — 제품이 없는 밴드 우선.
+    없으면 edge busy 휴리스틱(폴백). 둘 다 근소차는 하단 우선(커머스 관습).
+    """
+    span = max(1, min(H, block_h + 2 * margin))
+    top_box, bot_box = (0, 0, W, span), (0, H - span, W, H)
+    if mask is not None:  # 제품 점유율(마스크 평균, 0~255)이 뚜렷이 적은 밴드
+        top_occ = ImageStat.Stat(mask.crop(top_box)).mean[0]
+        bot_occ = ImageStat.Stat(mask.crop(bot_box)).mean[0]
+        top_lum = _band_stats(canvas, top_box)[0]
+        bot_lum = _band_stats(canvas, bot_box)[0]
+        if top_occ < bot_occ * _BAND_REL and (bot_occ - top_occ) >= _MASK_MIN:
+            return "top", top_lum, top_occ, bot_occ
+        return "bottom", bot_lum, top_occ, bot_occ
+    top_lum, top_busy = _band_stats(canvas, top_box)
+    bot_lum, bot_busy = _band_stats(canvas, bot_box)
+    if top_busy < bot_busy * _BAND_REL and (bot_busy - top_busy) >= _BAND_MIN:
+        return "top", top_lum, top_busy, bot_busy
+    return "bottom", bot_lum, top_busy, bot_busy
+
+
+def _scrim_band(canvas: Image.Image, y0: int, y1: int, W: int, rgb: tuple,
+                amax: int, fade: int, anchor: str) -> None:
+    """방향 있는 페이드 스크림. anchor='bottom'=하단 불투명→위로 소멸, 'top'=상단 불투명→아래로 소멸."""
+    h = int(y1 - y0)
+    if h <= 0:
+        return
+    ramp = Image.new("L", (1, h))
+    px = ramp.load()
+    for i in range(h):
+        dist = i if anchor == "top" else (h - 1 - i)  # 불투명 모서리로부터의 거리
+        px[0, i] = int(amax * max(0.0, 1.0 - dist / max(1, fade)))
+    overlay = Image.new("RGBA", (W, h), (rgb[0], rgb[1], rgb[2], 0))
+    overlay.putalpha(ramp.resize((W, h)))
+    region = canvas.crop((0, int(y0), W, int(y0) + h)).convert("RGBA")
+    canvas.paste(Image.alpha_composite(region, overlay).convert("RGB"), (0, int(y0)))
+
+
+def _grad_scrim(canvas: Image.Image, box: list, rgb: tuple, amax: int,
+                anchor: str, fade_frac: float = 1.0) -> None:
+    """박스 영역에 방향성 페이드 스크림(솔리드 블록 대체). anchor=top/bottom/left/right 모서리 불투명."""
+    x0, y0, x1, y1 = (int(v) for v in box)
+    w, h = x1 - x0, y1 - y0
+    if w <= 0 or h <= 0:
+        return
+    if anchor in ("left", "right"):
+        ramp = Image.new("L", (w, 1))
+        px = ramp.load()
+        span = max(1, int(w * fade_frac))
+        for i in range(w):
+            dist = i if anchor == "left" else (w - 1 - i)
+            px[i, 0] = int(amax * max(0.0, 1.0 - dist / span))
+    else:
+        ramp = Image.new("L", (1, h))
+        px = ramp.load()
+        span = max(1, int(h * fade_frac))
+        for i in range(h):
+            dist = i if anchor == "top" else (h - 1 - i)
+            px[0, i] = int(amax * max(0.0, 1.0 - dist / span))
+    overlay = Image.new("RGBA", (w, h), (rgb[0], rgb[1], rgb[2], 0))
+    overlay.putalpha(ramp.resize((w, h)))
+    region = canvas.crop((x0, y0, x1, y1)).convert("RGBA")
+    canvas.paste(Image.alpha_composite(region, overlay).convert("RGB"), (x0, y0))
+
+
+def _overlay_lines(el: dict, copy, font, W: int, margin: int) -> list[str]:
+    """헤드라인 줄 구성. font.fit(단일 축소)면 1줄, 아니면 픽셀 폭 줄바꿈."""
+    text = _bind_text(el, copy)
+    if isinstance(el.get("font"), dict):  # fit → 이미 폭에 맞춘 단일 라인
+        return [text]
+    return _wrap_px(text, font, W - 2 * margin)[: el.get("max_lines", 2)]
+
+
+def _draw_overlay(canvas: Image.Image, ov: dict, copy, pal, W: int, H: int,
+                  margin: int, ctx: dict | None, mask: Image.Image | None = None) -> None:
+    """bg-컷 섹션 타이포를 이미지 인식(B)+아키타입(A)으로 얹는다. ov={kicker?, headline}.
+
+    mask(전경 누끼, L·컷과 동일 cover): 있으면 밴드·좌우 정렬을 제품 점유율로 결정(제품 회피)."""
+    arch = _archetype(ctx)
+    align = arch["align"]
+    head_el = ov["headline"]
+    head_text = _bind_text(head_el, copy)
+    if not head_text:
+        return
+    head_font = _font_of(head_el, head_text, W, H, margin, ctx)
+    head_lines = _overlay_lines(head_el, copy, head_font, W, margin)
+    lh = _line_height(head_font)
+
+    kick_el = ov.get("kicker")
+    kick_text = _bind_text(kick_el, copy) if kick_el else ""
+    kick_font = _font_of(kick_el, kick_text, W, H, margin, ctx) if kick_el else None
+    kh = _line_height(kick_font) if kick_text else 0
+    gap = int(kh * 0.45)
+    block_h = (kh + gap if kick_text else 0) + lh * len(head_lines)
+
+    band, lum, top_score, bot_score = _choose_band(canvas, W, H, block_h, margin, mask)
+    dark_on_light = arch["allow_light"] and lum > 178      # 밝고 깔끔한 영역엔 검정 글자(미니멀)
+    text_col = _NAMED["ink"] if dark_on_light else _NAMED["white"]
+    scrim_rgb = _NAMED["paper"] if dark_on_light else _NAMED["ink"]
+    # 스크림 세기: 검정글자=약하게, 흰글자는 배경이 밝을수록 강하게.
+    amax = 120 if dark_on_light else (215 if lum > 135 else 185)
+
+    frac = 0.52
+    if band == "top":
+        y0, y1, anchor = 0, int(H * frac), "top"
+        block_top = margin
+    else:
+        y0, y1, anchor = int(H * (1 - frac)), H, "bottom"
+        block_top = H - margin - block_h
+
+    # 좌우 정렬(마스크 전용): 좌측(기본)이 제품에 가리고 우측이 '진짜 비었을' 때만 우측 정렬.
+    # 절대 여백 게이트(_SIDE_EMPTY)로 프레임 꽉 찬 클로즈업 오발동 방지.
+    side = "left"
+    if mask is not None and align != "center" and ImageStat.Stat(mask).mean[0] < _SIDE_SECTION:
+        by0, by1 = block_top, min(H, block_top + block_h)
+        left_occ = ImageStat.Stat(mask.crop((0, by0, W // 2, by1))).mean[0]
+        right_occ = ImageStat.Stat(mask.crop((W // 2, by0, W, by1))).mean[0]
+        if right_occ < _SIDE_EMPTY and right_occ + _MASK_MIN < left_occ:
+            side = "right"
+    if _OVERLAY_TRACE is not None:  # 진단용(기본 None·무부하): 배치 결정 기록
+        _OVERLAY_TRACE.append({"head": head_text[:24], "band": band, "align": align, "side": side,
+                               "lum": round(lum, 1), "top_score": round(top_score, 1),
+                               "bot_score": round(bot_score, 1), "dark_on_light": dark_on_light,
+                               "amax": amax, "lines": len(head_lines), "mask": mask is not None})
+
+    _scrim_band(canvas, y0, y1, W, scrim_rgb, amax, int((y1 - y0) * 0.6), anchor)
+    draw = ImageDraw.Draw(canvas, "RGBA")
+
+    def _x(text: str, font) -> int:
+        tw = draw.textbbox((0, 0), text, font=font)[2]
+        if align == "center":
+            return (W - tw) // 2
+        if side == "right":
+            return W - margin - tw
+        return margin
+
+    y = block_top
+    if kick_text:
+        kcol = pal["accent"] if dark_on_light else pal.get("tint", text_col)
+        draw.text((_x(kick_text, kick_font), y), kick_text, font=kick_font, fill=kcol)
+        y += kh + gap
+    for line in head_lines:
+        draw.text((_x(line, head_font), y), line, font=head_font,
+                  fill=text_col, spacing=head_el.get("spacing", 4))
+        y += lh
+
+
 def render_slide(size: tuple[int, int], spec: dict, cuts: dict, copy, pal,
-                 margin_ratio: float, cover_mode: str = "round", ctx: dict | None = None) -> Image.Image:
+                 margin_ratio: float, cover_mode: str = "round", ctx: dict | None = None,
+                 masks: dict | None = None) -> Image.Image:
     """슬라이드 스펙(bg + images + elements) → 완성 캔버스.
 
     bg: {"cut": "hero"}(컷 cover) | {"fill": "deep"}(단색). images: [{cut, at, size}].
@@ -334,6 +581,12 @@ def render_slide(size: tuple[int, int], spec: dict, cuts: dict, copy, pal,
     for im in spec.get("images", []):
         _paste_image(canvas, im, cuts, W, H, margin, cover_mode)
     render_elements(canvas, spec.get("elements", []), copy, pal, W, H, margin, ctx)
+    if spec.get("overlay"):  # bg-컷 타이포 — 이미지 인식 배치(B)+아키타입(A)
+        cut = spec.get("bg", {}).get("cut")
+        mimg = None
+        if masks and cut and cut in masks:  # 전경 마스크 있으면 제품 회피 배치
+            mimg = _cover_img(Image.open(masks[cut]).convert("L"), size, cover_mode)
+        _draw_overlay(canvas, spec["overlay"], copy, pal, W, H, margin, ctx, mimg)
     return canvas
 
 
@@ -385,11 +638,12 @@ def _section_height(s: dict, copy, width: int, margin: int) -> int:
 
 
 def render_page(width: int, page: dict, cuts: dict, copy, pal, margin_ratio: float,
-                ctx: dict | None = None) -> Image.Image:
+                ctx: dict | None = None, masks: dict | None = None) -> Image.Image:
     """섹션들을 세로로 스택(상세페이지 롱스크롤). 각 섹션 = (width, 계산된 높이) 미니 슬라이드.
 
     가변 높이(story/benefits)는 카피 길이로 결정(_HEIGHT_CALC). 높이 0 섹션은 생략.
     ctx: 콘텐츠 적응(domain/density) — 요소 조건(if_domain 등)에 전달(L5).
+    masks: {컷명: 전경 누끼 경로} — 있으면 오버레이 배치가 제품을 회피(정확).
     """
     margin = int(width * margin_ratio)
     cm = page.get("cover_mode", "round")
@@ -401,7 +655,8 @@ def render_page(width: int, page: dict, cuts: dict, copy, pal, margin_ratio: flo
         if h <= 0:
             continue
         # 섹션별 margin override(예: hero 0.07) — 나머지는 page margin_ratio.
-        sec = render_slide((width, h), s, cuts, copy, pal, s.get("margin_ratio", margin_ratio), cover_mode=cm, ctx=ctx)
+        sec = render_slide((width, h), s, cuts, copy, pal, s.get("margin_ratio", margin_ratio),
+                           cover_mode=cm, ctx=ctx, masks=masks)
         canvas.paste(sec, (0, y))
         y += h
     return canvas

@@ -98,16 +98,16 @@ def test_content_adaptation_conditions():
     assert le._cond({"if_domain": ["food"]}, copy, None) is False
 
 
-def test_cardnews_cover_kicker_adapts_to_domain(tmp_path):
-    """L5 시연: 'SIGNATURE MENU' 키커가 object 도메인에서 생략 → drink 와 픽셀 다름."""
+def test_cardnews_cover_font_adapts_to_style(tmp_path):
+    """구도 아키타입(A): 스타일이 다르면 헤드라인 폰트/명암이 달라져 픽셀이 다르다."""
     layout = le.load_layout("cardnews")
     by_name = _cuts(tmp_path)
     copy = _fixture()
-    pal = palette("pop")
+    pal = palette("pop")  # 팔레트 고정 → 차이의 원인을 스타일(폰트/아키타입)로 한정
     size = (1080, 1350)
-    drink = le.render_slide(size, layout["cover"], by_name, copy, pal, 0.07, ctx={"domain": "drink"})
-    obj = le.render_slide(size, layout["cover"], by_name, copy, pal, 0.07, ctx={"domain": "object"})
-    assert ImageChops.difference(drink, obj).getbbox() is not None  # 키커 유무 차이
+    ed = le.render_slide(size, layout["cover"], by_name, copy, pal, 0.07, ctx={"domain": "food", "style": "editorial"})
+    pop = le.render_slide(size, layout["cover"], by_name, copy, pal, 0.07, ctx={"domain": "food", "style": "pop"})
+    assert ImageChops.difference(ed, pop).getbbox() is not None  # 명조 vs 임팩트 폰트/명암 차이
 
 
 # --- DSL 레이아웃 로드·렌더 ----------------------------------------------------
@@ -115,8 +115,9 @@ def test_cardnews_cover_kicker_adapts_to_domain(tmp_path):
 def test_cardnews_layout_has_four_slides():
     layout = le.load_layout("cardnews")
     assert set(layout) == {"cover", "story", "detail", "cta"}
-    assert layout["cover"]["bg"] == {"cut": "hero"}
-    assert layout["story"]["bg"] == {"fill": "deep"}
+    for name in ("cover", "story", "detail", "cta"):
+        assert "cut" in layout[name]["bg"]            # 전 슬라이드 풀블리드 컷(솔리드 블록 제거)
+        assert "headline" in layout[name]["overlay"]  # 이미지 인식 오버레이(B)
 
 
 def test_render_slide_deterministic_and_sized(tmp_path):

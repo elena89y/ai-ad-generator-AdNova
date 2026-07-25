@@ -29,12 +29,12 @@ def render(hero: HeroAsset, spec: FormatSpec, output_dir: str) -> list[str]:
     pal = palette(hero.style)
     cw, ch = canvas.size
     if spec.label == "commerce_vertical":
-        canvas = _render_vertical(canvas, copy, pal, spec)  # 절차적 — 코드 유지
+        canvas = _render_vertical(canvas, copy, pal, spec, hero.style)  # 절차적 — 코드 유지
     else:
         layout = load_layout("banner")[spec.label]
         basis = ch if layout["margin_basis"] == "ch" else cw
         margin = int(basis * spec.safe_margin)
-        ctx = {"domain": hero.domain, "density": spec.copy_density}  # L5 콘텐츠 적응
+        ctx = {"domain": hero.domain, "density": spec.copy_density, "style": hero.style}  # L5/폰트 적응
         render_elements(canvas, layout["elements"], copy, pal, cw, ch, margin, ctx)
     cw, ch = canvas.size
     out = str(Path(output_dir) / f"banner_{cw}x{ch}_{spec.label}.jpg")
@@ -42,7 +42,10 @@ def render(hero: HeroAsset, spec: FormatSpec, output_dir: str) -> list[str]:
     return [out]
 
 
-def _render_vertical(canvas, copy: DetailPageCopy, pal, spec):
+def _render_vertical(canvas, copy: DetailPageCopy, pal, spec, style=None):
+    # 2026-07-24: CTA 버튼(pill) 제거(사용자 요청). 헤드라인 폰트=스타일 원장(head_font).
+    from ..layout_engine import _style_font_file
+    ff = _style_font_file({"style": style}, "head") if style else None
     cw, ch = canvas.size
     canvas = _directional_scrim(canvas, wide=False, frac=.44)
     draw = ImageDraw.Draw(canvas)
@@ -50,24 +53,21 @@ def _render_vertical(canvas, copy: DetailPageCopy, pal, spec):
     text_width = int(cw * .84)
     max_font = int(min(ch * .10, cw * .10))
     min_font = max(24, int(min(cw, ch) * 0.035))
-    lines, head_font = _fit_headline(copy.intro_headline, text_width, max_font, min_font)
+    lines, head_font = _fit_headline(copy.intro_headline, text_width, max_font, min_font, font_file=ff)
     line_height = _line_height(head_font)
-    cta_font = _font("bold", max(20, int(min(cw, ch) * 0.040)))
-    cta_height = _cta_size(copy.cta_label, cta_font)[1]
-    head_y = ch - margin - cta_height - int(min(cw, ch) * .04) - line_height * len(lines)
+    head_y = ch - margin - line_height * len(lines)
     kicker_font = _font("medium", max(18, int(min(cw, ch) * .028)))
     draw.text((margin, head_y - _line_height(kicker_font) - 10), copy.product_name or "SIGNATURE",
               font=kicker_font, fill=pal["tint"])
     for line in lines:
         draw.text((margin, head_y), line, font=head_font, fill=(255, 255, 255))
         head_y += line_height
-    _cta_pill(canvas, copy.cta_label, cta_font, xy=(margin, head_y + int(line_height * .24)), fill=pal["accent"], fg="white")
     return canvas
 
 
-def _font(kind: str, size: int):
+def _font(kind: str, size: int, font_file: str | None = None):
     fonts = Path(__file__).resolve().parents[4] / "assets" / "fonts"
-    name = "Pretendard-Bold.otf" if kind == "bold" else "Pretendard-Medium.otf"
+    name = font_file or ("Pretendard-Bold.otf" if kind == "bold" else "Pretendard-Medium.otf")
     try:
         return ImageFont.truetype(str(fonts / name), size)
     except Exception:
@@ -93,12 +93,12 @@ def _directional_scrim(img: Image.Image, wide: bool, frac: float = 0.52) -> Imag
     return Image.composite(black, img, scrim)
 
 
-def _fit_headline(text: str, max_width: int, max_size: int,
-                  min_size: int) -> tuple[list[str], ImageFont.ImageFont]:
+def _fit_headline(text: str, max_width: int, max_size: int, min_size: int,
+                  font_file: str | None = None) -> tuple[list[str], ImageFont.ImageFont]:
     clean = " ".join((text or "광고 이미지").split())
     probe = ImageDraw.Draw(Image.new("RGB", (1, 1)))
     for size in range(max_size, min_size - 1, -2):
-        font = _font("bold", size)
+        font = _font("bold", size, font_file)
         if probe.textbbox((0, 0), clean, font=font)[2] <= max_width:
             return [clean], font
         lines = _split_two_lines(clean)
@@ -106,7 +106,7 @@ def _fit_headline(text: str, max_width: int, max_size: int,
             probe.textbbox((0, 0), line, font=font)[2] <= max_width for line in lines
         ):
             return lines, font
-    font = _font("bold", min_size)
+    font = _font("bold", min_size, font_file)
     return [_ellipsize(clean, font, max_width, probe)], font
 
 
@@ -132,23 +132,6 @@ def _ellipsize(text: str, font, max_width: int, draw: ImageDraw.ImageDraw) -> st
 def _line_height(font) -> int:
     left, top, right, bottom = font.getbbox("가Ag")
     return int((bottom - top) * 1.28)
-
-
-def _cta_size(text: str, font, pad: int = 20) -> tuple[int, int]:
-    left, top, right, bottom = font.getbbox(text)
-    return right - left + 2 * pad, bottom - top + int(pad * 1.2)
-
-
-def _cta_pill(img: Image.Image, text: str, font, xy: tuple[int, int],
-              pad: int = 20, fill=(255, 255, 255), fg=(20, 20, 20)) -> None:
-    draw = ImageDraw.Draw(img)
-    left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
-    tw, th = right - left, bottom - top
-    x, y = xy
-    box = [x, y, x + tw + 2 * pad, y + th + int(pad * 1.2)]
-    radius = (box[3] - box[1]) // 2
-    draw.rounded_rectangle(box, radius=radius, fill=fill)
-    draw.text((x + pad, y + int(pad * 0.6)), text, font=font, fill=fg)
 
 
 def _load_mask(mask_path: Optional[str]) -> Optional[Image.Image]:

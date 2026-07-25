@@ -89,6 +89,7 @@ class DetailPageCopy:
     lifestyle_line: str
     cta_title: str
     cta_label: str
+    subject_en: str = ""  # 상품 영문(라벨 영문 병기용, 2026-07-24)
 
 
 def detail_copy_for(hero: HeroAsset) -> DetailPageCopy:
@@ -106,7 +107,7 @@ def detail_copy_for(hero: HeroAsset) -> DetailPageCopy:
             intro_headline=raw[0], story_title=raw[1], story_body=raw[2],
             benefit_bullets=raw[3], top_view_label=raw[4], closeup_caption=raw[5],
             profile_title=raw[6], profile_caption=raw[7], lifestyle_line=raw[8],
-            cta_title=raw[9], cta_label=raw[10])
+            cta_title=raw[9], cta_label=raw[10], subject_en=hero.subject_en)
     # 폴백: 종전 렌더와 동일 구성(헤드라인 재사용 + 도메인 고정 라벨) — 빈 화면 방지.
     key = hero.domain if hero.domain in _TOP_VIEW_FALLBACK else "food"
     return DetailPageCopy(
@@ -116,7 +117,7 @@ def detail_copy_for(hero: HeroAsset) -> DetailPageCopy:
         top_view_label=_TOP_VIEW_FALLBACK[key], closeup_caption=_CLOSEUP_FALLBACK,
         profile_title=_DETAIL_TITLE_FALLBACK[key], profile_caption=base.subcopy,
         lifestyle_line=base.headline, cta_title=_CTA_TITLE_FALLBACK,
-        cta_label=_CTA_LABEL_FALLBACK)
+        cta_label=_CTA_LABEL_FALLBACK, subject_en=hero.subject_en)
 
 
 @lru_cache(maxsize=256)
