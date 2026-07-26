@@ -57,7 +57,11 @@ def test_editorial_realism_warm_now_styled():
         one = _instr(style=style, subject="chocolate cream cake", scene_seed=0,
                      serving_type="dessert", core_ingredients=["chocolate", "cream"])
         assert "You MAY replace the plain plate" in one       # food_pop 완화 잠금
-        assert "premium designer serving piece" in one        # 접시 레지스트리 주입
+        if style == "realism":
+            # V3.8: realism은 미드센추리 메탈 = 고정 올-스텐 접시(레지스트리 미사용)
+            assert "all-stainless-steel plate" in one
+        else:
+            assert "premium designer serving piece" in one    # editorial/warm 접시 레지스트리
 
 
 def test_drink_object_pop_unchanged():
