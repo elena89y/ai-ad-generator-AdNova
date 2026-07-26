@@ -582,7 +582,7 @@ _PLATE_SHAPES: tuple[str, ...] = (
 )
 _STYLE_PLATE_FINISH: dict[str, str] = {
     "editorial": "in crisp white porcelain with a fine dark charcoal rim line",
-    "realism": "in earthy speckled stoneware with a raw reactive-glaze edge",
+    "realism": "in sleek dark metallic-glazed ceramic with a bright polished silver-metal rim",
     "warm_organic": "in warm cream ceramic with a bold brushed-gold rim",
 }
 
@@ -607,26 +607,74 @@ _EDITORIAL_FOOD_VARIANTS: tuple[str, ...] = (
     "with one clean shadow, elevated minimalist high-end composition, every object clearly shaped and "
     "photorealistic.",
 )
-_REALISM_FOOD_VARIANTS: tuple[str, ...] = (
-    # ① natural_cafe — 실제 카페 창가 (냅킨↔포크 연상 차단 위해 냅킨 제거, 컵만)
-    "Photograph the food true to life on {plate}, on a real cafe table beside a sunlit window, a "
-    "ceramic coffee cup resting naturally nearby and a few {props} beside the plate. Soft natural "
-    "morning light with a realistic shallow depth of field, candid documentary feel, every object "
-    "clearly shaped and photorealistic.",
-    # ② home_table — 가정 식탁 + 리넨 러너·물잔
-    "Photograph the food on {plate}, on a warm-gray home dining table with a linen runner, a glass of "
-    "water and a few {props} placed casually around it. Natural window light and a true-to-life "
-    "everyday-premium mood with gentle depth of field, every object clearly shaped and photorealistic.",
+# STYLE-V3.5→V3.7(2026-07-26 아트디렉터): 리얼리즘 = 미드센추리 모던 + 스테인리스/메탈("쇠테리어")
+#   + 드라마틱 자연광 + macro 질감. V3.7: **메탈 소품 다양화** — 소품 레지스트리에서 시드로 2종
+#   선택({metalprops}). 표면 묘사 압축해 예산 확보. {props}(재료 가니시)와 병행.
+_REALISM_METAL_PROPS: tuple[str, ...] = (
+    "a brushed steel tray",
+    "a sleek chrome utensil",
+    "a stainless-steel canister",
+    "a polished metal ring sculpture",
+    "a chrome geometric object",
+    "a small aluminium vessel",
+    "a mid-century chrome candle holder",
+    "a steel wire fruit bowl",
 )
+
+def _metal_props_clause(subject: str, seed: int) -> str:
+    """리얼리즘 메탈 씬 소품 2종 — 레지스트리에서 subject:seed 로테이션(서로 다른 2개)."""
+    n = len(_REALISM_METAL_PROPS)
+    i = int(hashlib.sha256(f"{subject}:{seed}:metal".encode("utf-8")).hexdigest()[:8], 16) % n
+    off = int(hashlib.sha256(f"{subject}:{seed}:metal2".encode("utf-8")).hexdigest()[:8], 16) % (n - 1)
+    j = (i + 1 + off) % n
+    return f"{_REALISM_METAL_PROPS[i]} and {_REALISM_METAL_PROPS[j]}"
+
+# V3.8(아트디렉터 "모노톤 다크와 겹침"): 리얼리즘은 어두운 저조도(X, 모노톤 영역)가 아니라
+#   **밝고 청량한 미드센추리 모던 메탈** — 올-스텐 접시 + 스틸·티크·크롬 + 밝은 자연광. 모노톤과 구별.
+_REALISM_FOOD_VARIANTS: tuple[str, ...] = (
+    # ① bright_steel_teak — 밝은 스틸+티크 미드센추리, 밝은 데이라이트, 메탈 반사·소품
+    "Photograph the food true to life on a flat round all-stainless-steel plate, on a bright "
+    "brushed-steel and teak mid-century modern surface in a clean airy interior of chrome and white, "
+    "crisp bright daylight with sharp metallic reflections, {metalprops} and {props} nearby. Clean "
+    "bright industrial mid-century realism, macro texture, shallow depth of field.",
+    # ② sunlit_steel — 창가 밝은 햇빛 + 스틸/티크 + 메탈 하이라이트·소품
+    "Photograph the food true to life on a flat round all-stainless-steel plate, on a sleek "
+    "steel-and-teak mid-century table by a bright window, strong daylight throwing crisp shadows and "
+    "bright metallic highlights, {metalprops} and {props} beside it. Airy industrial mid-century "
+    "realism, macro texture.",
+)
+# STYLE-V3.5(2026-07-26 아트디렉터 "웜 소품 다양화"): 고정(황동서버·레이스 / 황동포트·밀) 대신
+#   빈티지 소품 레지스트리에서 시드로 2종 선택({vintageprops}). {plate}/{props} 와 동일 소프트코딩.
+_WARM_VINTAGE_PROPS: tuple[str, ...] = (
+    "a brass cake server",
+    "a piece of antique lace linen",
+    "a sprig of dried wheat",
+    "an aged brass candlestick",
+    "a small aged copper pot",
+    "a bundle of dried lavender",
+    "a vintage silver teaspoon",
+    "a cloth-bound old recipe book",
+    "a few dried orange slices",
+    "an aged brass honey dipper",
+)
+
+def _vintage_props_clause(subject: str, seed: int) -> str:
+    """warm 빈티지 씬 소품 2종 — 레지스트리에서 subject:seed 로테이션(서로 다른 2개)."""
+    n = len(_WARM_VINTAGE_PROPS)
+    i = int(hashlib.sha256(f"{subject}:{seed}:vintage".encode("utf-8")).hexdigest()[:8], 16) % n
+    off = int(hashlib.sha256(f"{subject}:{seed}:vintage2".encode("utf-8")).hexdigest()[:8], 16) % (n - 1)
+    j = (i + 1 + off) % n
+    return f"{_WARM_VINTAGE_PROPS[i]} and {_WARM_VINTAGE_PROPS[j]}"
+
 _WARM_FOOD_VARIANTS: tuple[str, ...] = (
-    # ① vintage_patisserie — {plate} + 황동 서버·앤티크 레이스
-    "Style the food on {plate}, on an aged warm-oak wood table, with a brass cake server, a piece of "
-    "antique lace linen and a few {props} arranged nearby. Soft golden side light, nostalgic old-world "
-    "patisserie mood in rich warm tones, every object clearly shaped and photorealistic.",
-    # ② rustic_warm — {plate} + 황동 포트·마른 밀
-    "Style the food on {plate}, on a weathered warm-wood surface, with a small aged brass pot, a sprig "
-    "of dried wheat and a few {props} beside it. Warm amber light with soft shadows, cozy vintage "
-    "bakery feel, every object clearly shaped and photorealistic.",
+    # ① vintage_patisserie — {plate} + {vintageprops}(로테이션)
+    "Style the food on {plate}, on an aged warm-oak wood table, with {vintageprops} and a few {props} "
+    "arranged nearby. Soft golden side light, nostalgic old-world patisserie mood in rich warm tones, "
+    "every object clearly shaped and photorealistic.",
+    # ② rustic_warm — {plate} + {vintageprops}(로테이션)
+    "Style the food on {plate}, on a weathered warm-wood surface, with {vintageprops} and a few {props} "
+    "beside it. Warm amber light with soft shadows, cozy vintage bakery feel, every object clearly "
+    "shaped and photorealistic.",
 )
 
 # 스타일 → food 변형 로테이션 (pop 메커니즘 일반화). 완화 잠금(food_pop)은 6스타일 공용 —
@@ -1062,6 +1110,12 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
     if "{plate}" in direction:
         # STYLE-V3.1: 접시는 레지스트리에서 시드로 모양 선택(하드코딩 반대) + 스타일 마감
         fmt_args["plate"] = _plate_clause(plan.style_key, subject, scene_seed)
+    if "{vintageprops}" in direction:
+        # STYLE-V3.5: warm 빈티지 소품 레지스트리에서 시드로 2종 로테이션(다양화)
+        fmt_args["vintageprops"] = _vintage_props_clause(subject, scene_seed)
+    if "{metalprops}" in direction:
+        # STYLE-V3.7: realism 메탈 소품 레지스트리에서 시드로 2종 로테이션(다양화)
+        fmt_args["metalprops"] = _metal_props_clause(subject, scene_seed)
     if "{hero}" in direction:
         fmt_args["hero"] = hero
     if "{container_clause}" in direction:
