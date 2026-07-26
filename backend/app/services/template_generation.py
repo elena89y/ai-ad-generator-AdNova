@@ -154,6 +154,14 @@ def _generate_impl(
 ) -> GenerationOutput:
     """실제 생성 본체 — RunLogger 컨텍스트(있으면) 안에서 edit·문구를 단계별로 계측한다."""
     t = template_service.get_catalog_template(catalog_id)
+    # 상품명 미입력 → 입력 이미지에서 상품명 유추(Vision 1회)를 build_instruction 전에 먼저 한다.
+    # 그래야 이름을 이미지에 굽는 템플릿(분식팝 상단 헤드라인 등)의 헤드라인과 SNS 문구가 함께 채워진다
+    # (기존엔 생성 후 그라운딩이라 nameless 시 헤드라인이 비었음, 2026-07-27). 이름 있으면 호출 안 함.
+    if not (product.name or "").strip():
+        derived = gpt_service.describe_product(image_path)
+        if derived:
+            product = product.model_copy(update={"name": derived})  # ProductInfo=Pydantic
+            logger.info("template: 상품명 미입력 → 입력 이미지에서 '%s' 유추", derived)
     instruction, grade, size = build_instruction(catalog_id, product.name, extra_request)
     style_badge = _FINISH_STYLE.get(t.finish, StylePreset.EDITORIAL)
     # 템플릿별 품질(catalog quality) 우선 — 질감 중요한 음식 템플릿만 medium, 나머지 low.
@@ -176,15 +184,6 @@ def _generate_impl(
         with _stage(run, "post_crop"):
             template_crop.apply(t.post_crop, str(final))
     gen_s = round(time.time() - t0, 2)
-
-    # 상품명 미입력 → 이미지에서 상품명 유추(Vision 1회). 안 하면 문구가 "상품 정보를 주세요"
-    # 메타 문구로 나와 SNS 4채널이 사실상 비게 됨(2026-07-24). 유추한 이름으로 메인 카피 +
-    # SNS 문구를 함께 그라운딩한다. 이름이 있으면 호출하지 않는다(Vision 비용 방지).
-    if not (product.name or "").strip():
-        derived = gpt_service.describe_product(str(final))
-        if derived:
-            product = product.model_copy(update={"name": derived})  # ProductInfo=Pydantic
-            logger.info("template: 상품명 미입력 → 이미지에서 '%s' 유추(문구 그라운딩)", derived)
 
     # 문구 — 정상 경로와 동일한 _generate_copy 라우터(copy_graph 품질 게이트 공유). 실패해도 폴백.
     try:
