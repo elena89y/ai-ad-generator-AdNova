@@ -134,10 +134,12 @@ def test_container_default_path_keeps_measured_bug_fix_phrases() -> None:
         assert build_reference_instruction(
             "realism", "food", "club sandwich",
             container_desc=desc, container_opacity=opacity) == base, (desc, opacity)
-    # STYLE-V3(2026-07-26): realism food 은 styled food_pop 락 — 컵 변환 가드는 food_pop 문구로.
-    #   CONTAINER-001 byte-identity(위 루프)는 vessel 게이트가 styled 앞이라 그대로 유효.
-    assert "turned into a cup or different object" in base
+    # REALISM-FIDELITY(2026-07-27): realism 짭짤 음식은 보존 락(food_realism) — 컵 변환·평평 접지
+    #   가드는 보존 락 문구로. CONTAINER-001 byte-identity(위 루프)는 vessel/soup 게이트가 보존
+    #   분기 앞이고 club sandwich 는 비-soup 이라 그대로 유효.
+    assert "into a cup, mug, takeaway container or a different object" in base
     assert "The food rests flat on its plate" in base
+    assert "its real side dishes exactly as photographed" in base  # 원본 곁들임 보존
     # 자리표시자 잔존 금지
     assert "{plate}" not in base and "{props}" not in base and "{palette}" not in base
     # editorial 도 styled — 접시 레지스트리·완화 잠금 정상 주입, 자리표시자 잔존 없음
