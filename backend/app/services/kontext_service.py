@@ -218,8 +218,11 @@ def edit(
     img = _fit(Image.open(image_path).convert("RGB"))
     # FLUX 이중 인코더: prompt=CLIP(77토큰), prompt_2=T5(최대 512토큰).
     # StylePlan의 긴 정체성 잠금을 CLIP에 그대로 넣으면 핵심 무드가 잘리므로 역할을 분리한다.
+    # ⚠️ clip_prompt 없어도 T5(prompt_2)에는 항상 전체 instruction 을 넣는다 — 안 그러면 긴
+    # 역할 프롬프트(87토큰)가 CLIP 77 한도에서 잘려 각도 편집이 약해지고 컷이 히어로와 판박이가
+    # 됨(상세페이지 5컷 동일 사고, 실측). clip_prompt 있는 호출(style_gen)은 기존과 동일.
     prompt = clip_prompt or instruction
-    prompt_2 = instruction if clip_prompt else None
+    prompt_2 = instruction
     with acquire_gpu():
         out = pipe(image=img, prompt=prompt, prompt_2=prompt_2, guidance_scale=guidance,
                    num_inference_steps=steps,
