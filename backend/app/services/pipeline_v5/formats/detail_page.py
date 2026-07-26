@@ -35,13 +35,15 @@ def render(hero: HeroAsset, spec: FormatSpec, output_dir: str) -> list[str]:
     """상세페이지 8섹션을 DSL 레이아웃(세로 스택·가변 높이)으로 조판한다."""
     from ..layout_engine import load_layout, render_page  # 지연 import(순환 방지)
 
-    cuts = {cut.role: cut.image_path for cut in _select_role_cuts(hero)}
-    by_name = {role.value: cuts[role] for role in DetailCutRole}
+    selected = _select_role_cuts(hero)
+    by_name = {cut.role.value: cut.image_path for cut in selected}
+    masks = {cut.role.value: cut.mask_path for cut in selected if cut.mask_path} or None
     copy = detail_copy_for(hero)
     pal = palette(hero.style)
-    ctx = {"domain": hero.domain, "density": spec.copy_density}  # L5 콘텐츠 적응
+    ctx = {"domain": hero.domain, "density": spec.copy_density, "style": hero.style}  # L5/폰트 적응
     width = spec.canvas[0]
-    canvas = render_page(width, load_layout("detail"), by_name, copy, pal, spec.safe_margin, ctx=ctx)
+    canvas = render_page(width, load_layout("detail"), by_name, copy, pal, spec.safe_margin,
+                         ctx=ctx, masks=masks)
     out = Path(output_dir) / f"detail_{width}x{canvas.height}_{spec.label}.jpg"
     canvas.save(out, quality=93)
     return [str(out)]

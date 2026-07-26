@@ -23,6 +23,7 @@ class DetailCutRole(str, Enum):
 class DetailCut:
     image_path: str
     role: DetailCutRole
+    mask_path: Optional[str] = None   # 전경(제품) 마스크 — 레이아웃 배치 제품 회피용(생성단 rembg)
 
 
 @dataclass
