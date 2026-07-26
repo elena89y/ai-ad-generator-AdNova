@@ -24,6 +24,11 @@ _CASES = [
     ("bakery", "butter red bean bread", ["butter", "red bean"]),
     ("dish", "grilled beef", None),
     ("dish", "cream carbonara pasta", ["pasta", "cream", "bacon", "parmesan"]),
+    # SOUP-PRESERVE / REALISM-FIDELITY(2026-07-27) 새 경로 예산 가드
+    ("dish", "korean spicy beef soup", ["beef", "noodle", "scallion", "chili"]),  # 국물 보존 락
+    ("dish", "yukgaejang kalguksu", ["beef", "noodle"]),                          # 국물 보존 락
+    ("dish", "marbled beef ribeye", ["beef", "garlic"]),                          # realism 보존+savory-meat
+    ("dish", "ham and cheese sandwich", ["ham", "cheese", "lettuce", "tomato"]),  # realism 보존+savory-meat
 ]
 
 

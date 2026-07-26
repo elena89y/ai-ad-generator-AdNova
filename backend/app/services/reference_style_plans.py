@@ -441,10 +441,30 @@ _FOOD_POP_HEAD = (
 #   너무 별로"): 배경·소품은 스튜디오급인데 본체가 폰사진 노출 그대로라 이질감 —
 #   프로 푸드 리터치를 명시 허용(보정 O / 변형 X). A모드 리터치 철학의 스타일 경로 이식.
 # RETOUCH-002: tpl_47 질감 어휘 이식 — moist/airy/velvety 조건부 강화("퍼석" 방지)
+# RETOUCH-005(2026-07-27): 리터치 텍스처 어휘를 스왑 가능한 상수로 분리. 기본(SWEET)은 디저트용
+#   (스펀지·크림·과일) — 짭짤한 음식엔 텍스처 앵커가 없어 햄이 "찰흙"으로 렌더(아트디렉터 리포트).
+#   리얼리즘 짭짤 음식은 build 에서 SAVORY로 **등길이 맞교환**(T5 512 예산: append 금지).
+_RETOUCH_TEX_SWEET = (
+    "sponge moist and airy with visible pores, cream silky with a dewy sheen, fruit glossy and juicy, "
+    "sauces glossy, never dry, matte or plastic"
+)
+# SAVORY-TEX(2026-07-27 워크플로 적대검증 합성안): 가공육/고기 마블링 + 익힘 윤기. 'cured slices'로
+#   게이팅(통마블링 꽃등심을 슬라이스로 안 바꿈), 'glossy'로 날/마른 고기 방지, guard 'uniform·
+#   claylike'가 아트디렉터 "찰흙"·"매끈 분홍 슬랩" 직격. 음식명·'raw'·부정문 음식명사 없음(소환 방지).
+_RETOUCH_TEX_SAVORY = (
+    "meat marbled with fat, muscle grain, cured slices thin, folded and glossy, bread crusty, crumb "
+    "airy, cheese glossy, vegetables crisp, sauces glossy, never dry, matte, uniform or claylike"
+)
+# 고기 신호 없는 짭짤 요리(비빔밥·샐러드·플레인 라이스/면)엔 marbling 어휘가 고기를 소환할 수 있어
+#   meat 어휘를 뺀 변주(2-tier). build 의 _has_meat 로 분기.
+_RETOUCH_TEX_SAVORY_PLAIN = (
+    "bread crusty with airy crumb, cheese glossy, vegetables crisp and fresh, rice and noodles moist "
+    "and distinct, sauces glossy, never dry, matte, uniform or claylike"
+)
 _RETOUCH_RESTRAINED = (
-    "Retouch it like a professional food ad: brighten exposure, remove haze — sponge moist and airy "
-    "with visible pores, cream silky with a dewy sheen, fruit glossy and juicy, sauces glossy, never "
-    "dry, matte or plastic. Enhance only what is there, same hues, never restyling. Remove any "
+    "Retouch it like a professional food ad: brighten exposure, remove haze — "
+    + _RETOUCH_TEX_SWEET +
+    ". Enhance only what is there, same hues, never restyling. Remove any "
     "screenshot UI, icons or watermarks. "
 )
 _FOOD_POP_TAIL = (
@@ -459,6 +479,50 @@ _FOOD_POP_TAIL = (
     "Premium food-styling quality, realistic photograph. "
 )
 _IDENTITY_LOCKS["food_pop"] = _FOOD_POP_HEAD + _RETOUCH_RESTRAINED + _FOOD_POP_TAIL
+
+# SOUP-PRESERVE(2026-07-27 아트디렉터 "육개장 국물을 다 없애버리네 큰일났다"): 국·탕·찌개·면국물은
+#   깊은 보울/뚝배기에 국물째 내는 요리. styled 경로(재플레이팅+씬 재구성)가 국물을 비우고 납작
+#   접시로 옮겨 마른 파스타로 붕괴(정체성·정직성 파괴). 전 무드 공통 in-place 보존(CLAUDE.md
+#   절대함정 #5: 용기 담긴 음식 in-place). 리얼리즘 품질 리터치 + '같은 모양 더 예쁜 보울' 재연출은
+#   허용(납작 접시·국물 비우기만 금지 — 아트디렉터 "깊은 보울 모양 유지하면 바꿔도 됨").
+_FOOD_SOUP_LOCK = (
+    "This is a real photograph of a Korean soup or broth dish served in a deep bowl or pot. "
+    "Edit this exact photograph and keep it a soup: keep all of its broth and liquid filling the "
+    "bowl at the same level — never drain, pour out, reduce or remove the broth, and never move the "
+    "food onto a flat plate. "
+    "Keep every noodle, piece of meat, vegetable and topping exactly as photographed — the same kind, "
+    "count, thickness and arrangement; keep the noodles their exact original shape and thickness, and "
+    "add nothing that is not already there. "
+    "Retouch it like a professional food ad: brighten exposure, remove haze, broth rich and glossy, "
+    "meat and vegetables fresh and glossy, never dry, matte or claylike. Enhance only what is there, "
+    "same hues, never restyling. "
+    "You MAY present it in a beautiful deep bowl or earthenware pot, but it stays a deep "
+    "broth-holding bowl of the same shape — never a flat plate, cup, mug or takeaway container. It "
+    "rests flat on the table under gravity with a single realistic contact shadow. "
+    "Change only the background, table surface, camera framing and environmental lighting to match "
+    "the requested scene. "
+)
+
+# REALISM-FIDELITY(2026-07-27 아트디렉터): 리얼리즘 음식은 원본(고기·반찬·곁들임) 정체성 충실
+#   보존 + 품질 리터치 + '같은 종류 접시 업그레이드'만. food_pop(디저트·양식용 재플레이팅+소품
+#   스캐터)이 한식/고기에 부적합 — 찰흙 햄·뭉개진 꽈리고추·없는 소품(빨간 덩어리) 소환을 유발해
+#   교체. 리터치 절(_RETOUCH_RESTRAINED)은 build 에서 SAVORY 로 스왑(짭짤 텍스처).
+_FOOD_REALISM_HEAD = (
+    "This is a real plated food photograph. Keep the food and its real side dishes exactly as "
+    "photographed — the same dish, the same ingredients, garnishes and accompaniments already on the "
+    "plate, the same count, shape, arrangement and colors. Do not add, remove, redraw, resize or "
+    "recolor any food item, and do not scatter any new prop, ingredient or garnish that is not "
+    "already there. "
+)
+_FOOD_REALISM_TAIL = (
+    "You MAY restyle the serving plate into a more beautiful plate of the same kind and shape, but "
+    "keep the food itself untouched, and never turn the food or its plate into a cup, mug, takeaway "
+    "container or a different object. The food rests flat on its plate under gravity with a single "
+    "realistic contact shadow, never propped up or leaning. "
+    "Change the background, table surface, camera framing and environmental lighting to match the "
+    "requested scene. "
+)
+_IDENTITY_LOCKS["food_realism"] = _FOOD_REALISM_HEAD + _RETOUCH_RESTRAINED + _FOOD_REALISM_TAIL
 
 # POP-V2 아키타입 로테이션(2026-07-23): 레퍼런스 4아키타입(광고레퍼런스_v3_재분류_2/01_스타일무드/pop)
 #   이 STY-003 추출 과정에서 saturated_color_block 하나로 붕괴("No extra food, props, splashes,
@@ -985,6 +1049,44 @@ def _replate_unsafe(subject_en: str, container_desc: str | None) -> bool:
     return container_desc is None and any(w in low for w in _REPLATE_UNSAFE_VESSEL)
 
 
+# SOUP-PRESERVE 탐지 — subject_en(analyze_menu 영문. 국·탕·찌개→"...soup"/"broth" 안정 산출:
+#   golden fixture "육개장"→"korean spicy beef soup") 우선 + 용기(뚝배기/스톤팟) 보조. category=
+#   "soup" 는 build 로 전달 안 되고 threading 에 style_gen(병행세션 편집중) 수정이 필요해, 이
+#   파일 안에서 subject_en/container 만으로 자족 판정한다.
+_SOUP_HINTS = (
+    "soup", "broth", "stew", "chowder", "bisque", "ramen", "ramyeon", "pho", "jjigae",
+    "jjamppong", "champon", "gukbap", "sundubu", "kalguksu", "sujebi", "gomtang",
+    "seolleongtang", "samgyetang", "noodle soup",
+)
+
+
+def _is_soup_dish(subject_en: str, container_desc: str | None = None) -> bool:
+    """국물 요리(국·탕·찌개·면국물) 판정 → in-place 보존 라우팅.
+
+    subject_en(analyze_menu 영문, 국·탕·찌개→"...soup"/"broth" 안정 산출)만으로 판정한다.
+    용기(뚝배기/스톤볼) 기반 감지는 돌솥밥·돌솥비빔밥(국물 아님)을 오탐해 제외 — 국물 여부는
+    요리명이 정본. container_desc 인자는 시그니처 호환용(현재 미사용).
+    """
+    low = (subject_en or "").lower()
+    return any(h in low for h in _SOUP_HINTS)
+
+
+# SAVORY 텍스처의 marbling 어휘는 고기/해산물이 실제 있을 때만(없는 고기 소환 방지, 워크플로 지적).
+_MEAT_HINTS = (
+    "meat", "beef", "pork", "chicken", "ham", "bacon", "sausage", "steak", "brisket",
+    "rib", "lamb", "duck", "turkey", "cutlet", "cured", "deli", "pepperoni", "salami",
+    "prosciutto", "chorizo", "meatball", "patty", "bulgogi", "galbi", "jerky", "katsu",
+    "fish", "salmon", "tuna", "shrimp", "prawn", "squid", "crab", "seafood",
+)
+
+
+def _has_meat(subject_en: str, core_ingredients: list[str] | None) -> bool:
+    """고기·해산물 신호(SAVORY marbling 절 적용 여부)."""
+    blob = " ".join([(subject_en or "").lower()]
+                    + [str(i).lower() for i in (core_ingredients or [])])
+    return any(h in blob for h in _MEAT_HINTS)
+
+
 def build_reference_instruction(style_key: str, domain: str | None, subject_en: str,
                                 container_desc: str | None = None,
                                 container_opacity: str | None = None,
@@ -1012,6 +1114,10 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
     identity_lock = _IDENTITY_LOCKS[plan.domain]
     is_vessel = (plan.domain == "food"
                  and classify_container(container_desc, container_opacity) == "vessel")
+    # SOUP-PRESERVE(전 무드): 국물 요리는 vessel 과 동일하게 in-place 보존(styled 스킵) — 국물·용기
+    #   유지, 재플레이팅 금지. is_vessel(유리 디저트) 아닐 때만.
+    is_soup = (plan.domain == "food" and not is_vessel
+               and _is_soup_dish(subject, container_desc))
     if is_vessel:
         container = container_desc.strip().lower()  # analyze_photo 계약상 ASCII 보장
         identity_lock = _prompts.fmt(_NS, "container.identity_lock_vessel",
@@ -1019,6 +1125,10 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         hero = f"the {container}"
         container_clause = _prompts.fmt(_NS, "container.realism_clause_vessel",
                                         container=container)
+    elif is_soup:
+        identity_lock = _FOOD_SOUP_LOCK
+        hero = "the bowl of soup"
+        container_clause = "the deep bowl resting flat on the table"
     else:
         # 디저트(케이크류)는 접시를 상품이 아닌 연출요소로 보고 예쁜 접시로 재플레이팅한다.
         #   vessel(유리 디저트 용기)이 아닐 때만 — 굽 유리볼 빙수 등은 위에서 이미 보존 처리.
@@ -1049,8 +1159,15 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
     # STYLE-V3(2026-07-26): editorial/realism/warm 도 styled 로테이션 편입 → 재플레이팅 안전
     #   가드(_replate_unsafe: 기프트세트/박스·홀케이크·무Vision 유리용기)를 styled 경로에도
     #   적용. 부적합 디저트는 로테이션·접시교체 대신 플레인 food 락(씬 고정)으로 폴백.
+    # REALISM-FIDELITY(리얼리즘만): 리얼리즘 음식(비-vessel·비-soup·비-dessert)은 원본 충실 보존
+    #   경로 — food_pop 재플레이팅/소품 스캐터 대신 보존 락 + 짭짤 텍스처(아래에서 적용).
+    _dessert_flag = ((serving_type in ("dessert", "bakery")) if serving_type is not None
+                     else _is_dessert_subject(subject))
+    is_realism_food = (plan.domain == "food" and plan.style_key == "realism"
+                       and not is_vessel and not is_soup and not _dessert_flag
+                       and not _replate_unsafe(subject, container_desc))
     styled_v2 = (plan.domain == "food" and plan.style_key in _STYLE_FOOD_VARIANTS
-                 and not is_vessel
+                 and not is_vessel and not is_soup and not is_realism_food
                  and not _replate_unsafe(subject, container_desc))
     if styled_v2:
         variants = _STYLE_FOOD_VARIANTS[plan.style_key]
@@ -1082,6 +1199,17 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
                 "The noodles keep their exact pasta type, thickness and arrangement — never convert "
                 "penne into spaghetti or redraw them; add no topping not visible in the original. "
             )
+    # REALISM-FIDELITY 락 적용 + 짭짤 텍스처 스왑. 고기 있으면 marbling 어휘(_RETOUCH_TEX_SAVORY),
+    #   없으면 고기 소환 방지 변주(_RETOUCH_TEX_SAVORY_PLAIN)로 등길이 맞교환.
+    if is_realism_food:
+        identity_lock = _IDENTITY_LOCKS["food_realism"]
+        _savory = (_RETOUCH_TEX_SAVORY if _has_meat(subject, core_ingredients)
+                   else _RETOUCH_TEX_SAVORY_PLAIN)
+        identity_lock = identity_lock.replace(_RETOUCH_TEX_SWEET, _savory, 1)
+    # SOUP/REALISM: 씬 방향의 "No ... ingredients, garnish" 부정문이 보존 락의 "원본 곁들임 유지"와
+    #   충돌해 원본 반찬을 지울 수 있어, 리얼리즘 방향에서 garnish 금지만 제거(추가 방지는 락이 담당).
+    if is_soup or is_realism_food:
+        direction = direction.replace("utensils, ingredients, garnish, hands", "utensils, hands")
     # RETOUCH-004: 초코 디저트는 이상화의 generic 질감 절(스펀지 pores·일반 크림)이 약해
     #   크럼블리하게 남는다(2차 시안 관찰) — 초코 전용 어휘(fudgy·ganache 수사)로 등길이
     #   맞교환. 이상화 절이 실제로 들어간 잠금(food_dessert·styled 디저트)에만 작동하고,
