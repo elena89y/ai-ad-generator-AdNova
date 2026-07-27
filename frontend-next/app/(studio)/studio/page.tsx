@@ -365,7 +365,11 @@ export default function StudioPage() {
       copyBody: copy.body || s.currentResult.copy_text || "",
       copyTags: copy.tags || "",
       platformCopies: s.currentResult.platform_copies || {},
-      style: toStyleLabel(s.currentResult.style),
+      // 직접입력(자유서술)은 무드 선택이 없으니 base style 대신 '직접입력' 표시(갤러리/상세와 일치).
+      style:
+        styleMode === "custom" && styleText.trim()
+          ? "직접입력"
+          : toStyleLabel(s.currentResult.style),
       rawStyle: s.currentResult.style,
       img: toAbsoluteUrl(resultImageUrl(s.currentResult)),
       // [html-parity] 상세·공유로 넘어가도 타이포 토글이 되도록 페어 유지 (html 이식)

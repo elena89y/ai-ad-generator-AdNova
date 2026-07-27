@@ -427,7 +427,10 @@ export function historyToCard(history: HistoryEntry): AdItem {
   // 표시한다. rawStyle 은 프리셋 필터용으로 원본 style 을 유지한다.
   const templateId = typeof requestData.template_id === "string" ? requestData.template_id : "";
   const templateName = templateId ? TEMPLATE_NAME_BY_ID[templateId] || "" : "";
-  const style = templateName || toStyleLabel(ad.style);
+  // 직접입력(자유서술)은 무드 선택이 없어 base style(웜 빈티지 등)이 실린다 → 표시는 '직접입력'으로.
+  // request_data.style_text 존재 = 직접입력. rawStyle 은 원본 유지(필터/디버그용).
+  const styleText = typeof requestData.style_text === "string" ? requestData.style_text.trim() : "";
+  const style = templateName || (styleText ? "직접입력" : toStyleLabel(ad.style));
   return {
     historyId: history.id,
     advertisementId: ad.id,
