@@ -25,11 +25,10 @@ init_langfuse()
 
 Base.metadata.create_all(bind=engine)
 AdminBase.metadata.create_all(bind=admin_engine)
-# 리텐션 마이그레이션 자동 적용: create_all 이 못 하는 기존 테이블 컬럼 추가(anonymized_at)를
-# 기동 시 멱등하게 반영 → 배포 시 수동 마이그레이션 불필요 (한의정, 07-21).
-from app.scripts.migrate_retention import ensure_retention_columns  # noqa: E402
+# create_all은 새 테이블만 만들 수 있으므로 기존 테이블 변경은 버전형 마이그레이션으로 반영한다.
+from app.database.migrations import run_database_migrations  # noqa: E402
 
-ensure_retention_columns(engine)
+run_database_migrations(engine, admin_engine)
 upload_dir = Path(settings.UPLOAD_DIR)
 upload_dir.mkdir(parents=True, exist_ok=True)
 

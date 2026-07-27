@@ -1,7 +1,9 @@
 import os
+import sqlite3
 from pathlib import Path
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 
@@ -29,6 +31,17 @@ def _connect_args(database_url: str) -> dict:
     if database_url.startswith("sqlite"):
         return {"check_same_thread": False}
     return {}
+
+
+@event.listens_for(Engine, "connect")
+def _enable_sqlite_foreign_keys(dbapi_connection, _connection_record) -> None:
+    """SQLite에서도 모델에 선언한 ForeignKey를 실제로 검사한다."""
+    if not isinstance(dbapi_connection, sqlite3.Connection):
+        return
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
 
 engine = create_engine(DATABASE_URL, connect_args=_connect_args(DATABASE_URL))
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

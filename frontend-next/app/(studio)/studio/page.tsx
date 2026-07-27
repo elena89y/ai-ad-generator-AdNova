@@ -107,7 +107,6 @@ export default function StudioPage() {
   const s = useStudio();
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadStep, setLoadStep] = useState(GEN_STEPS[0]);
   const [activePlatform, setActivePlatform] = useState("instagram");
@@ -120,7 +119,6 @@ export default function StudioPage() {
     "사진만 넣으면 배경·구도는 AI가 알아서 잡아줘요."
   );
   const stepTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const selectedImagePreviewRef = useRef<string | null>(null);
   const productNameHasEmoji = containsEmoji(s.prodName);
   const extraRequestHasEmoji = containsEmoji(s.promptText);
   const hasEmojiInput = productNameHasEmoji || extraRequestHasEmoji;
@@ -165,15 +163,12 @@ export default function StudioPage() {
       s.toast("이미지는 최대 10MB까지 업로드할 수 있습니다.");
       return;
     }
-    const previousPreview = selectedImagePreviewRef.current;
-    if (previousPreview?.startsWith("blob:")) URL.revokeObjectURL(previousPreview);
     const nextPreview = URL.createObjectURL(file);
-    selectedImagePreviewRef.current = nextPreview;
-    setSelectedImageFile(file);
     s.setDashboardState({
       selectedImageId: null,
       selectedImageUrl: null,
       selectedImagePreview: nextPreview,
+      selectedImageFile: file,
       currentResult: null,
     });
     setUploadInfo(`선택한 이미지: ${file.name}`);
@@ -191,35 +186,16 @@ export default function StudioPage() {
   }
 
   function removeSelectedImage() {
-    const preview = selectedImagePreviewRef.current;
-    if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
-    selectedImagePreviewRef.current = null;
-    setSelectedImageFile(null);
     s.setDashboardState({
       selectedImageId: null,
       selectedImageUrl: null,
       selectedImagePreview: null,
+      selectedImageFile: null,
       currentResult: null,
     });
     setUploadInfo("사진만 넣으면 배경·구도는 AI가 알아서 잡아줘요.");
     s.toast("선택한 이미지를 제거했습니다");
   }
-
-  useEffect(() => {
-    selectedImagePreviewRef.current = s.selectedImagePreview;
-  }, [s.selectedImagePreview]);
-
-  useEffect(() => {
-    return () => {
-      const preview = selectedImagePreviewRef.current;
-      if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
-      s.setDashboardState({
-        selectedImageId: null,
-        selectedImageUrl: null,
-        selectedImagePreview: null,
-      });
-    };
-  }, [s.setDashboardState]);
 
   function startLoadingSteps() {
     let i = 0;
@@ -265,7 +241,7 @@ export default function StudioPage() {
       router.push("/login");
       return;
     }
-    if (!selectedImageFile) {
+    if (!s.selectedImageFile && !s.selectedImageId) {
       s.toast("먼저 제품 사진을 업로드해 주세요");
       return;
     }
@@ -282,7 +258,11 @@ export default function StudioPage() {
     setLoading(true);
     startLoadingSteps();
     const formData = new FormData();
-    formData.append("image", selectedImageFile);
+    if (s.selectedImageId) {
+      formData.append("image_id", String(s.selectedImageId));
+    } else if (s.selectedImageFile) {
+      formData.append("image", s.selectedImageFile);
+    }
     formData.append("product_name", productName);
     formData.append("product_description", s.promptText.trim());
     formData.append("style", STYLE_PRESET_MAP[s.styleLabel] || "pop");
@@ -496,8 +476,7 @@ export default function StudioPage() {
             >
               {beforeSrc ? (
                 <>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <AuthenticatedImage
                     src={beforeSrc}
                     style={{
                       width: "100%",

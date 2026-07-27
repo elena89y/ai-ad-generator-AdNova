@@ -1,14 +1,15 @@
 import logging
-from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.admin_security import get_current_admin, get_current_super_admin
 from app.core.email import send_inquiry_answer_email, send_inquiry_status_email
+from app.core.file_paths import resolve_existing_file
 from app.core.security import hash_password, verify_password
 from app.core.totp import (
     build_totp_provisioning_uri,
@@ -74,6 +75,7 @@ from app.crud.notice import (
     update_notice,
 )
 from app.services.notification_service import send_marketing_notifications
+from app.services import image_service
 from app.database.admin_models import AdminUser
 from app.database.billing_models import PurchaseHistory, RefundRequest, Subscription, utc_now
 from app.database.connection import get_admin_db, get_db
@@ -234,7 +236,12 @@ def create_admin_account_by_super_admin(
     admin_db: Session = Depends(get_admin_db),
     current_admin: AdminUser = Depends(get_current_super_admin),
 ) -> AdminAccountResponse:
-    if admin_db.query(AdminUser).filter(AdminUser.email == str(request.email)).first() is not None:
+    if (
+        admin_db.query(AdminUser)
+        .filter(func.lower(AdminUser.email) == str(request.email).lower())
+        .first()
+        is not None
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="이미 사용 중인 관리자 이메일입니다.",
@@ -244,7 +251,12 @@ def create_admin_account_by_super_admin(
             status_code=status.HTTP_409_CONFLICT,
             detail="이미 사용 중인 관리자 아이디입니다.",
         )
-    if db.query(User).filter(User.email == str(request.email)).first() is not None:
+    if (
+        db.query(User)
+        .filter(func.lower(User.email) == str(request.email).lower())
+        .first()
+        is not None
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="일반 사용자와 같은 이메일은 관리자 계정에 사용할 수 없습니다.",
@@ -656,8 +668,12 @@ def read_admin_advertisement_image(
 
     advertisement, _ = row
     output_image = advertisement.output_image
-    file_path = Path(output_image.file_path or "") if output_image else None
-    if output_image is None or file_path is None or not file_path.is_file():
+    file_path = (
+        resolve_existing_file(output_image.file_path, image_service.RESULTS_DIR)
+        if output_image
+        else None
+    )
+    if output_image is None or file_path is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="생성 이미지 파일을 찾을 수 없습니다.",
