@@ -659,6 +659,32 @@ def _draw_headline(d, x, y, lines, font, fill, line_h, center_x=None):
     return y
 
 
+def _draw_info_block(d, cx, y, w, h, margin, info_lines, fine_print, accent):  # noqa: ANN001
+    """무-상품 경로 하단 정보 블록 — load-bearing 정보줄(일시/장소/문의처) + 규정 fine print.
+
+    정보줄은 유저 원문 그대로(재작성 없음, 오탈자 0). 중앙 정렬, 폭 초과 시 폰트만 축소.
+    """
+    for line in info_lines:
+        sz = int(h * 0.022)
+        f = _font("gothic", sz)
+        while d.textlength(line, font=f) > w - 2 * margin and sz > 12:
+            sz -= 1
+            f = _font("gothic", sz)
+        tw = d.textlength(line, font=f)
+        d.text((cx - tw / 2, y), line, font=f, fill=(232, 228, 222))
+        y += int(sz * 1.5)
+    if fine_print:
+        sz = int(h * 0.015)
+        f = _font("gothic", sz)
+        while d.textlength(fine_print, font=f) > w - 2 * margin and sz > 10:
+            sz -= 1
+            f = _font("gothic", sz)
+        tw = d.textlength(fine_print, font=f)
+        d.text((cx - tw / 2, y + int(h * 0.008)), fine_print, font=f, fill=(168, 163, 156))
+        y += int(sz * 1.6)
+    return y
+
+
 def apply_food_poster(
     image_path: str,
     headline: str,
@@ -670,6 +696,8 @@ def apply_food_poster(
     head_kind: Optional[str] = None,
     style_key: Optional[str] = None,
     text_zone: Optional[str] = None,
+    info_lines: Optional[list] = None,
+    fine_print: str = "",
 ) -> str:
     """A모드(리터치형) 프리미엄 음식 포스터 — 누끼 없음, 사진 위/아래 조판.
 
@@ -719,8 +747,9 @@ def apply_food_poster(
         head_kind = "display_heavy" if head_kind == "condensed" else "serif_elegant"
 
     if layout == "panel":
-        # 사진 상단 66% + 하단 34% 딥톤 패널
-        panel_top = int(h * 0.66)
+        # 사진 상단 + 하단 딥톤 패널. 정보줄(info_lines)/규정문구가 있으면 패널을 키워 담는다.
+        has_info = bool(info_lines) or bool(fine_print)
+        panel_top = int(h * (0.58 if has_info else 0.66))
         panel = _deep_panel(acc)
         canvas = Image.new("RGB", (w, h), panel)
         photo = img.crop((0, 0, w, panel_top))
@@ -728,7 +757,9 @@ def apply_food_poster(
         img = canvas
         d = ImageDraw.Draw(img)
         cx = w / 2
-        cy0 = panel_top + int(h * 0.055)
+        # 정보줄이 있을 때만 상단 여백·룰 간격·헤드라인을 살짝 조여 하단 정보 공간을 확보한다.
+        # info 없는 기존 상품 panel 경로는 종전 수치 그대로(회귀 0).
+        cy0 = panel_top + int(h * (0.045 if has_info else 0.055))
         # 키커
         if kicker:
             kf = _font("gothic_bold", int(h * 0.020))
@@ -737,9 +768,9 @@ def apply_food_poster(
             cy0 += int(h * 0.040)
         # 얇은 룰
         d.rectangle([cx - w * 0.05, cy0, cx + w * 0.05, cy0 + 2], fill=acc)
-        cy0 += int(h * 0.030)
+        cy0 += int(h * (0.028 if has_info else 0.030))
         # 헤드라인 (명조/Playfair, 중앙)
-        hf = int(h * 0.056)
+        hf = int(h * (0.052 if has_info else 0.056))
         head_font = _font(head_kind, hf)
         while max(d.textlength(l, font=head_font) for l in head_lines) > w - 2 * margin and hf > 20:
             hf = int(hf * 0.93); head_font = _font(head_kind, hf)
@@ -750,6 +781,12 @@ def apply_food_poster(
             sf = _fit_font(d, subcopy, "gothic", int(h * 0.023), w - 2 * margin)
             sw = d.textlength(subcopy, font=sf)
             d.text((cx - sw / 2, cy0 + int(h * 0.012)), subcopy, font=sf, fill=(214, 208, 200))
+            if has_info:
+                cy0 += int(h * 0.012 + hf * 0.5)
+        # 무-상품 경로: load-bearing 정보줄(원문 그대로) + 하단 규정 fine print
+        if has_info:
+            _draw_info_block(d, cx, cy0 + int(h * 0.010), w, h, margin,
+                             list(info_lines or []), fine_print, acc)
     elif layout == "minimal":
         # 이미지를 안 가리는 조판 — 배경색 블록(패널/스크림) 없이 텍스트만 얹고 가독성은 섀도우로.
         #   실측 2026-07-10(사용자): 카피 뒤 배경색이 원본 이미지를 너무 가림 → 배경 블록 제거.

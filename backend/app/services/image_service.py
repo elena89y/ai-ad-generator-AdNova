@@ -488,6 +488,60 @@ def img2img(
     ).images[0]
 
 
+# --- 무-상품(텍스트 브리프) 배경 생성: text→image ------------------------------
+_txt2img_pipeline = None
+
+# 배경엔 글자가 절대 없어야 함(타이포는 코드, 함정 #3) — negative 로 문자·소품 억제.
+_TXT2IMG_NEG = ("text, letters, words, typography, watermark, signage, poster with text, "
+                "logo, caption, ui, frame, border, lowres, blurry, deformed")
+
+
+def _load_txt2img_pipeline():  # noqa: ANN202
+    """RealVisXL txt2img lazy 싱글턴 — 무-상품 배경/무드 생성(사실감 보존).
+
+    입력 이미지가 없어 정체성 보존 부담이 없다 → 생성 자유가 오히려 자산. RealVis 는
+    사진 사실감 특화라 배경도 CGI 붕괴 없이 뽑힌다(SDXL base 는 실사 붕괴 함정, CLAUDE.md).
+    """
+    global _txt2img_pipeline
+    if _txt2img_pipeline is None:
+        import torch
+        from diffusers import StableDiffusionXLPipeline
+
+        logger.info(f"txt2img 파이프라인 로드 시작: {FOOD_IMG2IMG_MODEL}")
+        try:
+            _txt2img_pipeline = StableDiffusionXLPipeline.from_pretrained(
+                FOOD_IMG2IMG_MODEL, torch_dtype=torch.float16, variant="fp16",
+            )
+        except Exception:
+            _txt2img_pipeline = StableDiffusionXLPipeline.from_pretrained(
+                FOOD_IMG2IMG_MODEL, torch_dtype=torch.float16,
+            )
+        _txt2img_pipeline.enable_model_cpu_offload()
+        _txt2img_pipeline.enable_vae_slicing()
+        logger.info("txt2img 파이프라인 로드 완료 (RealVisXL)")
+    return _txt2img_pipeline
+
+
+def txt2img(prompt: str, size: tuple[int, int] = (1024, 1024), seed: int = 7,
+            guidance: float = 6.0, steps: int = 30) -> Image.Image:
+    """텍스트 프롬프트 → 배경 이미지(GPU). 로컬 엔진 경로. 글자는 negative 로 차단.
+
+    ⚠️ Mac(CUDA 없음)에선 실행 불가 — VM 전용. size 는 (W,H), SDXL 는 8의 배수 권장.
+    """
+    import torch
+
+    w, h = (max(8, (size[0] // 8) * 8), max(8, (size[1] // 8) * 8))
+    pipe = _load_txt2img_pipeline()
+    return pipe(
+        prompt=prompt,
+        negative_prompt=_TXT2IMG_NEG,
+        width=w, height=h,
+        guidance_scale=guidance,
+        num_inference_steps=steps,
+        generator=torch.Generator("cuda").manual_seed(seed),
+    ).images[0]
+
+
 # --- FR-08 광고 이미지 생성 ---------------------------------------------------
 _sdxl_pipeline = None
 
@@ -522,13 +576,15 @@ def unload_pipelines(keep: tuple = ()) -> None:
 
     import torch
 
-    global _sdxl_pipeline, _harmonize_pipeline, _food_pipeline
+    global _sdxl_pipeline, _harmonize_pipeline, _food_pipeline, _txt2img_pipeline
     if "sdxl" not in keep:
         _sdxl_pipeline = None
     if "harmonize" not in keep:
         _harmonize_pipeline = None
     if "food" not in keep:
         _food_pipeline = None
+    if "txt2img" not in keep:
+        _txt2img_pipeline = None
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()

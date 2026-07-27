@@ -265,6 +265,7 @@ def generate(
     poster: bool = Form(False),
     seed: Optional[int] = Form(None),
     purpose: AdPurpose = Form(AdPurpose.SNS),
+    style_text: str = Form(""),
 ) -> GenerateAdResponse:
     """이미지 파일 → 전처리 → 생성 → 문구 (→ 포스터). GPU 필요."""
     suffix = Path(image.filename or "upload.png").suffix.lower() or ".png"
@@ -280,7 +281,8 @@ def generate(
     try:
         multiformat = purpose in (AdPurpose.CARD_NEWS, AdPurpose.DETAIL_PAGE)
         out = generation_service.run_from_upload_v2(
-            str(src), product, style, seed, use_vision, False if multiformat else poster
+            str(src), product, style, seed, use_vision, False if multiformat else poster,
+            style_text=style_text,
         )
         if multiformat:
             return _render_multiformat(out, product_name, purpose)
