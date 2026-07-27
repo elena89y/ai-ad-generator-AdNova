@@ -124,20 +124,21 @@ def test_props_without_ingredients_safe():
         assert "{props}" not in instr
 
 
-# --- NOODLE-GUARD: 면류는 ①(scatter) 제외 — 본체 재드로잉 라이브 2회 실측 ------
+# --- NOODLE-PRESERVE: 마른 면도 국물처럼 in-place 보존 (2026-07-27 라이브 사고) ------
+#   구 NOODLE-GUARD(안전 변형 서브셋 + "never convert penne into spaghetti" 부정문)는 라이브에서
+#   둘 다 통과하고도 펜네→스파게티 둥지+갈색 타워로 붕괴 → 계약을 '보존'으로 격상.
 
 @pytest.mark.parametrize("subject", [
     "creamy carbonara pasta", "cream carbonara pasta",
     "cold buckwheat soba", "japchae glass noodles",
 ])
 def test_noodle_never_gets_scatter_archetype(subject):
-    """건식 면류 subject는 전 시드에서 ①(마커: 'joyful pop energy')이 절대 안 나와야 한다 —
-    유닛 보증이 GPU 1샷보다 강함(전수). ⚠️ 국물 면(라멘·쌀국수)은 SOUP-PRESERVE 라우팅이라
-    별도 테스트(test_soup_noodle_preserved)에서 검증."""
+    """건식 면류는 스캐터 아키타입은 물론 styled 재연출 자체를 안 탄다(보존 라우팅)."""
     for s in range(24):
         instr = _instr(subject=subject, scene_seed=s)
         assert "joyful pop energy" not in instr, (subject, s)
-        assert "You MAY replace the plain plate" in instr  # 완화 잠금은 유지
+        assert "keep the noodles exactly as they are" in instr, (subject, s)
+        assert "You MAY replace the plain plate" not in instr  # 재플레이팅 아님
 
 
 @pytest.mark.parametrize("subject", ["spicy ramen noodles", "beef pho", "korean spicy beef soup"])
@@ -152,10 +153,10 @@ def test_soup_noodle_preserved(subject):
         assert "You MAY replace the plain plate" not in instr    # food_pop 재플레이팅 아님
 
 
-def test_noodle_still_rotates_among_three():
-    """면류도 ②③④ 3종 로테이션은 유지(단일 고정 아님)."""
+def test_noodle_instruction_is_stable_across_seeds():
+    """보존 라우팅이라 면 요리는 시드로 연출이 흔들리지 않는다(씬 배경만 스타일별로 다름)."""
     outs = {_instr(subject="creamy carbonara pasta", scene_seed=s) for s in range(12)}
-    assert len(outs) >= 2
+    assert len(outs) == 1
 
 
 @pytest.mark.parametrize("style,bad_marker", [
@@ -163,13 +164,13 @@ def test_noodle_still_rotates_among_three():
     ("pastel", "shimmering silk"),     # ① dreamy — 면류 4/4 재드로잉
 ])
 def test_noodle_excludes_unsafe_variants_all_styles(style, bad_marker):
-    """면류 안전 서브셋(실측 통과분만): 전 시드에서 위험 변형 절대 미발생 + 잠금 보강절.
-    ⚠️ 보강절에 'egg' 같은 위험 명사 금지(부정문 조건화 소환 실측)."""
+    """면류는 위험 변형은 물론 어떤 styled 변형도 안 탄다 + 보존 락으로 형태 고정.
+    ⚠️ 'egg' 같은 위험 명사는 부정문에도 넣지 않는다(조건화 소환 실측)."""
     for s in range(24):
         instr = _instr(style=style, subject="cream carbonara pasta", scene_seed=s,
                        serving_type="dish")
         assert bad_marker not in instr, (style, s)
-        assert "never convert penne into spaghetti" in instr
+        assert "the same noodle shape" in instr        # 보존 락(면 형태 고정)
         assert "egg" not in instr
     # 비면류(케이크)는 해당 변형 여전히 도달 가능
     joined = " ".join(_instr(style=style, scene_seed=s) for s in range(12))
@@ -305,3 +306,46 @@ def test_dessert_unaffected_by_fidelity():
     instr = _instr(scene_seed=0, serving_type="dessert")
     assert "Idealize this dessert" in instr
     assert "cut surface stays" not in instr
+
+
+# --- NOODLE-PRESERVE + PROP-COOK (2026-07-27 라이브: 펜네→스파게티 타워, 생고기 소품) ----
+
+@pytest.mark.parametrize("style", ["pop", "monotone", "pastel", "editorial", "realism",
+                                   "warm_organic"])
+def test_noodle_dish_preserved_all_moods(style):
+    """마른 면(펜네·파스타)은 전 무드에서 in-place 보존 — styled 재연출 미적용.
+    라이브 사고: 크림 펜네 파스타 monotone 이 스파게티 둥지+갈색 타워로 재구성."""
+    for s in range(8):
+        instr = _instr(style=style, subject="cream penne pasta", scene_seed=s,
+                       serving_type="dish", core_ingredients=["penne", "cream"])
+        assert "keep the noodles exactly as they are" in instr, (style, s)
+        assert "molded" in instr                                  # 타워/링 재조형 금지
+        assert "You MAY replace the plain plate" not in instr     # 재플레이팅 아님
+
+
+def test_soup_noodle_still_routes_to_soup():
+    """국물 면(라멘·쌀국수)은 여전히 SOUP-PRESERVE 가 선행 — 이중 라우팅 없음."""
+    for subj in ("spicy ramen noodles", "beef pho"):
+        instr = _instr(subject=subj, scene_seed=0, serving_type="dish")
+        assert "keep it a soup" in instr
+        assert "keep the noodles exactly as they are" not in instr
+
+
+def test_non_noodle_unaffected():
+    """비면 요리는 기존 경로 유지(회귀 가드)."""
+    beef = _instr(subject="grilled pork ribs", scene_seed=0, serving_type="dish")
+    assert "keep the noodles exactly as they are" not in beef
+    assert "You MAY replace the plain plate" in beef
+
+
+def test_meat_prop_follows_cooking_method():
+    """PROP-COOK: 고기 소품의 조리 상태가 요리의 조리법을 따른다(구이=구운 고기)."""
+    from app.services.reference_style_plans import _props_clause
+    grilled = _props_clause(["pork"], "grilled pork ribs")
+    assert "grilled" in grilled and "charred grill marks" in grilled
+    fried = _props_clause(["chicken"], "fried chicken cutlet")
+    assert "fried" in fried
+    braised = _props_clause(["beef"], "braised beef stew pot")
+    assert "braised" in braised
+    # 고기 아닌 소품은 조리법 무관(회귀)
+    assert "grilled" not in _props_clause(["strawberry"], "grilled pork ribs")
