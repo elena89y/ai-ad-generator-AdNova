@@ -29,7 +29,9 @@ import re
 import secrets
 import shutil
 import time
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from . import api_image_service, gpt_service, image_service, template_crop, template_service
 from .generation_service import GenerationOutput, _generate_copy, _stage
@@ -79,6 +81,38 @@ _FINAL_RULE = (
 # 카탈로그 프롬프트 내 대괄호 플레이스홀더 ([MENU NAME] 등, 모노브 수집 영어 장문형에 존재)
 _PLACEHOLDER_RE = re.compile(r"\[[A-Z][A-Z \-]+\]")
 
+# SEASON-DYNAMIC(2026-07-27): 시즌 배너(tpl_13·tpl_41)의 계절어·색이 '여름/민트/쿨톤'으로 하드코딩돼
+#   겨울에 돌려도 "여름 신메뉴"가 나오던 문제. 계절어([SEASON])는 동적으로 — 기본은 생성 시점(한국
+#   시각) 월로 자동, 추가요청에 계절어가 있으면 그걸로 오버라이드(A+B). 배경'색'은 고정 계절색(=결국
+#   하드코딩) 대신 프롬프트가 "메뉴에 어울리는 색"으로 모델에 위임(gpt-image-2가 업로드 음식을 봄).
+_SEASON_BY_MONTH = {
+    3: "봄", 4: "봄", 5: "봄",
+    6: "여름", 7: "여름", 8: "여름",
+    9: "가을", 10: "가을", 11: "가을",
+    12: "겨울", 1: "겨울", 2: "겨울",
+}
+# 추가요청 오버라이드 키워드(한/영) — 계절 의도가 명시되면 자동판정보다 우선.
+_SEASON_OVERRIDE = (
+    ("봄", "봄"), ("spring", "봄"),
+    ("여름", "여름"), ("summer", "여름"),
+    ("가을", "가을"), ("autumn", "가을"), ("fall", "가을"),
+    ("겨울", "겨울"), ("winter", "겨울"),
+)
+
+
+def _season_for_month(month: int) -> str:
+    """월(1~12) → 계절어(북반구·한국 기준)."""
+    return _SEASON_BY_MONTH[month]
+
+
+def _resolve_season(extra_request: str = "") -> str:
+    """시즌 배너 계절어 결정. (A) 기본=생성 시점(KST) 월 자동, (B) 추가요청에 계절어 있으면 오버라이드."""
+    low = (extra_request or "").lower()
+    for kw, season in _SEASON_OVERRIDE:
+        if kw in low:
+            return season
+    return _season_for_month(datetime.now(ZoneInfo("Asia/Seoul")).month)
+
 
 def build_instruction(catalog_id: str, product_name: str = "",
                       extra_request: str = "") -> tuple[str, str, str]:
@@ -91,6 +125,9 @@ def build_instruction(catalog_id: str, product_name: str = "",
     # 없으면 리터럴 토큰이 이미지에 구워지지 않게 자체 결정 지시로 폴백 (tpl_50은 프롬프트에 폴백 조항이 없음).
     if name:
         prompt = prompt.replace("[MENU NAME]", name)
+    # [SEASON] 치환(시즌 배너 A+B) — _PLACEHOLDER_RE 검사보다 먼저 해 리터럴 잔존을 막는다.
+    if "[SEASON]" in prompt:
+        prompt = prompt.replace("[SEASON]", _resolve_season(extra_request))
     placeholder_note = ""
     if _PLACEHOLDER_RE.search(prompt):
         placeholder_note = (
