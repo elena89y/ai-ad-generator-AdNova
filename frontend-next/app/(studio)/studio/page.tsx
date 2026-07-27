@@ -231,13 +231,17 @@ export default function StudioPage() {
       s.toast("구독 정보를 확인한 뒤 광고를 생성할 수 있습니다");
       return;
     }
-    if (s.isPremium && s.premiumLeft <= 0) {
-      s.toast("이번 달 프리미엄 크레딧을 모두 사용했습니다");
-      return;
-    }
-    if (!s.isPremium && s.freeLeft <= 0) {
-      s.setUpgradeOpen(true);
-      return;
+    // 보너스 크레딧은 백엔드(_consume_generation_credit)에서 1순위로 소비된다.
+    // 보너스가 남아 있으면 프리미엄/무료 소진과 무관하게 생성 허용(프리미엄 소진 오차단 방지).
+    if (s.bonusLeft <= 0) {
+      if (s.isPremium && s.premiumLeft <= 0) {
+        s.toast("이번 달 프리미엄 크레딧을 모두 사용했습니다");
+        return;
+      }
+      if (!s.isPremium && s.freeLeft <= 0) {
+        s.setUpgradeOpen(true);
+        return;
+      }
     }
     if (!getToken()) {
       s.toast("로그인 후 광고를 생성해 주세요");
@@ -291,13 +295,17 @@ export default function StudioPage() {
       s.toast("구독 정보를 확인한 뒤 다시 생성할 수 있습니다");
       return;
     }
-    if (s.isPremium && s.premiumLeft <= 0) {
-      s.toast("이번 달 프리미엄 크레딧을 모두 사용했습니다");
-      return;
-    }
-    if (!s.isPremium && s.freeLeft <= 0) {
-      s.setUpgradeOpen(true);
-      return;
+    // 보너스 크레딧은 백엔드(_consume_generation_credit)에서 1순위로 소비된다.
+    // 보너스가 남아 있으면 프리미엄/무료 소진과 무관하게 생성 허용(프리미엄 소진 오차단 방지).
+    if (s.bonusLeft <= 0) {
+      if (s.isPremium && s.premiumLeft <= 0) {
+        s.toast("이번 달 프리미엄 크레딧을 모두 사용했습니다");
+        return;
+      }
+      if (!s.isPremium && s.freeLeft <= 0) {
+        s.setUpgradeOpen(true);
+        return;
+      }
     }
     if (!s.currentResult?.asset_id) {
       s.toast("먼저 광고를 생성해 주세요");
