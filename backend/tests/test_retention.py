@@ -84,8 +84,8 @@ class RetentionTestCase(unittest.TestCase):
         self.assertIsNotNone(row.anonymized_at)
         self.assertEqual(row.content, "분쟁 근거 본문")  # 본문(분쟁 근거) 보존
 
-    def test_anonymize_nulls_processed_by_admin_link(self):
-        """이 회원이 관리자로서 처리한 환불의 처리자 링크도 끊는다(향후 FK 안전)."""
+    def test_anonymize_preserves_separate_admin_reference(self):
+        """일반 회원 탈퇴가 같은 숫자 ID의 관리자 처리 기록을 지우지 않는다."""
         other = User(email="o@test.com", username="other1", password_hash="x")
         self.session.add(other)
         self.session.commit()
@@ -106,7 +106,10 @@ class RetentionTestCase(unittest.TestCase):
         anonymize_legal_records_for_user(self.session, self.user.id)
         self.session.commit()
 
-        self.assertIsNone(self.session.query(RefundRequest).one().processed_by_admin_id)
+        self.assertEqual(
+            self.session.query(RefundRequest).one().processed_by_admin_id,
+            self.user.id,
+        )
 
     # --- 파기 배치 (anonymized 가드) ------------------------------------------
     def test_purge_deletes_anonymized_inquiry_past_3_years_only(self):
@@ -183,15 +186,26 @@ class RetentionSchedulerTestCase(unittest.TestCase):
     def test_run_purge_once_delegates_to_crud(self):
         from app.services import retention_scheduler
 
-        with patch.object(retention_scheduler, "SessionLocal") as session_local, patch.object(
-            retention_scheduler, "purge_expired_records",
-            return_value={"inquiries": 2, "refunds": 0, "purchases": 1},
-        ) as purge:
+        with (
+            patch.object(retention_scheduler, "SessionLocal") as session_local,
+            patch.object(
+                retention_scheduler,
+                "purge_expired_records",
+                return_value={"inquiries": 2, "refunds": 0, "purchases": 1},
+            ) as purge,
+            patch.object(
+                retention_scheduler,
+                "purge_expired_unreferenced_uploads",
+                return_value=[],
+            ) as purge_uploads,
+        ):
             result = retention_scheduler.run_purge_once()
 
         purge.assert_called_once()
+        purge_uploads.assert_called_once()
         session_local.return_value.close.assert_called_once()  # 세션 반드시 닫힘
         self.assertEqual(result["inquiries"], 2)
+        self.assertEqual(result["temporary_uploads"], 0)
 
     def test_scheduler_disabled_via_env(self):
         from app.services import retention_scheduler

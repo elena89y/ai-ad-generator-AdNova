@@ -14,9 +14,14 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from datetime import timedelta
 
+from app.core.config import settings
+from app.core.file_paths import delete_file_within
+from app.crud.image import purge_expired_unreferenced_uploads
 from app.crud.retention import purge_expired_records
 from app.database.connection import SessionLocal
+from app.database.models import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +38,16 @@ def run_purge_once() -> dict[str, int]:
     """파기 1회 실행 (독립 세션). 스케줄러·수동 호출 공용."""
     db = SessionLocal()
     try:
-        return purge_expired_records(db)
+        result = purge_expired_records(db)
+        upload_paths = purge_expired_unreferenced_uploads(
+            db,
+            created_before=utc_now()
+            - timedelta(hours=max(settings.TEMP_UPLOAD_RETENTION_HOURS, 1)),
+        )
+        for file_path in upload_paths:
+            delete_file_within(file_path, settings.UPLOAD_DIR)
+        result["temporary_uploads"] = len(upload_paths)
+        return result
     finally:
         db.close()
 
@@ -45,8 +59,9 @@ async def _purge_loop() -> None:
             result = await asyncio.to_thread(run_purge_once)
             if any(result.values()):
                 logger.info(
-                    "리텐션 파기: 문의 %d · 환불 %d · 구매 %d",
+                    "리텐션 파기: 문의 %d · 환불 %d · 구매 %d · 임시 업로드 %d",
                     result["inquiries"], result["refunds"], result["purchases"],
+                    result["temporary_uploads"],
                 )
         except Exception:  # noqa: BLE001 — 파기 실패가 스케줄러/앱을 죽이면 안 됨
             logger.warning("리텐션 파기 배치 실패 (다음 주기 재시도)", exc_info=True)

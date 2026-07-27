@@ -51,41 +51,33 @@ export default function TemplateApplyPage() {
     if (s.ready && !s.token) router.replace("/login");
   }, [s.ready, s.token, router]);
 
-  async function uploadProductImage(file: File | undefined) {
+  function uploadProductImage(file: File | undefined) {
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) {
       s.toast("이미지는 최대 10MB까지 업로드할 수 있습니다.");
       return;
     }
-    const fd = new FormData();
-    fd.append("file", file);
-    try {
-      s.toast("이미지를 업로드하는 중입니다");
-      const res = await apiFetch("/api/images/upload", { method: "POST", body: fd });
-      const data = (await readJsonSafely(res)) as { image_id?: number; image_url?: string } | null;
-      if (!res.ok || !data?.image_id || !data.image_url)
-        throw new Error(readApiError(data, "이미지 업로드에 실패했습니다"));
-      const imageUrl = toAbsoluteUrl(data.image_url);
-      s.setDashboardState({
-        selectedImageId: data.image_id,
-        selectedImageUrl: imageUrl,
-        selectedImagePreview: imageUrl,
-      });
-      setResultUrl("");
-    } catch (err) {
-      s.toast(err instanceof Error ? err.message : "이미지 업로드에 실패했습니다");
-    }
+    const previewUrl = URL.createObjectURL(file);
+    s.setDashboardState({
+      selectedImageId: null,
+      selectedImageUrl: null,
+      selectedImagePreview: previewUrl,
+      selectedImageFile: file,
+      currentResult: null,
+    });
+    setResultUrl("");
+    s.toast("이미지를 선택했습니다");
   }
 
   function handleUpload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
-    void uploadProductImage(file);
+    uploadProductImage(file);
   }
 
   function handleImageDrop(event: DragEvent<HTMLButtonElement>) {
     event.preventDefault();
-    void uploadProductImage(event.dataTransfer.files?.[0]);
+    uploadProductImage(event.dataTransfer.files?.[0]);
   }
 
   async function generate() {
@@ -94,7 +86,7 @@ export default function TemplateApplyPage() {
       return;
     }
     if (!tpl) return;
-    if (imageId == null) {
+    if (imageId == null && !s.selectedImageFile) {
       s.toast("제품 사진을 먼저 올려주세요");
       return;
     }
@@ -111,7 +103,11 @@ export default function TemplateApplyPage() {
     }, 4000);
     try {
       const fd = new FormData();
-      fd.append("image_id", String(imageId));
+      if (imageId != null) {
+        fd.append("image_id", String(imageId));
+      } else if (s.selectedImageFile) {
+        fd.append("image", s.selectedImageFile);
+      }
       // 상품명 미입력 시 빈 값 그대로 전송 — 템플릿 표시명을 폴백하면 각인류 템플릿이
       // 그 이름("크림 각인 타이포")을 문자 그대로 새기는 사고가 남 (2026-07-24 실측)
       fd.append("product_name", productName.trim());
@@ -250,7 +246,7 @@ export default function TemplateApplyPage() {
                 )}
               </div>
 
-              <button className="btn-gen" disabled={loading || imageId == null || hasEmojiInput} onClick={generate}>
+              <button className="btn-gen" disabled={loading || (imageId == null && !s.selectedImageFile) || hasEmojiInput} onClick={generate}>
                 {loading ? loadStep : "✦ 이 템플릿으로 광고 만들기"}
               </button>
 

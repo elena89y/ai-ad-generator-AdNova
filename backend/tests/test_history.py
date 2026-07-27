@@ -93,14 +93,50 @@ class HistoryDownloadApiTestCase(unittest.TestCase):
             )
             self.session.commit()
 
-            response = download_generated_result(
-                history_id=history.id,
-                db=self.session,
-                current_user=self.user,
-            )
+            original_results_dir = image_service.RESULTS_DIR
+            image_service.RESULTS_DIR = Path(temp_dir)
+            try:
+                response = download_generated_result(
+                    history_id=history.id,
+                    db=self.session,
+                    current_user=self.user,
+                )
+            finally:
+                image_service.RESULTS_DIR = original_results_dir
 
             self.assertIn("attachment", response.headers["content-disposition"])
             self.assertIn("ad.png", response.headers["content-disposition"])
+
+    def test_download_rejects_database_path_outside_results_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            results_dir = root / "results"
+            results_dir.mkdir()
+            outside_path = root / "outside.png"
+            outside_path.write_bytes(b"private")
+            history = self._create_history(outside_path)
+            self.session.add(
+                Subscription(
+                    user_id=self.user.id,
+                    plan="premium",
+                    status="active",
+                )
+            )
+            self.session.commit()
+
+            original_results_dir = image_service.RESULTS_DIR
+            image_service.RESULTS_DIR = results_dir
+            try:
+                with self.assertRaises(HTTPException) as context:
+                    download_generated_result(
+                        history_id=history.id,
+                        db=self.session,
+                        current_user=self.user,
+                    )
+            finally:
+                image_service.RESULTS_DIR = original_results_dir
+
+            self.assertEqual(context.exception.status_code, 404)
 
     def test_free_user_cannot_download_result(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

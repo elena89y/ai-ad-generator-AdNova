@@ -39,6 +39,11 @@ class AdminAccountCreateRequest(BaseModel):
     name: str | None = Field(default=None, max_length=15)
     role: Literal["operator", "super_admin"] = "operator"
 
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: EmailStr) -> str:
+        return str(value).strip().lower()
+
     @field_validator("username")
     @classmethod
     def validate_username(cls, value: str) -> str:

@@ -51,6 +51,7 @@ interface StudioState {
   selectedImageId: number | null;
   selectedImageUrl: string | null;
   selectedImagePreview: string | null;
+  selectedImageFile: File | null;
   currentResult: GenerateResult | null;
   prodName: string;
   promptText: string;
@@ -75,6 +76,7 @@ interface StudioState {
         | "selectedImageId"
         | "selectedImageUrl"
         | "selectedImagePreview"
+        | "selectedImageFile"
         | "currentResult"
         | "prodName"
         | "promptText"
@@ -134,12 +136,14 @@ export default function StudioProvider({ children }: { children: React.ReactNode
     selectedImageId: null as number | null,
     selectedImageUrl: null as string | null,
     selectedImagePreview: null as string | null,
+    selectedImageFile: null as File | null,
     currentResult: null as GenerateResult | null,
     prodName: "",
     promptText: "",
     styleLabel: "웜 빈티지",
     useValue: "sns",
   });
+  const selectedImagePreviewRef = useRef<string | null>(null);
   const [activeItem, setActiveItem] = useState<AdItem | null>(null);
   const [shareFrom, setShareFrom] = useState("/studio");
   const [sharePlatform, setSharePlatform] = useState("instagram");
@@ -153,6 +157,25 @@ export default function StudioProvider({ children }: { children: React.ReactNode
     setToastOn(true);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToastOn(false), 2200);
+  }, []);
+
+  useEffect(() => {
+    const previousPreview = selectedImagePreviewRef.current;
+    if (
+      previousPreview &&
+      previousPreview !== dashState.selectedImagePreview &&
+      previousPreview.startsWith("blob:")
+    ) {
+      URL.revokeObjectURL(previousPreview);
+    }
+    selectedImagePreviewRef.current = dashState.selectedImagePreview;
+  }, [dashState.selectedImagePreview]);
+
+  useEffect(() => {
+    return () => {
+      const preview = selectedImagePreviewRef.current;
+      if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
+    };
   }, []);
 
   const refreshBilling = useCallback(
@@ -272,6 +295,7 @@ export default function StudioProvider({ children }: { children: React.ReactNode
       selectedImageId: null,
       selectedImageUrl: null,
       selectedImagePreview: null,
+      selectedImageFile: null,
       currentResult: null,
     }));
     await logoutPromise;

@@ -123,7 +123,8 @@ class RefundRequest(Base):
     reason = Column(String(500), nullable=False)
     status = Column(String(30), default="pending", nullable=False, index=True)
     rejection_reason = Column(String(500), nullable=True)
-    processed_by_admin_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    # 관리자 인증 정보는 admin.db에 있으므로 일반 사용자 users.id와 FK로 묶지 않는다.
+    processed_by_admin_id = Column(Integer, nullable=True)
     requested_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     processed_at = Column(DateTime(timezone=True), nullable=True)
     anonymized_at = Column(DateTime(timezone=True), nullable=True)  # 탈퇴 익명화 시각

@@ -24,6 +24,7 @@ from app.api.account import (
     upload_profile_image,
 )
 from app.core.config import settings
+from app.core.rate_limit import rate_limit_key_hash
 from app.core.security import (
     create_access_token,
     get_current_auth_provider,
@@ -41,13 +42,17 @@ from app.database.billing_models import (
 from app.database.connection import Base
 from app.database.models import (
     Advertisement,
+    AuthRateLimit,
+    BonusCreditBalance,
     CreditBalance,
     CreditRefillState,
+    EmailVerification,
     History,
     Image,
     NotificationSettings,
     SupportInquiry,
     User,
+    UserRefreshToken,
 )
 from app.schemas.account import (
     AccountDeleteRequest,
@@ -309,6 +314,7 @@ class AccountApiTestCase(unittest.TestCase):
                         content="test content",
                     ),
                     CreditBalance(user_id=self.user.id, free_credits_remaining=2),
+                    BonusCreditBalance(user_id=self.user.id, credits_remaining=4),
                     CreditRefillState(
                         user_id=self.user.id,
                         next_refill_at=datetime.now(timezone.utc) + timedelta(days=1),
@@ -321,6 +327,24 @@ class AccountApiTestCase(unittest.TestCase):
                         user_id=self.user.id,
                         credits_remaining=29,
                         next_reset_at=datetime.now(timezone.utc) + timedelta(days=30),
+                    ),
+                    UserRefreshToken(
+                        user_id=self.user.id,
+                        token_hash="a" * 64,
+                        auth_provider="local",
+                        expires_at=datetime.now(timezone.utc) + timedelta(days=30),
+                    ),
+                    EmailVerification(
+                        email=self.user.email,
+                        code_hash="hash",
+                        expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+                        verified_at=datetime.now(timezone.utc),
+                    ),
+                    AuthRateLimit(
+                        scope="user_login",
+                        key_hash=rate_limit_key_hash(self.user.username),
+                        attempts=1,
+                        window_started_at=datetime.now(timezone.utc),
                     ),
                 ]
             )
@@ -365,9 +389,13 @@ class AccountApiTestCase(unittest.TestCase):
                     retained[0].anonymized_at, f"{model.__name__} anonymized_at 기록돼야 함"
                 )
             self.assertEqual(self.session.query(CreditBalance).count(), 0)
+            self.assertEqual(self.session.query(BonusCreditBalance).count(), 0)
             self.assertEqual(self.session.query(CreditRefillState).count(), 0)
             self.assertEqual(self.session.query(PremiumCreditBalance).count(), 0)
             self.assertEqual(self.session.query(NotificationSettings).count(), 0)
+            self.assertEqual(self.session.query(UserRefreshToken).count(), 0)
+            self.assertEqual(self.session.query(EmailVerification).count(), 0)
+            self.assertEqual(self.session.query(AuthRateLimit).count(), 0)
             self.assertFalse(input_path.exists())
             self.assertFalse(output_path.exists())
 

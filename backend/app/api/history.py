@@ -1,10 +1,9 @@
-from pathlib import Path
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.security import get_current_user
+from app.core.file_paths import resolve_existing_file
 from app.crud.billing import get_subscription_by_user
 from app.crud.history import (
     delete_generated_image_files,
@@ -15,6 +14,7 @@ from app.crud.history import (
 from app.database.connection import get_db
 from app.database.models import User
 from app.schemas.history import HistoryResponse
+from app.services import image_service
 
 
 router = APIRouter(prefix="/history", tags=["history"])
@@ -92,8 +92,11 @@ def download_generated_result(
             detail="다운로드할 생성 이미지를 찾을 수 없습니다.",
         )
 
-    file_path = Path(output_image.file_path or "")
-    if not file_path.is_file():
+    file_path = resolve_existing_file(
+        output_image.file_path,
+        image_service.RESULTS_DIR,
+    )
+    if file_path is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="생성 이미지 파일을 찾을 수 없습니다.",
