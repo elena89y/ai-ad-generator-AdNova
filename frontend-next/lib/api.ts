@@ -13,6 +13,7 @@ const ACCESS_TOKEN_KEY = "access_token";
 const USER_KEY = "user";
 const SESSION_ACCESS_TOKEN_KEY = ACCESS_TOKEN_KEY;
 const SESSION_USER_KEY = USER_KEY;
+const USER_LOGOUT_MARKER_KEY = "adnova:user-logged-out";
 export const AUTH_EXPIRED_EVENT = "adnova:auth-expired";
 let refreshPromise: Promise<string | null> | null = null;
 const USER_LOGOUT_PATH = "/auth/user-logout";
@@ -177,6 +178,7 @@ export function isPersistentAuth(): boolean {
 export function storeAuth(token: string, user?: AdnovaUser | null, rememberMe = false) {
   const storage = rememberMe ? localStorage : sessionStorage;
   const otherStorage = rememberMe ? sessionStorage : localStorage;
+  localStorage.removeItem(USER_LOGOUT_MARKER_KEY);
   otherStorage.removeItem(ACCESS_TOKEN_KEY);
   otherStorage.removeItem(USER_KEY);
   storage.setItem(ACCESS_TOKEN_KEY, token);
@@ -219,6 +221,7 @@ async function requestApi(path: string, options: RequestInit = {}, token = getTo
 
 export async function refreshAccessToken(): Promise<string | null> {
   if (typeof window === "undefined") return null;
+  if (localStorage.getItem(USER_LOGOUT_MARKER_KEY)) return null;
   if (!refreshPromise) {
     refreshPromise = fetch(buildApiUrl("/auth/refresh"), {
       method: "POST",
@@ -239,7 +242,8 @@ export async function refreshAccessToken(): Promise<string | null> {
 }
 
 export async function logoutSession(): Promise<void> {
-  // 화면 상태가 먼저 로그아웃되도록 브라우저 인증 정보를 즉시 삭제한다.
+  // 로그아웃 요청이 끝나기 전 자동 토큰 복구가 다시 로그인시키지 않도록 막는다.
+  localStorage.setItem(USER_LOGOUT_MARKER_KEY, "1");
   clearStoredAuth();
   try {
     await fetch(buildApiUrl(USER_LOGOUT_PATH), { method: "POST", credentials: "include" });
