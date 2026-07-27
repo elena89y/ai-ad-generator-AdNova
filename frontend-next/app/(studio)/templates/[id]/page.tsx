@@ -14,6 +14,7 @@ import {
   readJsonSafely,
   toAbsoluteUrl,
 } from "@/lib/api";
+import { containsEmoji } from "@/lib/input-validation";
 import { CATALOG } from "@/lib/catalog";
 import { useStudio } from "@/components/studio/StudioProvider";
 import { AppBar, WorkspaceNav } from "@/components/studio/chrome";
@@ -41,6 +42,9 @@ export default function TemplateApplyPage() {
   const [loadStep, setLoadStep] = useState(GEN_STEPS[0]);
   const [resultUrl, setResultUrl] = useState<string>("");
   const stepTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const productNameHasEmoji = containsEmoji(productName);
+  const extraRequestHasEmoji = containsEmoji(extraRequest);
+  const hasEmojiInput = productNameHasEmoji || extraRequestHasEmoji;
 
   useEffect(() => {
     if (s.ready && !s.token) router.replace("/login");
@@ -87,6 +91,10 @@ export default function TemplateApplyPage() {
     if (!tpl) return;
     if (imageId == null) {
       s.toast("제품 사진을 먼저 올려주세요");
+      return;
+    }
+    if (hasEmojiInput) {
+      s.toast("상품명과 추가 요청에서는 이모티콘을 사용할 수 없습니다");
       return;
     }
     setLoading(true);
@@ -200,6 +208,11 @@ export default function TemplateApplyPage() {
                   onChange={(e) => setProductName(e.target.value)}
                   placeholder={`예: ${tpl.name_examples?.join(", ") ?? tpl.name}`}
                 />
+                {productNameHasEmoji && (
+                  <div className="field-error" style={{ color: "#e5484d", fontSize: 12, marginTop: 4 }}>
+                    상품명에는 이모티콘을 사용할 수 없습니다.
+                  </div>
+                )}
                 <p className="rail-hint">
                   비워두면 이미지를 분석해 SNS 문구(인스타·페북·스레드·X)까지 자동 생성해요.
                   상품명을 입력하면 그 이름으로 더 정확하게 만들어드려요.
@@ -220,9 +233,14 @@ export default function TemplateApplyPage() {
                       : "예: 배경을 더 밝게 · 그림자 길게"
                   }
                 />
+                {extraRequestHasEmoji && (
+                  <div className="field-error" style={{ color: "#e5484d", fontSize: 12, marginTop: 4 }}>
+                    추가 요청에는 이모티콘을 사용할 수 없습니다.
+                  </div>
+                )}
               </div>
 
-              <button className="btn-gen" disabled={loading || imageId == null} onClick={generate}>
+              <button className="btn-gen" disabled={loading || imageId == null || hasEmojiInput} onClick={generate}>
                 {loading ? loadStep : "✦ 이 템플릿으로 광고 만들기"}
               </button>
 

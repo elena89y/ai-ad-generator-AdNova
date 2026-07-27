@@ -25,6 +25,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
+from ..core.input_validation import contains_emoji
 from ..core.observability import propagate_attributes
 from ..core.security import get_current_user
 from ..crud.advertisement import create_advertisement
@@ -68,6 +69,25 @@ from ..services.upload_validation import read_image_upload_file_sync
 router = APIRouter(prefix="/ads", tags=["ads"])
 
 TEMP_UPLOAD_DIR = Path(__file__).resolve().parents[2] / "temp_uploads"
+
+
+def _reject_emoji_inputs(
+    *,
+    product_name: str | None,
+    product_description: str | None = None,
+    extra_request: str | None = None,
+) -> None:
+    fields = (
+        ("상품명", product_name),
+        ("추가 요청", product_description),
+        ("추가 요청", extra_request),
+    )
+    for label, value in fields:
+        if contains_emoji(value):
+            raise HTTPException(
+                status_code=422,
+                detail=f"{label}에는 이모티콘을 사용할 수 없습니다. 이모티콘을 삭제한 후 다시 시도해주세요.",
+            )
 
 
 def _remove_temporary_upload(path: Path | None) -> None:
@@ -367,6 +387,11 @@ def generate_ad(
     # 계약: template_id 없으면 style 필수(기존), 있으면 서버측 연출 레시피로 생성(style 무시).
     if template_id is None and style is None:
         raise HTTPException(status_code=422, detail="style 또는 template_id 중 하나가 필요합니다")
+    _reject_emoji_inputs(
+        product_name=product_name,
+        product_description=product_description,
+        extra_request=extra_request,
+    )
     request_data = json.dumps(
         {
             "image_id": image_id,
@@ -492,6 +517,10 @@ def regenerate_ad(
     """FR-12: 기존 전처리 산출물 재사용, 새 seed 로 재생성 (전처리 생략 → 더 빠름)."""
     if not generation_service.is_valid_asset_id(req.asset_id):
         raise HTTPException(status_code=400, detail=f"잘못된 asset_id 형식: {req.asset_id}")
+    _reject_emoji_inputs(
+        product_name=req.product_name,
+        product_description=req.product_description,
+    )
 
     current_user_id = current_user.id
     request_data = json.dumps(req.model_dump(mode="json"), ensure_ascii=False)
