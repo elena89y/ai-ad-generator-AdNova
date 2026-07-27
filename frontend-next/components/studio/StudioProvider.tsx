@@ -65,7 +65,7 @@ interface StudioState {
   setAuth: (token: string, user?: AdnovaUser | null) => void;
   clearAuth: () => Promise<void>;
   refreshBilling: (showMessage?: boolean) => Promise<void>;
-  refreshHistory: (showMessage?: boolean) => Promise<void>;
+  refreshHistory: (showMessage?: boolean) => Promise<AdItem[]>;
   refreshDashboardSummary: () => Promise<void>;
   setAds: (ads: AdItem[]) => void;
   setDashboardState: (
@@ -186,7 +186,7 @@ export default function StudioProvider({ children }: { children: React.ReactNode
     async (showMessage = false) => {
       if (!getToken()) {
         setAdsState([]);
-        return;
+        return [];
       }
       const requestedUserId = getStoredUser()?.id;
       try {
@@ -201,15 +201,17 @@ export default function StudioProvider({ children }: { children: React.ReactNode
               (item as { status?: string }).status === "completed"
           )
           .map((item) => historyToCard(item as Parameters<typeof historyToCard>[0]));
-        if (requestedUserId !== getStoredUser()?.id) return;
+        if (requestedUserId !== getStoredUser()?.id) return [];
         setAdsState(cards);
+        return cards;
       } catch (err) {
-        if (requestedUserId !== getStoredUser()?.id) return;
+        if (requestedUserId !== getStoredUser()?.id) return [];
         setAdsState([]);
         if (showMessage)
           toast(
             err instanceof Error ? err.message : "내 광고 목록을 불러오지 못했습니다"
           );
+        return [];
       }
     },
     [toast]
