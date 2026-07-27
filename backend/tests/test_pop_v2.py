@@ -349,3 +349,34 @@ def test_meat_prop_follows_cooking_method():
     assert "braised" in braised
     # 고기 아닌 소품은 조리법 무관(회귀)
     assert "grilled" not in _props_clause(["strawberry"], "grilled pork ribs")
+
+
+# --- NOODLE-SHAPE-ANCHOR (2026-07-27: 보존 락만으로 monotone·pastel 이 펜네→긴면 4/6) ----
+
+def test_noodle_shape_named_at_front():
+    """면 종류를 구체 명사로 문두에 긍정 단언 — 조건형("short tubes stay...") 대신 앵커."""
+    instr = _instr(style="monotone", subject="cream penne pasta", scene_seed=0,
+                   serving_type="dish", core_ingredients=["pasta"])
+    assert "short ridged penne tubes" in instr
+    # 앵커는 지시문 앞부분(1/3 이내)에 위치해야 조건화가 강하다
+    assert instr.index("short ridged penne tubes") < len(instr) // 3
+    assert "{noodle}" not in instr
+
+
+@pytest.mark.parametrize("subject,marker", [
+    ("cream penne pasta", "penne tubes"),
+    ("carbonara spaghetti", "long thin round strands"),
+    ("japchae glass noodles", "sweet-potato strands"),
+    ("cold buckwheat soba", "buckwheat strands"),
+])
+def test_noodle_shape_registry_matches(subject, marker):
+    """레지스트리가 면 종류별 구체 형태를 준다(하드코딩 대신 데이터)."""
+    for style in ("monotone", "pastel", "pop"):
+        assert marker in _instr(style=style, subject=subject, scene_seed=0,
+                                serving_type="dish")
+
+
+def test_unknown_noodle_falls_back_safely():
+    """미등록 면은 중립 폴백 — 없는 형태를 지어내지 않는다."""
+    instr = _instr(subject="mystery house noodles", scene_seed=0, serving_type="dish")
+    assert "exactly the shape, cut and thickness seen in the photo" in instr
