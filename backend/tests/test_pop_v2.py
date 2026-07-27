@@ -104,7 +104,7 @@ def test_props_clause_named_shapes():
     assert "yellow parmesan cubes" in carbonara
     cake = _props_clause(["strawberry", "cream", "sponge"])
     assert "fresh whole strawberry" in cake and "freeze-dried strawberry chips" in cake
-    assert "clearly shaped glossy props" in _props_clause(None)  # 폴백
+    assert "never clay-like or dough-like" in _props_clause(None)  # 반-찰흙 폴백(2026-07-27)
 
 
 def test_props_placeholder_filled_and_anti_lump():
