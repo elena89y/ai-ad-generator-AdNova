@@ -34,8 +34,9 @@ export default function TemplateApplyPage() {
   const tpl = useMemo(() => CATALOG.find((e) => e.id === idParam), [idParam]);
 
   const fileRef = useRef<HTMLInputElement>(null);
-  const [imageId, setImageId] = useState<number | null>(null);
-  const [preview, setPreview] = useState<string>("");
+  // 템플릿을 바꾸기 위해 목록으로 돌아가도 같은 업로드 이미지를 재사용한다.
+  const imageId = s.selectedImageId;
+  const preview = s.selectedImagePreview ?? s.selectedImageUrl ?? "";
   const [productName, setProductName] = useState("");
   const [extraRequest, setExtraRequest] = useState("");
   const [loading, setLoading] = useState(false);
@@ -64,8 +65,12 @@ export default function TemplateApplyPage() {
       const data = (await readJsonSafely(res)) as { image_id?: number; image_url?: string } | null;
       if (!res.ok || !data?.image_id || !data.image_url)
         throw new Error(readApiError(data, "이미지 업로드에 실패했습니다"));
-      setImageId(data.image_id);
-      setPreview(toAbsoluteUrl(data.image_url));
+      const imageUrl = toAbsoluteUrl(data.image_url);
+      s.setDashboardState({
+        selectedImageId: data.image_id,
+        selectedImageUrl: imageUrl,
+        selectedImagePreview: imageUrl,
+      });
       setResultUrl("");
     } catch (err) {
       s.toast(err instanceof Error ? err.message : "이미지 업로드에 실패했습니다");
