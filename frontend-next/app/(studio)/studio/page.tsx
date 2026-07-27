@@ -113,6 +113,9 @@ export default function StudioPage() {
   const [activePlatform, setActivePlatform] = useState("instagram");
   // [html-parity] 타이포 토글 상태 — html #typographyToggle 이식 (Next 이관 시 누락)
   const [typographyOn, setTypographyOn] = useState(true);
+  // 02·스타일 탭: 무드 프리셋 선택(preset) vs 자유서술(custom). 자유서술은 style_text로 전송.
+  const [styleMode, setStyleMode] = useState<"preset" | "custom">("preset");
+  const [styleText, setStyleText] = useState("");
   const [uploadInfo, setUploadInfo] = useState(
     "사진만 넣으면 배경·구도는 AI가 알아서 잡아줘요."
   );
@@ -284,6 +287,10 @@ export default function StudioPage() {
     formData.append("product_description", s.promptText.trim());
     formData.append("style", STYLE_PRESET_MAP[s.styleLabel] || "pop");
     formData.append("use_vision", "false");
+    // 자유서술 무드(직접 입력 탭) — base 프리셋 위에 연출로 가산. 백엔드가 영문 번역 후 주입.
+    if (styleMode === "custom" && styleText.trim()) {
+      formData.append("style_text", styleText.trim());
+    }
     const purpose = resolvePurpose(s.useValue);
     // [html-parity] html generate와 동일하게 purpose 전송 + sns 용도만 poster=true.
     // 이관 직후엔 poster="false" 하드코딩 + purpose 미전송으로 용도 선택이 무시됐음.
@@ -684,48 +691,70 @@ export default function StudioPage() {
                 marginBottom: 11,
               }}
             >
-              <div
-                style={{
-                  flex: 1,
-                  textAlign: "center",
-                  padding: 7,
-                  borderRadius: 7,
-                  fontSize: 11.5,
-                  fontWeight: 700,
-                  background: "rgba(242,169,59,.16)",
-                  color: "var(--gold)",
-                }}
-              >
-                ✨ AI 추천
-              </div>
-              <div
-                style={{
-                  flex: 1,
-                  textAlign: "center",
-                  padding: 7,
-                  borderRadius: 7,
-                  fontSize: 11.5,
-                  fontWeight: 600,
-                  color: "var(--ink-mute)",
-                  cursor: "pointer",
-                }}
-                onClick={() => s.toast("직접 입력 모드 (목업)")}
-              >
-                ✍️ 직접 입력
-              </div>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {STYLES.map(({ label, sw }) => (
-                <button
-                  key={label}
-                  className={`style-row${s.styleLabel === label ? " on" : ""}`}
-                  onClick={() => s.setDashboardState({ styleLabel: label })}
+              {([
+                ["preset", "🎨 무드"],
+                ["custom", "✍️ 직접 입력"],
+              ] as const).map(([mode, label]) => (
+                <div
+                  key={mode}
+                  onClick={() => setStyleMode(mode)}
+                  style={{
+                    flex: 1,
+                    textAlign: "center",
+                    padding: 7,
+                    borderRadius: 7,
+                    fontSize: 11.5,
+                    fontWeight: styleMode === mode ? 700 : 600,
+                    background: styleMode === mode ? "rgba(242,169,59,.16)" : "transparent",
+                    color: styleMode === mode ? "var(--gold)" : "var(--ink-mute)",
+                    cursor: "pointer",
+                  }}
                 >
-                  <span className="sw" style={{ background: sw }} />
-                  <span className="nm">{label}</span>
-                </button>
+                  {label}
+                </div>
               ))}
             </div>
+            {styleMode === "preset" ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {STYLES.map(({ label, sw }) => (
+                  <button
+                    key={label}
+                    className={`style-row${s.styleLabel === label ? " on" : ""}`}
+                    onClick={() => s.setDashboardState({ styleLabel: label })}
+                  >
+                    <span className="sw" style={{ background: sw }} />
+                    <span className="nm">{label}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div>
+                <textarea
+                  className="rail-textarea"
+                  placeholder="원하는 무드를 서술하세요 — 예: 따뜻한 골든아워 조명, 여백 넉넉히"
+                  value={styleText}
+                  onChange={(e) => setStyleText(e.target.value)}
+                />
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                  {["따뜻한 골든아워 조명", "여백 넉넉히", "고채도 팝", "차분한 파스텔 톤"].map(
+                    (c) => (
+                      <span
+                        key={c}
+                        className="chip-tip"
+                        onClick={() =>
+                          setStyleText((t) => (t.trim() ? `${t.trim()}, ${c}` : c))
+                        }
+                      >
+                        + {c}
+                      </span>
+                    )
+                  )}
+                </div>
+                <p className="hint" style={{ marginTop: 8 }}>
+                  서술한 무드는 배경·조명 연출에만 반영돼요. 상품·헤드라인·정보는 그대로 유지됩니다.
+                </p>
+              </div>
+            )}
           </div>
           <div>
             <div className="rail-label">03 · 용도</div>

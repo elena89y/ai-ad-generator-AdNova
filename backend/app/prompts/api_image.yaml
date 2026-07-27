@@ -34,6 +34,17 @@ object_lock: >-
   This is a retail product (SKU): do NOT redraw, reshape, smooth or recolor the product
   itself; change only the background and lighting.
 
+# --- 무-상품(텍스트 브리프) 배경 생성 (images.generate, 입력 이미지 없음) ---------
+# 역할분리(함정 #3): 배경/무드만 생성하고 글자는 절대 넣지 않는다 — 타이포는 코드(PIL).
+#   scene = expand_brief 의 영어 scene_en, palette = palette_hint(비면 중립).
+generate_base: >-
+  A professional advertising background image: ${scene}. Palette: ${palette}.
+  Clean composition with generous empty space for text to be added later.
+  Absolutely no text, no letters, no numbers, no words, no logos, no watermarks,
+  no signs or posters with writing. Photographic, high quality, no people holding signs.
+
+generate_palette_default: soft neutral tones
+
 # [APIQ-002 보강, 2026-07-21] enhanced 조립 전용 가드 2종.
 #   사고: warm_vintage scene_prompt 의 소품 지시("dried wheat and soft cafe props")가
 #   금지 가드를 이겨 팜파스 화병 추가 + 브랜드 카드·빨대·도일리가 identity 분류에서 빠져 소실.

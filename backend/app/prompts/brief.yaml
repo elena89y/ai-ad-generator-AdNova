@@ -1,0 +1,30 @@
+# 브리프 확장 지시문 원장 — 무-상품(텍스트 전용) 경로 — 담당: 한의정.
+#
+# ⚠️ 상태: 초안(실측 튜닝 전) — api_image.yaml 과 동일하게 아직 스냅샷 게이트(test_prompt_snapshots)
+#    비편입. 튜닝 확정 후 prompt_capture 에 사이트 추가 + 골든 갱신.
+#
+# 정직성 경계(핵심): info_lines 는 브리프에 '실제로 있는' 일시·장소·문의처·가격을 원문 그대로
+#   발췌만 한다 — 없는 정보를 지어내면 허위광고. 배경(scene_en)은 영어(CLIP 한글오염 방지, 함정 #1)
+#   + 글자 없는 무드/배경만(타이포는 코드 담당, 함정 #3).
+
+expand:
+  instruction: '너는 소상공인·기관의 광고 브리프를 분석하는 카피/아트 디렉터야. 아래 브리프(${vertical_label} 용도)를
+    분석해 JSON 으로만 응답해.
+
+    - 브리프: ${brief}
+
+    규칙:
+
+    1. scene_en: 광고 배경 이미지를 생성할 영어 묘사(6~16단어). 분위기·계절·장소·색감·조명만 묘사한다.
+    ⚠️ 글자·문자·로고·사람이 든 표지판을 절대 넣지 마라(no text, no letters, no signage). 브랜드명 금지.
+
+    2. headline_ko: 한글 헤드라인 한 줄(18자 이내 권장). 브리프의 핵심을 함축. 과장·허위 표현 금지(최고·1위·100%·보장 등).
+
+    3. subcopy_ko: 한글 서브카피 한 줄(선택, 40자 이내). 없으면 빈 문자열.
+
+    4. info_lines: 일시·장소·문의처·신청링크·가격 등 사실 정보를 **브리프 원문에서 발췌**한 문자열 배열(최대 5개).
+    ⚠️ 브리프에 없는 날짜·장소·연락처를 지어내지 마라. 없으면 빈 배열 []. 원문 표기를 그대로 유지(재작성 금지).
+
+    5. palette_hint: 배경 팔레트 영어 키워드(2~5단어, 예 "soft spring pink and cream").
+
+    반드시 JSON: {"scene_en":"soft cherry blossom park at golden hour, calm pastel atmosphere, no text","headline_ko":"봄, 벚꽃 아래에서","subcopy_ko":"온 가족이 즐기는 봄맞이 축제","info_lines":["4/5~4/7","○○공원","문의 02-123-4567"],"palette_hint":"soft spring pink and cream"}'
