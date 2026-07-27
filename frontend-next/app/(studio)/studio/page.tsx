@@ -18,6 +18,7 @@ import {
   toAbsoluteUrl,
   toStyleLabel,
 } from "@/lib/api";
+import { containsEmoji } from "@/lib/input-validation";
 import { useStudio } from "@/components/studio/StudioProvider";
 import { AppBar, WorkspaceNav } from "@/components/studio/chrome";
 import { AuthenticatedImage } from "@/components/studio/AuthenticatedImage";
@@ -117,6 +118,9 @@ export default function StudioPage() {
   );
   const stepTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const selectedImagePreviewRef = useRef<string | null>(null);
+  const productNameHasEmoji = containsEmoji(s.prodName);
+  const extraRequestHasEmoji = containsEmoji(s.promptText);
+  const hasEmojiInput = productNameHasEmoji || extraRequestHasEmoji;
 
   useEffect(() => {
     if (s.ready && !s.token) router.replace("/login");
@@ -255,6 +259,10 @@ export default function StudioPage() {
     const productName = s.prodName.trim();
     if (!productName) {
       s.toast("상품명을 입력해 주세요");
+      return;
+    }
+    if (hasEmojiInput) {
+      s.toast("상품명과 추가 요청에서는 이모티콘을 사용할 수 없습니다");
       return;
     }
 
@@ -603,6 +611,11 @@ export default function StudioPage() {
               value={s.prodName}
               onChange={(e) => s.setDashboardState({ prodName: e.target.value })}
             />
+            {productNameHasEmoji && (
+              <div className="field-error" style={{ color: "#e5484d", fontSize: 12, marginTop: 4 }}>
+                상품명에는 이모티콘을 사용할 수 없습니다.
+              </div>
+            )}
             <div className="auto-mode" style={{ margin: "9px 0 0" }}>
               <span className="lamp" />
               {/* SRV-ROUTE-001 phase2: 생성 후엔 백엔드 인식값이 정본, 이름을 바꿔 치는 중이면
@@ -623,6 +636,11 @@ export default function StudioPage() {
               value={s.promptText}
               onChange={(e) => s.setDashboardState({ promptText: e.target.value })}
             />
+            {extraRequestHasEmoji && (
+              <div className="field-error" style={{ color: "#e5484d", fontSize: 12, marginTop: 4 }}>
+                추가 요청에는 이모티콘을 사용할 수 없습니다.
+              </div>
+            )}
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
               {["할인 이벤트 강조", "신메뉴 출시", "인스타 감성"].map((tip) => (
                 <span
@@ -718,7 +736,7 @@ export default function StudioPage() {
           <button
             className="btn-gen"
             style={{ marginTop: "auto" }}
-            disabled={loading}
+            disabled={loading || hasEmojiInput}
             onClick={generate}
           >
             ✦ 광고 생성
