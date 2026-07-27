@@ -75,9 +75,12 @@ def test_build_style_edit_instruction_food_and_object():
     from app.services import api_image_service as ai
 
     f = ai.build_style_edit_instruction("french toast", "warm golden light", "food")
-    assert "warm golden light" in f and "food item" in f and "Do not add any text" in f
+    assert "warm golden light" in f
+    assert "do NOT add" in f                     # 허위광고 가드: 증량·재료추가 금지
+    assert "re-plate" in f and "appetizing" in f  # 리터치 허용: 재플레이팅·먹음직
+    assert "Do not add any text" in f             # no-headline 텍스트 가드
     o = ai.build_style_edit_instruction("ceramic mug", "soft light", "object")
-    assert "soft light" in o and "labels or logos" in o
+    assert "soft light" in o and "labels or logos" in o  # 사물은 여전히 엄격 고정
 
 
 # --- 엔진 라우팅: 직접입력 → gpt-image, 프리셋 → 로컬, 실패 → 로컬 폴백 -------------

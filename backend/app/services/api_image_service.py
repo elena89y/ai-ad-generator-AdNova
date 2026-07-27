@@ -116,10 +116,12 @@ def build_generate_prompt(scene_en: str, palette_hint: str = "") -> str:
 
 def build_style_edit_instruction(subject_en: str, style_en: str, domain: str = "food",
                                  headline: str = "", subcopy: str = "") -> str:
-    """직접 입력(자유서술) → gpt-image edit 지시문. 정체성 보존 + 사용자 연출 절.
+    """직접 입력(자유서술) → gpt-image edit 지시문. 정직성 경계 안에서 광고 리터치.
 
-    로컬 style_gen swap 과 같은 정직성 경계: 제품/음식은 불변, 배경·조명·무드만 재연출.
-    사물(object)은 SKU라 형태·색·로고 더 엄격히 고정.
+    정직성 경계(핵심): **같은 음식·같은 양·같은 재료**는 사실 그대로(없는 조각·재료·가니시 창작
+    금지 = 허위광고 방지). 그 안에서 광고답게 — **고급 그릇 재플레이팅·재배치·먹음직 리터치
+    (윤기·신선·질감)·배경·조명·무드**는 자유(용기=조정·리터치가 우리 북극성). 사물(object)은
+    SKU라 형태·색·로고 불변으로 더 엄격.
     headline/subcopy: 있으면 gpt-image 가 한글 타이포를 이미지에 직접 굽는다(PIL 오버레이 대체).
       ⚠️ 광고 헤드라인 전용 — 브리프의 정보텍스트(일시·장소·가격)는 여기 실지 말 것(오탈자=허위정보).
     """
@@ -129,10 +131,13 @@ def build_style_edit_instruction(subject_en: str, style_en: str, domain: str = "
                 "and any labels or logos exactly unchanged; do not distort or recolor it. "
                 f"Restyle only the background, surface, lighting and mood: {style_en}.")
     else:
-        base = ("Edit this exact photo. Keep every food item exactly as photographed — the same "
-                "pieces, sauces, garnishes, plating and arrangement; do not add, remove, merge or "
-                f"simplify anything. Restyle only the background, surface, lighting and mood: {style_en}. "
-                "Keep the true colors.")
+        base = ("Edit this exact photo. Keep the SAME food — the same number of pieces and the same "
+                "real ingredients; do NOT add, remove, multiply or invent any food, ingredient or "
+                "garnish, and do not change what the dish is. Within that, make it look its best for "
+                "an ad: you MAY re-plate it on a more premium dish, restage the arrangement more "
+                "attractively, and make it look freshly made and appetizing (natural gloss, vivid "
+                f"true-to-life color, appealing texture). Apply this direction: {style_en}. "
+                "Keep colors natural and true.")
     if headline:
         text = (' Then render this Korean advertising text directly in the image, spelled EXACTLY '
                 f'as given and clearly legible: a large elegant serif headline "{headline}"')

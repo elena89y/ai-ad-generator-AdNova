@@ -731,12 +731,12 @@ export default function StudioPage() {
               <div>
                 <textarea
                   className="rail-textarea"
-                  placeholder="원하는 무드를 서술하세요 — 예: 따뜻한 골든아워 조명, 여백 넉넉히"
+                  placeholder="어떤 느낌으로 만들어 드릴까요? 편하게 적어주세요"
                   value={styleText}
                   onChange={(e) => setStyleText(e.target.value)}
                 />
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-                  {["따뜻한 골든아워 조명", "여백 넉넉히", "고채도 팝", "차분한 파스텔 톤"].map(
+                  {["더 먹음직스럽게", "고급스러운 그릇에", "따뜻한 햇살 느낌", "깔끔한 여백"].map(
                     (c) => (
                       <span
                         key={c}
@@ -751,7 +751,7 @@ export default function StudioPage() {
                   )}
                 </div>
                 <p className="hint" style={{ marginTop: 8 }}>
-                  서술한 무드는 배경·조명 연출에만 반영돼요. 상품·헤드라인·정보는 그대로 유지됩니다.
+                  같은 음식을 더 맛있고 고급스럽게 연출해 드려요. 양과 재료는 사실 그대로 유지합니다.
                 </p>
               </div>
             )}
