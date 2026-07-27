@@ -349,20 +349,16 @@ def run_from_upload_v2(
             run.set_output(r.final_image_path)
             with run.stage("platform_copy"):
                 platform_copies = _platform_copies_safe(product, style, analysis)
-            with run.stage("typography_variants"):
-                variants = build_typography_variants(
-                    r, product.name or r.subject_en, typography_enabled=poster,
-                    output_dir=str(image_service.RESULTS_DIR),
-                    domain=_typography_domain(r),
-                )
+            sel_path, without_typo, with_typo, typo_layout = _typography_paths(
+                r, product.name or r.subject_en, poster, run)
             return GenerationOutput(
-                final_image_path=variants.selected_image_path,
+                final_image_path=sel_path,
                 asset_id=asset_id, seed=r.seed, style=style,
                 copy_text=r.copy_text, platform_copies=platform_copies,
                 poster=poster, generate_seconds=round(r.seconds, 2), harmonize_seconds=0.0,
-                image_without_typography_path=variants.without_typography_path,
-                image_with_typography_path=variants.with_typography_path,
-                typography_layout=variants.layout_key,
+                image_without_typography_path=without_typo,
+                image_with_typography_path=with_typo,
+                typography_layout=typo_layout,
                 domain=getattr(r, "style_domain", None) or getattr(r, "domain", "food"),
                 serving_type=getattr(r, "serving_type", None),  # SRV-ROUTE-001 phase2
             )
@@ -439,20 +435,16 @@ def rerun_v2(
             run.set_output(r.final_image_path)
             with run.stage("platform_copy"):
                 platform_copies = _platform_copies_safe(product, style, analysis)
-            with run.stage("typography_variants"):
-                variants = build_typography_variants(
-                    r, product.name or r.subject_en, typography_enabled=poster,
-                    output_dir=str(image_service.RESULTS_DIR),
-                    domain=_typography_domain(r),
-                )
+            sel_path, without_typo, with_typo, typo_layout = _typography_paths(
+                r, product.name or r.subject_en, poster, run)
             return GenerationOutput(
-                final_image_path=variants.selected_image_path,
+                final_image_path=sel_path,
                 asset_id=asset_id, seed=r.seed, style=style,
                 copy_text=r.copy_text, platform_copies=platform_copies,
                 poster=poster, generate_seconds=round(r.seconds, 2), harmonize_seconds=0.0,
-                image_without_typography_path=variants.without_typography_path,
-                image_with_typography_path=variants.with_typography_path,
-                typography_layout=variants.layout_key,
+                image_without_typography_path=without_typo,
+                image_with_typography_path=with_typo,
+                typography_layout=typo_layout,
                 domain=getattr(r, "style_domain", None) or getattr(r, "domain", "food"),
                 serving_type=getattr(r, "serving_type", None),  # SRV-ROUTE-001 phase2
             )
@@ -477,6 +469,22 @@ class ProcessedAd:
     aesthetic: Optional[float] = None # NIMA 심미 점수(플라이휠 라벨)
     style_domain: Optional[str] = None  # food | drink | object (_resolve_style_domain 결과, DETAIL-001)
     serving_type: Optional[str] = None  # SRV-ROUTE-001 phase2: 응답 노출용 캐리어 (분석→응답 유일 통로)
+    custom_style: bool = False  # 직접입력(자유서술) 결과 — 타이포를 gpt가 이미지에 구웠거나('이미지만'이면
+    #   없음) → 상위(run_from_upload_v2)가 커머셜 조판·타이포 쌍을 스킵(토글 자동 숨김).
+
+
+# 직접입력 서술에 '글자 없이 이미지만' 의도가 있으면 gpt 헤드라인을 굽지 않는다(무텍스트).
+#   공백 제거 후 부분일치 — "이미지 만"·"글자 없이" 등 띄어쓰기 변형까지 잡는다.
+_IMAGE_ONLY_MARKERS = ("이미지만", "글자없", "글씨없", "텍스트없", "문구없", "타이포없",
+                       "글자빼", "글씨빼", "문구빼", "notext", "noletters")
+
+
+def _wants_image_only(style_text: str) -> bool:
+    """직접입력 서술이 '글자 없이 이미지만'이면 True → gpt가 헤드라인을 굽지 않고 클린 이미지만."""
+    if not style_text:
+        return False
+    t = style_text.replace(" ", "").lower()
+    return any(m in t for m in _IMAGE_ONLY_MARKERS)
 
 
 def _typography_domain(result: ProcessedAd) -> str:
@@ -493,6 +501,25 @@ def _typography_domain(result: ProcessedAd) -> str:
     if getattr(result, "serving_type", None) in ("bakery", "dessert"):
         return "bakery"   # typography_system 의 '원래대로'(else) 경로로 라우팅
     return base
+
+
+def _typography_paths(result: ProcessedAd, product_name: str, poster: bool, run):
+    """타이포 경로 4쌍 반환: (선택본, 무타이포, 타이포포함, 레이아웃키).
+
+    직접입력(custom_style)이면 커머셜 조판을 스킵한다 — gpt가 이미 타이포를 이미지에 구웠거나
+    ('이미지만'이면 없음) → with/without 쌍을 만들지 않아 프론트가 타이포 토글을 자동 숨긴다
+    (쌍이 있어야만 노출). 그 외(프리셋·폴백)는 종전대로 build_typography_variants 로 쌍 생성.
+    """
+    if getattr(result, "custom_style", False):
+        return result.final_image_path, None, None, None
+    with run.stage("typography_variants"):
+        variants = build_typography_variants(
+            result, product_name, typography_enabled=poster,
+            output_dir=str(image_service.RESULTS_DIR),
+            domain=_typography_domain(result),
+        )
+    return (variants.selected_image_path, variants.without_typography_path,
+            variants.with_typography_path, variants.layout_key)
 
 
 def build_typography_variants(
@@ -775,7 +802,8 @@ def _process_ad_impl(
     # SRV-ROUTE-001 phase2: 응답 노출 캐리어 초기값 — style 분기 밖(router 경로)에서도
     #   ProcessedAd 생성 시 참조되므로 상단 초기화 필수(NameError 방지, 적대검증 지적).
     serving_type: Optional[str] = None
-    _skip_poster = False  # 직접입력(자유서술)=무타이포: 깨끗한 연출 씬만, PIL 조판 스킵
+    _skip_poster = False  # 직접입력: 레거시 apply_food_poster(poster=True) 스킵용
+    _custom_style = False  # 직접입력 결과 마킹 — 상위에서 커머셜 조판·타이포 쌍 스킵(토글 숨김)
     copy = None
 
     # 스타일 지정 시: style_gen 씬 생성(정체성 보존 편집), 아니면 기존 이름기반 라우팅
@@ -798,9 +826,9 @@ def _process_ad_impl(
                                              serving_type=serving_type)
         # 자유서술 무드(직접 입력 탭) → 영문 연출 절 1회 번역(함정#1). 없으면 "" (기존 동작 그대로).
         extra_style_en = gpt_service.translate_style_note(style_text) if style_text else ""
-        # 직접입력=무타이포(사용자 결정 07-27): gpt-image가 굽는 한글 헤드라인(깨짐)과 나중에 붙는
-        #   PIL 조판이 겹쳐 이중 텍스트가 됨 → 두 소스 다 끈다(헤드라인 미주입 + 포스터 스킵).
-        #   카피는 tail에서 SNS 캡션용으로만 생성(이미지엔 안 실음). 프리셋(무드)은 종전대로 조판.
+        # 직접입력(자유서술): 타이포는 gpt가 이미지에 직접 굽는다(통합 룩, 사용자 확정 07-28).
+        #   커머셜 조판(build_typography_variants)은 스킵 → 이중 텍스트·겹침 없음. 레거시 PIL
+        #   포스터(poster=True 경로)도 스킵. 사용자가 "이미지만/글자 없이" 적으면 헤드라인 안 굽고 클린.
         if extra_style_en:
             _skip_poster = True
         # 포맷 자동감지(STYLE_SYSTEM v2): style 은 '무드', 포맷은 콘텐츠로 결정.
@@ -816,21 +844,35 @@ def _process_ad_impl(
         #   CUSTOM_STYLE_ENGINE=local 로 강제 로컬 가능.
         if extra_style_en and os.environ.get("CUSTOM_STYLE_ENGINE", "api") != "local":
             from . import api_image_service
-            # 직접입력 → gpt-image-2 edit. 무타이포: 연출 씬만 만들고 헤드라인은 굽지 않는다
-            #   (headline 미전달 → 지시문에 "Do not add any text" → gpt의 이중 환각 방지).
-            #   카피는 tail에서 SNS 캡션용으로 생성. 예산초과/실패 시 로컬 style_gen swap 폴백.
+            # 직접입력 → gpt-image-2 edit. 기본은 gpt가 씬+한글 헤드라인을 한 이미지로 굽는다(통합 룩).
+            #   "이미지만/글자 없이" 서술이면 headline="" → 지시문 "Do not add any text"(클린).
+            #   헤드라인 baked용 카피를 원본 기반으로 먼저 생성해 지시문에 싣는다(굽는 문자 = copy_text).
+            #   ⚠️ 한글 baked는 쌍자음 등 가끔 깨질 수 있음(사용자 감수) — quality=medium(가독 실측).
+            #   실패 시 final=None → 아래 로컬 style_gen swap 폴백(그땐 _custom_style False = 일반 조판).
+            want_headline = not _wants_image_only(style_text)
+            head = sub = ""
+            if want_headline:
+                with _stage(run, "copy"):
+                    copy = _generate_copy(image_path, ProductInfo(name=name),
+                                          StylePreset.EDITORIAL, use_vision)
+                head, _, sub = copy.copy_text.partition("\n")
+                head, sub = head.strip() or name, sub.strip()
+                if any(k in head for k in ("제공되지 않", "이미지 정보", "이미지 설명", "알 수 없")):
+                    head, sub = name, ""  # 캡션 실패 폴백(콜드런 가드 계승)
             try:
                 instr = api_image_service.build_style_edit_instruction(
-                    subject_en, extra_style_en, style_domain)
+                    subject_en, extra_style_en, style_domain, headline=head, subcopy=sub)
                 with _stage(run, "generate"):
                     final = api_image_service.edit_image(
                         image_path, instr, out_dir=output_dir, quality="medium", run=run)
                 engine = "api:edit:custom"
                 selected_seed = seed if seed is not None else 0
+                _custom_style = True   # 성공 시에만 조판 스킵 마킹(폴백은 일반 조판 경로로)
             except Exception as e:  # noqa: BLE001 — 예산초과(ApiBudgetExceeded)/API 실패 → 로컬 폴백
                 logging.getLogger(__name__).info(
                     "직접입력 gpt-image edit 실패 → 로컬 style_gen 폴백: %s", e)
                 final = None
+                copy = None   # 폴백 경로가 tail에서 최종 이미지 기반으로 재생성
 
         # 합성 경로(P4D, 결정 D-11): SCENE_COMPOSE=1 + object/drink + Vision 적합성일 때만 시도.
         #   실패(sc["ok"]=False)하면 아무 것도 건드리지 않고 기존 Kontext 경로로 자연 폴백한다.
@@ -945,12 +987,12 @@ def _process_ad_impl(
             serving_type = getattr(analysis, "serving_type", None)
 
     # 문구 (FR-09) — 상품명 + 리터치 이미지 기반. 톤은 EDITORIAL 기본.
-    #   직접입력(무타이포)도 카피는 만든다 — 이미지엔 안 싣고 copy_text(SNS 캡션 등)로만 노출.
-    #   타이포는 상위 run_from_upload_v2 의 build_typography_variants(커머셜 조판)가 별도 레이어로
-    #   얹어 with/without 쌍을 만든다 → gpt는 클린 씬만, 조판은 코드가(겹침·깨짐 방지, 토글 성립).
-    product = ProductInfo(name=name)
-    with _stage(run, "copy"):
-        copy = _generate_copy(final, product, StylePreset.EDITORIAL, use_vision)
+    #   직접입력에서 헤드라인을 구운 경우 카피가 이미 있으니(위) 재생성 안 함. 그 외(일반·이미지만·
+    #   폴백)는 최종 이미지 기반으로 생성 → copy_text(SNS 캡션 등)로 노출.
+    if copy is None:
+        product = ProductInfo(name=name)
+        with _stage(run, "copy"):
+            copy = _generate_copy(final, product, StylePreset.EDITORIAL, use_vision)
 
     # apply_food_poster 는 비-스튜디오(poster=True) 레거시 경로 전용. 직접입력은 클린 씬을 유지해야
     #   상위 커머셜 조판이 깨끗이 얹히므로 스킵(_skip_poster) — poster=True 로 불려도 굽지 않는다.
@@ -985,6 +1027,7 @@ def _process_ad_impl(
         style=style, aesthetic=aesthetic,
         style_domain=style_domain if style else None,
         serving_type=serving_type,  # SRV-ROUTE-001 phase2: 응답 노출 캐리어
+        custom_style=_custom_style,  # 직접입력(gpt baked/이미지만) → 상위 조판 스킵
     )
 
     return result
