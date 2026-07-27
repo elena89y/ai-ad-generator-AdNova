@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 
 from app.database.connection import AdminBase, Base
 
@@ -87,3 +87,23 @@ class AdminRefreshToken(AdminBase):
     expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
     revoked_at = Column(DateTime(timezone=True), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class AdminAuthRateLimit(AdminBase):
+    __tablename__ = "admin_auth_rate_limits"
+    __table_args__ = (
+        UniqueConstraint("scope", "key_hash", name="uq_admin_auth_rate_limit_scope_key"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    scope = Column(String(50), nullable=False, index=True)
+    key_hash = Column(String(64), nullable=False, index=True)
+    attempts = Column(Integer, default=0, nullable=False)
+    window_started_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    blocked_until = Column(DateTime(timezone=True), nullable=True, index=True)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )

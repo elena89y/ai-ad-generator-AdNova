@@ -183,7 +183,7 @@ export const FAQ_ITEMS: FaqItem[] = [
     "id": "faq-guide-001",
     "category": "이용 가이드",
     "question": "사진은 어떤 형식과 크기까지 올릴 수 있나요?",
-    "answer": "JPG, PNG, WEBP 형식을 지원하며 한 장당 최대 15MB까지 업로드할 수 있습니다. 너무 작거나 흐린 이미지는 품질이 떨어질 수 있으니, 상품이 또렷하게 크게 나온 사진을 권장합니다.",
+    "answer": "JPG, PNG, WEBP 형식을 지원하며 한 장당 최대 10MB까지 업로드할 수 있습니다. 너무 작거나 흐린 이미지는 품질이 떨어질 수 있으니, 상품이 또렷하게 크게 나온 사진을 권장합니다.",
     "confirming": false
   },
   {

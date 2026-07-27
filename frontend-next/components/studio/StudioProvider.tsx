@@ -40,6 +40,7 @@ interface StudioState {
   freeTotal: number;
   premiumLeft: number;
   premiumTotal: number;
+  bonusLeft: number;
   billingReady: boolean;
   billingSummary: BillingSummary | null;
   billingPurchases: PurchaseHistory[];
@@ -50,6 +51,7 @@ interface StudioState {
   selectedImageId: number | null;
   selectedImageUrl: string | null;
   selectedImagePreview: string | null;
+  selectedImageFile: File | null;
   currentResult: GenerateResult | null;
   prodName: string;
   promptText: string;
@@ -64,7 +66,7 @@ interface StudioState {
   setAuth: (token: string, user?: AdnovaUser | null) => void;
   clearAuth: () => Promise<void>;
   refreshBilling: (showMessage?: boolean) => Promise<void>;
-  refreshHistory: (showMessage?: boolean) => Promise<void>;
+  refreshHistory: (showMessage?: boolean) => Promise<AdItem[]>;
   refreshDashboardSummary: () => Promise<void>;
   setAds: (ads: AdItem[]) => void;
   setDashboardState: (
@@ -74,6 +76,7 @@ interface StudioState {
         | "selectedImageId"
         | "selectedImageUrl"
         | "selectedImagePreview"
+        | "selectedImageFile"
         | "currentResult"
         | "prodName"
         | "promptText"
@@ -133,12 +136,14 @@ export default function StudioProvider({ children }: { children: React.ReactNode
     selectedImageId: null as number | null,
     selectedImageUrl: null as string | null,
     selectedImagePreview: null as string | null,
+    selectedImageFile: null as File | null,
     currentResult: null as GenerateResult | null,
     prodName: "",
     promptText: "",
     styleLabel: "웜 빈티지",
     useValue: "sns",
   });
+  const selectedImagePreviewRef = useRef<string | null>(null);
   const [activeItem, setActiveItem] = useState<AdItem | null>(null);
   const [shareFrom, setShareFrom] = useState("/studio");
   const [sharePlatform, setSharePlatform] = useState("instagram");
@@ -152,6 +157,25 @@ export default function StudioProvider({ children }: { children: React.ReactNode
     setToastOn(true);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToastOn(false), 2200);
+  }, []);
+
+  useEffect(() => {
+    const previousPreview = selectedImagePreviewRef.current;
+    if (
+      previousPreview &&
+      previousPreview !== dashState.selectedImagePreview &&
+      previousPreview.startsWith("blob:")
+    ) {
+      URL.revokeObjectURL(previousPreview);
+    }
+    selectedImagePreviewRef.current = dashState.selectedImagePreview;
+  }, [dashState.selectedImagePreview]);
+
+  useEffect(() => {
+    return () => {
+      const preview = selectedImagePreviewRef.current;
+      if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
+    };
   }, []);
 
   const refreshBilling = useCallback(
@@ -185,7 +209,7 @@ export default function StudioProvider({ children }: { children: React.ReactNode
     async (showMessage = false) => {
       if (!getToken()) {
         setAdsState([]);
-        return;
+        return [];
       }
       const requestedUserId = getStoredUser()?.id;
       try {
@@ -200,15 +224,17 @@ export default function StudioProvider({ children }: { children: React.ReactNode
               (item as { status?: string }).status === "completed"
           )
           .map((item) => historyToCard(item as Parameters<typeof historyToCard>[0]));
-        if (requestedUserId !== getStoredUser()?.id) return;
+        if (requestedUserId !== getStoredUser()?.id) return [];
         setAdsState(cards);
+        return cards;
       } catch (err) {
-        if (requestedUserId !== getStoredUser()?.id) return;
+        if (requestedUserId !== getStoredUser()?.id) return [];
         setAdsState([]);
         if (showMessage)
           toast(
             err instanceof Error ? err.message : "내 광고 목록을 불러오지 못했습니다"
           );
+        return [];
       }
     },
     [toast]
@@ -269,6 +295,7 @@ export default function StudioProvider({ children }: { children: React.ReactNode
       selectedImageId: null,
       selectedImageUrl: null,
       selectedImagePreview: null,
+      selectedImageFile: null,
       currentResult: null,
     }));
     await logoutPromise;
@@ -363,6 +390,7 @@ export default function StudioProvider({ children }: { children: React.ReactNode
   const freeTotal = billingSummary?.free_credit_limit ?? 3;
   const premiumLeft = billingSummary?.premium_credits_remaining ?? 0;
   const premiumTotal = billingSummary?.premium_credit_limit ?? 30;
+  const bonusLeft = billingSummary?.bonus_credits_remaining ?? 0;
   const setDashboardState = useCallback<StudioState["setDashboardState"]>(
     (patch) => setDashState((state) => ({ ...state, ...patch })),
     []
@@ -378,6 +406,7 @@ export default function StudioProvider({ children }: { children: React.ReactNode
       freeTotal,
       premiumLeft,
       premiumTotal,
+      bonusLeft,
       billingReady,
       billingSummary,
       billingPurchases,
@@ -416,6 +445,7 @@ export default function StudioProvider({ children }: { children: React.ReactNode
       freeTotal,
       premiumLeft,
       premiumTotal,
+      bonusLeft,
       billingReady,
       billingSummary,
       billingPurchases,

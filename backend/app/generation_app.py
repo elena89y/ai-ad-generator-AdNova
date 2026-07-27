@@ -202,12 +202,15 @@ def _render_multiformat(
     cuts = [DetailCut(source, DetailCutRole.HERO)]
     accepted_structures = [(DetailCutRole.HERO.value, structure_vector(source))]
 
-    deadline = time.monotonic() + MULTIFORMAT_TIME_BUDGET_S
+    # 구도별 시간 예산 분배 — 공유 데드라인이면 top_view 재시도가 예산을 다 먹어 나머지 3컷이
+    # 재시도 0회로 첫 변형(히어로와 판박이 corr~1.0)을 채택하는 사고(실측). 각 구도에 동일 몫을
+    # 줘 최저상관 변형을 고를 기회를 보장. 총합은 MULTIFORMAT_TIME_BUDGET_S(클라이언트 600s 준수).
+    per_role_budget = MULTIFORMAT_TIME_BUDGET_S / max(1, len(_ROLE_RETRY_SPECS))
     for role, (prompt_fn, variants) in _ROLE_RETRY_SPECS.items():
         path, candidate_structure = _generate_with_retry(
             source, work_dir, accepted_structures, role.value,
             lambda variant, fn=prompt_fn: fn(domain, variant), variants,
-            deadline=deadline,
+            deadline=time.monotonic() + per_role_budget,
         )
         cuts.append(DetailCut(path, role))
         accepted_structures.append((role.value, candidate_structure))
@@ -262,6 +265,7 @@ def generate(
     poster: bool = Form(False),
     seed: Optional[int] = Form(None),
     purpose: AdPurpose = Form(AdPurpose.SNS),
+    style_text: str = Form(""),
 ) -> GenerateAdResponse:
     """이미지 파일 → 전처리 → 생성 → 문구 (→ 포스터). GPU 필요."""
     suffix = Path(image.filename or "upload.png").suffix.lower() or ".png"
@@ -277,7 +281,8 @@ def generate(
     try:
         multiformat = purpose in (AdPurpose.CARD_NEWS, AdPurpose.DETAIL_PAGE)
         out = generation_service.run_from_upload_v2(
-            str(src), product, style, seed, use_vision, False if multiformat else poster
+            str(src), product, style, seed, use_vision, False if multiformat else poster,
+            style_text=style_text,
         )
         if multiformat:
             return _render_multiformat(out, product_name, purpose)

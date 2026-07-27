@@ -49,6 +49,11 @@ class UserCreate(BaseModel):
         description="업종",
     )
 
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: EmailStr) -> str:
+        return str(value).strip().lower()
+
     @field_validator("username")
     @classmethod
     def validate_username(cls, value: str) -> str:

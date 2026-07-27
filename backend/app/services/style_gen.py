@@ -26,16 +26,21 @@ def generate_scene(image_path: str, style_key: str, subject_en: str,
                    flexible_parts: Optional[list[str]] = None,
                    finish_profile: Optional[str] = None,
                    serving_type: Optional[str] = None,
-                   core_ingredients: Optional[list[str]] = None) -> str:
+                   core_ingredients: Optional[list[str]] = None,
+                   extra_style_en: str = "") -> str:
     """도메인별 StylePlan 또는 특수 포맷 지시로 Kontext 편집 후 경로를 반환한다.
 
     staging="recompose"(P5 음료 재연출): 보존 편집 대신 같은 음료의 새 연출을 지시한다.
     container_desc/temperature/text_zone은 호출부가 analyze_photo 결과에서 넘긴다 —
     재연출 계약을 지원하지 않는 스타일이면 preserve로 자연 폴백.
-
     finish_profile(REAL-001): "photographic" 등 사진적 사실감 finish 절을 지시에 주입한다.
     None(기본)이면 build_*_instruction 이 plan 기본값("none")을 써 절 무주입 → 바이트 동일
     (REAL A/B 대조군). 실험 arm이 "photographic"을 넘겨 처리군을 만든다.
+    extra_style_en: 사용자 자유서술 무드(영문, 직접 입력 탭). 값 있으면 프리셋의 verbose 씬 문단
+      '대신' 사용자 서술을 연출 지시로 넣는다(맞교환). ⚠️ append 금지 — Kontext T5 512토큰 예산
+      초과 시 뒤(가드·씬)부터 조용히 잘림([[kontext-t5-token-budget]]). 짧은 보존 템플릿에 사용자
+      절만 실어 지시문을 짧게 유지(락·구성유지·no-text 보존, 영문 강제=함정#1). 빈값이면 회귀 0.
+      (상위 process_ad 가 직접입력을 gpt-image edit 로 라우팅하고 이 로컬 경로는 폴백.)
     """
     from . import kontext_service
     from .style_specs import get_spec
@@ -66,17 +71,38 @@ def generate_scene(image_path: str, style_key: str, subject_en: str,
     # food 프리앰블·용기 문구를 원본 용기 유지 긍정 단언으로 치환. None이면 기존 문구 그대로.
     from .reference_style_plans import (build_clip_anchor, build_reference_instruction,
                                         normalize_style)
-    # PAL-001→003: 배경 팔레트를 제품 적응형 생성기로 도출(고정 _STYLE_PALETTES 대체).
-    #   pop(PAL-001) 데 이어 파스텔·모노톤 롤아웃(PAL-003, 2026-07-24) — 스타일별 문구 형태는
-    #   유지하고 색만 제품에서. 미지원 스타일(에디토리얼 등)은 None → 기존 문구 바이트 동일.
+    clip_prompt = build_clip_anchor(style_key, domain, subject_en)
+    #   재구성이 목적인 포맷(cross_section 단면·object_* 사물·pop_split 매크로)은 제외.
+    _RECOMPOSE_OK = {"cross_section", "object_studio", "object_splash", "pop_split"}
+
+    # 직접 입력(자유서술): 프리셋 verbose 씬 '대신' 사용자 절을 연출 지시로(맞교환, T5 예산 안전).
+    #   상위 process_ad 는 직접입력을 gpt-image edit 로 라우팅하고, 이 로컬 경로는 폴백.
+    if extra_style_en:
+        if style_key not in _RECOMPOSE_OK:
+            instr = ("Edit this exact photo. Keep every item exactly as photographed: the same "
+                     "number of pieces, the same sauces, garnishes, plating and arrangement — do "
+                     "not remove, add, merge or simplify anything. "
+                     f"Restyle ONLY the background, surface, lighting and mood as follows: {extra_style_en}. "
+                     "Keep the true colors. No text.")
+        else:
+            instr = (f"Restyle the background, lighting and mood: {extra_style_en}. "
+                     "Keep the product's shape, proportions and true colors faithful; "
+                     "do not distort or recolor the product. No text.")
+        kw = {} if steps is None else {"steps": steps}
+        return kontext_service.edit(
+            image_path, instr, seed=seed, output_dir=output_dir,
+            clip_prompt=clip_prompt, **kw,
+        )
+
+    # PAL-001→003: 배경 팔레트를 제품 적응형 생성기로 도출(미지원 스타일=None → 기존 문구 바이트 동일).
+    #   PAL_ADAPTIVE=0 이면 고정 팔레트 폴백(A/B 대조군·킬스위치).
     palette_override = None
-    # PAL-AB: 적응형 팔레트 before/after 인세션 토글. PAL_ADAPTIVE=0 이면 고정 팔레트
-    #   폴백(구 동작) → A/B 대조군·킬스위치.
     if os.environ.get("PAL_ADAPTIVE", "1") != "0":
         from . import palette_gen
         palette_override = palette_gen.style_palette_clause(
             normalize_style(style_key) or "", subject_en, domain, image_path, seed,
             serving_type=serving_type)
+    # 구성(composition) 유지 절 — 무드 프리셋 씬 전용 (2026-07-11 콜드런 실측). ⚠️ 절 순서 결정적.
     reference_instr = build_reference_instruction(style_key, domain, subject_en,
                                                   container_desc=container_desc,
                                                   container_opacity=container_opacity,
@@ -85,13 +111,6 @@ def generate_scene(image_path: str, style_key: str, subject_en: str,
                                                   serving_type=serving_type,
                                                   scene_seed=seed,
                                                   core_ingredients=core_ingredients)
-    clip_prompt = build_clip_anchor(style_key, domain, subject_en)
-
-    # 구성(composition) 유지 절 — 무드 씬 전용 (2026-07-11 콜드런 실측: editorial 이 브런치
-    #   4조각+치즈소스+음료를 1개 단품으로 재구성 → 메뉴 시그니처 소실 = 정직성 경계 위반).
-    #   재구성이 목적인 포맷(cross_section 단면·object_* 사물·pop_split 매크로)은 제외.
-    #   ⚠️ 절 순서가 결정적: 구성 유지를 '맨 앞'에 둬야 씬의 스타일 언어(싱글히어로·여백)에 안 밀림.
-    _RECOMPOSE_OK = {"cross_section", "object_studio", "object_splash", "pop_split"}
     if reference_instr:
         instr = reference_instr
     elif style_key not in _RECOMPOSE_OK:

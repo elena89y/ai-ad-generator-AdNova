@@ -67,12 +67,6 @@ def anonymize_legal_records_for_user(
     호출 시점에 커밋하지 않음 — delete_user_account 의 단일 트랜잭션에 합류.
     """
     now = now or utc_now()
-    # 이 회원이 관리자로서 처리한 환불의 처리자 링크는 기록 유무와 무관하게 끊는다
-    # (향후 관리자 삭제 플로우 대비 FK 안전).
-    db.query(RefundRequest).filter(
-        RefundRequest.processed_by_admin_id == user_id
-    ).update({"processed_by_admin_id": None}, synchronize_session=False)
-
     # 보존 대상 기록이 있을 때만 센티넬 생성 → 기록 없는 회원 탈퇴 시 불필요한 센티넬 안 만듦.
     has_records = (
         db.query(SupportInquiry.id).filter(SupportInquiry.user_id == user_id).first() is not None

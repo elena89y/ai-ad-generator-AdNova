@@ -13,7 +13,11 @@ except ImportError:
 else:
     register_heif_opener()
 
-SUPPORTED_IMAGE_FORMATS = {"JPEG", "PNG", "WEBP", "HEIF", "HEIC"}
+# MPO(Multi-Picture Object) = 아이폰이 .JPG 로 저장하는 다중프레임 JPEG(HDR/뎁스 등). 첫 프레임이
+#   표준 JPEG 라 normalize_image_content 가 그대로 표준 JPG 로 재인코딩한다. 미포함 시 PIL 이
+#   format="MPO" 로 감지 → 화이트리스트 탈락 → "지원 안 함" 오거부(2026-07-27: 아이폰 .JPG 사진
+#   업로드가 "JPG,PNG,WebP,HEIC만" 에러로 막히던 원인. 실측: 버터감자.JPG=MPO 4032x3024).
+SUPPORTED_IMAGE_FORMATS = {"JPEG", "PNG", "WEBP", "HEIF", "HEIC", "MPO"}
 NORMALIZED_CONTENT_TYPES = {
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",

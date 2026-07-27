@@ -43,6 +43,11 @@ class HeroAsset:
     # (v6-1 F1) 진짜 구성 재료 — 상세 카피 환각 게이트(claimed⊂core) 근거.
     # ProcessedAd 가 안 실어주므로 선택 필드 — 비면 게이트는 관대 통과(D4b 동일).
     core_ingredients: tuple[str, ...] = ()
+    # 무-상품 경로(pipeline_brief) 전용 — load-bearing 정보줄(일시/장소/문의처, 원문 발췌)과
+    # 하단 규정 문구. 코드(overlay)가 오탈자 0으로 조판(함정 #3 우회). 상품 경로는 항상 빈 값
+    # (= no-op) — pipeline_brief 패키지를 삭제해도 이 필드는 무해하게 남는다.
+    info_lines: tuple[str, ...] = ()
+    fine_print: str = ""
 
 
 def build_hero(
@@ -109,6 +114,8 @@ def hero_from_existing(
     detail_cuts: tuple[DetailCut, ...] = (),
     product_name: str = "",
     core_ingredients: tuple[str, ...] = (),
+    info_lines: tuple[str, ...] = (),
+    fine_print: str = "",
 ) -> HeroAsset:
     """GPU 없이 기존 이미지로 HeroAsset 구성 — 로컬 compose 검증용(테스트 진입점)."""
     return HeroAsset(
@@ -118,6 +125,7 @@ def hero_from_existing(
         detail_image_paths=detail_image_paths,
         detail_cuts=detail_cuts,
         core_ingredients=core_ingredients,
+        info_lines=info_lines, fine_print=fine_print,
     )
 
 

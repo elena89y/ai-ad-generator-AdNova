@@ -18,6 +18,7 @@ from app.api.admin import (
     refund_admin_demo_purchase,
     read_admin_accounts,
     read_admin_advertisement_detail,
+    read_admin_advertisement_image,
     read_admin_advertisements,
     read_admin_audit_logs,
     read_admin_me,
@@ -27,7 +28,12 @@ from app.api.admin import (
     update_admin_user_status,
 )
 from app.core.admin_security import get_current_admin, get_current_super_admin
-from app.core.security import create_access_token, create_admin_access_token, hash_password
+from app.core.security import (
+    create_access_token,
+    create_admin_access_token,
+    get_current_user,
+    hash_password,
+)
 from app.core.totp import decrypt_totp_secret
 from app.database.admin_models import AdminAuditLog, AdminUser
 from app.database.billing_models import PurchaseHistory, PurchasedCreditBalance
@@ -143,6 +149,22 @@ class AdminApiTestCase(unittest.TestCase):
             .count(),
             1,
         )
+
+    def test_admin_account_rejects_regular_user_email_case_insensitively(self) -> None:
+        with self.assertRaises(HTTPException) as context:
+            create_admin_account_by_super_admin(
+                request=AdminAccountCreateRequest(
+                    username="operator",
+                    email="USER@example.com",
+                    password="Password1!",
+                    role="operator",
+                ),
+                db=self.user_db,
+                admin_db=self.admin_db,
+                current_admin=self.admin,
+            )
+
+        self.assertEqual(context.exception.status_code, 409)
 
     def test_admin_accounts_are_listed_from_admin_database(self) -> None:
         self.admin_db.add(
@@ -266,6 +288,29 @@ class AdminApiTestCase(unittest.TestCase):
         self.assertEqual(audit_log.admin_user_id, self.admin.id)
         self.assertEqual(audit_log.target_id, self.user.id)
 
+    def test_suspended_user_is_blocked_on_next_authenticated_request(self) -> None:
+        token = create_access_token({"sub": str(self.user.id)})
+
+        update_admin_user_status(
+            user_id=self.user.id,
+            request=AdminUserStatusUpdateRequest(is_active=False),
+            db=self.user_db,
+            admin_db=self.admin_db,
+            current_admin=self.admin,
+        )
+
+        with self.assertRaises(HTTPException) as context:
+            get_current_user(
+                credentials=HTTPAuthorizationCredentials(
+                    scheme="Bearer",
+                    credentials=token,
+                ),
+                db=self.user_db,
+            )
+
+        self.assertEqual(context.exception.status_code, 403)
+        self.assertEqual(context.exception.detail, "비활성화된 계정입니다.")
+
     def test_super_admin_can_grant_bonus_credits_with_audit_log(self) -> None:
         response = grant_admin_user_bonus_credits(
             user_id=self.user.id,
@@ -365,6 +410,18 @@ class AdminApiTestCase(unittest.TestCase):
             original_results_dir = image_service.RESULTS_DIR
             image_service.RESULTS_DIR = results_dir
             try:
+                image_response = read_admin_advertisement_image(
+                    advertisement_id=advertisement.id,
+                    db=self.user_db,
+                    current_admin=self.admin,
+                )
+            finally:
+                image_service.RESULTS_DIR = original_results_dir
+            self.assertEqual(Path(image_response.path), results_dir / "ad.png")
+
+            original_results_dir = image_service.RESULTS_DIR
+            image_service.RESULTS_DIR = results_dir
+            try:
                 delete_admin_advertisement(
                     advertisement_id=advertisement.id,
                     db=self.user_db,
@@ -387,6 +444,43 @@ class AdminApiTestCase(unittest.TestCase):
                 .count(),
                 1,
             )
+
+    def test_admin_image_download_rejects_path_outside_results_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            results_dir = root / "results"
+            results_dir.mkdir()
+            outside_path = root / "outside.png"
+            outside_path.write_bytes(b"private")
+            output_image = Image(
+                user_id=self.user.id,
+                image_type="generated",
+                file_path=str(outside_path),
+            )
+            self.user_db.add(output_image)
+            self.user_db.flush()
+            advertisement = Advertisement(
+                user_id=self.user.id,
+                output_image_id=output_image.id,
+                ad_type="image",
+                prompt="test",
+            )
+            self.user_db.add(advertisement)
+            self.user_db.commit()
+
+            original_results_dir = image_service.RESULTS_DIR
+            image_service.RESULTS_DIR = results_dir
+            try:
+                with self.assertRaises(HTTPException) as context:
+                    read_admin_advertisement_image(
+                        advertisement_id=advertisement.id,
+                        db=self.user_db,
+                        current_admin=self.admin,
+                    )
+            finally:
+                image_service.RESULTS_DIR = original_results_dir
+
+            self.assertEqual(context.exception.status_code, 404)
 
     def test_audit_log_api_reads_admin_database(self) -> None:
         self.admin_db.add(

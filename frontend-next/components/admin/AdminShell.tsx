@@ -7,6 +7,7 @@ import { useState } from "react";
 import {
   CreditCard,
   Flag,
+  Images,
   KeyRound,
   LayoutDashboard,
   MailPlus,
@@ -35,6 +36,11 @@ const navigationItems = [
     href: "/admin/users",
     label: "회원 관리",
     icon: UsersRound,
+  },
+  {
+    href: "/admin/advertisements",
+    label: "광고 관리",
+    icon: Images,
   },
   {
     href: "/admin/purchases",

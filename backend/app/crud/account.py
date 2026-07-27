@@ -1,6 +1,8 @@
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.crud.retention import anonymize_legal_records_for_user
+from app.core.rate_limit import rate_limit_key_hash
 from app.database.billing_models import (
     PaymentMethod,
     PremiumCreditBalance,
@@ -9,13 +11,17 @@ from app.database.billing_models import (
 )
 from app.database.models import (
     Advertisement,
+    AuthRateLimit,
+    BonusCreditBalance,
     CreditBalance,
     CreditRefillState,
+    EmailVerification,
     History,
     Image,
     NotificationSettings,
     PasswordResetToken,
     User,
+    UserRefreshToken,
     UserReport,
 )
 
@@ -82,8 +88,25 @@ def delete_user_account(db: Session, user: User) -> list[str]:
         db.query(CreditBalance).filter(CreditBalance.user_id == user_id).delete(
             synchronize_session=False
         )
+        db.query(BonusCreditBalance).filter(
+            BonusCreditBalance.user_id == user_id
+        ).delete(synchronize_session=False)
+        db.query(UserRefreshToken).filter(
+            UserRefreshToken.user_id == user_id
+        ).delete(synchronize_session=False)
         db.query(PasswordResetToken).filter(
             PasswordResetToken.user_id == user_id
+        ).delete(synchronize_session=False)
+        db.query(EmailVerification).filter(
+            func.lower(EmailVerification.email) == user.email.lower()
+        ).delete(synchronize_session=False)
+        db.query(AuthRateLimit).filter(
+            AuthRateLimit.key_hash.in_(
+                [
+                    rate_limit_key_hash(user.username),
+                    rate_limit_key_hash(user.email),
+                ]
+            )
         ).delete(synchronize_session=False)
         db.query(NotificationSettings).filter(
             NotificationSettings.user_id == user_id

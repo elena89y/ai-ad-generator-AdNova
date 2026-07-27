@@ -14,6 +14,7 @@ import {
   readJsonSafely,
   toAbsoluteUrl,
 } from "@/lib/api";
+import { containsEmoji } from "@/lib/input-validation";
 import { CATALOG } from "@/lib/catalog";
 import { useStudio } from "@/components/studio/StudioProvider";
 import { AppBar, WorkspaceNav } from "@/components/studio/chrome";
@@ -33,50 +34,50 @@ export default function TemplateApplyPage() {
   const tpl = useMemo(() => CATALOG.find((e) => e.id === idParam), [idParam]);
 
   const fileRef = useRef<HTMLInputElement>(null);
-  const [imageId, setImageId] = useState<number | null>(null);
-  const [preview, setPreview] = useState<string>("");
+  // 템플릿을 바꾸기 위해 목록으로 돌아가도 같은 업로드 이미지를 재사용한다.
+  const imageId = s.selectedImageId;
+  const preview = s.selectedImagePreview ?? s.selectedImageUrl ?? "";
   const [productName, setProductName] = useState("");
   const [extraRequest, setExtraRequest] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadStep, setLoadStep] = useState(GEN_STEPS[0]);
   const [resultUrl, setResultUrl] = useState<string>("");
   const stepTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const productNameHasEmoji = containsEmoji(productName);
+  const extraRequestHasEmoji = containsEmoji(extraRequest);
+  const hasEmojiInput = productNameHasEmoji || extraRequestHasEmoji;
 
   useEffect(() => {
     if (s.ready && !s.token) router.replace("/login");
   }, [s.ready, s.token, router]);
 
-  async function uploadProductImage(file: File | undefined) {
+  function uploadProductImage(file: File | undefined) {
     if (!file) return;
-    if (file.size > 15 * 1024 * 1024) {
-      s.toast("이미지는 최대 15MB까지 업로드할 수 있습니다.");
+    if (file.size > 10 * 1024 * 1024) {
+      s.toast("이미지는 최대 10MB까지 업로드할 수 있습니다.");
       return;
     }
-    const fd = new FormData();
-    fd.append("file", file);
-    try {
-      s.toast("이미지를 업로드하는 중입니다");
-      const res = await apiFetch("/api/images/upload", { method: "POST", body: fd });
-      const data = (await readJsonSafely(res)) as { image_id?: number; image_url?: string } | null;
-      if (!res.ok || !data?.image_id || !data.image_url)
-        throw new Error(readApiError(data, "이미지 업로드에 실패했습니다"));
-      setImageId(data.image_id);
-      setPreview(toAbsoluteUrl(data.image_url));
-      setResultUrl("");
-    } catch (err) {
-      s.toast(err instanceof Error ? err.message : "이미지 업로드에 실패했습니다");
-    }
+    const previewUrl = URL.createObjectURL(file);
+    s.setDashboardState({
+      selectedImageId: null,
+      selectedImageUrl: null,
+      selectedImagePreview: previewUrl,
+      selectedImageFile: file,
+      currentResult: null,
+    });
+    setResultUrl("");
+    s.toast("이미지를 선택했습니다");
   }
 
   function handleUpload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
-    void uploadProductImage(file);
+    uploadProductImage(file);
   }
 
   function handleImageDrop(event: DragEvent<HTMLButtonElement>) {
     event.preventDefault();
-    void uploadProductImage(event.dataTransfer.files?.[0]);
+    uploadProductImage(event.dataTransfer.files?.[0]);
   }
 
   async function generate() {
@@ -85,8 +86,12 @@ export default function TemplateApplyPage() {
       return;
     }
     if (!tpl) return;
-    if (imageId == null) {
+    if (imageId == null && !s.selectedImageFile) {
       s.toast("제품 사진을 먼저 올려주세요");
+      return;
+    }
+    if (hasEmojiInput) {
+      s.toast("상품명과 추가 요청에서는 이모티콘을 사용할 수 없습니다");
       return;
     }
     setLoading(true);
@@ -98,7 +103,11 @@ export default function TemplateApplyPage() {
     }, 4000);
     try {
       const fd = new FormData();
-      fd.append("image_id", String(imageId));
+      if (imageId != null) {
+        fd.append("image_id", String(imageId));
+      } else if (s.selectedImageFile) {
+        fd.append("image", s.selectedImageFile);
+      }
       // 상품명 미입력 시 빈 값 그대로 전송 — 템플릿 표시명을 폴백하면 각인류 템플릿이
       // 그 이름("크림 각인 타이포")을 문자 그대로 새기는 사고가 남 (2026-07-24 실측)
       fd.append("product_name", productName.trim());
@@ -106,13 +115,18 @@ export default function TemplateApplyPage() {
       fd.append("template_id", serverTemplateId(tpl.no, tpl.id));
       fd.append("purpose", "sns");
       const res = await apiFetch("/api/ads/generate", { method: "POST", body: fd });
-      const data = (await readJsonSafely(res)) as { image_url?: string } | null;
+      const data = (await readJsonSafely(res)) as { image_url?: string; history_id?: number } | null;
       if (!res.ok || !data?.image_url) throw new Error(readApiError(data, "광고 생성에 실패했습니다"));
       setResultUrl(toAbsoluteUrl(data.image_url) ?? "");
       s.refreshBilling(false);
-      s.refreshHistory(false);
       s.refreshDashboardSummary();
-      s.toast("광고가 완성됐어요");
+      const ads = await s.refreshHistory(false);
+      const isSaved = Boolean(data.history_id) && ads.some((ad) => ad.historyId === data.history_id);
+      s.toast(
+        isSaved
+          ? "광고가 완성됐어요"
+          : "광고는 생성됐지만 내 광고 목록 반영을 확인하지 못했습니다. 잠시 후 다시 확인해 주세요."
+      );
     } catch (err) {
       s.toast(err instanceof Error ? err.message : "광고 생성에 실패했습니다");
     } finally {
@@ -200,6 +214,11 @@ export default function TemplateApplyPage() {
                   onChange={(e) => setProductName(e.target.value)}
                   placeholder={`예: ${tpl.name_examples?.join(", ") ?? tpl.name}`}
                 />
+                {productNameHasEmoji && (
+                  <div className="field-error" style={{ color: "#e5484d", fontSize: 12, marginTop: 4 }}>
+                    상품명에는 이모티콘을 사용할 수 없습니다.
+                  </div>
+                )}
                 <p className="rail-hint">
                   비워두면 이미지를 분석해 SNS 문구(인스타·페북·스레드·X)까지 자동 생성해요.
                   상품명을 입력하면 그 이름으로 더 정확하게 만들어드려요.
@@ -220,9 +239,14 @@ export default function TemplateApplyPage() {
                       : "예: 배경을 더 밝게 · 그림자 길게"
                   }
                 />
+                {extraRequestHasEmoji && (
+                  <div className="field-error" style={{ color: "#e5484d", fontSize: 12, marginTop: 4 }}>
+                    추가 요청에는 이모티콘을 사용할 수 없습니다.
+                  </div>
+                )}
               </div>
 
-              <button className="btn-gen" disabled={loading || imageId == null} onClick={generate}>
+              <button className="btn-gen" disabled={loading || (imageId == null && !s.selectedImageFile) || hasEmojiInput} onClick={generate}>
                 {loading ? loadStep : "✦ 이 템플릿으로 광고 만들기"}
               </button>
 

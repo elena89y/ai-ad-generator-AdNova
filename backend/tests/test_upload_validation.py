@@ -13,6 +13,16 @@ def make_png_bytes() -> bytes:
     return buffer.getvalue()
 
 
+def make_mpo_bytes() -> bytes:
+    # MPO(Multi-Picture Object) = 아이폰이 .JPG 로 저장하는 다중프레임 JPEG. 두 프레임을 담아
+    #   PIL 이 format="MPO" 로 감지하게 만든다(단일 JPEG 는 format="JPEG").
+    buffer = BytesIO()
+    base = Image.new("RGB", (8, 8), color=(200, 120, 60))
+    second = Image.new("RGB", (8, 8), color=(60, 120, 200))
+    base.save(buffer, format="MPO", append_images=[second])
+    return buffer.getvalue()
+
+
 class UploadValidationTestCase(unittest.TestCase):
     def test_valid_png_is_accepted(self) -> None:
         validate_image_content(
@@ -48,6 +58,19 @@ class UploadValidationTestCase(unittest.TestCase):
             validate_image_content(buffer.getvalue())
 
         self.assertEqual(context.exception.status_code, 400)
+
+    def test_mpo_iphone_jpg_is_accepted(self) -> None:
+        # 아이폰이 .JPG 로 저장하는 MPO(다중프레임 JPEG)는 통과하고 표준 JPEG 로 정규화돼야 한다
+        #   (2026-07-27 아이폰 사진 업로드 실패 회귀 가드).
+        from app.services.upload_validation import normalize_image_content
+
+        detected_format = validate_image_content(make_mpo_bytes())
+        self.assertEqual(detected_format, "MPO")
+
+        normalized, suffix, _ = normalize_image_content(make_mpo_bytes())
+        self.assertEqual(suffix, ".jpg")
+        with Image.open(BytesIO(normalized)) as image:
+            self.assertEqual(image.format, "JPEG")
 
     def test_reader_accepts_mismatched_filename_and_content_type(self) -> None:
         from starlette.datastructures import UploadFile as StarletteUploadFile

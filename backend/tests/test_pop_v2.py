@@ -127,16 +127,29 @@ def test_props_without_ingredients_safe():
 # --- NOODLE-GUARD: 면류는 ①(scatter) 제외 — 본체 재드로잉 라이브 2회 실측 ------
 
 @pytest.mark.parametrize("subject", [
-    "creamy carbonara pasta", "cream carbonara pasta", "spicy ramen noodles",
-    "cold buckwheat soba", "japchae glass noodles", "beef pho",
+    "creamy carbonara pasta", "cream carbonara pasta",
+    "cold buckwheat soba", "japchae glass noodles",
 ])
 def test_noodle_never_gets_scatter_archetype(subject):
-    """면류 subject는 전 시드에서 ①(마커: 'joyful pop energy')이 절대 안 나와야 한다 —
-    유닛 보증이 GPU 1샷보다 강함(전수)."""
+    """건식 면류 subject는 전 시드에서 ①(마커: 'joyful pop energy')이 절대 안 나와야 한다 —
+    유닛 보증이 GPU 1샷보다 강함(전수). ⚠️ 국물 면(라멘·쌀국수)은 SOUP-PRESERVE 라우팅이라
+    별도 테스트(test_soup_noodle_preserved)에서 검증."""
     for s in range(24):
         instr = _instr(subject=subject, scene_seed=s)
         assert "joyful pop energy" not in instr, (subject, s)
         assert "You MAY replace the plain plate" in instr  # 완화 잠금은 유지
+
+
+@pytest.mark.parametrize("subject", ["spicy ramen noodles", "beef pho", "korean spicy beef soup"])
+def test_soup_noodle_preserved(subject):
+    """SOUP-PRESERVE(2026-07-27): 국물 요리(라멘·쌀국수·육개장)는 전 무드에서 in-place 보존
+    락으로 라우팅 — 스캐터·재플레이팅 없이 국물·용기 유지(아트디렉터 "육개장 국물이 사라짐")."""
+    for s in range(24):
+        instr = _instr(subject=subject, scene_seed=s)
+        assert "joyful pop energy" not in instr, (subject, s)
+        assert "keep it a soup" in instr, (subject, s)          # 국물 보존 락
+        assert "never move the food onto a flat plate" in instr  # 재플레이팅 금지
+        assert "You MAY replace the plain plate" not in instr    # food_pop 재플레이팅 아님
 
 
 def test_noodle_still_rotates_among_three():

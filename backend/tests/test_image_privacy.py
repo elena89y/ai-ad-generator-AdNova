@@ -1,4 +1,5 @@
 import asyncio
+from datetime import timedelta
 from io import BytesIO
 import tempfile
 import unittest
@@ -13,9 +14,9 @@ from starlette.datastructures import Headers
 
 from app.api.images import read_uploaded_image
 from app.api.images import upload_image
-from app.crud.image import create_image
+from app.crud.image import create_image, purge_expired_unreferenced_uploads
 from app.database.connection import Base
-from app.database.models import Image, User
+from app.database.models import Advertisement, Image, User, utc_now
 from app.core.security import hash_password
 
 
@@ -98,6 +99,44 @@ class ImagePrivacyTestCase(unittest.TestCase):
         image = self.session.query(Image).filter(Image.id == response.image_id).one()
         self.assertEqual(image.image_url, response.image_url)
         self.assertTrue(Path(image.file_path).is_file())
+
+    def test_expired_unreferenced_upload_is_purged_but_legacy_input_is_kept(self) -> None:
+        stale_path = self.upload_dir / "stale.png"
+        legacy_path = self.upload_dir / "legacy.png"
+        stale_path.write_bytes(b"stale")
+        legacy_path.write_bytes(b"legacy")
+        stale = Image(
+            user_id=self.owner.id,
+            image_type="upload",
+            file_path=str(stale_path),
+            created_at=utc_now() - timedelta(hours=25),
+        )
+        legacy = Image(
+            user_id=self.owner.id,
+            image_type="upload",
+            file_path=str(legacy_path),
+            created_at=utc_now() - timedelta(hours=25),
+        )
+        self.session.add_all([stale, legacy])
+        self.session.flush()
+        self.session.add(
+            Advertisement(
+                user_id=self.owner.id,
+                input_image_id=legacy.id,
+                ad_type="image",
+                prompt="legacy",
+            )
+        )
+        self.session.commit()
+
+        paths = purge_expired_unreferenced_uploads(
+            self.session,
+            created_before=utc_now() - timedelta(hours=24),
+        )
+
+        self.assertEqual(paths, [str(stale_path)])
+        self.assertIsNone(self.session.get(Image, stale.id))
+        self.assertIsNotNone(self.session.get(Image, legacy.id))
 
 if __name__ == "__main__":
     unittest.main()

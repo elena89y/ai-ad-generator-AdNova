@@ -18,6 +18,7 @@ import {
   toAbsoluteUrl,
   toStyleLabel,
 } from "@/lib/api";
+import { containsEmoji } from "@/lib/input-validation";
 import { useStudio } from "@/components/studio/StudioProvider";
 import { AppBar, WorkspaceNav } from "@/components/studio/chrome";
 import { AuthenticatedImage } from "@/components/studio/AuthenticatedImage";
@@ -106,17 +107,21 @@ export default function StudioPage() {
   const s = useStudio();
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadStep, setLoadStep] = useState(GEN_STEPS[0]);
   const [activePlatform, setActivePlatform] = useState("instagram");
   // [html-parity] 타이포 토글 상태 — html #typographyToggle 이식 (Next 이관 시 누락)
   const [typographyOn, setTypographyOn] = useState(true);
+  // 02·스타일 탭: 무드 프리셋 선택(preset) vs 자유서술(custom). 자유서술은 style_text로 전송.
+  const [styleMode, setStyleMode] = useState<"preset" | "custom">("preset");
+  const [styleText, setStyleText] = useState("");
   const [uploadInfo, setUploadInfo] = useState(
     "사진만 넣으면 배경·구도는 AI가 알아서 잡아줘요."
   );
   const stepTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const selectedImagePreviewRef = useRef<string | null>(null);
+  const productNameHasEmoji = containsEmoji(s.prodName);
+  const extraRequestHasEmoji = containsEmoji(s.promptText);
+  const hasEmojiInput = productNameHasEmoji || extraRequestHasEmoji;
 
   useEffect(() => {
     if (s.ready && !s.token) router.replace("/login");
@@ -151,22 +156,19 @@ export default function StudioPage() {
   }
 
   function selectImageFile(file: File | undefined) {
-    // 백엔드 MAX_IMAGE_SIZE_MB(15MB)와 동기 — 서버가 장변 2048로 정규화 저장하므로 폰 원본 OK
-    const MAX_IMAGE_SIZE = 15 * 1024 * 1024;
+    // 백엔드 MAX_IMAGE_SIZE_MB(운영 10MB)와 동기 — 서버가 장변 2048로 정규화 저장하므로 폰 원본 OK
+    const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
     if (!file) return;
     if (file.size > MAX_IMAGE_SIZE) {
-      s.toast("이미지는 최대 15MB까지 업로드할 수 있습니다.");
+      s.toast("이미지는 최대 10MB까지 업로드할 수 있습니다.");
       return;
     }
-    const previousPreview = selectedImagePreviewRef.current;
-    if (previousPreview?.startsWith("blob:")) URL.revokeObjectURL(previousPreview);
     const nextPreview = URL.createObjectURL(file);
-    selectedImagePreviewRef.current = nextPreview;
-    setSelectedImageFile(file);
     s.setDashboardState({
       selectedImageId: null,
       selectedImageUrl: null,
       selectedImagePreview: nextPreview,
+      selectedImageFile: file,
       currentResult: null,
     });
     setUploadInfo(`선택한 이미지: ${file.name}`);
@@ -184,35 +186,16 @@ export default function StudioPage() {
   }
 
   function removeSelectedImage() {
-    const preview = selectedImagePreviewRef.current;
-    if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
-    selectedImagePreviewRef.current = null;
-    setSelectedImageFile(null);
     s.setDashboardState({
       selectedImageId: null,
       selectedImageUrl: null,
       selectedImagePreview: null,
+      selectedImageFile: null,
       currentResult: null,
     });
     setUploadInfo("사진만 넣으면 배경·구도는 AI가 알아서 잡아줘요.");
     s.toast("선택한 이미지를 제거했습니다");
   }
-
-  useEffect(() => {
-    selectedImagePreviewRef.current = s.selectedImagePreview;
-  }, [s.selectedImagePreview]);
-
-  useEffect(() => {
-    return () => {
-      const preview = selectedImagePreviewRef.current;
-      if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
-      s.setDashboardState({
-        selectedImageId: null,
-        selectedImageUrl: null,
-        selectedImagePreview: null,
-      });
-    };
-  }, [s.setDashboardState]);
 
   function startLoadingSteps() {
     let i = 0;
@@ -226,25 +209,39 @@ export default function StudioPage() {
     if (stepTimer.current) clearInterval(stepTimer.current);
   }
 
+  async function notifyHistorySaved(data: GenerateResult, message: string) {
+    const ads = await s.refreshHistory(false);
+    const isSaved = Boolean(data.history_id) && ads.some((ad) => ad.historyId === data.history_id);
+    s.toast(
+      isSaved
+        ? message
+        : "광고는 생성됐지만 내 광고 목록 반영을 확인하지 못했습니다. 잠시 후 다시 확인해 주세요."
+    );
+  }
+
   async function generate() {
     if (!s.billingReady) {
       s.toast("구독 정보를 확인한 뒤 광고를 생성할 수 있습니다");
       return;
     }
-    if (s.isPremium && s.premiumLeft <= 0) {
-      s.toast("이번 달 프리미엄 크레딧을 모두 사용했습니다");
-      return;
-    }
-    if (!s.isPremium && s.freeLeft <= 0) {
-      s.setUpgradeOpen(true);
-      return;
+    // 보너스 크레딧은 백엔드(_consume_generation_credit)에서 1순위로 소비된다.
+    // 보너스가 남아 있으면 프리미엄/무료 소진과 무관하게 생성 허용(프리미엄 소진 오차단 방지).
+    if (s.bonusLeft <= 0) {
+      if (s.isPremium && s.premiumLeft <= 0) {
+        s.toast("이번 달 프리미엄 크레딧을 모두 사용했습니다");
+        return;
+      }
+      if (!s.isPremium && s.freeLeft <= 0) {
+        s.setUpgradeOpen(true);
+        return;
+      }
     }
     if (!getToken()) {
       s.toast("로그인 후 광고를 생성해 주세요");
       router.push("/login");
       return;
     }
-    if (!selectedImageFile) {
+    if (!s.selectedImageFile && !s.selectedImageId) {
       s.toast("먼저 제품 사진을 업로드해 주세요");
       return;
     }
@@ -253,15 +250,27 @@ export default function StudioPage() {
       s.toast("상품명을 입력해 주세요");
       return;
     }
+    if (hasEmojiInput) {
+      s.toast("상품명과 추가 요청에서는 이모티콘을 사용할 수 없습니다");
+      return;
+    }
 
     setLoading(true);
     startLoadingSteps();
     const formData = new FormData();
-    formData.append("image", selectedImageFile);
+    if (s.selectedImageId) {
+      formData.append("image_id", String(s.selectedImageId));
+    } else if (s.selectedImageFile) {
+      formData.append("image", s.selectedImageFile);
+    }
     formData.append("product_name", productName);
     formData.append("product_description", s.promptText.trim());
     formData.append("style", STYLE_PRESET_MAP[s.styleLabel] || "pop");
     formData.append("use_vision", "false");
+    // 자유서술 무드(직접 입력 탭) — base 프리셋 위에 연출로 가산. 백엔드가 영문 번역 후 주입.
+    if (styleMode === "custom" && styleText.trim()) {
+      formData.append("style_text", styleText.trim());
+    }
     const purpose = resolvePurpose(s.useValue);
     // [html-parity] html generate와 동일하게 purpose 전송 + sns 용도만 poster=true.
     // 이관 직후엔 poster="false" 하드코딩 + purpose 미전송으로 용도 선택이 무시됐음.
@@ -276,8 +285,7 @@ export default function StudioPage() {
       s.setDashboardState({ currentResult: { ...data, client_prod_name: productName } });
       s.refreshBilling(false);
       s.refreshDashboardSummary();
-      s.refreshHistory(false);
-      s.toast("광고가 생성되었습니다");
+      await notifyHistorySaved(data, "광고가 생성되었습니다");
     } catch (err) {
       s.toast(err instanceof Error ? err.message : "광고 생성에 실패했습니다");
     } finally {
@@ -291,13 +299,17 @@ export default function StudioPage() {
       s.toast("구독 정보를 확인한 뒤 다시 생성할 수 있습니다");
       return;
     }
-    if (s.isPremium && s.premiumLeft <= 0) {
-      s.toast("이번 달 프리미엄 크레딧을 모두 사용했습니다");
-      return;
-    }
-    if (!s.isPremium && s.freeLeft <= 0) {
-      s.setUpgradeOpen(true);
-      return;
+    // 보너스 크레딧은 백엔드(_consume_generation_credit)에서 1순위로 소비된다.
+    // 보너스가 남아 있으면 프리미엄/무료 소진과 무관하게 생성 허용(프리미엄 소진 오차단 방지).
+    if (s.bonusLeft <= 0) {
+      if (s.isPremium && s.premiumLeft <= 0) {
+        s.toast("이번 달 프리미엄 크레딧을 모두 사용했습니다");
+        return;
+      }
+      if (!s.isPremium && s.freeLeft <= 0) {
+        s.setUpgradeOpen(true);
+        return;
+      }
     }
     if (!s.currentResult?.asset_id) {
       s.toast("먼저 광고를 생성해 주세요");
@@ -332,8 +344,7 @@ export default function StudioPage() {
       s.setDashboardState({ currentResult: { ...data, client_prod_name: productName } });
       s.refreshBilling(false);
       s.refreshDashboardSummary();
-      s.refreshHistory(false);
-      s.toast("광고를 다시 생성했습니다");
+      await notifyHistorySaved(data, "광고를 다시 생성했습니다");
     } catch (err) {
       s.toast(err instanceof Error ? err.message : "다시 생성에 실패했습니다");
     } finally {
@@ -465,8 +476,7 @@ export default function StudioPage() {
             >
               {beforeSrc ? (
                 <>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <AuthenticatedImage
                     src={beforeSrc}
                     style={{
                       width: "100%",
@@ -595,6 +605,11 @@ export default function StudioPage() {
               value={s.prodName}
               onChange={(e) => s.setDashboardState({ prodName: e.target.value })}
             />
+            {productNameHasEmoji && (
+              <div className="field-error" style={{ color: "#e5484d", fontSize: 12, marginTop: 4 }}>
+                상품명에는 이모티콘을 사용할 수 없습니다.
+              </div>
+            )}
             <div className="auto-mode" style={{ margin: "9px 0 0" }}>
               <span className="lamp" />
               {/* SRV-ROUTE-001 phase2: 생성 후엔 백엔드 인식값이 정본, 이름을 바꿔 치는 중이면
@@ -615,6 +630,11 @@ export default function StudioPage() {
               value={s.promptText}
               onChange={(e) => s.setDashboardState({ promptText: e.target.value })}
             />
+            {extraRequestHasEmoji && (
+              <div className="field-error" style={{ color: "#e5484d", fontSize: 12, marginTop: 4 }}>
+                추가 요청에는 이모티콘을 사용할 수 없습니다.
+              </div>
+            )}
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
               {["할인 이벤트 강조", "신메뉴 출시", "인스타 감성"].map((tip) => (
                 <span
@@ -650,48 +670,70 @@ export default function StudioPage() {
                 marginBottom: 11,
               }}
             >
-              <div
-                style={{
-                  flex: 1,
-                  textAlign: "center",
-                  padding: 7,
-                  borderRadius: 7,
-                  fontSize: 11.5,
-                  fontWeight: 700,
-                  background: "rgba(242,169,59,.16)",
-                  color: "var(--gold)",
-                }}
-              >
-                ✨ AI 추천
-              </div>
-              <div
-                style={{
-                  flex: 1,
-                  textAlign: "center",
-                  padding: 7,
-                  borderRadius: 7,
-                  fontSize: 11.5,
-                  fontWeight: 600,
-                  color: "var(--ink-mute)",
-                  cursor: "pointer",
-                }}
-                onClick={() => s.toast("직접 입력 모드 (목업)")}
-              >
-                ✍️ 직접 입력
-              </div>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {STYLES.map(({ label, sw }) => (
-                <button
-                  key={label}
-                  className={`style-row${s.styleLabel === label ? " on" : ""}`}
-                  onClick={() => s.setDashboardState({ styleLabel: label })}
+              {([
+                ["preset", "🎨 무드"],
+                ["custom", "✍️ 직접 입력"],
+              ] as const).map(([mode, label]) => (
+                <div
+                  key={mode}
+                  onClick={() => setStyleMode(mode)}
+                  style={{
+                    flex: 1,
+                    textAlign: "center",
+                    padding: 7,
+                    borderRadius: 7,
+                    fontSize: 11.5,
+                    fontWeight: styleMode === mode ? 700 : 600,
+                    background: styleMode === mode ? "rgba(242,169,59,.16)" : "transparent",
+                    color: styleMode === mode ? "var(--gold)" : "var(--ink-mute)",
+                    cursor: "pointer",
+                  }}
                 >
-                  <span className="sw" style={{ background: sw }} />
-                  <span className="nm">{label}</span>
-                </button>
+                  {label}
+                </div>
               ))}
             </div>
+            {styleMode === "preset" ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {STYLES.map(({ label, sw }) => (
+                  <button
+                    key={label}
+                    className={`style-row${s.styleLabel === label ? " on" : ""}`}
+                    onClick={() => s.setDashboardState({ styleLabel: label })}
+                  >
+                    <span className="sw" style={{ background: sw }} />
+                    <span className="nm">{label}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div>
+                <textarea
+                  className="rail-textarea"
+                  placeholder="원하는 무드를 서술하세요 — 예: 따뜻한 골든아워 조명, 여백 넉넉히"
+                  value={styleText}
+                  onChange={(e) => setStyleText(e.target.value)}
+                />
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                  {["따뜻한 골든아워 조명", "여백 넉넉히", "고채도 팝", "차분한 파스텔 톤"].map(
+                    (c) => (
+                      <span
+                        key={c}
+                        className="chip-tip"
+                        onClick={() =>
+                          setStyleText((t) => (t.trim() ? `${t.trim()}, ${c}` : c))
+                        }
+                      >
+                        + {c}
+                      </span>
+                    )
+                  )}
+                </div>
+                <p className="hint" style={{ marginTop: 8 }}>
+                  서술한 무드는 배경·조명 연출에만 반영돼요. 상품·헤드라인·정보는 그대로 유지됩니다.
+                </p>
+              </div>
+            )}
           </div>
           <div>
             <div className="rail-label">03 · 용도</div>
@@ -710,7 +752,7 @@ export default function StudioPage() {
           <button
             className="btn-gen"
             style={{ marginTop: "auto" }}
-            disabled={loading}
+            disabled={loading || hasEmojiInput}
             onClick={generate}
           >
             ✦ 광고 생성
@@ -1032,12 +1074,6 @@ export default function StudioPage() {
               </div>
 
               <div className="out-actions">
-                <button
-                  className="oa save"
-                  onClick={() => s.toast("생성 결과는 내 광고에 자동 저장돼요")}
-                >
-                  💾 저장
-                </button>
                 <button className="oa" onClick={downloadResult}>
                   ⬇️ 다운로드 {s.isPremium ? "" : "🔒"}
                 </button>

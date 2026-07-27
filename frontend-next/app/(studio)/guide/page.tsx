@@ -145,7 +145,7 @@ export default function GuidePage() {
                 </div>
                 <figcaption className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border px-4 py-3 text-xs text-muted">
                   <span>JPG · PNG · WEBP</span>
-                  <span>최대 15MB</span>
+                  <span>최대 10MB</span>
                   <span>상품이 선명한 사진 권장</span>
                 </figcaption>
               </figure>
@@ -327,7 +327,7 @@ export default function GuidePage() {
             <dl className="divide-y divide-border border-y border-border">
               <div className="grid gap-2 py-5 sm:grid-cols-[10rem_1fr]">
                 <dt className="text-sm font-medium text-soft">사진이 올라가지 않아요</dt>
-                <dd className="text-sm leading-6 text-muted">로그인 상태와 파일 형식, 15MB 이하인지 확인하세요.</dd>
+                <dd className="text-sm leading-6 text-muted">로그인 상태와 파일 형식, 10MB 이하인지 확인하세요.</dd>
               </div>
               <div className="grid gap-2 py-5 sm:grid-cols-[10rem_1fr]">
                 <dt className="text-sm font-medium text-soft">생성 버튼이 안 눌려요</dt>

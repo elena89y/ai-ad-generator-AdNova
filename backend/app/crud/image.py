@@ -1,8 +1,9 @@
+from datetime import datetime
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.database.models import Image
+from app.database.models import Advertisement, Image
 
 
 def create_image(
@@ -43,3 +44,54 @@ def create_image(
 
 def get_image_by_id(db: Session, image_id: int) -> Image | None:
     return db.query(Image).filter(Image.id == image_id).first()
+
+
+def delete_unreferenced_upload(
+    db: Session,
+    image: Image,
+    *,
+    commit: bool = True,
+) -> str | None:
+    """Delete an upload row only when no historical advertisement references it."""
+    if image.image_type != "upload":
+        return None
+    is_referenced = (
+        db.query(Advertisement.id)
+        .filter(Advertisement.input_image_id == image.id)
+        .first()
+        is not None
+    )
+    if is_referenced:
+        return None
+
+    file_path = image.file_path
+    db.delete(image)
+    if commit:
+        db.commit()
+    else:
+        db.flush()
+    return file_path
+
+
+def purge_expired_unreferenced_uploads(
+    db: Session,
+    *,
+    created_before: datetime,
+) -> list[str]:
+    referenced_image_ids = db.query(Advertisement.input_image_id).filter(
+        Advertisement.input_image_id.is_not(None)
+    )
+    images = (
+        db.query(Image)
+        .filter(
+            Image.image_type == "upload",
+            Image.created_at < created_before,
+            ~Image.id.in_(referenced_image_ids),
+        )
+        .all()
+    )
+    file_paths = [image.file_path for image in images if image.file_path]
+    for image in images:
+        db.delete(image)
+    db.commit()
+    return file_paths
