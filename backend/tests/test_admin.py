@@ -18,6 +18,7 @@ from app.api.admin import (
     refund_admin_demo_purchase,
     read_admin_accounts,
     read_admin_advertisement_detail,
+    read_admin_advertisement_image,
     read_admin_advertisements,
     read_admin_audit_logs,
     read_admin_me,
@@ -27,7 +28,12 @@ from app.api.admin import (
     update_admin_user_status,
 )
 from app.core.admin_security import get_current_admin, get_current_super_admin
-from app.core.security import create_access_token, create_admin_access_token, hash_password
+from app.core.security import (
+    create_access_token,
+    create_admin_access_token,
+    get_current_user,
+    hash_password,
+)
 from app.core.totp import decrypt_totp_secret
 from app.database.admin_models import AdminAuditLog, AdminUser
 from app.database.billing_models import PurchaseHistory, PurchasedCreditBalance
@@ -266,6 +272,29 @@ class AdminApiTestCase(unittest.TestCase):
         self.assertEqual(audit_log.admin_user_id, self.admin.id)
         self.assertEqual(audit_log.target_id, self.user.id)
 
+    def test_suspended_user_is_blocked_on_next_authenticated_request(self) -> None:
+        token = create_access_token({"sub": str(self.user.id)})
+
+        update_admin_user_status(
+            user_id=self.user.id,
+            request=AdminUserStatusUpdateRequest(is_active=False),
+            db=self.user_db,
+            admin_db=self.admin_db,
+            current_admin=self.admin,
+        )
+
+        with self.assertRaises(HTTPException) as context:
+            get_current_user(
+                credentials=HTTPAuthorizationCredentials(
+                    scheme="Bearer",
+                    credentials=token,
+                ),
+                db=self.user_db,
+            )
+
+        self.assertEqual(context.exception.status_code, 403)
+        self.assertEqual(context.exception.detail, "비활성화된 계정입니다.")
+
     def test_super_admin_can_grant_bonus_credits_with_audit_log(self) -> None:
         response = grant_admin_user_bonus_credits(
             user_id=self.user.id,
@@ -361,6 +390,13 @@ class AdminApiTestCase(unittest.TestCase):
             )
             self.assertEqual(detail.username, self.user.username)
             self.assertEqual(detail.title, "테스트 라떼")
+
+            image_response = read_admin_advertisement_image(
+                advertisement_id=advertisement.id,
+                db=self.user_db,
+                current_admin=self.admin,
+            )
+            self.assertEqual(Path(image_response.path), results_dir / "ad.png")
 
             original_results_dir = image_service.RESULTS_DIR
             image_service.RESULTS_DIR = results_dir

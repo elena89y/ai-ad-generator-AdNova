@@ -71,6 +71,24 @@ export interface AdminManagedUser {
   subscription_status: string | null;
 }
 
+export interface AdminAdvertisement {
+  id: number;
+  user_id: number;
+  username: string;
+  email: string;
+  title: string | null;
+  ad_type: string;
+  style: string | null;
+  status: string;
+  prompt: string;
+  generated_text: string | null;
+  error_message: string | null;
+  output_image_id: number | null;
+  output_image_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AdminUserDetail extends AdminManagedUser {
   business_type: string | null;
   updated_at: string;

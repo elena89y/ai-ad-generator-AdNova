@@ -60,6 +60,19 @@ def _validate_oauth_settings() -> None:
         )
 
 
+def _redirect_oauth_error(error_code: str, message: str) -> RedirectResponse:
+    error_query = urlencode(
+        {
+            "oauth_error": error_code,
+            "message": message,
+        }
+    )
+    return RedirectResponse(
+        url=f"{FRONTEND_URL}/login?{error_query}",
+        status_code=status.HTTP_302_FOUND,
+    )
+
+
 def _generate_unique_username(db: Session, google_sub: str) -> str:
     """
     User.username 길이 제한(12자)에 맞춰 Google 계정용 아이디를 만든다.
@@ -157,18 +170,20 @@ async def google_callback(
     """
     _validate_oauth_settings()
 
+    oauth_error = request.query_params.get("error")
+    oauth_error_description = request.query_params.get("error_description")
+    if oauth_error:
+        return _redirect_oauth_error(
+            "google_authorization_denied",
+            oauth_error_description or oauth_error,
+        )
+
     try:
         token = await oauth.google.authorize_access_token(request)
-    except Exception as exc:
-        error_query = urlencode(
-            {
-                "oauth_error": "google_auth_failed",
-                "message": str(exc),
-            }
-        )
-        return RedirectResponse(
-            url=f"{FRONTEND_URL}/login?{error_query}",
-            status_code=status.HTTP_302_FOUND,
+    except Exception:
+        return _redirect_oauth_error(
+            "google_auth_failed",
+            "Google 로그인 처리 중 오류가 발생했습니다.",
         )
 
     user_info = token.get("userinfo")

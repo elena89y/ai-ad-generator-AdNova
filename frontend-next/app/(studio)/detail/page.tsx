@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import {
   FORMAT_LABELS,
   apiFetch,
@@ -81,6 +81,10 @@ function DetailContent() {
   const [loading, setLoading] = useState(false);
   const [typographyOn, setTypographyOn] = useState(true);
   const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [reportCategory, setReportCategory] = useState("result_quality");
+  const [reportContent, setReportContent] = useState("");
+  const [reportSubmitting, setReportSubmitting] = useState(false);
 
   const requestedHistoryId = Number(searchParams.get("historyId"));
 
@@ -155,11 +159,12 @@ function DetailContent() {
   }, [historyId, item?.historyId, router, s]);
 
   useEffect(() => {
-    if (!shareModalOpen) return;
+    if (!shareModalOpen && !reportModalOpen) return;
 
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setShareModalOpen(false);
+        setReportModalOpen(false);
       }
     }
 
@@ -168,7 +173,7 @@ function DetailContent() {
     return () => {
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [shareModalOpen]);
+  }, [shareModalOpen, reportModalOpen]);
 
   if (!s.ready || !s.token) {
     return (
@@ -325,6 +330,50 @@ function DetailContent() {
           ? error.message
           : "광고 삭제에 실패했습니다.",
       );
+    }
+  }
+
+  async function submitReport(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!item?.advertisementId) {
+      s.toast("신고할 광고 정보를 찾을 수 없습니다.");
+      return;
+    }
+
+    if (!reportContent.trim()) {
+      s.toast("신고 사유를 입력해 주세요.");
+      return;
+    }
+
+    setReportSubmitting(true);
+    try {
+      const response = await apiFetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category: reportCategory,
+          title: `${item.productName || item.hl || "광고"} 생성 결과 신고`,
+          content: reportContent.trim(),
+          advertisement_id: item.advertisementId,
+        }),
+      });
+      const data = await readJsonSafely(response);
+
+      if (!response.ok) {
+        throw new Error(readApiError(data, "신고를 등록하지 못했습니다."));
+      }
+
+      setReportContent("");
+      setReportCategory("result_quality");
+      setReportModalOpen(false);
+      s.toast("신고가 접수되었습니다. 고객센터에서 진행 상태를 확인할 수 있어요.");
+    } catch (error) {
+      s.toast(
+        error instanceof Error ? error.message : "신고를 등록하지 못했습니다.",
+      );
+    } finally {
+      setReportSubmitting(false);
     }
   }
 
@@ -488,6 +537,16 @@ function DetailContent() {
               >
                 삭제
               </button>
+
+              {item.advertisementId && (
+                <button
+                  type="button"
+                  className="oa"
+                  onClick={() => setReportModalOpen(true)}
+                >
+                  신고하기
+                </button>
+              )}
             </div>
           </div>
 
@@ -825,6 +884,93 @@ function DetailContent() {
         )}
       </div>
 
+
+      {reportModalOpen && (
+        <div
+          role="presentation"
+          onClick={() => setReportModalOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+            background: "rgba(0, 0, 0, 0.68)",
+            backdropFilter: "blur(6px)",
+          }}
+        >
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="report-modal-title"
+            onClick={(event) => event.stopPropagation()}
+            onSubmit={(event) => void submitReport(event)}
+            style={{
+              width: "min(100%, 480px)",
+              padding: 22,
+              border: "1px solid var(--line)",
+              borderRadius: 18,
+              background: "#1d1c22",
+              boxShadow: "0 24px 70px rgba(0, 0, 0, 0.55)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "start", justifyContent: "space-between", gap: 16 }}>
+              <div>
+                <h3 id="report-modal-title" style={{ margin: 0, fontSize: 19 }}>
+                  광고 신고하기
+                </h3>
+                <p style={{ margin: "6px 0 0", color: "var(--ink-mute)", fontSize: 12, lineHeight: 1.6 }}>
+                  생성 결과에서 확인이 필요한 내용을 알려 주세요.
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="신고창 닫기"
+                onClick={() => setReportModalOpen(false)}
+                style={{ width: 34, height: 34, border: "1px solid var(--line)", borderRadius: 9, background: "transparent", color: "var(--ink-soft)", fontSize: 19, cursor: "pointer" }}
+              >
+                ×
+              </button>
+            </div>
+
+            <label style={{ display: "grid", gap: 7, marginTop: 18, fontSize: 12, fontWeight: 700 }}>
+              신고 사유
+              <select
+                value={reportCategory}
+                onChange={(event) => setReportCategory(event.target.value)}
+                style={{ height: 42, border: "1px solid var(--line)", borderRadius: 9, background: "#18171c", color: "var(--ink)", padding: "0 11px" }}
+              >
+                <option value="result_quality">생성 결과 품질</option>
+                <option value="copyright">저작권 또는 상표 관련</option>
+                <option value="policy">부적절한 내용</option>
+                <option value="other">기타</option>
+              </select>
+            </label>
+
+            <label style={{ display: "grid", gap: 7, marginTop: 14, fontSize: 12, fontWeight: 700 }}>
+              상세 내용
+              <textarea
+                value={reportContent}
+                maxLength={5000}
+                onChange={(event) => setReportContent(event.target.value)}
+                placeholder="확인이 필요한 내용을 자세히 적어 주세요."
+                style={{ minHeight: 130, resize: "vertical", border: "1px solid var(--line)", borderRadius: 9, background: "#18171c", color: "var(--ink)", padding: 11, lineHeight: 1.55 }}
+              />
+            </label>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 9, marginTop: 18 }}>
+              <button type="button" className="oa" onClick={() => setReportModalOpen(false)}>
+                취소
+              </button>
+              <button type="submit" className="oa download" disabled={reportSubmitting}>
+                {reportSubmitting ? "접수 중..." : "신고 접수"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {shareModalOpen && (
         <div

@@ -19,6 +19,25 @@ import {
 
 type OAuthProvider = "google" | "kakao" | "naver";
 
+const OAUTH_ATTEMPT_KEY = "adnova.oauth_attempt";
+
+const OAUTH_LABELS: Record<OAuthProvider, string> = {
+  google: "Google",
+  kakao: "카카오",
+  naver: "네이버",
+};
+
+const OAUTH_ERROR_MESSAGES: Record<string, string> = {
+  google_authorization_denied: "Google 로그인이 취소되었습니다. 다시 시도해 주세요.",
+  kakao_authorization_denied: "카카오 로그인이 취소되었습니다. 다시 시도해 주세요.",
+  naver_authorization_denied: "네이버 로그인이 취소되었습니다. 다시 시도해 주세요.",
+  google_auth_failed: "Google 로그인에 실패했습니다. 다시 시도해 주세요.",
+  kakao_code_missing: "카카오 로그인 정보를 받지 못했습니다. 다시 시도해 주세요.",
+  naver_code_missing: "네이버 로그인 정보를 받지 못했습니다. 다시 시도해 주세요.",
+  kakao_state_mismatch: "카카오 로그인 확인에 실패했습니다. 다시 시도해 주세요.",
+  naver_state_mismatch: "네이버 로그인 확인에 실패했습니다. 다시 시도해 주세요.",
+};
+
 export default function LoginClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -26,13 +45,40 @@ export default function LoginClient() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
-  const [message, setMessage] = useState(
-    searchParams.get("message") ||
-      searchParams.get("oauth_error") ||
-      ""
-  );
+  const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    const oauthError = searchParams.get("oauth_error");
+    const pendingProvider = window.sessionStorage.getItem(OAUTH_ATTEMPT_KEY) as OAuthProvider | null;
+    const errorMessage = oauthError ? OAUTH_ERROR_MESSAGES[oauthError] : null;
+
+    if (oauthError || pendingProvider) {
+      window.sessionStorage.removeItem(OAUTH_ATTEMPT_KEY);
+      setIsLoading(false);
+      setMessage(
+        errorMessage ||
+          `${OAUTH_LABELS[pendingProvider || "google"]} 로그인이 취소되었습니다. 다시 시도해 주세요.`,
+      );
+      return;
+    }
+
+    setMessage(searchParams.get("message") || "");
+  }, [searchParams]);
+
+  useEffect(() => {
+    const resetOAuthLoading = () => {
+      const pendingProvider = window.sessionStorage.getItem(OAUTH_ATTEMPT_KEY) as OAuthProvider | null;
+      if (!pendingProvider) return;
+      window.sessionStorage.removeItem(OAUTH_ATTEMPT_KEY);
+      setIsLoading(false);
+      setMessage(`${OAUTH_LABELS[pendingProvider]} 로그인이 취소되었습니다. 다시 시도해 주세요.`);
+    };
+
+    window.addEventListener("pageshow", resetOAuthLoading);
+    return () => window.removeEventListener("pageshow", resetOAuthLoading);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,8 +115,9 @@ export default function LoginClient() {
      *
      * localhost:3000에서 프록시 설정 없이 실행하면
      * /api/auth/... 주소는 404가 나오는 것이 정상입니다.
-     */
+    */
     if (isLoading) return;
+    window.sessionStorage.setItem(OAUTH_ATTEMPT_KEY, provider);
     setIsLoading(true);
     window.location.href = `/api/auth/${provider}/login`;
   }

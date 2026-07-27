@@ -141,14 +141,14 @@ export default function AdminUsersPage() {
 
   function toggleStatus(user: AdminManagedUser) {
     const nextActive = !user.is_active;
-    const action = nextActive ? "활성화" : "비활성화";
+    const action = nextActive ? "회원 정지 해제" : "회원 정지";
     const notice = nextActive ? "" : " 로그인과 서비스 이용이 제한됩니다.";
     if (!window.confirm(`${user.username}님 계정을 ${action}할까요?${notice}`)) return;
     void updateUser(
       user,
       "status",
       { is_active: nextActive },
-      `${user.username}님 계정을 ${action}했습니다.`
+      `${user.username}님의 ${action}를 완료했습니다.`
     );
   }
 
@@ -238,7 +238,7 @@ export default function AdminUsersPage() {
 
         {!canManageUsers && (
           <p className="mt-6 border border-[#a78bfa]/30 bg-[#8b5cf6]/10 px-4 py-3 text-sm text-[#ddd6fe]">
-            운영자는 회원 정보를 조회할 수 있습니다. 플랜과 계정 상태 변경은 최고 관리자만 할 수 있습니다.
+            운영자는 회원 정보를 조회할 수 있습니다. 플랜과 계정 상태 변경에는 최고 관리자 권한이 필요합니다.
           </p>
         )}
 
@@ -352,12 +352,12 @@ export default function AdminUsersPage() {
                             onClick={() => toggleStatus(user)}
                             className={`inline-flex h-9 items-center gap-2 border px-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${
                               user.is_active
-                                ? "border-[#5be3a0]/35 bg-[#5be3a0]/10 text-[#8af0bd] hover:bg-[#5be3a0]/20"
-                                : "border-[#f87171]/35 bg-[#f87171]/10 text-[#fca5a5] hover:bg-[#f87171]/20"
+                                ? "border-[#f87171]/35 bg-[#f87171]/10 text-[#fca5a5] hover:bg-[#f87171]/20"
+                                : "border-[#5be3a0]/35 bg-[#5be3a0]/10 text-[#8af0bd] hover:bg-[#5be3a0]/20"
                             }`}
                           >
-                            {user.is_active ? <UserRoundCheck size={16} /> : <UserRoundX size={16} />}
-                            {user.is_active ? "활성" : "비활성"}
+                            {user.is_active ? <UserRoundX size={16} /> : <UserRoundCheck size={16} />}
+                            {user.is_active ? "회원 정지" : "정지 해제"}
                           </button>
                         </td>
                         <td className="px-5 py-4 text-white/55">{formatDate(user.created_at)}</td>
