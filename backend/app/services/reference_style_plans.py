@@ -460,6 +460,18 @@ _RETOUCH_RESTRAINED = (
     "dry, matte or plastic. Enhance only what is there, same hues, never restyling. Remove any "
     "screenshot UI, icons or watermarks. "
 )
+# FOOD-FIDELITY(2026-07-27, T5 맞교환): savory 는 리터치 절의 디저트 질감 어휘(스펀지·크림·
+#   과일)를 빼고 그 예산으로 본체 충실 절을 넣는다 — append 금지 원칙(초과분은 뒤 씬부터 잘림).
+_RETOUCH_SAVORY = (
+    "Retouch it like a professional food ad: brighten exposure, remove haze, sauces glossy, "
+    "never dry, matte or plastic. Enhance only what is there, same hues, never restyling. "
+    "Remove any screenshot UI, icons or watermarks. "
+)
+_FOOD_FIDELITY = (
+    "Every ingredient, filling and cut surface stays exactly as photographed, never redrawn or "
+    "substituted; add no sauce or topping not in the original; never turn it into a cake or a "
+    "different dish. "
+)
 _FOOD_POP_TAIL = (
     "You MAY replace the plain plate with a beautiful dessert plate and add tasteful garnish using "
     "only the same ingredients already visible. "
@@ -771,6 +783,25 @@ def _is_soup_subject(subject_en: str) -> bool:
     return any(tok.endswith(("tang", "guk")) for tok in low.replace("-", " ").split())
 
 
+# 단맛 베이커리 어휘(BAKERY-SPLIT, 2026-07-27): serving_type=bakery 는 짠 빵(치아바타·샌드위치)과
+#   단 빵(크루아상·단팥빵)이 섞여 있다. dessert 이상화("Idealize this dessert")를 짠 빵에 적용하면
+#   Kontext가 빵+토마토를 케이크로 재구성(치아바타 pop 실측 사고) → 이상화는 sweet 힌트가 있는
+#   bakery 에만. 미매칭 bakery 는 안전측(절제형 리터치) — 정직성 리스크 없음.
+_SWEET_BAKERY_HINTS = ("croissant", "scone", "muffin", "pastry", "tart", "pie", "donut",
+                       "doughnut", "cake", "macaron", "waffle", "pancake", "brioche",
+                       "red bean", "cream bread", "cookie", "brownie", "castella", "roll")
+
+
+def _is_dessert_like(serving_type: str | None, subject_en: str) -> bool:
+    """dessert 이상화·디저트 락 적용 대상 판정 — dessert 전부 + sweet bakery 만."""
+    if serving_type == "dessert":
+        return True
+    if serving_type == "bakery":
+        low = (subject_en or "").lower()
+        return any(h in low for h in _SWEET_BAKERY_HINTS)
+    return False
+
+
 def _props_clause(core_ingredients: list[str] | None) -> str:
     """core_ingredients → 명명된 소품 문구 (최대 2종).
 
@@ -1074,8 +1105,10 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         #   substring 오탐("rice cake soup"→디저트 락, "bread" 베이커리 누락) 차단 +
         #   재플레이팅 부적합(_replate_unsafe: 세트/박스·무Vision 유리용기·홀케이크) 가드.
         #   None(구캐시·SERVING_TYPE_ROUTING=0)이면 레거시 substring — 바이트 동일.
+        # BAKERY-SPLIT(2026-07-27): bakery 는 sweet 힌트가 있을 때만 디저트 취급 —
+        #   짠 빵(치아바타+토마토)이 디저트 락으로 케이크화되는 사고 차단.
         if serving_type is not None:
-            dessert = (serving_type in ("dessert", "bakery")
+            dessert = (_is_dessert_like(serving_type, subject)
                        and not _replate_unsafe(subject, container_desc))
         else:
             dessert = _is_dessert_subject(subject)
@@ -1126,8 +1159,17 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         #   tpl_47급 이상화로 맞교환(같은 제품 인식 + 무발명 경계) — append가 아닌 교체
         #   (T5 512토큰 예산: 초과 시 뒤쪽 씬 지시가 잘려 팔레트·소품 소실, GPU 실측 3/3).
         #   짭짤한 음식·serving_type 미상(구캐시)은 절제형 유지(재드로잉 리스크).
-        if serving_type in ("dessert", "bakery"):
+        # BAKERY-SPLIT(2026-07-27): 이상화는 dessert + sweet bakery 만 — 짠 빵(치아바타)이
+        #   "Idealize this dessert"로 케이크 재구성되는 사고(pop 실측) 차단.
+        if _is_dessert_like(serving_type, subject):
             identity_lock = _FOOD_POP_HEAD + _DESSERT_IDEALIZE + _FOOD_POP_TAIL
+        elif serving_type in ("dish", "bakery"):
+            # FOOD-FIDELITY(2026-07-27 아트디렉터 "음식은 리얼리즘 기준 — 김밥 속재료가
+            #   무드마다 달라짐"): savory 본체 충실 — 속재료·단면 원본 고정 + 없던 소스/드리즐
+            #   금지(버터감자 초코 사고) + 타 요리/디저트 전환 금지. 리터치 절의 디저트 질감
+            #   어휘와 맞교환(T5 예산). 연출(케이크스탠드)은 유지 — 판정 "괜찮아, 예뻐".
+            identity_lock = (_FOOD_POP_HEAD + _RETOUCH_SAVORY + _FOOD_POP_TAIL
+                             + _FOOD_FIDELITY)
         else:
             identity_lock = _IDENTITY_LOCKS["food_pop"]
         # NOODLE-GUARD 레이어2: 면 전용 보강절(긍정 단언). ⚠️ 'egg' 같은 명사는 부정문에
