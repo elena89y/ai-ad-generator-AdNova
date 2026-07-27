@@ -349,7 +349,7 @@ def run_from_upload_v2(
                 variants = build_typography_variants(
                     r, product.name or r.subject_en, typography_enabled=poster,
                     output_dir=str(image_service.RESULTS_DIR),
-                    domain=getattr(r, "style_domain", None) or getattr(r, "domain", "food"),
+                    domain=_typography_domain(r),
                 )
             return GenerationOutput(
                 final_image_path=variants.selected_image_path,
@@ -439,7 +439,7 @@ def rerun_v2(
                 variants = build_typography_variants(
                     r, product.name or r.subject_en, typography_enabled=poster,
                     output_dir=str(image_service.RESULTS_DIR),
-                    domain=getattr(r, "style_domain", None) or getattr(r, "domain", "food"),
+                    domain=_typography_domain(r),
                 )
             return GenerationOutput(
                 final_image_path=variants.selected_image_path,
@@ -473,6 +473,22 @@ class ProcessedAd:
     aesthetic: Optional[float] = None # NIMA 심미 점수(플라이휠 라벨)
     style_domain: Optional[str] = None  # food | drink | object (_resolve_style_domain 결과, DETAIL-001)
     serving_type: Optional[str] = None  # SRV-ROUTE-001 phase2: 응답 노출용 캐리어 (분석→응답 유일 통로)
+
+
+def _typography_domain(result: ProcessedAd) -> str:
+    """타이포 텍스트 소스 분기용 도메인 (2026-07-26 아트디렉터 지시).
+
+    - **dish(음식점)·object(사물)** → 입력 상품명 그대로(TS-1_2, 한글 가능).
+    - **bakery·dessert·drink(카페 계열)** → 원래대로(영문 subject_en, 기존 TS-1).
+
+    베이커리·디저트는 style_domain 상 'food'로 묶이므로 serving_type(LLM 의미 판정)으로
+    분리해 카페 계열('원래대로' 경로)로 보낸다. serving_type 결측(레거시)은 style_domain 기본
+    → 음식점(dish) 가정으로 TS-1_2. (응답 노출용 domain 필드는 style_domain 그대로 유지.)
+    """
+    base = getattr(result, "style_domain", None) or getattr(result, "domain", "food")
+    if getattr(result, "serving_type", None) in ("bakery", "dessert"):
+        return "bakery"   # typography_system 의 '원래대로'(else) 경로로 라우팅
+    return base
 
 
 def build_typography_variants(

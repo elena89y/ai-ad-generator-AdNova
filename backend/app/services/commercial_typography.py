@@ -294,8 +294,8 @@ def render_typography_variants(
     """GPU 재생성 없이 OFF/ON을 함께 만들고 토글에 맞는 경로를 선택한다.
 
     2026-07-21 판정: 기존 kr_hero 기본 룩은 사용 금지 — ON 변형은 타이포 시스템 v0
-    (typography_system, TS-1~3b 자동 분기)로 조판한다. layout_key/style_key 는
-    호출부 계약 유지를 위해 받되 v0 분기에서는 사용하지 않는다.
+    (typography_system, TS-1~3b 자동 분기)로 조판한다. layout_key 는 호출부 계약 유지를
+    위해 받되 미사용. **style_key(무드)는 mood 로 전달돼 무드별 글씨체를 고른다**(2026-07-26).
     """
     from . import typography_system
 
@@ -311,7 +311,7 @@ def render_typography_variants(
     Image.open(image_path).convert("RGB").save(off_path)
     used_style = typography_system.render_typography(
         image_path, str(on_path), product_name, copy.headline, subject_en=subject_en,
-        domain=domain,
+        domain=domain, mood=style_key,   # 무드별 글씨체 파인튜닝(typography_system._MOOD_TYPO)
     )
     selected = on_path if typography_enabled else off_path
     return TypographyRenderResult(
