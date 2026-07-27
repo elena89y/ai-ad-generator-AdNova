@@ -380,3 +380,27 @@ def test_unknown_noodle_falls_back_safely():
     """미등록 면은 중립 폴백 — 없는 형태를 지어내지 않는다."""
     instr = _instr(subject="mystery house noodles", scene_seed=0, serving_type="dish")
     assert "exactly the shape, cut and thickness seen in the photo" in instr
+
+
+# --- GARNISH-TEX (2026-07-27: "재료들이 좀 더 사실적으로 — 루꼴라도, 치즈도") ----------
+
+@pytest.mark.parametrize("subject,serving", [
+    ("cream penne pasta", "dish"),          # 면 보존 경로
+    ("korean spicy beef soup", "dish"),     # 국물 보존 경로
+    ("grilled pork ribs", "dish"),          # styled/realism 경로
+])
+def test_garnish_texture_vocab_present(subject, serving):
+    """잎채소·갈은 치즈의 실제 질감 어휘가 들어간다(총칭 'fresh/glossy' 로는 플라스틱·왁스 렌더)."""
+    for style in ("monotone", "pastel", "realism", "pop"):
+        instr = _instr(style=style, subject=subject, scene_seed=0, serving_type=serving,
+                       core_ingredients=["cheese"])
+        assert "veined" in instr or "visible veins" in instr, (style, subject)
+
+
+def test_glossy_cheese_vocab_removed():
+    """갈아놓은 경성치즈에 'glossy'는 오지시(왁스 덩어리) — 건조·알갱이 어휘로 대체됐다."""
+    for subject in ("cream penne pasta", "grilled pork ribs", "korean spicy beef soup"):
+        for style in ("realism", "monotone", "pop"):
+            instr = _instr(style=style, subject=subject, scene_seed=0, serving_type="dish",
+                           core_ingredients=["cheese"])
+            assert "cheese glossy" not in instr, (style, subject)

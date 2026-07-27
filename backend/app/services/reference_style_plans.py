@@ -464,15 +464,26 @@ _RETOUCH_TEX_SWEET = (
 # SAVORY-TEX(2026-07-27 워크플로 적대검증 합성안): 가공육/고기 마블링 + 익힘 윤기. 'cured slices'로
 #   게이팅(통마블링 꽃등심을 슬라이스로 안 바꿈), 'glossy'로 날/마른 고기 방지, guard 'uniform·
 #   claylike'가 아트디렉터 "찰흙"·"매끈 분홍 슬랩" 직격. 음식명·'raw'·부정문 음식명사 없음(소환 방지).
+# 가니시 재료 질감(GARNISH-TEX, 2026-07-27): 루꼴라·허브 잎과 갈아놓은 경성치즈는 "fresh"·
+#   "glossy" 같은 총칭 어휘로는 각각 플라스틱 잎·왁스 덩어리로 렌더된다. 실제 질감을 명시 —
+#   잎은 잎맥·자연스러운 컬·가장자리 반투명, 갈은 치즈는 윤기가 아니라 **건조한 알갱이·조각**.
+_GARNISH_TEX = (
+    "leafy greens crisp with visible veins and natural curl, grated hard cheese dry and granular in "
+    "irregular shards, toppings fresh and photographic, never plastic, waxy, matte or claylike"
+)
+
 _RETOUCH_TEX_SAVORY = (
+    # GARNISH-TEX: 'cheese glossy'(→왁스 덩어리)·'vegetables crisp'(→플라스틱 잎)를 실제 질감으로.
     "meat marbled with fat, muscle grain, cured slices thin, folded and glossy, bread crusty, crumb "
-    "airy, cheese glossy, vegetables crisp, sauces glossy, never dry, matte, uniform or claylike"
+    "airy, grated cheese dry and granular, leafy greens veined and naturally curled, sauces glossy, "
+    "never dry, matte, uniform, waxy or claylike"
 )
 # 고기 신호 없는 짭짤 요리(비빔밥·샐러드·플레인 라이스/면)엔 marbling 어휘가 고기를 소환할 수 있어
 #   meat 어휘를 뺀 변주(2-tier). build 의 _has_meat 로 분기.
 _RETOUCH_TEX_SAVORY_PLAIN = (
-    "bread crusty with airy crumb, cheese glossy, vegetables crisp and fresh, rice and noodles moist "
-    "and distinct, sauces glossy, never dry, matte, uniform or claylike"
+    "bread crusty with airy crumb, grated cheese dry and granular, leafy greens veined and naturally "
+    "curled, rice and noodles moist and distinct, sauces glossy, never dry, matte, uniform, waxy or "
+    "claylike"
 )
 _RETOUCH_RESTRAINED = (
     "Retouch it like a professional food ad: brighten exposure, remove haze — "
@@ -483,8 +494,10 @@ _RETOUCH_RESTRAINED = (
 # FOOD-FIDELITY(2026-07-27, T5 맞교환): savory 는 리터치 절의 디저트 질감 어휘(스펀지·크림·
 #   과일)를 빼고 그 예산으로 본체 충실 절을 넣는다 — append 금지 원칙(초과분은 뒤 씬부터 잘림).
 _RETOUCH_SAVORY = (
+    # GARNISH-TEX: styled savory 경로에도 잎·갈은치즈 질감(총칭 어휘는 플라스틱·왁스 렌더).
     "Retouch it like a professional food ad: brighten exposure, remove haze, sauces glossy, "
-    "never dry, matte or plastic. Enhance only what is there, same hues, never restyling. "
+    "leafy greens veined and naturally curled, grated cheese dry and granular, never dry, matte, "
+    "waxy or plastic. Enhance only what is there, same hues, never restyling. "
     "Remove any screenshot UI, icons or watermarks. "
 )
 _FOOD_FIDELITY = (
@@ -518,9 +531,11 @@ _FOOD_SOUP_LOCK = (
     "Keep every noodle, piece of meat, vegetable and topping exactly as photographed — the same kind, "
     "count, thickness and arrangement; keep the noodles their exact original shape and thickness, and "
     "add nothing that is not already there. "
+    # GARNISH-TEX: 국물 요리의 고명(파·깻잎·부추)도 잎 질감 명시 — 총칭 'fresh and glossy' 는
+    #   잎을 플라스틱으로 렌더한다.
     "Retouch it like a professional food ad: brighten exposure, remove haze, broth rich and glossy, "
-    "meat and vegetables fresh and glossy, never dry, matte or claylike. Enhance only what is there, "
-    "same hues, never restyling. "
+    "meat glossy, leafy garnish veined and naturally curled, never dry, matte, waxy or claylike. "
+    "Enhance only what is there, same hues, never restyling. "
     "You MAY present it in a beautiful deep bowl or earthenware pot, but it stays a deep "
     "broth-holding bowl of the same shape — never a flat plate, cup, mug or takeaway container. It "
     "rests flat on the table under gravity with a single realistic contact shadow. "
@@ -1202,8 +1217,11 @@ _FOOD_NOODLE_LOCK = (
     "into a tower or ring, or rearranged. "
     "Keep every topping, sauce, meat, vegetable and garnish exactly as photographed, and add "
     "nothing that is not already there. "
+    # GARNISH-TEX(2026-07-27 아트디렉터 "재료들이 좀 더 사실적으로 — 루꼴라도, 치즈도"):
+    #   'toppings fresh' 같은 뭉뚱그린 어휘가 잎을 플라스틱, 갈은 치즈를 왁스 덩어리로 렌더.
+    #   재료별 실제 질감 명시(잎맥·컬·반투명 / 건조한 알갱이·불규칙 조각).
     "Retouch it like a professional food ad: brighten exposure, remove haze, sauce glossy and "
-    "creamy, noodles and toppings fresh, never dry, matte or claylike. Enhance only what is there, "
+    "creamy, " + _GARNISH_TEX + ". Enhance only what is there, "
     "same hues, never restyling. "
     "It stays served in the same kind of dish, resting flat on the table under gravity with a "
     "single realistic contact shadow. "
