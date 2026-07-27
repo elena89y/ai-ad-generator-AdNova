@@ -21,9 +21,20 @@ _FONT_DIR = Path(__file__).resolve().parents[2] / "assets" / "fonts"
 
 # 레지스트리 키 (schema typography.layers[].font_class 와 일치)
 TS1_BG_LETTERING = "ts1_bg_lettering"
+# TS-1_2 = TS-1과 동일한 배경 레터링 구조(투명 z-order·중앙 배치·배경적응 색)이되
+#   입력 상품명을 **언어 그대로** 렌더한다(한글→BlackHanSans, 영문→Anton). 음식·사물 전용.
+#   기존 TS-1(베이커리·음료=영문 subject_en)은 건드리지 않기 위한 별도 구조 (2026-07-26 지시).
+TS1_2_BG_LETTERING = "ts1_2_bg_lettering"
 TS2_EDITORIAL_SERIF = "ts2_editorial_serif"
 TS3_KOREAN_BLOCK = "ts3_korean_block"
 TS3B_PANEL = "ts3b_panel"
+# TS-DISH = 음식점 savory 접시 전용 캡션 밴드 조판. 배경 레터링(TS-1_2)이 접시 매몰·마스크
+#   의존·데드존으로 취약해, dish는 피사체와 겹치지 않는 고정 밴드로 간다 (2026-07-26 지시).
+TS_DISH_BAND = "ts_dish_band"
+
+# TS-1_2 배경 레터링 알파(0~255) — 불투명 솔리드가 아니라 배경에 스며드는 반투명.
+#   접시(마스크 밖)에 걸쳐도 하드 블록이 아닌 은은한 오버레이로 읽히게 한다 (2026-07-26 지시).
+_BG_LETTER_ALPHA = 150
 
 
 @dataclass(frozen=True)
@@ -33,6 +44,47 @@ class TypoPlan:
     style: str
     head: str
     sub: str
+
+
+@dataclass(frozen=True)
+class MoodTypo:
+    """무드별 타이포 파인튜닝 단위 (2026-07-26 지시: 무드별로 쪼개 앞으로 개별 설정).
+
+    **역할 분리**: 위치/레이아웃(밴드 상하·배경레터링 중앙 등)은 *도메인*이 정하고, 여기서는
+    무드 고유의 '타이포 표정' — 글씨체·자간 — 만 설정한다. 무드마다 이 한 줄만 바꾸면 튜닝 끝.
+    - head_ko/head_en : 대형 헤드라인(TS-1·TS-1_2·TS-DISH·TS-3·TS-3b) 한글/영문 폰트
+    - sig_en          : TS-2 우하단 시그니처 폰트(에디토리얼 세리프 자리)
+    - tracking        : 대형 헤드라인 추가 자간(비율)
+    """
+
+    head_ko: str = "BlackHanSans-Regular.ttf"
+    head_en: str = "Anton-Regular.ttf"
+    sig_en: str = "PlayfairDisplay.ttf"
+    tracking: float = 0.0
+
+
+_MOOD_TYPO_DEFAULT = MoodTypo()
+
+# 무드별 타이포 레지스트리 — 앞으로 각 무드 줄만 수정해 파인튜닝. 미등록/불명 무드는 기본값.
+_MOOD_TYPO: dict[str, MoodTypo] = {
+    # 에디토리얼 = 세련된 필기체 (2026-07-26 아트디렉터 확정):
+    #   영문 = Dancing Script(세련+가독+바운시), 한글 = Diphylleia(가늘고 섬세한 명조 흘림).
+    #   둘 다 OFL. Dancing Script는 라틴 전용이라 한글은 Diphylleia가 받는다.
+    "editorial": MoodTypo(head_ko="Diphylleia-Regular.ttf",
+                          head_en="DancingScript.ttf",
+                          sig_en="DancingScript.ttf"),
+    # 아래 5무드는 현재 기본(BlackHanSans/Anton/Playfair) — 추후 무드별 글씨체 지정 예정
+    "pop": MoodTypo(),
+    "monotone": MoodTypo(),
+    "pastel": MoodTypo(),
+    "realism": MoodTypo(),
+    "warm_organic": MoodTypo(),
+}
+
+
+def mood_typo(mood: str) -> MoodTypo:
+    """무드 키 → MoodTypo (불명/결측은 기본값). 대소문자 무시."""
+    return _MOOD_TYPO.get((mood or "").strip().lower(), _MOOD_TYPO_DEFAULT)
 
 
 def _font(name: str, size: int) -> ImageFont.FreeTypeFont:
@@ -120,11 +172,15 @@ def select_style(img: Image.Image, has_english: bool, domain: str = "food") -> s
     상단 1/3에 배경이 넉넉하면 TS-1(배경 레터링), 우하단 코너가 비면 TS-2(에디토리얼),
     그 외(탑뷰 풀플레이트 등)는 캔버스 확장 패널 TS-3b — 겹침 제로라 항상 안전.
 
-    사물(object)은 스튜디오 단품 구도라 배경 여백이 넉넉 → 무조건 TS-1 배경 레터링으로
-    통일한다(07-21 지시). 제품이 글자를 완전히 가리지 않고 살짝 걸쳐도 무방.
+    음식점 dish(domain=="food")는 배경 레터링이 접시 매몰·마스크 취약으로 부적합 → 전용
+    캡션 밴드 TS-DISH 로 간다. 사물(object)은 스튜디오 단품이라 배경 레터링 TS-1_2 유지.
+    (bakery/dessert/drink 는 _typography_domain 이 별도 값으로 빼 아래 geometry 분기를 탄다.)
+    2026-07-26 지시.
     """
-    if domain == "object":
-        return TS1_BG_LETTERING
+    if domain == "food":            # 음식점 savory 접시 → 견고 밴드
+        return TS_DISH_BAND
+    if domain == "object":          # 사물 → 배경 레터링(입력명 그대로)
+        return TS1_2_BG_LETTERING
     mask = _subject_mask(img)
     h, w = mask.shape
     top_bg = 1.0 - float(mask[: int(h * 0.32)].mean())
@@ -142,16 +198,17 @@ def select_style(img: Image.Image, has_english: bool, domain: str = "food") -> s
     return TS3B_PANEL
 
 
-def render_ts1(img: Image.Image, head_en: str) -> Image.Image:
+def render_ts1(img: Image.Image, head_en: str,
+               typo: MoodTypo = _MOOD_TYPO_DEFAULT) -> Image.Image:
     """TS-1 대형 배경 레터링 — 한 줄, 피사체가 글자를 가린다(z-order).
 
-    영문=Anton, 한글=BlackHanSans (사물 강제 분기 시 한글 상품명도 두부 없이 렌더).
+    글씨체는 무드 레지스트리(typo)에서 온다: 영문=typo.head_en, 한글=typo.head_ko.
     """
     im = img.convert("RGB")
     w, h = im.size
     layer = im.copy()
     d = ImageDraw.Draw(layer)
-    fname = "Anton-Regular.ttf" if head_en.isascii() else "BlackHanSans-Regular.ttf"
+    fname = typo.head_en if head_en.isascii() else typo.head_ko
     f = _fit_width(d, head_en, fname, w * 0.86)
     tw = d.textlength(head_en, font=f)
     bg = _bg_color(im)
@@ -164,13 +221,116 @@ def render_ts1(img: Image.Image, head_en: str) -> Image.Image:
     return layer
 
 
-def render_ts2(img: Image.Image, head_en: str, sub_kr: str) -> Image.Image:
-    """TS-2 에디토리얼 세리프 — Playfair 대문자(자간 9%) 우하단 + 나눔펜 필기 서브."""
+def render_ts1_2(img: Image.Image, head: str,
+                 typo: MoodTypo = _MOOD_TYPO_DEFAULT) -> Image.Image:
+    """TS-1_2 — TS-1과 **동일 구조**(투명 z-order 가림·중앙 배치·배경적응 크림/베이지색)를
+    쓰되, 입력 상품명을 언어 그대로 렌더한다(글씨체는 무드 typo: 한글 head_ko / 영문 head_en).
+
+    사물 전용(음식 dish는 TS-DISH 밴드로 분리됨). 기존 TS-1(음료·베이커리)은 손대지 않는다.
+
+    **탑뷰 적응 배치**(2026-07-26 지시, TS-3b 폴백 대신): 기본 위치(y≈0.30)를 피사체가
+    크게 가리면 레터링을 **배경이 열린 세로 위치로 이동**해 헤드라인이 묻히지 않게 한다.
+    """
+    im = img.convert("RGB")
+    w, h = im.size
+    layer = im.copy()
+    d = ImageDraw.Draw(layer)
+    fname = typo.head_en if head.isascii() else typo.head_ko
+    f = _fit_width(d, head, fname, w * 0.86)
+    bb = d.textbbox((0, 0), head, font=f)
+    tw = bb[2] - bb[0]
+    ink_top, ink_h = bb[1], max(1, bb[3] - bb[1])
+    bg = _bg_color(im)
+    # 스펙: 크림·아이보리·베이지 (순백 금지). 밝은 배경엔 소프트 베이지 딥톤.
+    fill = (196, 168, 138) if _is_light(bg) else (240, 233, 220)
+    mask = _subject_mask_precise(im)
+    x = (w - tw) / 2
+    x0, x1 = max(0, int(x)), min(w, int(x + tw))
+
+    def _place(center_frac: float) -> tuple[float, int]:
+        """잉크 세로 중심을 center_frac 에 두는 draw-top 과 그 위치의 배경 가시율."""
+        top = int(h * center_frac) - (ink_top + ink_h // 2)
+        top = max(0, min(h - ink_h - ink_top, top))
+        strip = mask[top + ink_top: top + ink_top + ink_h, x0:x1]
+        vis = 1.0 - float(strip.mean()) if strip.size else 1.0
+        return vis, top
+
+    vis_default, top_default = _place(0.30)
+    if vis_default >= 0.45:
+        draw_top = top_default          # 3/4뷰: 스펙 기본 위치(부분 가림이 오히려 자연)
+    else:
+        # 탑뷰: 배경이 가장 열린 위치로 이동, 근소차면 위쪽(헤드라인) 우선
+        cands = [0.30, 0.12, 0.16, 0.20, 0.24, 0.76, 0.82, 0.88]
+        scored = []
+        for fr in cands:
+            vis, top = _place(fr)
+            scored.append((round(vis, 2), -fr, top))
+        draw_top = max(scored)[2]
+    # 반투명 배경 레터링(알파 블렌드) — 불투명 솔리드가 아니라 배경에 스며든다.
+    #   접시(마스크 밖)에 걸쳐도 하드 블록이 아닌 은은한 오버레이로 읽힌다.
+    txt = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ImageDraw.Draw(txt).text((x, draw_top), head, font=f, fill=(*fill, _BG_LETTER_ALPHA))
+    out = Image.alpha_composite(im.convert("RGBA"), txt).convert("RGB")
+    # z-order: 피사체(음식)를 글자 위로 완전 복원
+    out.paste(im, (0, 0), Image.fromarray((mask * 255).astype(np.uint8)))
+    return out
+
+
+def render_ts_dish_band(img: Image.Image, head: str, sub: str,
+                        typo: MoodTypo = _MOOD_TYPO_DEFAULT) -> Image.Image:
+    """TS-DISH — 음식점 savory 접시 전용 캡션 밴드 (2026-07-26 지시, 배경 레터링 대체).
+
+    배경 레터링은 접시 탑뷰/오프센터에서 헤드라인이 매몰되고 마스크(음식만 누끼)에 의존해
+    취약하다. dish는 대신 **음식이 적은 쪽(상/하 자동 선택)** 에 소프트 그라데이션 스크림
+    밴드를 깔고 상품명 헤드라인을 얹는다 — 어떤 구도에서도 피사체와 안 겹치고 항상 읽힌다.
+
+    헤드라인은 **폭 92%를 채우고**(가로 필), 밴드 높이는 그 헤드라인에 맞춰 늘어난다
+    (짧은 이름이 세로로 길어 보이던 문제 해결, 2026-07-26 지시). 서브카피는 렌더하지 않는다.
+    """
+    im = img.convert("RGB")
+    w, h = im.size
+    # 음식이 적은 쪽에 밴드 배치(히어로를 안 가리게). 마스크 실패 시 하단 기본.
+    try:
+        mask = _subject_mask_precise(im)
+        at_top = float(mask[:int(h * 0.26)].mean()) <= float(mask[int(h * 0.74):].mean())
+    except Exception:
+        at_top = False
+    # 헤드라인을 폭 92%로 채운다(가로 필). 높이는 이미지 28%로 상한(짧은 이름 과대 방지).
+    #   글씨체는 무드 typo(한글 head_ko / 영문 head_en).
+    dish_font = typo.head_en if head.isascii() else typo.head_ko
+    d0 = ImageDraw.Draw(im)
+    f = _fit_width(d0, head, dish_font, w * 0.92, spacing=-0.02)
+    while f.size > 16:
+        bb = d0.textbbox((0, 0), head, font=f)
+        if bb[3] - bb[1] <= int(h * 0.28):
+            break
+        f = _font(dish_font, f.size - 6)
+    bb = d0.textbbox((0, 0), head, font=f)
+    tw, ih, itop = bb[2] - bb[0], bb[3] - bb[1], bb[1]
+    # 밴드 높이 = 헤드라인 + 상하 여백 (헤드라인에 맞춰 적응)
+    pad = int(ih * 0.44)
+    bh = ih + pad * 2
+    scr = np.zeros((bh, w, 4), np.uint8)
+    scr[..., :3] = (18, 16, 14)
+    ramp = np.linspace(0, 205, bh).astype(np.uint8)   # 밴드 안쪽 진함→이미지쪽 페이드
+    scr[..., 3] = (ramp[::-1] if at_top else ramp)[:, None]
+    out = im.convert("RGBA")
+    out.alpha_composite(Image.fromarray(scr, "RGBA"), (0, 0 if at_top else h - bh))
+    d = ImageDraw.Draw(out)
+    band_top = 0 if at_top else h - bh
+    _spaced_text(d, ((w - tw) / 2, band_top + pad - itop), head, f, (245, 240, 230), -0.02)
+    return out.convert("RGB")
+
+
+def render_ts2(img: Image.Image, head_en: str, sub_kr: str,
+               typo: MoodTypo = _MOOD_TYPO_DEFAULT) -> Image.Image:
+    """TS-2 에디토리얼 시그니처 — 우하단 대문자(자간 9%). 글씨체는 무드 typo.sig_en
+    (기본 Playfair 세리프, editorial 무드는 NanumPen 필기체)."""
     im = img.convert("RGB")
     d = ImageDraw.Draw(im)
     w, h = im.size
     ink = _ink_for(_bg_color(im))
-    f = _fit_width(d, head_en, "PlayfairDisplay.ttf", w * 0.30, spacing=0.09)
+    f = _fit_width(d, head_en, typo.sig_en, w * 0.30, spacing=0.09)
     tw = d.textlength(head_en, font=f) + 0.09 * f.size * (len(head_en) - 1)
     x, y = w - tw - int(w * 0.035), int(h * 0.905)
     _spaced_text(d, (x, y), head_en, f, ink, 0.09)
@@ -181,13 +341,14 @@ def render_ts2(img: Image.Image, head_en: str, sub_kr: str) -> Image.Image:
     return im
 
 
-def render_ts3(img: Image.Image, head_kr: str, sub_kr: str) -> Image.Image:
-    """TS-3 한글 블록 — BlackHanSans 초대형 상단 + 좌하단 룰·소카피."""
+def render_ts3(img: Image.Image, head_kr: str, sub_kr: str,
+               typo: MoodTypo = _MOOD_TYPO_DEFAULT) -> Image.Image:
+    """TS-3 한글 블록 — 초대형 상단(글씨체 무드 typo.head_ko) + 좌하단 룰·소카피."""
     im = img.convert("RGB")
     d = ImageDraw.Draw(im)
     w, h = im.size
     ink = _ink_for(_bg_color(im))
-    f = _fit_width(d, head_kr, "BlackHanSans-Regular.ttf", w * 0.90, spacing=-0.02)
+    f = _fit_width(d, head_kr, typo.head_ko, w * 0.90, spacing=-0.02)
     _spaced_text(d, (int(w * 0.05), int(h * 0.012)), head_kr, f, ink, -0.02)
     if sub_kr:
         sf = _font("Pretendard-Medium.otf", int(h * 0.028))
@@ -198,15 +359,16 @@ def render_ts3(img: Image.Image, head_kr: str, sub_kr: str) -> Image.Image:
     return im
 
 
-def render_ts3b(img: Image.Image, head_kr: str, sub_kr: str) -> Image.Image:
-    """TS-3b 패널 확장 — 캔버스를 위로 늘려 단색 패널에 블록 타이포 (겹침 제로, 4:5 지향)."""
+def render_ts3b(img: Image.Image, head_kr: str, sub_kr: str,
+                typo: MoodTypo = _MOOD_TYPO_DEFAULT) -> Image.Image:
+    """TS-3b 패널 확장 — 캔버스를 위로 늘려 단색 패널에 블록 타이포 (글씨체 무드 typo.head_ko)."""
     im = img.convert("RGB")
     w, h = im.size
     bg = _bg_color(im)
     ink = _ink_for(bg)
     # 패널 높이는 내용(헤드+서브) 실측으로 계산 — 고정 비율은 서브가 밀려나옴 (07-21 실측)
     probe = ImageDraw.Draw(im)
-    f = _fit_width(probe, head_kr, "BlackHanSans-Regular.ttf", w * 0.88, spacing=-0.02)
+    f = _fit_width(probe, head_kr, typo.head_ko, w * 0.88, spacing=-0.02)
     sub_h = int(f.size * 0.62) if sub_kr else 0
     panel_h = int(f.size * 0.34 + f.size * 1.22 + sub_h + f.size * 0.30)
     canvas = Image.new("RGB", (w, h + panel_h), bg)
@@ -230,46 +392,66 @@ def render_ts3b(img: Image.Image, head_kr: str, sub_kr: str) -> Image.Image:
 
 def plan_typography(img: Image.Image, product_name: str, copy_headline: str,
                     subject_en: str, domain: str = "food") -> TypoPlan:
-    """텍스트 소스 결정 + 스타일 분기. 영문 라벨이 없으면 한글 계열만 사용."""
+    """텍스트 소스·스타일 분기 — 도메인별 (2026-07-26 아트디렉터 지시).
+
+    **서브카피는 넣지 않는다 — 오직 상품명(헤드라인)만** ('한 그릇의 깊은 품격' 류 카피 제거 지시).
+    - **음식점 dish(food)**: 입력 상품명(언어 그대로) → 캡션 밴드 TS-DISH.
+    - **사물(object)**: 입력 상품명(언어 그대로) → 배경 레터링 TS-1_2.
+    - **음료/베이커리(원래대로)**: 영문 라벨(subject_en) 헤드라인 + 기존 geometry 분기.
+    """
+    if domain in ("food", "object"):
+        # 입력명 그대로. subject_en(영문 번역) 치환 없음. 없을 때만 라벨→카피 폴백.
+        head = (product_name or "").strip() or (subject_en or "").strip() \
+            or (copy_headline or "").strip()
+        style = select_style(img, has_english=head.isascii(), domain=domain)
+        if head.isascii():          # 영문 입력명만 올캡스(배경 레터링 스펙), 한글은 그대로
+            head = head.upper()
+        return TypoPlan(style=style, head=head, sub="")
+
+    # ---- 원래대로 (음료/베이커리): 영문 라벨 헤드라인 + geometry 분기 ----
     head_en = (subject_en or "").strip().upper()
-    # CLIP 함정과 동일 원칙 — 배경 레터링은 짧아야 산다 (스펙: 한 줄, 올캡스)
     has_english = 0 < len(head_en) <= 18
     style = select_style(img, has_english, domain)
-    head_kr = (product_name or copy_headline or "").strip()
-    sub_kr = (copy_headline or "").strip()
-    if sub_kr == head_kr:
-        sub_kr = ""
+    head_kr = (product_name or "").strip() or (copy_headline or "").strip()
     if style == TS2_EDITORIAL_SERIF:
-        return TypoPlan(style=style, head=head_en, sub=sub_kr)
-    if style == TS1_BG_LETTERING:
-        # 사물 강제 분기 등으로 영문 라벨이 없으면 한글 상품명으로 배경 레터링
-        return TypoPlan(style=style, head=head_en if has_english else head_kr, sub=sub_kr)
-    return TypoPlan(style=style, head=head_kr, sub=sub_kr)
+        return TypoPlan(style=style, head=head_en, sub="")
+    # 베이커리·음료는 **영문으로 통일**(2026-07-27: 홀초코케이크 pop이 TS-3b로 새 한글로
+    #   나오던 영/한 혼재 제거). 영문 라벨이 있으면 geometry가 한글 블록(TS-3/3b)을 골라도
+    #   TS-1 영문 배경 레터링으로 강제한다. 라벨이 없을 때만 한글 폴백.
+    if has_english:
+        return TypoPlan(style=TS1_BG_LETTERING, head=head_en, sub="")
+    return TypoPlan(style=style, head=head_kr, sub="")
 
 
 def render_typography(image_path: str, out_path: str, product_name: str,
                       copy_headline: str, subject_en: str = "",
-                      domain: str = "food") -> str:
+                      domain: str = "food", mood: str = "") -> str:
     """조판기 v0 진입점 — 스타일 자동 분기 후 렌더, 실패 시 TS-3b 폴백.
 
+    레이아웃/위치는 도메인이(plan_typography), 글씨체는 무드가(mood_typo) 정한다.
     반환: 사용한 스타일 키 (로그·실험 기록용).
     """
     img = Image.open(image_path)
     plan = plan_typography(img, product_name, copy_headline, subject_en, domain)
+    typo = mood_typo(mood)          # 무드별 글씨체 파인튜닝 레지스트리
     try:
         if plan.style == TS1_BG_LETTERING:
-            out = render_ts1(img, plan.head)
+            out = render_ts1(img, plan.head, typo)
+        elif plan.style == TS1_2_BG_LETTERING:
+            out = render_ts1_2(img, plan.head, typo)
+        elif plan.style == TS_DISH_BAND:
+            out = render_ts_dish_band(img, plan.head, plan.sub, typo)
         elif plan.style == TS2_EDITORIAL_SERIF:
-            out = render_ts2(img, plan.head, plan.sub)
+            out = render_ts2(img, plan.head, plan.sub, typo)
         elif plan.style == TS3_KOREAN_BLOCK:
-            out = render_ts3(img, plan.head, plan.sub)
+            out = render_ts3(img, plan.head, plan.sub, typo)
         else:
-            out = render_ts3b(img, plan.head, plan.sub)
+            out = render_ts3b(img, plan.head, plan.sub, typo)
         used = plan.style
     except Exception:
         # 어떤 입력에서도 죽지 않는다 — 패널은 소스와 무관하게 항상 성립
         out = render_ts3b(img, (product_name or copy_headline or "").strip() or " ",
-                          "")
+                          "", typo)
         used = TS3B_PANEL
     out.save(out_path)
     return used

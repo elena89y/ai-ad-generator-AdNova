@@ -151,7 +151,8 @@ def test_variant_result_selects_without_gpu_regeneration(tmp_path, enabled) -> N
     )
     # 2026-07-21 판정: ON 변형은 타이포 시스템 v0 레지스트리로 조판된다
     assert result.layout_key in {
-        "ts1_bg_lettering", "ts2_editorial_serif", "ts3_korean_block", "ts3b_panel",
+        "ts1_bg_lettering", "ts1_2_bg_lettering", "ts_dish_band",
+        "ts2_editorial_serif", "ts3_korean_block", "ts3b_panel",
     }
     on = Image.open(result.with_typography_path)
     assert on.size[0] == 640  # TS-3b 는 패널 확장으로 세로가 늘 수 있다

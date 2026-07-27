@@ -11,6 +11,8 @@
 | MaruBuri | `MaruBuri-{Regular,Bold}.ttf` | https://hangeul.naver.com/font/maruburi |
 | Space Grotesk | `SpaceGrotesk-Medium.ttf` | https://github.com/floriankarsten/space-grotesk |
 | Anton | `Anton-Regular.ttf` | https://github.com/google/fonts/tree/main/ofl/anton |
+| Dancing Script | `DancingScript.ttf` | https://github.com/google/fonts/tree/main/ofl/dancingscript |
+| Diphylleia | `Diphylleia-Regular.ttf` | https://github.com/google/fonts/tree/main/ofl/diphylleia |
 
 ## Copyright Notices
 
@@ -22,6 +24,10 @@
   `MaruBuri`.
 - Space Grotesk: Copyright 2020 The Space Grotesk Project Authors.
 - Anton: Copyright 2020 The Anton Project Authors.
+- Dancing Script: Copyright 2010 The Dancing Script Project Authors
+  (Pablo Impallari); editorial 무드 영문 필기체 헤드라인.
+- Diphylleia: Copyright The Diphylleia Project Authors
+  (editorial 무드 한글 헤드라인).
 
 기존 번들 폰트(BlackHanSans, GowunBatang, Nanum 계열 등)는 기존 라이선스와
 배포 출처를 그대로 유지한다.
