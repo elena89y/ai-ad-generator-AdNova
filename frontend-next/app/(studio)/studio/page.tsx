@@ -728,9 +728,21 @@ export default function StudioPage() {
                       </span>
                     )
                   )}
+                  {/* '이미지만' = 글자 빼기 모드 칩 (스타일 칩과 성격이 달라 라벨을 명확히). */}
+                  <span
+                    className="chip-tip"
+                    onClick={() =>
+                      setStyleText((t) => (t.trim() ? `${t.trim()}, 이미지만` : "이미지만"))
+                    }
+                  >
+                    + 이미지만 (글자 없이)
+                  </span>
                 </div>
                 <p className="hint" style={{ marginTop: 8 }}>
                   같은 음식을 더 맛있고 고급스럽게 연출해 드려요. 양과 재료는 사실 그대로 유지합니다.
+                  <br />
+                  헤드라인 글자까지 이미지에 함께 만들어 드려요. 글자 없이 이미지만 원하시면 “이미지만”이라고
+                  적어 주세요.
                 </p>
               </div>
             )}
