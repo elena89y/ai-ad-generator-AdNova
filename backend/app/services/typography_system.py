@@ -284,8 +284,9 @@ def render_ts_dish_band(img: Image.Image, head: str, sub: str,
     취약하다. dish는 대신 **음식이 적은 쪽(상/하 자동 선택)** 에 소프트 그라데이션 스크림
     밴드를 깔고 상품명 헤드라인을 얹는다 — 어떤 구도에서도 피사체와 안 겹치고 항상 읽힌다.
 
-    헤드라인은 **폭 92%를 채우고**(가로 필), 밴드 높이는 그 헤드라인에 맞춰 늘어난다
-    (짧은 이름이 세로로 길어 보이던 문제 해결, 2026-07-26 지시). 서브카피는 렌더하지 않는다.
+    헤드라인은 **폭 72%(크기 M)**로 채우고, 밴드 높이는 그 헤드라인에 맞춰 늘어난다
+    (짧은 이름 세로 길어짐 해결 07-26 → 07-27 "음식이 돋보이게" 판정으로 92%→72% 축소).
+    서브카피는 렌더하지 않는다.
     """
     im = img.convert("RGB")
     w, h = im.size
@@ -295,14 +296,16 @@ def render_ts_dish_band(img: Image.Image, head: str, sub: str,
         at_top = float(mask[:int(h * 0.26)].mean()) <= float(mask[int(h * 0.74):].mean())
     except Exception:
         at_top = False
-    # 헤드라인을 폭 92%로 채운다(가로 필). 높이는 이미지 28%로 상한(짧은 이름 과대 방지).
+    # 헤드라인 크기 M: 폭 72% + 높이 18% 상한(짧은 이름 과대 방지).
     #   글씨체는 무드 typo(한글 head_ko / 영문 head_en).
     dish_font = typo.head_en if head.isascii() else typo.head_ko
     d0 = ImageDraw.Draw(im)
-    f = _fit_width(d0, head, dish_font, w * 0.92, spacing=-0.02)
+    # 크기 M(2026-07-27 아트디렉터 확정): 폭 72%·높이 18% — 음식이 주인공, 헤드라인은 캡션.
+    #   (구 92%/28%는 헤드라인이 화면을 지배 — "글자 너무 크다, 음식이 돋보이게" 판정)
+    f = _fit_width(d0, head, dish_font, w * 0.72, spacing=-0.02)
     while f.size > 16:
         bb = d0.textbbox((0, 0), head, font=f)
-        if bb[3] - bb[1] <= int(h * 0.28):
+        if bb[3] - bb[1] <= int(h * 0.18):
             break
         f = _font(dish_font, f.size - 6)
     bb = d0.textbbox((0, 0), head, font=f)

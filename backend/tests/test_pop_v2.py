@@ -104,7 +104,7 @@ def test_props_clause_named_shapes():
     assert "yellow parmesan cubes" in carbonara
     cake = _props_clause(["strawberry", "cream", "sponge"])
     assert "fresh whole strawberry" in cake and "freeze-dried strawberry chips" in cake
-    assert "clearly shaped glossy props" in _props_clause(None)  # 폴백
+    assert "never clay-like or dough-like" in _props_clause(None)  # 반-찰흙 폴백(2026-07-27)
 
 
 def test_props_placeholder_filled_and_anti_lump():
@@ -271,3 +271,37 @@ def test_style_v3_no_palette_pollution():
         instr = _instr(style=style, subject="chocolate cream cake", scene_seed=0,
                        serving_type="dessert", core_ingredients=["chocolate", "cream"])
         assert "{palette}" not in instr and " None " not in instr
+
+
+# --- BAKERY-SPLIT + FOOD-FIDELITY (2026-07-27, 치아바타 케이크화·김밥 속재료 사고) ----
+
+def test_savory_bakery_never_idealized():
+    """짠 빵(치아바타)은 스타일 불문 디저트 이상화 금지 + savory 본체 충실 절."""
+    for style in ("pop", "editorial", "monotone", "pastel", "warm_organic"):
+        for s in range(8):
+            instr = _instr(style=style, subject="ciabatta bread with marinated tomatoes",
+                           scene_seed=s, serving_type="bakery")
+            assert "Idealize this dessert" not in instr, (style, s)
+            assert "cut surface stays" in instr, (style, s)
+
+
+def test_sweet_bakery_keeps_idealize():
+    """단 빵(크루아상·단팥빵)은 기존 이상화 유지."""
+    for subj in ("butter croissant", "butter red bean bread"):
+        instr = _instr(subject=subj, scene_seed=0, serving_type="bakery")
+        assert "Idealize this dessert" in instr
+
+
+def test_dish_gets_fidelity_not_dessert_texture():
+    """dish 는 본체 충실 절 + 없던 소스 금지, 디저트 질감 어휘(스펀지·크림)는 맞교환 제거."""
+    instr = _instr(subject="grilled beef", scene_seed=0, serving_type="dish")
+    assert "cut surface stays" in instr and "add no sauce or topping" in instr
+    assert "sponge moist" not in instr          # T5 맞교환: 디저트 질감 어휘 제거
+    assert "Retouch it like a professional food ad" in instr  # 리터치 자체는 유지
+
+
+def test_dessert_unaffected_by_fidelity():
+    """디저트는 기존 이상화 경로 그대로 — fidelity 절 미적용."""
+    instr = _instr(scene_seed=0, serving_type="dessert")
+    assert "Idealize this dessert" in instr
+    assert "cut surface stays" not in instr

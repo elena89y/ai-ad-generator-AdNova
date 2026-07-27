@@ -416,8 +416,21 @@ _IDENTITY_LOCKS = {
     "object": (
         "Edit this exact product photograph. Preserve the product exactly as photographed: identical silhouette, "
         "proportions, material, surface details, seams, controls, label, logo, lettering, camera angle, crop and "
-        "perspective. Do not redraw, reshape, smooth, duplicate, rotate, recolor or cover the product. Change only "
-        "the background, supporting surface and environmental lighting. "
+        "perspective — the same real-world object from the same viewpoint, never reshaped, restyled or redesigned. "
+        "Do not redraw, reshape, smooth, duplicate, rotate, recolor or cover the product. "
+        # NO-INVENTED-PARTS(2026-07-27 아트디렉터: 매직마우스=휠 없는 매끈한 제품인데 생성이
+        #   휠·버튼을 발명 — SKU 위조): 원본에 없는 부품·디테일 추가 금지(긍정 단언 선행).
+        "The product has exactly the parts and details visible in the photo and no others — do not add or invent "
+        "any button, wheel, seam, port, texture or marking that is not in the original. "
+        # POP-SHAPE(2026-07-27: pop 추상 색블록 씬에서 실루엣이 매끈한 조약돌 블롭으로 용해):
+        #   스타일라이즈드 씬에서도 실루엣 불변을 명시.
+        "Even in a stylized, abstract or color-block scene the product keeps its exact photographed silhouette "
+        "and proportions — never simplified, melted, inflated or turned into a smooth featureless blob. "
+        # NEW-PRODUCT(2026-07-27 아트디렉터: 형태는 실물처럼 보존하되 '새 상품'처럼 보이게):
+        #   형태·디자인·로고는 완전 불변, 표면만 공장 출고 신품처럼 이상화(흠집·먼지·지문·마모 제거).
+        "Render it as a brand-new, pristine retail product: a clean, flawless, factory-fresh surface with no "
+        "scratches, scuffs, dust, fingerprints, smudges or visible wear — while keeping the exact same shape, "
+        "design and markings. Change only the background, supporting surface and environmental lighting. "
     ),
 }
 
@@ -466,6 +479,18 @@ _RETOUCH_RESTRAINED = (
     + _RETOUCH_TEX_SWEET +
     ". Enhance only what is there, same hues, never restyling. Remove any "
     "screenshot UI, icons or watermarks. "
+)
+# FOOD-FIDELITY(2026-07-27, T5 맞교환): savory 는 리터치 절의 디저트 질감 어휘(스펀지·크림·
+#   과일)를 빼고 그 예산으로 본체 충실 절을 넣는다 — append 금지 원칙(초과분은 뒤 씬부터 잘림).
+_RETOUCH_SAVORY = (
+    "Retouch it like a professional food ad: brighten exposure, remove haze, sauces glossy, "
+    "never dry, matte or plastic. Enhance only what is there, same hues, never restyling. "
+    "Remove any screenshot UI, icons or watermarks. "
+)
+_FOOD_FIDELITY = (
+    "Every ingredient, filling and cut surface stays exactly as photographed, never redrawn or "
+    "substituted; add no sauce or topping not in the original; never turn it into a cake or a "
+    "different dish. "
 )
 _FOOD_POP_TAIL = (
     "You MAY replace the plain plate with a beautiful dessert plate and add tasteful garnish using "
@@ -778,6 +803,26 @@ _PROP_SHAPES = (
     # egg 는 소품 부적합(2026-07-24 아트디렉터): 크림소스에 녹는 재료를 반숙/후라이 형태로
     #   올리는 연출은 그 요리의 실제 서빙과 다름 — 소품 후보에서 제외.
     (("herb", "basil", "arugula", "rocket", "parsley", "mint"), "fresh {name} leaves"),
+    # savory 한식·짠맛 가니시(2026-07-27 아트디렉터: 곱도리탕 등 savory가 디저트 표에 매칭 안 돼
+    #   막연 폴백→Kontext 찰흙 덩어리. 그릴 수 있는 구체 형태의 savory 소품 추가).
+    #   한식 메인 재료(고기·김치·곱창)를 상위 우선 — 탕/찌개류가 제대로 매칭되게.
+    (("kimchi",), "a small mound of vivid red {name}"),
+    (("beef", "pork", "chicken", "duck", "brisket", "meat"),
+     "a few glossy braised {name} pieces"),
+    (("tripe", "gopchang", "intestine", "offal"), "a few glossy cooked {name} pieces"),
+    (("scallion", "green onion", "spring onion", "leek", "chive"),
+     "a few crisp fresh {name} sprigs"),
+    (("chili", "gochu", "red pepper", "jalapeno", "cheongyang"),
+     "a couple of glossy fresh {name}"),
+    (("garlic",), "a few peeled ivory {name} cloves"),
+    (("mushroom", "enoki", "shiitake", "oyster mushroom"),
+     "a small fresh cluster of {name}"),
+    (("tofu",), "a few clean white {name} cubes"),
+    (("rice cake", "tteok", "tteokbokki", "garae", "gnocchi"),
+     "a few glossy cylindrical {name} pieces"),
+    (("sesame",), "a light scatter of toasted {name} seeds"),
+    (("shrimp", "prawn", "clam", "mussel", "scallop", "seafood"),
+     "a couple of fresh {name}"),
 )
 
 
@@ -786,6 +831,28 @@ _PROP_SHAPES = (
 _NOODLE_HINTS = ("noodle", "pasta", "ramen", "udon", "soba", "spaghetti", "linguine",
                  "penne", "fettuccine", "carbonara", "naengmyeon", "japchae", "pho",
                  "lo mein", "chow mein")
+
+# ※ 구 SOUP-GUARD 어휘(_SOUP_HINTS/_is_soup_subject)는 develop 의 SOUP-PRESERVE(_is_soup_dish,
+#   국물 요리를 styled 경로에서 제외해 in-place 보존)와 중복이라 머지에서 제거했다. 같은 이름의
+#   _SOUP_HINTS 가 아래에 다시 정의되어 조용히 덮어쓰는 상태였음 — 국물 판정은 SOUP-PRESERVE 단일 소유.
+
+# 단맛 베이커리 어휘(BAKERY-SPLIT, 2026-07-27): serving_type=bakery 는 짠 빵(치아바타·샌드위치)과
+#   단 빵(크루아상·단팥빵)이 섞여 있다. dessert 이상화("Idealize this dessert")를 짠 빵에 적용하면
+#   Kontext가 빵+토마토를 케이크로 재구성(치아바타 pop 실측 사고) → 이상화는 sweet 힌트가 있는
+#   bakery 에만. 미매칭 bakery 는 안전측(절제형 리터치) — 정직성 리스크 없음.
+_SWEET_BAKERY_HINTS = ("croissant", "scone", "muffin", "pastry", "tart", "pie", "donut",
+                       "doughnut", "cake", "macaron", "waffle", "pancake", "brioche",
+                       "red bean", "cream bread", "cookie", "brownie", "castella", "roll")
+
+
+def _is_dessert_like(serving_type: str | None, subject_en: str) -> bool:
+    """dessert 이상화·디저트 락 적용 대상 판정 — dessert 전부 + sweet bakery 만."""
+    if serving_type == "dessert":
+        return True
+    if serving_type == "bakery":
+        low = (subject_en or "").lower()
+        return any(h in low for h in _SWEET_BAKERY_HINTS)
+    return False
 
 
 def _props_clause(core_ingredients: list[str] | None) -> str:
@@ -806,10 +873,11 @@ def _props_clause(core_ingredients: list[str] | None) -> str:
         if len(items) >= 2:
             break
     if not items and names:
-        items.append(f"small fresh {names[0]} pieces")
+        # (a) savory 미등록 재료: 구체 명사 + 반-찰흙 앵커(간결 — T5 예산). {props}가 문장 중간에
+        #   박혀 literal omit은 문장을 깨므로, 최소·사실 소품으로 대체하고 찰흙/반죽을 부정한다.
+        items.append(f"a few small glossy fresh {names[0]} pieces, never clay-like or dough-like")
     if not items:
-        return ("a few clearly shaped glossy props matching the food's own visible "
-                "ingredients")
+        return "a few small glossy fresh garnish pieces, never clay-like or dough-like"
     return " and ".join(items)
 
 
@@ -1136,8 +1204,10 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         #   substring 오탐("rice cake soup"→디저트 락, "bread" 베이커리 누락) 차단 +
         #   재플레이팅 부적합(_replate_unsafe: 세트/박스·무Vision 유리용기·홀케이크) 가드.
         #   None(구캐시·SERVING_TYPE_ROUTING=0)이면 레거시 substring — 바이트 동일.
+        # BAKERY-SPLIT(2026-07-27): bakery 는 sweet 힌트가 있을 때만 디저트 취급 —
+        #   짠 빵(치아바타+토마토)이 디저트 락으로 케이크화되는 사고 차단.
         if serving_type is not None:
-            dessert = (serving_type in ("dessert", "bakery")
+            dessert = (_is_dessert_like(serving_type, subject)
                        and not _replate_unsafe(subject, container_desc))
         else:
             dessert = _is_dessert_subject(subject)
@@ -1169,6 +1239,8 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
     styled_v2 = (plan.domain == "food" and plan.style_key in _STYLE_FOOD_VARIANTS
                  and not is_vessel and not is_soup and not is_realism_food
                  and not _replate_unsafe(subject, container_desc))
+    # ※ 구 SOUP-GUARD 의 is_soup 재계산 라인은 제거(머지 정합) — develop 의 SOUP-PRESERVE 가
+    #   위에서 이미 container_desc 까지 반영해 판정한 값을 덮어쓰고 있었다.
     if styled_v2:
         variants = _STYLE_FOOD_VARIANTS[plan.style_key]
         is_noodle = any(h in subject.lower() for h in _NOODLE_HINTS)
@@ -1180,6 +1252,13 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
             safe = _NOODLE_SAFE_IDX.get(plan.style_key)
             if safe:
                 variants = tuple(variants[i] for i in safe)
+        # SOUP-GUARD 변형 필터(2026-07-27): 국물요리는 기립 연출 변형(footed dessert stand,
+        #   pop③)이 국물을 몰드 탑으로 재조형 → 스탠드 변형 제외(전멸 시 원본 유지).
+        #   ⚠️ noodle 서브셋(원본 인덱스) **뒤에** 적용 — 순서 바꾸면 IndexError.
+        if is_soup:
+            no_stand = tuple(v for v in variants if "dessert stand" not in v)
+            if no_stand:
+                variants = no_stand
         idx = int(hashlib.sha256(f"{subject}:{scene_seed}".encode("utf-8"))
                   .hexdigest()[:8], 16) % len(variants)
         direction = variants[idx]
@@ -1187,8 +1266,17 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         #   tpl_47급 이상화로 맞교환(같은 제품 인식 + 무발명 경계) — append가 아닌 교체
         #   (T5 512토큰 예산: 초과 시 뒤쪽 씬 지시가 잘려 팔레트·소품 소실, GPU 실측 3/3).
         #   짭짤한 음식·serving_type 미상(구캐시)은 절제형 유지(재드로잉 리스크).
-        if serving_type in ("dessert", "bakery"):
+        # BAKERY-SPLIT(2026-07-27): 이상화는 dessert + sweet bakery 만 — 짠 빵(치아바타)이
+        #   "Idealize this dessert"로 케이크 재구성되는 사고(pop 실측) 차단.
+        if _is_dessert_like(serving_type, subject):
             identity_lock = _FOOD_POP_HEAD + _DESSERT_IDEALIZE + _FOOD_POP_TAIL
+        elif serving_type in ("dish", "bakery"):
+            # FOOD-FIDELITY(2026-07-27 아트디렉터 "음식은 리얼리즘 기준 — 김밥 속재료가
+            #   무드마다 달라짐"): savory 본체 충실 — 속재료·단면 원본 고정 + 없던 소스/드리즐
+            #   금지(버터감자 초코 사고) + 타 요리/디저트 전환 금지. 리터치 절의 디저트 질감
+            #   어휘와 맞교환(T5 예산). 연출(케이크스탠드)은 유지 — 판정 "괜찮아, 예뻐".
+            identity_lock = (_FOOD_POP_HEAD + _RETOUCH_SAVORY + _FOOD_POP_TAIL
+                             + _FOOD_FIDELITY)
         else:
             identity_lock = _IDENTITY_LOCKS["food_pop"]
         # NOODLE-GUARD 레이어2: 면 전용 보강절(긍정 단언). ⚠️ 'egg' 같은 명사는 부정문에
@@ -1201,6 +1289,9 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
             )
     # REALISM-FIDELITY 락 적용 + 짭짤 텍스처 스왑. 고기 있으면 marbling 어휘(_RETOUCH_TEX_SAVORY),
     #   없으면 고기 소환 방지 변주(_RETOUCH_TEX_SAVORY_PLAIN)로 등길이 맞교환.
+    # ※ 머지 정합(2026-07-27): 구 SOUP-GUARD 레이어2(styled 안에서 국물 보울 단언·dessert plate
+    #   치환)는 develop 의 SOUP-PRESERVE 가 국물 요리를 styled 경로에서 통째로 제외(in-place 보존)
+    #   하면서 도달 불가 코드가 되어 제거했다. 국물 보존 계약은 SOUP-PRESERVE 가 단일 소유.
     if is_realism_food:
         identity_lock = _IDENTITY_LOCKS["food_realism"]
         _savory = (_RETOUCH_TEX_SAVORY if _has_meat(subject, core_ingredients)
@@ -1236,8 +1327,13 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         # POP-V2.1: 소품은 core_ingredients 기반 구체명 — 추상 지시는 덩어리 렌더(라이브 실측)
         fmt_args["props"] = _props_clause(core_ingredients)
     if "{plate}" in direction:
-        # STYLE-V3.1: 접시는 레지스트리에서 시드로 모양 선택(하드코딩 반대) + 스타일 마감
-        fmt_args["plate"] = _plate_clause(plan.style_key, subject, scene_seed)
+        # STYLE-V3.1: 접시는 레지스트리에서 시드로 모양 선택(하드코딩 반대) + 스타일 마감.
+        # SOUP-GUARD: 국물요리는 접시 레지스트리 대신 깊은 보울 고정(국물 유지).
+        if is_soup:
+            fmt_args["plate"] = ("a deep glazed ceramic bowl that keeps its liquid broth "
+                                 "clearly visible")
+        else:
+            fmt_args["plate"] = _plate_clause(plan.style_key, subject, scene_seed)
     if "{vintageprops}" in direction:
         # STYLE-V3.5: warm 빈티지 소품 레지스트리에서 시드로 2종 로테이션(다양화)
         fmt_args["vintageprops"] = _vintage_props_clause(subject, scene_seed)
