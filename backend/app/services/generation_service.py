@@ -775,7 +775,7 @@ def _process_ad_impl(
     # SRV-ROUTE-001 phase2: 응답 노출 캐리어 초기값 — style 분기 밖(router 경로)에서도
     #   ProcessedAd 생성 시 참조되므로 상단 초기화 필수(NameError 방지, 적대검증 지적).
     serving_type: Optional[str] = None
-    _typo_baked = False  # 직접입력 gpt-image 경로가 한글 타이포를 이미지에 직접 구우면 True
+    _skip_poster = False  # 직접입력(자유서술)=무타이포: 깨끗한 연출 씬만, PIL 조판 스킵
     copy = None
 
     # 스타일 지정 시: style_gen 씬 생성(정체성 보존 편집), 아니면 기존 이름기반 라우팅
@@ -798,6 +798,11 @@ def _process_ad_impl(
                                              serving_type=serving_type)
         # 자유서술 무드(직접 입력 탭) → 영문 연출 절 1회 번역(함정#1). 없으면 "" (기존 동작 그대로).
         extra_style_en = gpt_service.translate_style_note(style_text) if style_text else ""
+        # 직접입력=무타이포(사용자 결정 07-27): gpt-image가 굽는 한글 헤드라인(깨짐)과 나중에 붙는
+        #   PIL 조판이 겹쳐 이중 텍스트가 됨 → 두 소스 다 끈다(헤드라인 미주입 + 포스터 스킵).
+        #   카피는 tail에서 SNS 캡션용으로만 생성(이미지엔 안 실음). 프리셋(무드)은 종전대로 조판.
+        if extra_style_en:
+            _skip_poster = True
         # 포맷 자동감지(STYLE_SYSTEM v2): style 은 '무드', 포맷은 콘텐츠로 결정.
         #   STY-003~005 이후 사물도 선택 무드를 적용하되, StylePlan이 상품은 고정하고 배경·조명만 바꾼다.
         #   여름음료 pop_split·케이크 cross_section 은 특수 조판/게이트 필요 → 당분간 명시 호출 유지.
@@ -811,31 +816,21 @@ def _process_ad_impl(
         #   CUSTOM_STYLE_ENGINE=local 로 강제 로컬 가능.
         if extra_style_en and os.environ.get("CUSTOM_STYLE_ENGINE", "api") != "local":
             from . import api_image_service
+            # 직접입력 → gpt-image-2 edit. 무타이포: 연출 씬만 만들고 헤드라인은 굽지 않는다
+            #   (headline 미전달 → 지시문에 "Do not add any text" → gpt의 이중 환각 방지).
+            #   카피는 tail에서 SNS 캡션용으로 생성. 예산초과/실패 시 로컬 style_gen swap 폴백.
             try:
-                # 타이포도 gpt가 굽는다: 카피를 먼저(원본 사진 기반) 만들어 edit 지시문에 실어
-                #   씬 restyle + 한글 헤드라인을 한 번의 gpt-image edit로. PIL 포스터는 스킵(tail).
-                #   quality=medium — 텍스트 가독(실측). ⚠️ 정보텍스트(브리프 일시·장소)는 baked 금지,
-                #   여긴 광고 헤드라인이라 허용.
-                with _stage(run, "copy"):
-                    copy = _generate_copy(image_path, ProductInfo(name=name),
-                                          StylePreset.EDITORIAL, use_vision)
-                head, _, sub = copy.copy_text.partition("\n")
-                head, sub = head.strip() or name, sub.strip()
-                if any(k in head for k in ("제공되지 않", "이미지 정보", "이미지 설명", "알 수 없")):
-                    head, sub = name, ""  # 캡션 실패 폴백(콜드런 가드 계승)
                 instr = api_image_service.build_style_edit_instruction(
-                    subject_en, extra_style_en, style_domain, headline=head, subcopy=sub)
+                    subject_en, extra_style_en, style_domain)
                 with _stage(run, "generate"):
                     final = api_image_service.edit_image(
                         image_path, instr, out_dir=output_dir, quality="medium", run=run)
                 engine = "api:edit:custom"
                 selected_seed = seed if seed is not None else 0
-                _typo_baked = True
             except Exception as e:  # noqa: BLE001 — 예산초과(ApiBudgetExceeded)/API 실패 → 로컬 폴백
                 logging.getLogger(__name__).info(
                     "직접입력 gpt-image edit 실패 → 로컬 style_gen 폴백: %s", e)
                 final = None
-                copy = None
 
         # 합성 경로(P4D, 결정 D-11): SCENE_COMPOSE=1 + object/drink + Vision 적합성일 때만 시도.
         #   실패(sc["ok"]=False)하면 아무 것도 건드리지 않고 기존 Kontext 경로로 자연 폴백한다.
@@ -950,13 +945,16 @@ def _process_ad_impl(
             serving_type = getattr(analysis, "serving_type", None)
 
     # 문구 (FR-09) — 상품명 + 리터치 이미지 기반. 톤은 EDITORIAL 기본.
-    #   타이포 baked 경로는 카피를 이미 만들었고(위) 이미지에 구웠으므로 재생성·PIL 조판 스킵.
-    if not _typo_baked:
-        product = ProductInfo(name=name)
-        with _stage(run, "copy"):
-            copy = _generate_copy(final, product, StylePreset.EDITORIAL, use_vision)
+    #   직접입력(무타이포)도 카피는 만든다 — 이미지엔 안 싣고 copy_text(SNS 캡션 등)로만 노출.
+    #   타이포는 상위 run_from_upload_v2 의 build_typography_variants(커머셜 조판)가 별도 레이어로
+    #   얹어 with/without 쌍을 만든다 → gpt는 클린 씬만, 조판은 코드가(겹침·깨짐 방지, 토글 성립).
+    product = ProductInfo(name=name)
+    with _stage(run, "copy"):
+        copy = _generate_copy(final, product, StylePreset.EDITORIAL, use_vision)
 
-    if poster and not _typo_baked:
+    # apply_food_poster 는 비-스튜디오(poster=True) 레거시 경로 전용. 직접입력은 클린 씬을 유지해야
+    #   상위 커머셜 조판이 깨끗이 얹히므로 스킵(_skip_poster) — poster=True 로 불려도 굽지 않는다.
+    if poster and not _skip_poster:
         headline, _, subcopy = copy.copy_text.partition("\n")
         headline = headline.strip() or name
         subcopy = subcopy.strip()

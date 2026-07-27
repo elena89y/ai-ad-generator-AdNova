@@ -111,18 +111,19 @@ def test_custom_style_routes_to_gptimage_not_local(monkeypatch, tmp_path):
     monkeypatch.setattr(gs, "_generate_copy", lambda *a, **k: gpt.CopyResult(copy_text="헤드\n서브"))
 
     def no_pil(*a, **k):  # noqa: ANN002, ANN003
-        raise AssertionError("타이포 baked인데 PIL 포스터가 호출됨")
+        raise AssertionError("직접입력은 클린 씬 유지(포스터 스킵)인데 apply_food_poster 호출됨")
 
     monkeypatch.setattr("app.services.overlay_service.apply_food_poster", no_pil)
 
     r = gs.process_ad(img, "프렌치토스트", style="editorial", style_text="따뜻하게",
                       poster=True, log=False, analysis=_fake_analysis(),
                       output_dir=str(tmp_path / "out"))
-    assert r.final_image_path == edited          # baked 이미지 (PIL 조판 안 거침)
+    assert r.final_image_path == edited          # gpt 클린 씬 그대로(PIL 포스터 스킵)
     assert r.engine == "api:edit:custom"
-    assert "warm golden light" in seen["instr"]  # 연출절
-    assert "헤드" in seen["instr"]                # 헤드라인이 지시문에 baked
-    assert r.copy_text == "헤드\n서브"            # 사전 생성 카피 유지
+    assert "warm golden light" in seen["instr"]  # 연출절 반영
+    assert "헤드" not in seen["instr"]            # 무타이포: 헤드라인 안 굽는다(겹침 방지)
+    assert "Do not add any text" in seen["instr"]  # gpt엔 무텍스트 지시(토글은 커머셜 조판이)
+    assert r.copy_text == "헤드\n서브"            # 카피는 tail 생성 → copy_text로만 노출
 
 
 def test_custom_style_falls_back_to_local_on_budget(monkeypatch, tmp_path):
