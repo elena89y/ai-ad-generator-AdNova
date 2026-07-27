@@ -14,6 +14,7 @@ export default function MyAdsPage() {
   const s = useStudio();
   const router = useRouter();
   const [filter, setFilter] = useState("all");
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
 
   useEffect(() => {
     if (s.ready && !s.token) router.replace("/login");
@@ -25,11 +26,19 @@ export default function MyAdsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const list = s.ads.filter((ad) => {
-    if (filter === "all") return true;
-    if (filter === "템플릿") return ad.isTemplate;
-    return !ad.isTemplate && ad.style === filter;
-  });
+  const list = s.ads
+    .filter((ad) => {
+      if (filter === "all") return true;
+      if (filter === "템플릿") return ad.isTemplate;
+      return !ad.isTemplate && ad.style === filter;
+    })
+    .sort((first, second) => {
+      const firstCreatedAt = Date.parse(first.createdAt || "") || 0;
+      const secondCreatedAt = Date.parse(second.createdAt || "") || 0;
+      return sortOrder === "newest"
+        ? secondCreatedAt - firstCreatedAt
+        : firstCreatedAt - secondCreatedAt;
+    });
 
   function openDetail(item: AdItem) {
     s.openDetail(item);
@@ -60,16 +69,34 @@ export default function MyAdsPage() {
           </div>
         </div>
 
-        <div className="filters">
-          {FILTERS.map((f) => (
+        <div style={{ display: "flex", gap: 12, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
+          <div className="filters">
+            {FILTERS.map((f) => (
+              <button
+                key={f}
+                className={`fchip${filter === f ? " on" : ""}`}
+                onClick={() => setFilter(f)}
+              >
+                {f === "all" ? "전체" : f}
+              </button>
+            ))}
+          </div>
+          <div aria-label="광고 정렬" style={{ display: "flex", gap: 6 }}>
             <button
-              key={f}
-              className={`fchip${filter === f ? " on" : ""}`}
-              onClick={() => setFilter(f)}
+              type="button"
+              className={`fchip${sortOrder === "newest" ? " on" : ""}`}
+              onClick={() => setSortOrder("newest")}
             >
-              {f === "all" ? "전체" : f}
+              최신순
             </button>
-          ))}
+            <button
+              type="button"
+              className={`fchip${sortOrder === "oldest" ? " on" : ""}`}
+              onClick={() => setSortOrder("oldest")}
+            >
+              오래된순
+            </button>
+          </div>
         </div>
 
         <div className="cards-grid">
