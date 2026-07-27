@@ -318,6 +318,7 @@ def generate_ad(
     seed: Optional[int] = Form(None),
     purpose: AdPurpose = Form(AdPurpose.SNS),
     sizes: str = Form(""),
+    style_text: str = Form(""),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> GenerateAdResponse:
@@ -343,6 +344,7 @@ def generate_ad(
             "seed": seed,
             "purpose": purpose.value,
             "sizes": sizes,
+            "style_text": style_text,
         },
         ensure_ascii=False,
     )
@@ -378,11 +380,13 @@ def generate_ad(
         with propagate_attributes(user_id=str(current_user_id), tags=["ads.generate"]):
             if generation_client.is_remote():
                 result = generation_client.generate_remote(
-                    str(src_path), product, style, seed, use_vision, poster, purpose
+                    str(src_path), product, style, seed, use_vision, poster, purpose,
+                    style_text=style_text,
                 )
             else:
                 out = generation_service.run_from_upload_v2(
-                    str(src_path), product, style, seed, use_vision, poster
+                    str(src_path), product, style, seed, use_vision, poster,
+                    style_text=style_text,
                 )
                 result = _to_response(out)
 

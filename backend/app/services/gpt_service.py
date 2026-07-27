@@ -762,6 +762,28 @@ def analyze_menu(name: str) -> MenuAnalysis:
     )
 
 
+def translate_style_note(ko_text: str) -> str:
+    """사용자 자유 스타일 서술(한글) → 영문 연출 절. 실패·빈입력 시 "" (무시).
+
+    함정#1: CLIP/T5는 한글을 노이즈로 해석 → 반드시 영문화 후 프롬프트에 주입한다.
+    정체성 보존: 제품 형태·색·구도·가니시를 바꾸는 지시는 배제하고 조명·배경·무드 어휘로만 옮긴다
+    (프롬프트 원장 style_note.yaml). 응답 형태 변동(함정#6)·API 실패는 조용히 빈 절로 폴백.
+    """
+    text = (ko_text or "").strip()
+    if not text:
+        return ""
+    try:
+        instruction = _prompts.fmt("style_note", "translate.instruction", note=text)
+        result = _chat_json([{"role": "user", "content": instruction}],
+                            label="translate_style_note")
+        if not isinstance(result, dict):
+            return ""
+        return str(result.get("style_en") or "").strip()
+    except Exception as e:  # noqa: BLE001 — 자유서술 실패가 생성을 막으면 안 됨
+        logger.info("translate_style_note 실패 → 무시(빈 절): %s", e)
+        return ""
+
+
 def analyze_photo(image_path: str, name: str) -> Optional[PhotoAnalysis]:
     """사진+상품명 → 게이트·라우팅·연출 통합 분석. 실패하면 기존 경로용 ``None`` 반환.
 

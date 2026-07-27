@@ -114,6 +114,35 @@ def build_generate_prompt(scene_en: str, palette_hint: str = "") -> str:
         palette=palette_hint or _prompts.get(_NS, "generate_palette_default"))
 
 
+def build_style_edit_instruction(subject_en: str, style_en: str, domain: str = "food",
+                                 headline: str = "", subcopy: str = "") -> str:
+    """직접 입력(자유서술) → gpt-image edit 지시문. 정체성 보존 + 사용자 연출 절.
+
+    로컬 style_gen swap 과 같은 정직성 경계: 제품/음식은 불변, 배경·조명·무드만 재연출.
+    사물(object)은 SKU라 형태·색·로고 더 엄격히 고정.
+    headline/subcopy: 있으면 gpt-image 가 한글 타이포를 이미지에 직접 굽는다(PIL 오버레이 대체).
+      ⚠️ 광고 헤드라인 전용 — 브리프의 정보텍스트(일시·장소·가격)는 여기 실지 말 것(오탈자=허위정보).
+    """
+    subj = subject_en or "subject"
+    if domain == "object":
+        base = (f"Edit this exact photo of {subj}. Keep the product's shape, proportions, colors "
+                "and any labels or logos exactly unchanged; do not distort or recolor it. "
+                f"Restyle only the background, surface, lighting and mood: {style_en}.")
+    else:
+        base = ("Edit this exact photo. Keep every food item exactly as photographed — the same "
+                "pieces, sauces, garnishes, plating and arrangement; do not add, remove, merge or "
+                f"simplify anything. Restyle only the background, surface, lighting and mood: {style_en}. "
+                "Keep the true colors.")
+    if headline:
+        text = (' Then render this Korean advertising text directly in the image, spelled EXACTLY '
+                f'as given and clearly legible: a large elegant serif headline "{headline}"')
+        if subcopy:
+            text += f', with a smaller subcopy "{subcopy}" beneath it'
+        text += ", placed in the empty negative space at the lower left. Do not add any other text."
+        return base + text
+    return base + " Do not add any text."
+
+
 def generate_image(prompt: str,
                    out_dir: str = str(_DEFAULT_OUT_DIR),
                    model: str = DEFAULT_MODEL, quality: str = "low",

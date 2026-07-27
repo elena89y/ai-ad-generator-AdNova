@@ -76,8 +76,12 @@ def generate_remote(
     use_vision: bool,
     poster: bool,
     purpose: AdPurpose = AdPurpose.SNS,
+    style_text: str = "",
 ) -> GenerateAdResponse:
-    """GPU 생성 서비스에 파일 업로드 → 결과 메타 + 이미지 다운로드."""
+    """GPU 생성 서비스에 파일 업로드 → 결과 메타 + 이미지 다운로드.
+
+    style_text: 자유서술 무드(직접 입력 탭) — 원격 GPU 서비스까지 전달(누락 시 배포에서 유실).
+    """
     import requests
 
     base = settings.GENERATION_SERVICE_URL.rstrip("/")
@@ -90,6 +94,7 @@ def generate_remote(
             "use_vision": str(use_vision).lower(),
             "poster": str(poster).lower(),
             "purpose": purpose.value,
+            "style_text": style_text or "",
         }
         if seed is not None:
             data["seed"] = str(seed)

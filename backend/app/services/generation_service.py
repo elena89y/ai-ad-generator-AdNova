@@ -262,8 +262,12 @@ def run_from_upload_v2(
     seed: Optional[int] = None,
     use_vision: bool = False,
     poster: bool = False,
+    style_text: str = "",
 ) -> GenerationOutput:
-    """v2 진입점 — run_from_upload 드롭인 교체. 내부는 process_ad(Kontext). GenerationOutput 반환."""
+    """v2 진입점 — run_from_upload 드롭인 교체. 내부는 process_ad(Kontext). GenerationOutput 반환.
+
+    style_text: 자유서술 무드(직접 입력 탭). process_ad(style_gen)로 전달, 빈값=기존 동작.
+    """
     import shutil
     import uuid
     from pathlib import Path as _P
@@ -319,7 +323,7 @@ def run_from_upload_v2(
                 str(saved), product.name, poster=False,
                 style=resolve_style(style.value), output_dir=str(image_service.RESULTS_DIR),
                 use_vision=use_vision, seed=actual_seed, best_of=_bon, steps=_steps,
-                log=False, analysis=analysis, _run=run,
+                log=False, analysis=analysis, _run=run, style_text=style_text,
             )
             run.set_meta(
                 mode=getattr(r, "domain", "unknown"),
@@ -557,8 +561,11 @@ def process_ad(
     steps: Optional[int] = None,
     analysis: Optional[gpt_service.PhotoAnalysis] = None,
     _run=None,  # noqa: ANN001
+    style_text: str = "",
 ) -> ProcessedAd:
     """사진 + 상품명 → 자동 라우팅(또는 스타일 씬) 리터치 + 문구 + 포스터. 사용자는 이름만 입력.
+
+    style_text: 자유서술 무드(직접 입력 탭) — style 지정(style_gen) 경로에서만 반영, 빈값=기존 동작.
 
     knob(0~1): 공통 강도 슬라이더. layout: overlay|panel(포스터).
     style: 디자인시스템 스타일 키(editorial/realism/pop/…) 지정 시 style_gen 씬 생성 경로,
@@ -569,12 +576,12 @@ def process_ad(
     if _run is not None:
         return _process_ad_impl(
             image_path, name, knob, poster, layout, use_vision, style,
-            output_dir, seed, best_of, steps, analysis, run=_run,
+            output_dir, seed, best_of, steps, analysis, run=_run, style_text=style_text,
         )
     if not log:
         return _process_ad_impl(
             image_path, name, knob, poster, layout, use_vision, style,
-            output_dir, seed, best_of, steps, analysis, run=None,
+            output_dir, seed, best_of, steps, analysis, run=None, style_text=style_text,
         )
 
     try:
@@ -591,13 +598,13 @@ def process_ad(
         logging.getLogger(__name__).warning("RunLogger 초기화 실패: %s", exc)
         return _process_ad_impl(
             image_path, name, knob, poster, layout, use_vision, style,
-            output_dir, seed, best_of, steps, analysis, run=None,
+            output_dir, seed, best_of, steps, analysis, run=None, style_text=style_text,
         )
 
     with run:
         result = _process_ad_impl(
             image_path, name, knob, poster, layout, use_vision, style,
-            output_dir, seed, best_of, steps, analysis, run=run,
+            output_dir, seed, best_of, steps, analysis, run=run, style_text=style_text,
         )
         run.set_meta(mode=result.domain, engine=result.engine, seed=result.seed)
         run.set_output(result.final_image_path)
@@ -703,14 +710,21 @@ def _process_ad_impl(
     steps: Optional[int],
     analysis: Optional[gpt_service.PhotoAnalysis],
     run=None,  # noqa: ANN001
+    style_text: str = "",
 ) -> ProcessedAd:
-    """process_ad 실제 생성 본문. run이 있으면 단계별 시간을 함께 기록한다."""
+    """process_ad 실제 생성 본문. run이 있으면 단계별 시간을 함께 기록한다.
+
+    style_text: 사용자 자유서술 무드(한글, 직접 입력 탭). style_gen 경로에서 1회 영문 번역해
+      연출 절로 주입한다. 빈값이면 기존 경로와 완전 동일(회귀 0).
+    """
 
     from . import router
     from .overlay_service import apply_food_poster
 
     t0 = time.time()
     text_zone: Optional[str] = None
+    _typo_baked = False  # 직접입력 gpt-image 경로가 한글 타이포를 이미지에 직접 구우면 True
+    copy = None
 
     # 스타일 지정 시: style_gen 씬 생성(정체성 보존 편집), 아니면 기존 이름기반 라우팅
     if style:
@@ -722,6 +736,8 @@ def _process_ad_impl(
         domain = getattr(resolved_analysis, "domain", "food")
         food_mode = getattr(resolved_analysis, "food_mode", None)
         style_domain = _resolve_style_domain(resolved_analysis, domain, food_mode, subject_en)
+        # 자유서술 무드(직접 입력 탭) → 영문 연출 절 1회 번역(함정#1). 없으면 "" (기존 동작 그대로).
+        extra_style_en = gpt_service.translate_style_note(style_text) if style_text else ""
         # 포맷 자동감지(STYLE_SYSTEM v2): style 은 '무드', 포맷은 콘텐츠로 결정.
         #   STY-003~005 이후 사물도 선택 무드를 적용하되, StylePlan이 상품은 고정하고 배경·조명만 바꾼다.
         #   여름음료 pop_split·케이크 cross_section 은 특수 조판/게이트 필요 → 당분간 명시 호출 유지.
@@ -729,9 +745,42 @@ def _process_ad_impl(
         final: Optional[str] = None
         compose_stats: Optional[dict] = None
 
+        # 직접 입력(자유서술) → gpt-image-2 edit 라우팅. 임의 서술 충실도·정체성 보존이 로컬 Kontext보다
+        #   우수(엔진 A/B 실측: 골든아워 방향광·여백 반영·우드 클리셰 회피·유리접시 보존). 프리셋(무드)은
+        #   style_text 가 없어 이 분기를 안 타고 로컬 유지. 예산초과/실패 시 로컬 style_gen swap 으로 폴백.
+        #   CUSTOM_STYLE_ENGINE=local 로 강제 로컬 가능.
+        if extra_style_en and os.environ.get("CUSTOM_STYLE_ENGINE", "api") != "local":
+            from . import api_image_service
+            try:
+                # 타이포도 gpt가 굽는다: 카피를 먼저(원본 사진 기반) 만들어 edit 지시문에 실어
+                #   씬 restyle + 한글 헤드라인을 한 번의 gpt-image edit로. PIL 포스터는 스킵(tail).
+                #   quality=medium — 텍스트 가독(실측). ⚠️ 정보텍스트(브리프 일시·장소)는 baked 금지,
+                #   여긴 광고 헤드라인이라 허용.
+                with _stage(run, "copy"):
+                    copy = _generate_copy(image_path, ProductInfo(name=name),
+                                          StylePreset.EDITORIAL, use_vision)
+                head, _, sub = copy.copy_text.partition("\n")
+                head, sub = head.strip() or name, sub.strip()
+                if any(k in head for k in ("제공되지 않", "이미지 정보", "이미지 설명", "알 수 없")):
+                    head, sub = name, ""  # 캡션 실패 폴백(콜드런 가드 계승)
+                instr = api_image_service.build_style_edit_instruction(
+                    subject_en, extra_style_en, style_domain, headline=head, subcopy=sub)
+                with _stage(run, "generate"):
+                    final = api_image_service.edit_image(
+                        image_path, instr, out_dir=output_dir, quality="medium", run=run)
+                engine = "api:edit:custom"
+                selected_seed = seed if seed is not None else 0
+                _typo_baked = True
+            except Exception as e:  # noqa: BLE001 — 예산초과(ApiBudgetExceeded)/API 실패 → 로컬 폴백
+                logging.getLogger(__name__).info(
+                    "직접입력 gpt-image edit 실패 → 로컬 style_gen 폴백: %s", e)
+                final = None
+                copy = None
+
         # 합성 경로(P4D, 결정 D-11): SCENE_COMPOSE=1 + object/drink + Vision 적합성일 때만 시도.
         #   실패(sc["ok"]=False)하면 아무 것도 건드리지 않고 기존 Kontext 경로로 자연 폴백한다.
-        if (os.environ.get("SCENE_COMPOSE", "0") == "1" and style_domain in ("object", "drink")
+        if (final is None and os.environ.get("SCENE_COMPOSE", "0") == "1"
+                and style_domain in ("object", "drink")
                 and _compose_eligible(resolved_analysis, style_domain)):
             from . import scene_service
 
@@ -758,6 +807,7 @@ def _process_ad_impl(
             scene_kwargs: dict = {
                 "container_desc": _container_desc(resolved_analysis),
                 "container_opacity": getattr(resolved_analysis, "container_opacity", None),
+                "extra_style_en": extra_style_en,
             }
             if staging == "recompose":
                 scene_kwargs.update({
@@ -830,11 +880,13 @@ def _process_ad_impl(
         selected_seed = 0 if seed is None else seed
 
     # 문구 (FR-09) — 상품명 + 리터치 이미지 기반. 톤은 EDITORIAL 기본.
-    product = ProductInfo(name=name)
-    with _stage(run, "copy"):
-        copy = _generate_copy(final, product, StylePreset.EDITORIAL, use_vision)
+    #   타이포 baked 경로는 카피를 이미 만들었고(위) 이미지에 구웠으므로 재생성·PIL 조판 스킵.
+    if not _typo_baked:
+        product = ProductInfo(name=name)
+        with _stage(run, "copy"):
+            copy = _generate_copy(final, product, StylePreset.EDITORIAL, use_vision)
 
-    if poster:
+    if poster and not _typo_baked:
         headline, _, subcopy = copy.copy_text.partition("\n")
         headline = headline.strip() or name
         subcopy = subcopy.strip()
