@@ -53,8 +53,8 @@ export default function TemplateApplyPage() {
 
   async function uploadProductImage(file: File | undefined) {
     if (!file) return;
-    if (file.size > 15 * 1024 * 1024) {
-      s.toast("이미지는 최대 15MB까지 업로드할 수 있습니다.");
+    if (file.size > 10 * 1024 * 1024) {
+      s.toast("이미지는 최대 10MB까지 업로드할 수 있습니다.");
       return;
     }
     const fd = new FormData();

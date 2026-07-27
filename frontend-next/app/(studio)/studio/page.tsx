@@ -155,11 +155,11 @@ export default function StudioPage() {
   }
 
   function selectImageFile(file: File | undefined) {
-    // 백엔드 MAX_IMAGE_SIZE_MB(15MB)와 동기 — 서버가 장변 2048로 정규화 저장하므로 폰 원본 OK
-    const MAX_IMAGE_SIZE = 15 * 1024 * 1024;
+    // 백엔드 MAX_IMAGE_SIZE_MB(운영 10MB)와 동기 — 서버가 장변 2048로 정규화 저장하므로 폰 원본 OK
+    const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
     if (!file) return;
     if (file.size > MAX_IMAGE_SIZE) {
-      s.toast("이미지는 최대 15MB까지 업로드할 수 있습니다.");
+      s.toast("이미지는 최대 10MB까지 업로드할 수 있습니다.");
       return;
     }
     const previousPreview = selectedImagePreviewRef.current;
