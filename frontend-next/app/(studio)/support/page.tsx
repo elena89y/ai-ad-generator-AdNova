@@ -27,6 +27,20 @@ const STATUS_LABELS: Record<string, string> = {
   closed: "종료",
 };
 
+const REPORT_STATUS_LABELS: Record<string, string> = {
+  pending: "접수됨",
+  in_progress: "처리 중",
+  resolved: "처리 완료",
+  rejected: "처리 종료",
+};
+
+const REPORT_CATEGORY_LABELS: Record<string, string> = {
+  result_quality: "생성 결과 품질",
+  copyright: "저작권 또는 상표 관련",
+  policy: "부적절한 내용",
+  other: "기타",
+};
+
 interface InquiryItem {
   id: number;
   category: string;
@@ -42,6 +56,17 @@ interface NoticePreview {
   id: number;
   title: string;
   published_at: string;
+}
+
+interface ReportItem {
+  id: number;
+  category: string;
+  title: string;
+  content: string;
+  status: string;
+  admin_note?: string | null;
+  created_at: string;
+  handled_at?: string | null;
 }
 
 function formatInquiryDate(value: string) {
@@ -77,6 +102,9 @@ export default function SupportPage() {
   const [loadingInquiries, setLoadingInquiries] = useState(false);
   const [inquiries, setInquiries] = useState<InquiryItem[]>([]);
   const [openInquiryId, setOpenInquiryId] = useState<number | null>(null);
+  const [loadingReports, setLoadingReports] = useState(false);
+  const [reports, setReports] = useState<ReportItem[]>([]);
+  const [openReportId, setOpenReportId] = useState<number | null>(null);
   const [recentNotices, setRecentNotices] = useState<NoticePreview[]>([]);
 
   useEffect(() => {
@@ -108,6 +136,40 @@ export default function SupportPage() {
     }
 
     void loadInquiries();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, toast]);
+
+  useEffect(() => {
+    if (!token) {
+      setReports([]);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingReports(true);
+
+    async function loadReports() {
+      try {
+        const res = await apiFetch("/api/reports?limit=50");
+        const data = await readJsonSafely(res);
+        if (!res.ok) {
+          throw new Error(readApiError(data, "신고 내역을 불러오지 못했습니다"));
+        }
+        const items = (data as { items?: ReportItem[] } | null)?.items || [];
+        if (!cancelled) setReports(items);
+      } catch (err) {
+        if (!cancelled) {
+          setReports([]);
+          toast(err instanceof Error ? err.message : "신고 내역을 불러오지 못했습니다");
+        }
+      } finally {
+        if (!cancelled) setLoadingReports(false);
+      }
+    }
+
+    void loadReports();
     return () => {
       cancelled = true;
     };
@@ -564,6 +626,65 @@ export default function SupportPage() {
                             관리자 답변
                           </div>
                           <div style={{ whiteSpace: "pre-wrap" }}>{inquiry.answer}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div style={{ display: "flex", alignItems: "center", margin: "28px 0 10px" }}>
+          <div style={{ fontSize: 14, fontWeight: 800 }}>내 신고</div>
+          <span style={{ marginLeft: 8, color: "var(--ink-mute)", fontSize: 12 }}>
+            {reports.length}건
+          </span>
+        </div>
+
+        {!token ? (
+          <div style={{ padding: 18, border: "1px solid var(--line)", borderRadius: 12, color: "var(--ink-mute)", fontSize: 13 }}>
+            로그인 후 내 신고 내역을 확인할 수 있어요.
+          </div>
+        ) : loadingReports ? (
+          <div style={{ padding: 18, color: "var(--ink-mute)", fontSize: 13 }}>신고 내역을 불러오는 중입니다.</div>
+        ) : reports.length === 0 ? (
+          <div style={{ padding: 18, border: "1px solid var(--line)", borderRadius: 12, color: "var(--ink-mute)", fontSize: 13 }}>
+            등록한 신고가 없습니다.
+          </div>
+        ) : (
+          <div style={{ display: "grid", gap: 9 }}>
+            {reports.map((report) => {
+              const open = openReportId === report.id;
+              const completed = report.status === "resolved" || report.status === "rejected";
+              return (
+                <div key={report.id} style={{ border: "1px solid var(--line)", borderRadius: 12, background: "var(--card)" }}>
+                  <button
+                    type="button"
+                    onClick={() => setOpenReportId(open ? null : report.id)}
+                    style={{ display: "flex", width: "100%", alignItems: "center", gap: 10, border: 0, background: "transparent", color: "var(--ink)", padding: "14px 16px", textAlign: "left", cursor: "pointer" }}
+                  >
+                    <span style={{ borderRadius: 99, padding: "4px 8px", background: completed ? "rgba(96,190,138,.14)" : "rgba(242,169,59,.14)", color: completed ? "#78D6A0" : "var(--gold)", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
+                      {REPORT_STATUS_LABELS[report.status] || report.status}
+                    </span>
+                    <span style={{ flex: 1, fontSize: 13.5, fontWeight: 650 }}>{report.title}</span>
+                    <span style={{ color: "var(--ink-mute)", fontSize: 11.5, whiteSpace: "nowrap" }}>
+                      {formatInquiryDate(report.created_at)}
+                    </span>
+                  </button>
+                  {open && (
+                    <div style={{ borderTop: "1px solid var(--line)", padding: "14px 16px", fontSize: 12.5, lineHeight: 1.65 }}>
+                      <div style={{ color: "var(--ink-mute)", marginBottom: 5 }}>
+                        {REPORT_CATEGORY_LABELS[report.category] || report.category}
+                      </div>
+                      <p style={{ margin: 0, whiteSpace: "pre-wrap", color: "var(--ink-soft)" }}>{report.content}</p>
+                      {report.admin_note && (
+                        <div style={{ marginTop: 14, borderRadius: 9, background: "rgba(96,190,138,.08)", padding: 12 }}>
+                          <div style={{ color: "#78D6A0", fontSize: 11.5, fontWeight: 800, marginBottom: 5 }}>
+                            관리자 안내
+                          </div>
+                          <div style={{ whiteSpace: "pre-wrap" }}>{report.admin_note}</div>
                         </div>
                       )}
                     </div>

@@ -1,7 +1,9 @@
 import logging
+from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import FileResponse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -636,6 +638,36 @@ def read_admin_advertisement_detail(
 
     advertisement, user = row
     return _build_admin_advertisement_response(advertisement, user)
+
+
+@router.get("/advertisements/{advertisement_id}/image")
+def read_admin_advertisement_image(
+    advertisement_id: int,
+    db: Session = Depends(get_db),
+    current_admin: AdminUser = Depends(get_current_admin),
+) -> FileResponse:
+    del current_admin
+    row = get_advertisement_for_admin(db, advertisement_id)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="광고를 찾을 수 없습니다.",
+        )
+
+    advertisement, _ = row
+    output_image = advertisement.output_image
+    file_path = Path(output_image.file_path or "") if output_image else None
+    if output_image is None or file_path is None or not file_path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="생성 이미지 파일을 찾을 수 없습니다.",
+        )
+
+    return FileResponse(
+        file_path,
+        media_type=output_image.content_type or "image/png",
+        filename=output_image.original_filename or output_image.stored_filename or "adnova-ad.png",
+    )
 
 
 @router.delete(
