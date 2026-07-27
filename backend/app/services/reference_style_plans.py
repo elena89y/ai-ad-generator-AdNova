@@ -791,6 +791,9 @@ _NOODLE_SAFE_IDX: dict[str, tuple[int, ...]] = {
 #   보장)를 시각적 소품 명사구로 변환 — "치즈"류는 노란 큐브, 과일류는 신선 통과일+동결건조 칩,
 #   크림류는 파이핑 로제트 등 **그릴 수 있는 형태**를 함께 준다(아트디렉터 07-24: "구슬을 넣던가
 #   파스타면 노란 치즈들을 넣던가" — 이름+형태가 있어야 덩어리가 안 나옴).
+# 고기 소품 키(조리법 오버라이드 대상 — _props_clause 가 is 로 식별)
+_MEAT_PROP_KEYS = ("beef", "pork", "chicken", "duck", "brisket", "meat")
+
 _PROP_SHAPES = (
     (("cheese", "parmesan", "cheddar"), "small yellow {name} cubes"),
     (("strawberry", "berry", "blueberry", "raspberry", "cherry", "grape", "peach",
@@ -807,7 +810,8 @@ _PROP_SHAPES = (
     #   막연 폴백→Kontext 찰흙 덩어리. 그릴 수 있는 구체 형태의 savory 소품 추가).
     #   한식 메인 재료(고기·김치·곱창)를 상위 우선 — 탕/찌개류가 제대로 매칭되게.
     (("kimchi",), "a small mound of vivid red {name}"),
-    (("beef", "pork", "chicken", "duck", "brisket", "meat"),
+    # PROP-COOK: 이 키 튜플은 _props_clause 에서 조리법 오버라이드 대상으로 식별된다(is 비교).
+    (_MEAT_PROP_KEYS,
      "a few glossy braised {name} pieces"),
     (("tripe", "gopchang", "intestine", "offal"), "a few glossy cooked {name} pieces"),
     (("scallion", "green onion", "spring onion", "leek", "chive"),
@@ -855,7 +859,25 @@ def _is_dessert_like(serving_type: str | None, subject_en: str) -> bool:
     return False
 
 
-def _props_clause(core_ingredients: list[str] | None) -> str:
+# 조리법 어휘(PROP-COOK, 2026-07-27 아트디렉터 "구운 돼지갈비 위에 띄운 고기가 가짜 같다 —
+#   생고기 말고 구운 고기로"): 고기 소품의 조리 상태를 요리의 조리법에 맞춘다. 구이류에 조림
+#   고기(기본 shape)를 뿌리면 그 요리에 없는 상태라 이질감·가짜 느낌.
+_GRILL_HINTS = ("grill", "roast", "bbq", "barbecue", "char", "smoked", "seared", "broiled",
+                "galbi", "kalbi", "bulgogi", "samgyeopsal", "gui", "steak", "skewer", "kebab")
+_FRY_HINTS = ("fried", "fry", "katsu", "tempura", "cutlet", "karaage", "nugget", "twigim")
+
+
+def _meat_prop_shape(subject_en: str) -> str:
+    """고기 소품 형태 — 요리의 조리법을 따라간다(구이=구운 고기, 튀김=튀긴 고기, 그 외=조림)."""
+    low = (subject_en or "").lower()
+    if any(h in low for h in _GRILL_HINTS):
+        return "a few glossy grilled {name} pieces with light charred grill marks"
+    if any(h in low for h in _FRY_HINTS):
+        return "a few crisp golden fried {name} pieces"
+    return "a few glossy braised {name} pieces"
+
+
+def _props_clause(core_ingredients: list[str] | None, subject_en: str = "") -> str:
     """core_ingredients → 명명된 소품 문구 (최대 2종).
 
     순회는 재료 나열 순이 아니라 _PROP_SHAPES 표 순(소품 적합도 순 — 치즈·크림·과일이
@@ -868,6 +890,9 @@ def _props_clause(core_ingredients: list[str] | None) -> str:
     for keys, shape in _PROP_SHAPES:  # 표 순 = 적합도 순
         for name in names:
             if any(k in name for k in keys):
+                # PROP-COOK: 고기 소품만 요리의 조리법으로 형태를 덮어쓴다(구이→구운 고기).
+                if keys is _MEAT_PROP_KEYS:
+                    shape = _meat_prop_shape(subject_en)
                 items.append(shape.format(name=name))
                 break
         if len(items) >= 2:
@@ -1128,6 +1153,35 @@ _SOUP_HINTS = (
 )
 
 
+# NOODLE-PRESERVE(2026-07-27 아트디렉터 "크림 펜네 파스타 모노톤은 정체성이 아예 바껴서 큰일"):
+#   라이브 실측 — 펜네가 스파게티 둥지 + 갈색 타워로 재구성됐다. 기존 방어(면 안전 변형 서브셋
+#   _NOODLE_SAFE_IDX + "never convert penne into spaghetti" 부정문)를 **둘 다 통과하고도** 붕괴.
+#   부정문이 Kontext에서 약하다는 패턴이 반복 확증(초코 드리즐·치아바타 케이크화·휠 발명)이라,
+#   국물(SOUP-PRESERVE)과 동일하게 **면 요리는 styled 재연출 경로 자체에서 제외**하고 in-place
+#   보존으로 라우팅한다. 면은 형태(관·가닥·굵기)가 정체성이라 재드로잉 허용 폭이 0에 가깝다.
+_FOOD_NOODLE_LOCK = (
+    "This is a real photograph of a noodle or pasta dish. "
+    "Edit this exact photograph and keep the noodles exactly as they are: the same noodle shape, "
+    "cut and thickness — short tubes stay short tubes, long strands stay long strands — the same "
+    "count, the same tangle and arrangement on the same dish, never restacked, re-piled, molded "
+    "into a tower or ring, or rearranged. "
+    "Keep every topping, sauce, meat, vegetable and garnish exactly as photographed, and add "
+    "nothing that is not already there. "
+    "Retouch it like a professional food ad: brighten exposure, remove haze, sauce glossy and "
+    "creamy, noodles and toppings fresh, never dry, matte or claylike. Enhance only what is there, "
+    "same hues, never restyling. "
+    "It stays served in the same kind of dish, resting flat on the table under gravity with a "
+    "single realistic contact shadow. "
+    "Change only the background, table surface, camera framing and environmental lighting to match "
+    "the requested scene. "
+)
+
+
+def _is_noodle_dish(subject_en: str) -> bool:
+    """면·파스타 요리 판정 → in-place 보존 라우팅(국물 면은 SOUP-PRESERVE 가 선행 처리)."""
+    return any(h in (subject_en or "").lower() for h in _NOODLE_HINTS)
+
+
 def _is_soup_dish(subject_en: str, container_desc: str | None = None) -> bool:
     """국물 요리(국·탕·찌개·면국물) 판정 → in-place 보존 라우팅.
 
@@ -1186,6 +1240,9 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
     #   유지, 재플레이팅 금지. is_vessel(유리 디저트) 아닐 때만.
     is_soup = (plan.domain == "food" and not is_vessel
                and _is_soup_dish(subject, container_desc))
+    # NOODLE-PRESERVE: 국물 면(라멘·쌀국수)은 위 soup 이 이미 잡으므로 마른 면만 여기로.
+    is_noodle_dish = (plan.domain == "food" and not is_vessel and not is_soup
+                      and _is_noodle_dish(subject))
     if is_vessel:
         container = container_desc.strip().lower()  # analyze_photo 계약상 ASCII 보장
         identity_lock = _prompts.fmt(_NS, "container.identity_lock_vessel",
@@ -1197,6 +1254,11 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         identity_lock = _FOOD_SOUP_LOCK
         hero = "the bowl of soup"
         container_clause = "the deep bowl resting flat on the table"
+    elif is_noodle_dish:
+        # NOODLE-PRESERVE(전 무드): 면 요리도 국물과 동일하게 in-place 보존 — 면 형태가 정체성.
+        identity_lock = _FOOD_NOODLE_LOCK
+        hero = "the dish of noodles"
+        container_clause = "the dish resting flat on the table"
     else:
         # 디저트(케이크류)는 접시를 상품이 아닌 연출요소로 보고 예쁜 접시로 재플레이팅한다.
         #   vessel(유리 디저트 용기)이 아닐 때만 — 굽 유리볼 빙수 등은 위에서 이미 보존 처리.
@@ -1234,10 +1296,12 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
     _dessert_flag = ((serving_type in ("dessert", "bakery")) if serving_type is not None
                      else _is_dessert_subject(subject))
     is_realism_food = (plan.domain == "food" and plan.style_key == "realism"
-                       and not is_vessel and not is_soup and not _dessert_flag
+                       and not is_vessel and not is_soup and not is_noodle_dish
+                       and not _dessert_flag
                        and not _replate_unsafe(subject, container_desc))
     styled_v2 = (plan.domain == "food" and plan.style_key in _STYLE_FOOD_VARIANTS
-                 and not is_vessel and not is_soup and not is_realism_food
+                 and not is_vessel and not is_soup and not is_noodle_dish
+                 and not is_realism_food
                  and not _replate_unsafe(subject, container_desc))
     # ※ 구 SOUP-GUARD 의 is_soup 재계산 라인은 제거(머지 정합) — develop 의 SOUP-PRESERVE 가
     #   위에서 이미 container_desc 까지 반영해 판정한 값을 덮어쓰고 있었다.
@@ -1299,7 +1363,7 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         identity_lock = identity_lock.replace(_RETOUCH_TEX_SWEET, _savory, 1)
     # SOUP/REALISM: 씬 방향의 "No ... ingredients, garnish" 부정문이 보존 락의 "원본 곁들임 유지"와
     #   충돌해 원본 반찬을 지울 수 있어, 리얼리즘 방향에서 garnish 금지만 제거(추가 방지는 락이 담당).
-    if is_soup or is_realism_food:
+    if is_soup or is_realism_food or is_noodle_dish:
         direction = direction.replace("utensils, ingredients, garnish, hands", "utensils, hands")
     # RETOUCH-004: 초코 디저트는 이상화의 generic 질감 절(스펀지 pores·일반 크림)이 약해
     #   크럼블리하게 남는다(2차 시안 관찰) — 초코 전용 어휘(fudgy·ganache 수사)로 등길이
@@ -1325,7 +1389,7 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
                                or _style_palette_clause(plan.style_key, plan.domain, subject))
     if "{props}" in direction:
         # POP-V2.1: 소품은 core_ingredients 기반 구체명 — 추상 지시는 덩어리 렌더(라이브 실측)
-        fmt_args["props"] = _props_clause(core_ingredients)
+        fmt_args["props"] = _props_clause(core_ingredients, subject)
     if "{plate}" in direction:
         # STYLE-V3.1: 접시는 레지스트리에서 시드로 모양 선택(하드코딩 반대) + 스타일 마감.
         # SOUP-GUARD: 국물요리는 접시 레지스트리 대신 깊은 보울 고정(국물 유지).
