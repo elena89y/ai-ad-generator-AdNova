@@ -40,6 +40,7 @@ interface StudioState {
   freeTotal: number;
   premiumLeft: number;
   premiumTotal: number;
+  bonusLeft: number;
   billingReady: boolean;
   billingSummary: BillingSummary | null;
   billingPurchases: PurchaseHistory[];
@@ -363,6 +364,7 @@ export default function StudioProvider({ children }: { children: React.ReactNode
   const freeTotal = billingSummary?.free_credit_limit ?? 3;
   const premiumLeft = billingSummary?.premium_credits_remaining ?? 0;
   const premiumTotal = billingSummary?.premium_credit_limit ?? 30;
+  const bonusLeft = billingSummary?.bonus_credits_remaining ?? 0;
   const setDashboardState = useCallback<StudioState["setDashboardState"]>(
     (patch) => setDashState((state) => ({ ...state, ...patch })),
     []
@@ -378,6 +380,7 @@ export default function StudioProvider({ children }: { children: React.ReactNode
       freeTotal,
       premiumLeft,
       premiumTotal,
+      bonusLeft,
       billingReady,
       billingSummary,
       billingPurchases,
@@ -416,6 +419,7 @@ export default function StudioProvider({ children }: { children: React.ReactNode
       freeTotal,
       premiumLeft,
       premiumTotal,
+      bonusLeft,
       billingReady,
       billingSummary,
       billingPurchases,
