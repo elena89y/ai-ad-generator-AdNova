@@ -1159,10 +1159,45 @@ _SOUP_HINTS = (
 #   부정문이 Kontext에서 약하다는 패턴이 반복 확증(초코 드리즐·치아바타 케이크화·휠 발명)이라,
 #   국물(SOUP-PRESERVE)과 동일하게 **면 요리는 styled 재연출 경로 자체에서 제외**하고 in-place
 #   보존으로 라우팅한다. 면은 형태(관·가닥·굵기)가 정체성이라 재드로잉 허용 폭이 0에 가깝다.
+# 면 형태 레지스트리(NOODLE-SHAPE-ANCHOR, 2026-07-27): 보존 락만으로는 monotone·pastel 에서
+#   펜네가 긴 면으로 재드로잉됐다(6무드 중 4/6 보존). 조건형 문구("short tubes stay short tubes")
+#   대신 **그 요리의 실제 면 종류를 구체 명사로 명명해 문장 맨 앞에 긍정 단언**한다 — 앞쪽 긍정
+#   진술이 부정문·조건문보다 강하게 조건화된다는 BUG-KTX-001 계열 관찰. 하드코딩 대신 레지스트리.
+_NOODLE_SHAPES: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("penne",), "short ridged penne tubes cut diagonally at both ends"),
+    (("rigatoni",), "wide ridged rigatoni tubes"),
+    (("macaroni", "elbow"), "small curved macaroni tubes"),
+    (("fusilli", "rotini"), "spiral fusilli twists"),
+    (("farfalle", "bow-tie", "bowtie"), "pinched bow-tie farfalle pieces"),
+    (("fettuccine", "tagliatelle", "pappardelle"), "long flat ribbon strands"),
+    (("spaghetti", "linguine", "capellini", "angel hair", "carbonara"),
+     "long thin round strands"),
+    (("udon",), "thick soft white wheat strands"),
+    (("soba",), "thin brown buckwheat strands"),
+    (("japchae", "glass noodle", "dangmyeon"), "translucent springy sweet-potato strands"),
+    (("naengmyeon", "ramyeon", "ramen"), "thin springy wavy strands"),
+    (("rice noodle", "pho", "vermicelli"), "flat white rice strands"),
+    (("lo mein", "chow mein"), "round yellow wheat strands"),
+    (("gnocchi",), "small soft potato dumpling pieces"),
+)
+
+
+def _noodle_shape_clause(subject_en: str) -> str:
+    """요리명 → 면 형태 구체 명사구(미매칭은 중립 문구로 안전 폴백)."""
+    low = (subject_en or "").lower()
+    for keys, shape in _NOODLE_SHAPES:
+        if any(k in low for k in keys):
+            return shape
+    return "noodles of exactly the shape, cut and thickness seen in the photo"
+
+
 _FOOD_NOODLE_LOCK = (
-    "This is a real photograph of a noodle or pasta dish. "
+    # NOODLE-SHAPE-ANCHOR: 면 종류를 맨 앞에서 구체적으로 못 박는다(치환 자리표시자).
+    "This is a real photograph of a dish of {noodle}. The noodles in the finished image are "
+    "{noodle} — exactly the same kind of noodle as in this photo, never swapped for a different "
+    "pasta shape or cut. "
     "Edit this exact photograph and keep the noodles exactly as they are: the same noodle shape, "
-    "cut and thickness — short tubes stay short tubes, long strands stay long strands — the same "
+    "cut and thickness, the same "
     "count, the same tangle and arrangement on the same dish, never restacked, re-piled, molded "
     "into a tower or ring, or rearranged. "
     "Keep every topping, sauce, meat, vegetable and garnish exactly as photographed, and add "
@@ -1256,7 +1291,8 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         container_clause = "the deep bowl resting flat on the table"
     elif is_noodle_dish:
         # NOODLE-PRESERVE(전 무드): 면 요리도 국물과 동일하게 in-place 보존 — 면 형태가 정체성.
-        identity_lock = _FOOD_NOODLE_LOCK
+        #   NOODLE-SHAPE-ANCHOR: 면 종류를 구체 명사로 채워 문두 긍정 단언(레지스트리 소프트코딩).
+        identity_lock = _FOOD_NOODLE_LOCK.replace("{noodle}", _noodle_shape_clause(subject))
         hero = "the dish of noodles"
         container_clause = "the dish resting flat on the table"
     else:
