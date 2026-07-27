@@ -230,6 +230,16 @@ export default function StudioPage() {
     if (stepTimer.current) clearInterval(stepTimer.current);
   }
 
+  async function notifyHistorySaved(data: GenerateResult, message: string) {
+    const ads = await s.refreshHistory(false);
+    const isSaved = Boolean(data.history_id) && ads.some((ad) => ad.historyId === data.history_id);
+    s.toast(
+      isSaved
+        ? message
+        : "광고는 생성됐지만 내 광고 목록 반영을 확인하지 못했습니다. 잠시 후 다시 확인해 주세요."
+    );
+  }
+
   async function generate() {
     if (!s.billingReady) {
       s.toast("구독 정보를 확인한 뒤 광고를 생성할 수 있습니다");
@@ -288,8 +298,7 @@ export default function StudioPage() {
       s.setDashboardState({ currentResult: { ...data, client_prod_name: productName } });
       s.refreshBilling(false);
       s.refreshDashboardSummary();
-      s.refreshHistory(false);
-      s.toast("광고가 생성되었습니다");
+      await notifyHistorySaved(data, "광고가 생성되었습니다");
     } catch (err) {
       s.toast(err instanceof Error ? err.message : "광고 생성에 실패했습니다");
     } finally {
@@ -348,8 +357,7 @@ export default function StudioPage() {
       s.setDashboardState({ currentResult: { ...data, client_prod_name: productName } });
       s.refreshBilling(false);
       s.refreshDashboardSummary();
-      s.refreshHistory(false);
-      s.toast("광고를 다시 생성했습니다");
+      await notifyHistorySaved(data, "광고를 다시 생성했습니다");
     } catch (err) {
       s.toast(err instanceof Error ? err.message : "다시 생성에 실패했습니다");
     } finally {
@@ -1058,12 +1066,6 @@ export default function StudioPage() {
               </div>
 
               <div className="out-actions">
-                <button
-                  className="oa save"
-                  onClick={() => s.toast("생성 결과는 내 광고에 자동 저장돼요")}
-                >
-                  💾 저장
-                </button>
                 <button className="oa" onClick={downloadResult}>
                   ⬇️ 다운로드 {s.isPremium ? "" : "🔒"}
                 </button>

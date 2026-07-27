@@ -119,13 +119,18 @@ export default function TemplateApplyPage() {
       fd.append("template_id", serverTemplateId(tpl.no, tpl.id));
       fd.append("purpose", "sns");
       const res = await apiFetch("/api/ads/generate", { method: "POST", body: fd });
-      const data = (await readJsonSafely(res)) as { image_url?: string } | null;
+      const data = (await readJsonSafely(res)) as { image_url?: string; history_id?: number } | null;
       if (!res.ok || !data?.image_url) throw new Error(readApiError(data, "광고 생성에 실패했습니다"));
       setResultUrl(toAbsoluteUrl(data.image_url) ?? "");
       s.refreshBilling(false);
-      s.refreshHistory(false);
       s.refreshDashboardSummary();
-      s.toast("광고가 완성됐어요");
+      const ads = await s.refreshHistory(false);
+      const isSaved = Boolean(data.history_id) && ads.some((ad) => ad.historyId === data.history_id);
+      s.toast(
+        isSaved
+          ? "광고가 완성됐어요"
+          : "광고는 생성됐지만 내 광고 목록 반영을 확인하지 못했습니다. 잠시 후 다시 확인해 주세요."
+      );
     } catch (err) {
       s.toast(err instanceof Error ? err.message : "광고 생성에 실패했습니다");
     } finally {
