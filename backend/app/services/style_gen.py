@@ -79,11 +79,13 @@ def generate_scene(image_path: str, style_key: str, subject_en: str,
     #   상위 process_ad 는 직접입력을 gpt-image edit 로 라우팅하고, 이 로컬 경로는 폴백.
     if extra_style_en:
         if style_key not in _RECOMPOSE_OK:
-            instr = ("Edit this exact photo. Keep the SAME food — the same number of pieces and the "
-                     "same real ingredients; do not add, remove or invent any food, ingredient or "
-                     "garnish. You may re-plate on a premium dish, restage attractively and make it "
-                     f"look freshly made and appetizing. Apply: {extra_style_en}. "
-                     "Keep colors natural and true. No text.")
+            instr = (f"Edit this exact photo into an ad for the {subject_en or 'dish'}. Keep that food "
+                     "faithful — the same pieces, the same real ingredients and its own sauce; do not "
+                     "add, multiply or invent any food, ingredient, garnish or prop. Focus on it only: "
+                     "you may crop out other unrelated foods or items in the original that are not part "
+                     "of it. You may re-plate on a premium dish, restage it attractively and make it "
+                     f"look freshly made and appetizing. Apply: {extra_style_en}. Keep colors natural "
+                     "and true. No text.")
         else:
             instr = (f"Restyle the background, lighting and mood: {extra_style_en}. "
                      "Keep the product's shape, proportions and true colors faithful; "

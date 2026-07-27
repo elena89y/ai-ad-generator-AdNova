@@ -131,13 +131,16 @@ def build_style_edit_instruction(subject_en: str, style_en: str, domain: str = "
                 "and any labels or logos exactly unchanged; do not distort or recolor it. "
                 f"Restyle only the background, surface, lighting and mood: {style_en}.")
     else:
-        base = ("Edit this exact photo. Keep the SAME food — the same number of pieces and the same "
-                "real ingredients; do NOT add, remove, multiply or invent any food, ingredient or "
-                "garnish, and do not change what the dish is. Within that, make it look its best for "
-                "an ad: you MAY re-plate it on a more premium dish, restage the arrangement more "
-                "attractively, and make it look freshly made and appetizing (natural gloss, vivid "
-                f"true-to-life color, appealing texture). Apply this direction: {style_en}. "
-                "Keep colors natural and true.")
+        base = (
+            f"Edit this exact photo into an ad for the {subj}. Keep the {subj} itself faithful — "
+            f"the same pieces, the same real ingredients and its own sauce or garnish; do NOT add, "
+            f"multiply or invent any food, ingredient, garnish or prop, and do not change what it "
+            f"is. Focus the composition on the {subj} only: you MAY crop out or leave out other "
+            f"unrelated foods or items in the original that are not part of it (for example a "
+            f"different fruit, dish or plate beside it). Within that, make it look its best for an "
+            f"ad: you MAY re-plate the {subj} on a more premium dish, restage it more attractively, "
+            f"and make it look freshly made and appetizing (natural gloss, vivid true-to-life "
+            f"color, appealing texture). Apply this direction: {style_en}. Keep colors natural and true.")
     if headline:
         text = (' Then render this Korean advertising text directly in the image, spelled EXACTLY '
                 f'as given and clearly legible: a large elegant serif headline "{headline}"')
