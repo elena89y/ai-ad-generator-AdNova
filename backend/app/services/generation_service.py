@@ -277,10 +277,13 @@ def run_from_upload_v2(
     use_vision: bool = False,
     poster: bool = False,
     style_text: str = "",
+    clean_hero: bool = False,
 ) -> GenerationOutput:
     """v2 진입점 — run_from_upload 드롭인 교체. 내부는 process_ad(Kontext). GenerationOutput 반환.
 
     style_text: 자유서술 무드(직접 입력 탭). process_ad(style_gen)로 전달, 빈값=기존 동작.
+    clean_hero: 멀티포맷(배너·카드뉴스·상세) 용도 → 직접입력이라도 gpt가 글자를 굽지 않고 클린
+        히어로만 생성(하류 pipeline_v5 포맷 조판이 유일 텍스트 소스). SNS(기본)=False로 기존 baked 유지.
     """
     import shutil
     import uuid
@@ -342,6 +345,7 @@ def run_from_upload_v2(
                 style=resolve_style(style.value), output_dir=str(image_service.RESULTS_DIR),
                 use_vision=use_vision, seed=actual_seed, best_of=_bon, steps=_steps,
                 log=False, analysis=analysis, _run=run, style_text=style_text,
+                clean_hero=clean_hero,
             )
             run.set_meta(
                 mode=getattr(r, "domain", "unknown"),
@@ -634,6 +638,7 @@ def process_ad(
     analysis: Optional[gpt_service.PhotoAnalysis] = None,
     _run=None,  # noqa: ANN001
     style_text: str = "",
+    clean_hero: bool = False,
 ) -> ProcessedAd:
     """사진 + 상품명 → 자동 라우팅(또는 스타일 씬) 리터치 + 문구 + 포스터. 사용자는 이름만 입력.
 
@@ -649,11 +654,13 @@ def process_ad(
         return _process_ad_impl(
             image_path, name, knob, poster, layout, use_vision, style,
             output_dir, seed, best_of, steps, analysis, run=_run, style_text=style_text,
+            clean_hero=clean_hero,
         )
     if not log:
         return _process_ad_impl(
             image_path, name, knob, poster, layout, use_vision, style,
             output_dir, seed, best_of, steps, analysis, run=None, style_text=style_text,
+            clean_hero=clean_hero,
         )
 
     try:
@@ -671,12 +678,14 @@ def process_ad(
         return _process_ad_impl(
             image_path, name, knob, poster, layout, use_vision, style,
             output_dir, seed, best_of, steps, analysis, run=None, style_text=style_text,
+            clean_hero=clean_hero,
         )
 
     with run:
         result = _process_ad_impl(
             image_path, name, knob, poster, layout, use_vision, style,
             output_dir, seed, best_of, steps, analysis, run=run, style_text=style_text,
+            clean_hero=clean_hero,
         )
         run.set_meta(mode=result.domain, engine=result.engine, seed=result.seed)
         run.set_output(result.final_image_path)
@@ -790,6 +799,7 @@ def _process_ad_impl(
     analysis: Optional[gpt_service.PhotoAnalysis],
     run=None,  # noqa: ANN001
     style_text: str = "",
+    clean_hero: bool = False,
 ) -> ProcessedAd:
     """process_ad 실제 생성 본문. run이 있으면 단계별 시간을 함께 기록한다.
 
@@ -852,7 +862,9 @@ def _process_ad_impl(
             #   헤드라인 baked용 카피를 원본 기반으로 먼저 생성해 지시문에 싣는다(굽는 문자 = copy_text).
             #   ⚠️ 한글 baked는 쌍자음 등 가끔 깨질 수 있음(사용자 감수) — quality=medium(가독 실측).
             #   실패 시 final=None → 아래 로컬 style_gen swap 폴백(그땐 _custom_style False = 일반 조판).
-            want_headline = not _wants_image_only(style_text)
+            #   clean_hero(멀티포맷=배너·카드뉴스·상세)면 SNS와 달리 gpt가 글자를 굽지 않고 클린 히어로만
+            #   만든다 — pipeline_v5 포맷 조판이 유일 텍스트 소스(gpt baked글자+포맷조판 겹침 방지, 07-28).
+            want_headline = not _wants_image_only(style_text) and not clean_hero
             head = sub = ""
             if want_headline:
                 with _stage(run, "copy"):

@@ -280,9 +280,12 @@ def generate(
     _require_ready()
     try:
         multiformat = purpose in (AdPurpose.CARD_NEWS, AdPurpose.DETAIL_PAGE)
+        # 멀티포맷(배너 포함, 비-SNS)은 직접입력이라도 클린 히어로로 — gpt baked 글자 위에 포맷 조판이
+        # 겹치는 사고 방지(07-28). BANNER 는 여기서 히어로만 만들고 웹(api/ads._compose_banner_response)이
+        # 조판하므로, 이 시점에 글자를 굽지 않아야 웹 조판이 유일 텍스트 소스가 된다.
         out = generation_service.run_from_upload_v2(
             str(src), product, style, seed, use_vision, False if multiformat else poster,
-            style_text=style_text,
+            style_text=style_text, clean_hero=purpose != AdPurpose.SNS,
         )
         if multiformat:
             return _render_multiformat(out, product_name, purpose)
