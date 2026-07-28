@@ -392,7 +392,7 @@ def test_unknown_noodle_falls_back_safely():
     (["kimchi", "tofu"], "kimchi glossy"),
     (["shrimp"], "seafood plump"),
     (["seaweed"], "seaweed matte"),
-    (["potato"], "potato floury"),
+    (["potato"], "potato matte"),   # 내부 구조어(inside) 제거된 안전 문구
 ])
 def test_ingredient_texture_selected_by_ingredient(core, marker):
     """재료가 있으면 그 재료의 질감 어휘가 실린다(여유 있는 경로 기준)."""
@@ -404,7 +404,7 @@ def test_ingredient_texture_selected_by_ingredient(core, marker):
 def test_ingredient_texture_absent_without_ingredients():
     """재료 미상(구캐시·스텁)이면 질감 절 미주입 — 없는 재료를 지어내지 않는다."""
     instr = _instr(style="realism", subject="mixed dish", scene_seed=0, serving_type="dish")
-    for _, tex in _INGREDIENT_TEX:
+    for _, _, tex in _INGREDIENT_TEX:
         assert tex not in instr
 
 
@@ -421,5 +421,47 @@ def test_texture_never_exceeds_two_phrases():
     """예산 보호: 재료가 많아도 최대 2종까지만 실린다."""
     instr = _instr(style="pop", subject="loaded dish", scene_seed=0, serving_type="dish",
                    core_ingredients=["cheese", "kimchi", "tofu", "shrimp", "potato", "rice"])
-    hits = [t for _, t in _INGREDIENT_TEX if t in instr]
+    hits = [t for _, _, t in _INGREDIENT_TEX if t in instr]
     assert len(hits) <= 2, hits
+
+
+# --- 워크플로 적대 검증 반영(2026-07-27): substring 키 붕괴·예산 가드 무력화 ------------
+
+@pytest.mark.parametrize("ingredient", [
+    "donut", "doughnut",          # nut → 견과 (베이커리 최빈 입력, 확정 사고였음)
+    "hamburger", "graham cracker",  # ham → 가공육
+    "rice noodles", "rice flour",   # rice → 밥알
+    "green tea powder", "mint syrup", "basil pesto",  # green/mint/basil → 생잎
+    "black pepper", "chili powder",  # pepper → 통고추
+    "sesame oil", "potato starch", "tomato sauce", "mushroom powder",
+    "peanut butter", "coconut milk",
+])
+def test_no_texture_for_lookalike_ingredients(ingredient):
+    """substring 오매칭으로 없는 재료를 소환하지 않는다 — 전부 실측으로 확인된 사고 목록."""
+    from app.services.reference_style_plans import _ingredient_tex_clause
+    assert _ingredient_tex_clause([ingredient]) == "", ingredient
+
+
+@pytest.mark.parametrize("ingredient,marker", [
+    ("arugula", "leafy greens"), ("parmesan", "grated cheese"), ("kimchi", "kimchi glossy"),
+    ("shrimp", "seafood plump"), ("seaweed", "seaweed matte"), ("potato", "potato matte"),
+    ("rice", "rice grains"), ("tteok", "rice cakes"),
+])
+def test_real_ingredients_still_match(ingredient, marker):
+    """정상 재료는 그대로 매칭된다(오매칭 차단이 과잉이 아님)."""
+    from app.services.reference_style_plans import _ingredient_tex_clause
+    assert marker in _ingredient_tex_clause([ingredient]), ingredient
+
+
+def test_zero_budget_injects_nothing():
+    """예산 없음(limit<=0) 판정이 무력화되지 않는다 — 루프가 1개를 흘리던 결함 가드."""
+    from app.services.reference_style_plans import _ingredient_tex_clause
+    assert _ingredient_tex_clause(["cheese", "tomato", "bacon"], limit=0) == ""
+
+
+def test_soup_excludes_submerged_ingredients():
+    """국물에 잠기는 건더기(두부·감자·버섯·해산물)는 질감 지시 제외 — 국물 위로 끌어올리지 않는다."""
+    from app.services.reference_style_plans import _ingredient_tex_clause
+    got = _ingredient_tex_clause(["tofu", "potato", "kimchi"], is_soup=True)
+    assert "tofu" not in got and "potato" not in got
+    assert "kimchi" in got            # 잠기지 않는 재료는 유지
