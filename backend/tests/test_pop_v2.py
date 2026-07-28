@@ -517,3 +517,31 @@ def test_photo_true_replaced_weaker_phrasing():
     instr = _instr(style="pop", subject="strawberry cream cake", scene_seed=0,
                    serving_type="dessert", core_ingredients=["strawberry"])
     assert "Premium food-styling quality, realistic photograph" not in instr
+
+
+# --- BAKED-SAFE (2026-07-28 라이브: 스모어 초코 쿠키가 크림 붓는 원통 타워로) -------------
+
+@pytest.mark.parametrize("style", ["pop", "monotone", "pastel"])
+@pytest.mark.parametrize("subject", ["smores choco cookie", "butter scone", "almond macaron"])
+def test_baked_goods_exclude_restructuring_variants(style, subject):
+    """구움과자는 본체 재구성 압력이 큰 변형(붓기·부유·몰입)을 전 시드에서 안 탄다.
+    라이브 사고: 납작한 쿠키가 pop④ mid-pour 연출 때문에 원통 타워로 재조형."""
+    for s in range(24):
+        instr = _instr(style=style, subject=subject, scene_seed=s,
+                       serving_type="dessert", core_ingredients=["chocolate"])
+        assert "captured mid-pour" not in instr, (style, subject, s)
+        assert "floating weightlessly" not in instr, (style, subject, s)
+
+
+def test_baked_goods_still_rotate():
+    """구움과자도 남은 변형 사이에서 로테이션은 유지(단일 고정 아님)."""
+    outs = {_instr(subject="smores choco cookie", scene_seed=s, serving_type="dessert")
+            for s in range(12)}
+    assert len(outs) >= 2
+
+
+def test_cakes_keep_all_variants():
+    """케이크는 전 변형 유지 — 구움과자 서브셋이 과잉 적용되지 않는다(회귀)."""
+    joined = " ".join(_instr(subject="strawberry cream cake", scene_seed=s,
+                             serving_type="dessert") for s in range(12))
+    assert "captured mid-pour" in joined

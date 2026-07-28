@@ -337,8 +337,8 @@ _DESSERT_IDEALIZE = (
     #   515토큰으로 512를 넘어 씬 지시가 뒤에서부터 잘렸다(가드에 palette_override 를 넣어
     #   발견). 마커·정직성 경계는 보존하고 중복 수사만 덜어낸다.
     "Do NOT paste the original photo as-is. Idealize this dessert into its most appetizing premium "
-    "advertising version — the same dessert, clearly recognizable, with the same layers, ingredients "
-    "and decoration. Rich appetizing light, deep natural color, " + _IDEALIZE_TEX_GENERIC + ", "
+    "advertising version — the same dessert, clearly recognizable, with the same layers and "
+    "decoration. Rich appetizing light, deep natural color, " + _IDEALIZE_TEX_GENERIC + ", "
     "a real photograph, never plastic, and never add ingredients, layers or decoration beyond the "
     "original. Remove any screenshot UI, icons or watermarks. "
 )
@@ -453,9 +453,12 @@ _IDENTITY_LOCKS = {
 #   맞교환한다(append 금지: T5 512토큰 예산 — 초과분은 뒤쪽 씬 지시부터 잘려 팔레트·소품
 #   소실, 이상화 1차 GPU 실측 3/3 우드 폴백).
 _FOOD_POP_HEAD = (
-    "This is a real plated food photograph. Keep the food structurally unchanged — same shape, layers, "
-    "textures, toppings and hue identity, never redrawn, resized, repainted or turned into a cup or "
-    "different object. "
+    # COUNT-LOCK(2026-07-28 라이브: 스모어 쿠키 여러 개가 파스텔에서 3층 케이크로 쌓임):
+    #   realism 락에만 있던 "same count ... arrangement"를 styled 락에도 공유한다. 개수·배열이
+    #   없으면 모델이 낱개 과자를 하나로 합치거나 층으로 쌓는다(재구성).
+    "This is a real plated food photograph. Keep the food structurally unchanged — same shape, count, "
+    "arrangement, layers, textures and hue identity, never redrawn, resized, repainted, restacked, "
+    "merged, or turned into a cup or different object. "
     # COLOR-LOCK(2026-07-25 아트디렉터: 팝에서 다크 초코 베이스가 주황 스펀지로 변색=정체성 위반).
     #   각 층 원본 색을 못 박아 밝은 씬 압력의 warming을 차단(예산 위해 압축).
     "Keep each layer its exact original color: dark chocolate stays dark brown, never recolored, warmed "
@@ -771,11 +774,10 @@ _PASTEL_FOOD_VARIANTS: tuple[str, ...] = (
     # ① dreamy_float v3 — 쉬머 실크 표면 (r2: 유리 접시는 성공, 표면 쉬머 약함 + 아트디렉터
     #   07-24 "부드러운 소품 = 쉬머 천·실크, 팝과 차이가 없다" → 파스텔의 소품 언어는 재료가
     #   아니라 소프트 텍스타일. 표면 자체를 흐르는 쉬머 실크로.)
-    "Create a dreamy pastel scene: the food on a wavy fluted opalescent glass dessert plate, set on "
-    "flowing shimmering silk fabric with a soft satin sheen, gentle folds catching the light all "
-    "around — never a flat solid background. Use {palette} as the silk's tint. Only a few small "
-    "{props} tucked into the silk folds. Soft diffused dreamy light with gentle bokeh; keep all food "
-    "colors fully natural, never pastel-tinted.",
+    "Create a dreamy pastel scene: the food on a fluted opalescent glass dessert plate, set on "
+    "flowing shimmering silk with gentle folds catching the light — never a flat solid background. "
+    "Use {palette} as the silk's tint. A few small {props} tucked into the folds. Soft diffused "
+    "dreamy light with gentle bokeh; keep all food colors fully natural, never pastel-tinted.",
     # ② soft_pedestal — 새틴/시폰 드레이프 위 (레퍼런스: 핑크 시폰 팔찌. r1 통과작 — 실크·시폰
     #   레이어링만 보강)
     "Style the food on a scalloped pastel ceramic plate set on softly draped silk satin fabric with "
@@ -784,12 +786,11 @@ _PASTEL_FOOD_VARIANTS: tuple[str, ...] = (
     "romantic mood; keep all food colors fully natural.",
     # ③ pastel_product_hero v3 — 파스텔 공간 감성 + 실크 러너 (아트디렉터 07-24: 소프트
     #   텍스타일이 파스텔의 소품 언어 — 리넨 냅킨 대신 실크 러너로 팝과 차별화)
-    "Place the food on a scalloped wavy-rim pastel ceramic plate set on a flowing silk table runner "
-    "with a soft sheen, in an airy pastel room corner: a softly textured plaster wall with a gentle "
-    "gradient of window light — never a flat solid background — a small pastel ceramic vase with "
-    "baby's breath and a pastel mug nearby, a few {props} beside the plate. Use {palette} as the "
-    "room's tint. Calm serene styling, every object clearly shaped and photorealistic; keep all food "
-    "colors fully natural, never pastel-tinted.",
+    "Place the food on a scalloped wavy-rim pastel ceramic plate on a flowing silk runner, in an "
+    "airy pastel room corner: a plaster wall with a gentle gradient of window light — never a flat "
+    "solid background — a small pastel vase with baby's breath and a pastel mug nearby, a few "
+    "{props} beside the plate. Use {palette} as the room's tint. Calm serene styling, every object "
+    "clearly shaped and photorealistic; keep all food colors fully natural, never pastel-tinted.",
 )
 
 # STYLE-V3(2026-07-25, 아트디렉터 6무드 피드백): editorial/realism/warm_organic 도 pop/mono/
@@ -929,6 +930,16 @@ _STYLE_FOOD_VARIANTS: dict[str, tuple[str, ...]] = {
 # 면류 안전 변형 인덱스(실측 통과분만 — "펜네 무조건 보존" 아트디렉터 하드 요구, 07-24):
 #   pop: ①scatter 제외 / monotone: ③brand 몰입 제외(4/4 재드로잉) / pastel: ①dreamy 전면
 #   실크 제외(4/4). 케이크·디저트 등 비면류는 전 변형 로테이션 유지.
+# BAKED-SAFE(2026-07-28 라이브: 스모어 초코 쿠키가 크림 붓는 원통 타워로 재조형): 굽는 과자는
+#   납작·원형이 정체성인데 pop④(mid-pour 액션)는 "쏟아지는 크림 아래 놓인 것"을 위해 본체를
+#   높이 있는 원통으로 다시 그린다. 부어붓기·부유처럼 **본체 재구성 압력이 큰 변형을 제외**한다
+#   — 국물(SOUP-PRESERVE)·면(NOODLE-SAFE)에서 실효가 확인된 패턴.
+_BAKED_SAFE_IDX: dict[str, tuple[int, ...]] = {
+    "pop": (0, 1),        # ②styling_cut·①ingredient_world 만 — ③부유·④붓기 제외
+    "monotone": (0, 1),   # ③color-immersion 제외(면과 동일 이유: 몰입 재구성)
+    "pastel": (1, 2),     # ①dreamy(전면 실크 재구성) 제외
+}
+
 _NOODLE_SAFE_IDX: dict[str, tuple[int, ...]] = {
     "pop": (1, 2, 3),
     "monotone": (0, 1),
@@ -1506,6 +1517,13 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         #   pop {②③④} · monotone {dark, gold} · pastel {pedestal, hero}. 비면류는 전 변형.
         if is_noodle:
             safe = _NOODLE_SAFE_IDX.get(plan.style_key)
+            if safe:
+                variants = tuple(variants[i] for i in safe)
+        # BAKED-SAFE: 구움과자(쿠키·스콘 등)도 본체 재구성 압력이 큰 변형을 제외한다.
+        #   ⚠️ 면 서브셋 뒤에 두어 원본 인덱스가 아닌 이미 걸러진 목록을 다시 자르지 않도록,
+        #   면이 아닐 때만 적용(요리명 기준이라 둘이 겹치는 경우는 없다).
+        elif any(k in subject.lower() for k in _BAKED_HINTS):
+            safe = _BAKED_SAFE_IDX.get(plan.style_key)
             if safe:
                 variants = tuple(variants[i] for i in safe)
         # SOUP-GUARD 변형 필터(2026-07-27): 국물요리는 기립 연출 변형(footed dessert stand,
