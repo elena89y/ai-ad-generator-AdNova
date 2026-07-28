@@ -345,6 +345,27 @@ export function formatDateLabel(value?: string | null): string {
 export function toStyleLabel(style?: string | null): string {
   return STYLE_LABEL_MAP[style || ""] || style || "팝 비비드";
 }
+
+/** 포맷 산출물 파일명(예: `..._banner_1080x1080_commerce_square.jpg`)에서 사이즈 뱃지 텍스트를 뽑는다.
+ *  배너는 파일명에 WxH가 박혀 있어 백엔드 변경 없이 URL만 파싱하면 된다. WxH가 없으면 null(뱃지 미표시).
+ *  asset_id(12 hex)엔 'x'·'_' 없음 → `_NxN_`은 사이즈뿐이라 오탐 없음. */
+export function formatSizeBadge(url?: string | null): string | null {
+  if (!url) return null;
+  const m = url.match(/_(\d{2,5})x(\d{2,5})[_.]/);
+  if (!m) return null;
+  const w = Number(m[1]);
+  const h = Number(m[2]);
+  const r = w / h;
+  const shape =
+    Math.abs(r - 1) < 0.03
+      ? "정사각"
+      : r >= 2.2
+        ? "가로 와이드"
+        : r > 1.05
+          ? "가로형"
+          : "세로형";
+  return `${w}×${h} · ${shape}`;
+}
 export function normalizePlatformCopy(
   value: unknown,
   fallback: PlatformCopy

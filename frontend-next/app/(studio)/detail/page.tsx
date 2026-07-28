@@ -8,6 +8,7 @@ import {
   FORMAT_LABELS,
   apiFetch,
   formatAdType,
+  formatSizeBadge,
   getItemPlatformCopy,
   getToken,
   historyToCard,
@@ -846,6 +847,27 @@ function DetailContent() {
                           height: "auto",
                         }}
                       />
+
+                      {formatSizeBadge(url) && (
+                        <span
+                          style={{
+                            position: "absolute",
+                            top: 8,
+                            left: 8,
+                            padding: "3px 8px",
+                            borderRadius: 6,
+                            background: "rgba(0,0,0,0.62)",
+                            color: "#fff",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            letterSpacing: "0.02em",
+                            pointerEvents: "none",
+                            zIndex: 5,
+                          }}
+                        >
+                          {formatSizeBadge(url)}
+                        </span>
+                      )}
 
                       {!s.isPremium && (
                         <AdNovaWatermark />
