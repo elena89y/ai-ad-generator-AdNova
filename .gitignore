@@ -12,6 +12,7 @@ ENV/
 env/
 # ====== 데이터베이스 및 OS 임시 파일 ======
 *.db
+runtime/
 .DS_Store
 Thumbs.db
 # ====== 개발 툴 세팅 ======
