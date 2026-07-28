@@ -714,19 +714,25 @@ _IDENTITY_LOCKS["food_realism"] = _FOOD_REALISM_HEAD + _RETOUCH_RESTRAINED + _FO
 #   **구체명**을 런타임 주입 + "clearly shaped, photorealistic, no shapeless lumps" 안티-덩어리
 #   절 + ①은 "Fill the scene"(씬 재구성 압력, 면류 본체 재드로잉 유발)을 "Scatter around"로
 #   낮추고 카메라 앵글·본체 고정 재단언.
+# PIECE-ANCHOR(2026-07-28): 같은 쿠키 사진에서 editorial·pastel 은 낱개 9개를 유지했는데
+#   pop·monotone 만 하나로 합쳤다(실측). 두 무드 변형의 연출 문장 **맨 앞**에 개수·분리 단언을
+#   넣는다 — 뒤쪽 락(COUNT-LOCK)보다 앞쪽 긍정문이 강하다는 오늘의 실측 패턴.
+_PIECES = "every piece kept separate and the same number as in the photo, "
+
 _POP_FOOD_VARIANTS: tuple[str, ...] = (
     # ① ingredient_world — 톤온톤 소품 무리 (sports_concept 유래)
-    "Keep the food and its camera angle exactly as photographed. Scatter {props} generously across the "
-    "table around a scalloped gold-rimmed dessert plate — every prop clearly shaped, glossy and "
+    "Keep the food and its camera angle exactly as photographed, " + _PIECES + "on its own serving "
+    "surface. Scatter {props} generously across the table around it — every prop clearly shaped, glossy and "
     "photorealistic, no shapeless lumps. Use {palette}, keeping the whole scene tone-on-tone with the "
     "product. Bright cheerful studio light with crisp soft shadows, joyful pop energy.",
     # ② styling_cut — 러블리 스타일링 컷 (food_metaphor 유래) + 오브제 다양화(구슬)
-    "Style a lovely editorial styling cut: the food on a scalloped gold-rimmed dessert plate with {props} "
+    "Style a lovely editorial styling cut: the food kept exactly as photographed, " + _PIECES + "on a "
+    "scalloped gold-rimmed dessert plate with {props} "
     "arranged appetizingly around it on the plate, a soft satin ribbon, a delicate "
     "string of small pearls and a few small glossy decorative beads nearby on the table — every object "
     "clearly shaped and photorealistic. Use {palette}. Soft romantic pop light, sweet gift-like mood.",
     # ③ dynamic_float — 소품 공중 부유 + 소프트 그라데이션 (dynamic_float 유래)
-    "Keep the food and its camera angle exactly as photographed, presented on an elegant footed dessert "
+    "Keep the food and its camera angle exactly as photographed, " + _PIECES + "presented on an elegant footed dessert "
     "stand. Surround it with {props} floating weightlessly in mid-air at clearly different heights and "
     "sizes filling the upper frame — each floating piece clearly shaped, glossy and photorealistic with no "
     "contact shadow, never shapeless lumps. Use {palette}, rendered as a smooth softly blended gradient "
@@ -747,15 +753,16 @@ _POP_FOOD_VARIANTS: tuple[str, ...] = (
 #   무드 오브제) 포함. {palette}=PAL-003 적응형 절.
 _MONO_FOOD_VARIANTS: tuple[str, ...] = (
     # ① dark_color_lock — 딥 모노크롬 + 톤 매칭 박스·리본 오브제 스택 (레퍼런스: 블랙 기프트박스)
-    "Set a dramatic dark color-lock scene: the food on a matte charcoal stone plate, a neat stack of "
-    "tone-matched gift boxes and a satin ribbon in the same deep hue arranged behind it, with {props} "
+    "Set a dramatic dark color-lock scene: the food kept exactly as photographed, " + _PIECES + "on a "
+    "matte charcoal stone plate, with tone-matched gift boxes and a satin ribbon in the same deep hue "
+    "standing behind it, and {props} "
     "beside the plate. Use {palette}. Keep the food's true colors vivid and isolated against the "
     "monochrome surroundings. Precise warm rim light and one bold diagonal shadow, premium editorial "
     "quality, every object clearly shaped and photorealistic.",
     # ② gold_blush_luxury v3 (구 pale_color_lock — r2 실패: 앞접시 2장 겹침·파스텔과 혼동.
     #   아트디렉터 07-24: "밝게 하려면 골드+핑크" → 페일 락을 골드+블러시 럭셔리로 재정의,
     #   주얼리 캠페인 급 고급감. 접시=골드림 마블 슬랩 단일.)
-    "Set a luxurious bright scene in blush and gold: the food kept exactly as photographed, presented "
+    "Set a luxurious bright scene in blush and gold: the food kept exactly as photographed, " + _PIECES + "presented "
     "on a single polished pale marble slab plate with a thin brushed-gold rim — one plate only, never "
     "stacked plates — resting on a low marble pedestal. Behind it one small polished gold sphere and "
     "a short round gold pillar-stand as decor. Use {palette} with warm golden accents. Elegant "
@@ -763,7 +770,7 @@ _MONO_FOOD_VARIANTS: tuple[str, ...] = (
     "jewelry-campaign quality, every object clearly shaped and photorealistic.",
     # ③ brand_color_lock — 주조색 몰입 + 대각 구도 (레퍼런스: smize 레드 몰입. r-pasta 실측:
     #   연한 제품은 몰입이 밍밍해짐 → 색족의 가장 딥한 톤으로 몰입 채도 강화 + 본체 고정 명시)
-    "Set a bold color-immersion scene: the food kept exactly as photographed, while the background, "
+    "Set a bold color-immersion scene: the food kept exactly as photographed, " + _PIECES + "while the background, "
     "table surface and a smooth ceramic plate are all drenched in the same color family — use the "
     "deepest, most saturated tone of {palette} for the immersion. The food's true colors stand out as "
     "the only contrast, with {props} placed sparsely beside the plate. Dynamic diagonal framing, "
@@ -1471,9 +1478,10 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
     # NOODLE-PRESERVE: 국물 면(라멘·쌀국수)은 위 soup 이 이미 잡으므로 마른 면만 여기로.
     is_noodle_dish = (plan.domain == "food" and not is_vessel and not is_soup
                       and _is_noodle_dish(subject))
-    # BAKED-PRESERVE: 구움과자도 in-place 보존(면·국물과 동일). 앞선 두 판정과 상호배타.
-    is_baked_dish = (plan.domain == "food" and not is_vessel and not is_soup
-                     and not is_noodle_dish and _is_baked_dish(subject))
+    # BAKED-PRESERVE 철회(2026-07-28): 같은 쿠키 사진에서 editorial·pastel 은 낱개를 정상
+    #   유지했다(실측) — 구움과자 전체를 보존으로 빼면 잘 되던 두 무드까지 죽는다. 실패하는
+    #   pop·monotone 변형만 PIECE-ANCHOR 로 좁게 고친다.
+    is_baked_dish = False
     if is_vessel:
         container = container_desc.strip().lower()  # analyze_photo 계약상 ASCII 보장
         identity_lock = _prompts.fmt(_NS, "container.identity_lock_vessel",
@@ -1485,10 +1493,6 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         identity_lock = _FOOD_SOUP_LOCK
         hero = "the bowl of soup"
         container_clause = "the deep bowl resting flat on the table"
-    elif is_baked_dish:
-        identity_lock = _FOOD_BAKED_LOCK
-        hero = "the baked goods"
-        container_clause = "the pieces resting flat on the surface"
     elif is_noodle_dish:
         # NOODLE-PRESERVE(전 무드): 면 요리도 국물과 동일하게 in-place 보존 — 면 형태가 정체성.
         #   NOODLE-SHAPE-ANCHOR: 면 종류를 구체 명사로 채워 문두 긍정 단언(레지스트리 소프트코딩).
