@@ -70,6 +70,35 @@ curl -I http://127.0.0.1:3000
 백엔드에서 접근할 수 없으므로, 8100 연결 방식을 준비하기 전에는 광고 생성 요청이
 실패한다. 일반 로그인·조회 API와 8100 생성 서버는 독립적으로 운영한다.
 
+## systemd 생성 워커 연결
+
+Docker 백엔드가 호스트의 생성 워커에 접근할 수 있도록 저장소의 systemd 서비스
+설정을 VM에 반영한다. 워커는 Docker 브리지에서 접근할 수 있도록
+`0.0.0.0:8100`에 바인딩하지만, 8100은 GCP 및 호스트 방화벽에서 외부에 공개하지
+않는다.
+
+```bash
+cd ~/ai-ad-generator-AdNova
+sudo cp backend/deploy/systemd/adnova-generation.service \
+  /etc/systemd/system/adnova-generation.service
+sudo systemctl daemon-reload
+sudo systemctl restart adnova-generation
+```
+
+모델 사전 로딩 때문에 워커 준비에는 몇 분이 걸릴 수 있다. 다음 세 단계가 모두
+성공한 뒤 광고 생성을 테스트한다.
+
+```bash
+sudo systemctl status adnova-generation --no-pager
+curl -i http://127.0.0.1:8100/health
+sudo docker compose exec backend-web python3 -c \
+  "import requests; print(requests.get('http://host.docker.internal:8100/health', timeout=10).json())"
+```
+
+`ss -ltnp`에서 8100이 모든 인터페이스에 바인딩된 것은 Docker 접근을 위한 설정이다.
+Nginx에는 8100 프록시를 추가하지 않고, GCP 인바운드 방화벽에도 8100 허용 규칙을
+추가하지 않는다.
+
 ## Nginx 연결
 
 기존 도메인용 Nginx `server` 블록에 `deploy/nginx/adnova-docker.locations.conf`의 두 `location` 블록을 넣는다.
