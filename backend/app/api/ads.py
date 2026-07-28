@@ -681,6 +681,28 @@ def list_ad_templates(
     return items
 
 
+@router.get("/classify")
+def classify_product_name(
+    name: str,
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """상품명(텍스트)만으로 serving_type/domain 판정 — 스튜디오 타이핑 미리보기용(생성 없이).
+
+    생성과 동일한 gpt_service.analyze_menu(이름 기반, GPU·Vision 불필요, lru_cache 256)를 써서
+    미리보기 라벨이 실제 생성 분류와 일치한다. 프론트 정규식 미리보기의 어휘 갭(정육·베이커리·
+    지역음식 등 끝없는 하드코딩)을 LLM이 범용으로 메운다. 실패·빈입력은 serving_type=None →
+    프론트가 즉시 정규식으로 폴백(무해). 텍스트 1콜이라 저렴, 프론트는 디바운스로 상품당 1회.
+    """
+    q = (name or "").strip()
+    if not q:
+        return {"serving_type": None, "domain": None}
+    try:
+        analysis = gpt_service.analyze_menu(q)
+        return {"serving_type": analysis.serving_type, "domain": analysis.domain}
+    except Exception:  # noqa: BLE001 — 미리보기 힌트라 실패는 프론트 정규식 폴백으로 무해
+        return {"serving_type": None, "domain": None}
+
+
 @router.get("/template-thumb/{template_id}")
 def get_template_thumbnail(
     template_id: str,
