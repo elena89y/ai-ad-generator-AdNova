@@ -112,8 +112,10 @@ def test_initial_v2_generation_reports_seed_used_by_pipeline(monkeypatch, tmp_pa
         str(uploaded), ProductInfo(name="카페 라떼"), StylePreset.MONOTONE
     )
 
-    assert captured["seed"] == 42
-    assert result.seed == 42
+    # 시드 미지정 시 매 생성 새 랜덤 시드(고정 42 아님). 핵심은 파이프라인이 실제 쓴 시드를
+    # 그대로 보고하는 것 — 값 자체가 아니라 report 일치를 검증.
+    assert isinstance(captured["seed"], int)
+    assert result.seed == captured["seed"]
 
 
 def test_expired_regeneration_input_is_removed(monkeypatch, tmp_path) -> None:
