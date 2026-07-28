@@ -5,7 +5,8 @@
 """
 import pytest
 
-from app.services.reference_style_plans import (_IDENTITY_LOCKS, _POP_FOOD_VARIANTS,
+from app.services.reference_style_plans import (_IDENTITY_LOCKS, _INGREDIENT_TEX,
+                                                _POP_FOOD_VARIANTS,
                                                 build_reference_instruction)
 
 
@@ -382,19 +383,29 @@ def test_unknown_noodle_falls_back_safely():
     assert "exactly the shape, cut and thickness seen in the photo" in instr
 
 
-# --- GARNISH-TEX (2026-07-27: "재료들이 좀 더 사실적으로 — 루꼴라도, 치즈도") ----------
+# --- INGREDIENT-TEX (2026-07-27: "다른 가니시들과 재료들도 사실적으로") -----------------
+#   질감 어휘는 정적 상시 문구가 아니라 **그 요리에 실제 있는 재료**로 선택된다(T5 예산 보호).
 
-@pytest.mark.parametrize("subject,serving", [
-    ("cream penne pasta", "dish"),          # 면 보존 경로
-    ("korean spicy beef soup", "dish"),     # 국물 보존 경로
-    ("grilled pork ribs", "dish"),          # styled/realism 경로
+@pytest.mark.parametrize("core,marker", [
+    (["arugula", "cheese"], "leafy greens veined"),
+    (["cheese"], "grated cheese dry and granular"),
+    (["kimchi", "tofu"], "kimchi glossy"),
+    (["shrimp"], "seafood plump"),
+    (["seaweed"], "seaweed matte"),
+    (["potato"], "potato floury"),
 ])
-def test_garnish_texture_vocab_present(subject, serving):
-    """잎채소·갈은 치즈의 실제 질감 어휘가 들어간다(총칭 'fresh/glossy' 로는 플라스틱·왁스 렌더)."""
-    for style in ("monotone", "pastel", "realism", "pop"):
-        instr = _instr(style=style, subject=subject, scene_seed=0, serving_type=serving,
-                       core_ingredients=["cheese"])
-        assert "veined" in instr or "visible veins" in instr, (style, subject)
+def test_ingredient_texture_selected_by_ingredient(core, marker):
+    """재료가 있으면 그 재료의 질감 어휘가 실린다(여유 있는 경로 기준)."""
+    instr = _instr(style="realism", subject="mixed dish", scene_seed=0,
+                   serving_type="dish", core_ingredients=core)
+    assert marker in instr, (core, marker)
+
+
+def test_ingredient_texture_absent_without_ingredients():
+    """재료 미상(구캐시·스텁)이면 질감 절 미주입 — 없는 재료를 지어내지 않는다."""
+    instr = _instr(style="realism", subject="mixed dish", scene_seed=0, serving_type="dish")
+    for _, tex in _INGREDIENT_TEX:
+        assert tex not in instr
 
 
 def test_glossy_cheese_vocab_removed():
@@ -404,3 +415,11 @@ def test_glossy_cheese_vocab_removed():
             instr = _instr(style=style, subject=subject, scene_seed=0, serving_type="dish",
                            core_ingredients=["cheese"])
             assert "cheese glossy" not in instr, (style, subject)
+
+
+def test_texture_never_exceeds_two_phrases():
+    """예산 보호: 재료가 많아도 최대 2종까지만 실린다."""
+    instr = _instr(style="pop", subject="loaded dish", scene_seed=0, serving_type="dish",
+                   core_ingredients=["cheese", "kimchi", "tofu", "shrimp", "potato", "rice"])
+    hits = [t for _, t in _INGREDIENT_TEX if t in instr]
+    assert len(hits) <= 2, hits
