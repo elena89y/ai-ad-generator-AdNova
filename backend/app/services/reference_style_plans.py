@@ -629,6 +629,15 @@ _FOOD_FIDELITY = (
     "substituted; add no sauce or topping not in the original; never turn it into a cake or a "
     "different dish. "
 )
+# PHOTO-TRUE(2026-07-28 아트디렉터 "리얼리즘 질감이 정본, 무드별 편차가 큼"): 리얼리즘만 갖고
+#   있던 '실사진' 프레이밍을 전 무드 공용으로 이식한다. styled 무드는 "Idealize ... premium
+#   advertising version"이라는 재드로잉 초대장을 갖고 있어 표면이 CGI·찰흙으로 흐르는데,
+#   리얼리즘 계보("This is a real ... photograph" + 절제형 리터치)에는 그 압력이 없다.
+#   기존 꼬리 문구("Premium food-styling quality, realistic photograph.")와 **맞교환**한다.
+_PHOTO_TRUE = (
+    "A real photograph: true micro-texture and natural irregularity, never CGI, plastic or clay."
+)
+
 _FOOD_POP_TAIL = (
     "You MAY replace the plain plate with a beautiful dessert plate and add tasteful garnish using "
     "only the same ingredients already visible. "
@@ -636,9 +645,10 @@ _FOOD_POP_TAIL = (
     #   캐리오버라 제거 명시). 재연출은 디저트만.
     "Show only the dessert — no fork or cutlery carried over from the original photo. "
     # PLATING-001-2/3(pop 사고 이력이라 완화 잠금에도 유지, 예산 위해 압축):
-    "The food rests flat on its plate under gravity; a slice of cake or flat-cut item lies on its "
-    "widest cut face, never standing upright, propped up or leaning. "
-    "Premium food-styling quality, realistic photograph. "
+    "The food rests flat under gravity; a slice of cake or flat-cut item lies on its widest "
+    "cut face, "
+    "never standing upright, propped up or leaning. "
+    + _PHOTO_TRUE + " "
 )
 _IDENTITY_LOCKS["food_pop"] = _FOOD_POP_HEAD + _RETOUCH_RESTRAINED + _FOOD_POP_TAIL
 
