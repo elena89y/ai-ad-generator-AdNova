@@ -44,9 +44,17 @@ def t5_tok():
 def test_instruction_fits_t5_budget(t5_tok, style):
     for serving_type, subject, core in _CASES:
         for seed in range(12):
+            # 런타임(style_gen)은 PAL_ADAPTIVE=1 기본으로 적응형 팔레트를 넘긴다 — 가드가
+            #   이를 빼면 실제보다 짧게 재 실초과를 놓친다(2026-07-27 워크플로 지적).
+            from app.services import palette_gen
+            from app.services.reference_style_plans import normalize_style
+            pal = palette_gen.style_palette_clause(
+                normalize_style(style) or "", subject, "food", None, seed,
+                serving_type=serving_type)
             instr = build_reference_instruction(
                 style, "food", subject, scene_seed=seed,
-                serving_type=serving_type, core_ingredients=core)
+                serving_type=serving_type, core_ingredients=core,
+                palette_override=pal)
             assert instr is not None
             n = len(t5_tok(instr).input_ids)
             assert n <= _BUDGET, (

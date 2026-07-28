@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from dataclasses import dataclass
 import os
 
@@ -324,12 +325,14 @@ _IDEALIZE_TEX_CHOCO = (
     "color, glossy juicy fruit"
 )
 _DESSERT_IDEALIZE = (
+    # 2026-07-27 압축: 적응형 팔레트(PAL_ADAPTIVE=1 런타임 기본)와 겹치면 pastel×디저트가
+    #   515토큰으로 512를 넘어 씬 지시가 뒤에서부터 잘렸다(가드에 palette_override 를 넣어
+    #   발견). 마커·정직성 경계는 보존하고 중복 수사만 덜어낸다.
     "Do NOT paste the original photo as-is. Idealize this dessert into its most appetizing premium "
     "advertising version — the same dessert, clearly recognizable, with the same layers, ingredients "
     "and decoration. Rich appetizing light, deep natural color, " + _IDEALIZE_TEX_GENERIC + ", "
-    "a real photograph, never plastic or "
-    "over-smoothed, and never add ingredients, layers or decoration beyond the original. "
-    "Remove any screenshot UI elements, icons, buttons or watermarks. "
+    "a real photograph, never plastic, and never add ingredients, layers or decoration beyond the "
+    "original. Remove any screenshot UI, icons or watermarks. "
 )
 
 
@@ -467,23 +470,135 @@ _RETOUCH_TEX_SWEET = (
 # 가니시 재료 질감(GARNISH-TEX, 2026-07-27): 루꼴라·허브 잎과 갈아놓은 경성치즈는 "fresh"·
 #   "glossy" 같은 총칭 어휘로는 각각 플라스틱 잎·왁스 덩어리로 렌더된다. 실제 질감을 명시 —
 #   잎은 잎맥·자연스러운 컬·가장자리 반투명, 갈은 치즈는 윤기가 아니라 **건조한 알갱이·조각**.
-_GARNISH_TEX = (
-    "leafy greens crisp with visible veins and natural curl, grated hard cheese dry and granular in "
-    "irregular shards, toppings fresh and photographic, never plastic, waxy, matte or claylike"
+# INGREDIENT-TEX 로 흡수(2026-07-27): 루꼴라·치즈 질감은 이제 아래 레지스트리가 재료 기준으로
+#   싣는다. 여기엔 재료 무관 공통 지시만 남겨 T5 예산을 재료 질감 쪽으로 넘긴다(append 금지 원칙).
+_GARNISH_TEX = "toppings fresh and photographic, never plastic, waxy, matte or claylike"
+
+# INGREDIENT-TEX(2026-07-27 아트디렉터 "다른 가니시들과 재료들도 사실적으로"): 루꼴라·치즈만
+#   질감을 준 GARNISH-TEX 를 전 재료군으로 확장. 단 전부 나열하면 T5 512 예산이 터져 씬 지시가
+#   뒤에서부터 잘리므로(RETOUCH-003-2 실측), **그 요리에 실제 있는 재료만** core_ingredients 로
+#   골라 최대 3종만 싣는다 — _PROP_SHAPES 와 동일한 소프트코딩 패턴.
+# 정직성: 원본에 없는 것을 만들지 않도록 **표면 질감만** 기술한다. 내부 구조(토마토 씨·노른자
+#   단면)나 조리 상태(반숙 등)를 지시하면 없는 것을 그리게 되므로 금지 — egg 를 소품에서 뺀
+#   2026-07-24 판정과 같은 이유.
+_INGREDIENT_TEX: tuple[tuple[tuple[str, ...], tuple[str, ...], str], ...] = (
+    # (키, 제외어, 문구). 매칭은 **단어 경계** + 제외어 — substring 매칭이 만든 실측 사고:
+    #   donut→견과, hamburger/graham→햄, rice noodles→밥알, fried rice→튀김옷,
+    #   green tea→생잎, black pepper→통고추, sesame oil→깨, potato starch→감자.
+    (("arugula", "rocket", "spinach", "lettuce", "parsley", "cilantro", "perilla",
+      "green onion", "spring onion", "chive", "scallion", "leek", "herb", "herbs"),
+     ("tea", "powder", "syrup", "extract", "dried", "pesto", "paste", "oil", "sauce"),
+     "leafy greens veined and naturally curled"),
+    (("cheese", "parmesan", "cheddar", "mozzarella"),
+     ("cake", "powder", "sauce", "flavor", "flavour"), "grated cheese dry and granular"),
+    (("tomato", "tomatoes"), ("paste", "sauce", "ketchup", "puree", "powder"),
+     "tomatoes taut-skinned and glistening"),
+    (("onion", "onions", "shallot"),
+     ("powder", "flake", "salt", "green onion", "spring onion"),
+     "onion glossy with clean edges"),
+    (("mushroom", "mushrooms", "enoki", "shiitake"), ("powder", "sauce", "extract"),
+     "mushrooms velvety and matte-capped"),
+    (("kimchi",), ("juice", "powder", "sauce"), "kimchi glossy with crinkled edges"),
+    (("shrimp", "prawn", "clam", "mussel", "scallop", "seafood"),
+     ("paste", "powder", "sauce", "stock", "broth"), "seafood plump and pearly"),
+    (("squid", "octopus"), ("ink", "sauce", "paste"), "squid glossy with firm cut edges"),
+    (("katsu", "tempura", "cutlet", "twigim", "karaage", "nugget", "breaded", "batter"),
+     ("powder", "sauce"), "fried coating craggy and crisp"),
+    (("nut", "nuts", "almond", "peanut", "walnut", "pecan", "pistachio"),
+     ("donut", "doughnut", "coconut", "nutmeg", "butternut", "butter", "milk", "powder", "oil"),
+     "nuts dry and matte"),
+    (("sesame", "sesame seed", "sesame seeds"), ("oil", "paste", "sauce", "dressing"),
+     "sesame seeds fine and separate"),
+    (("tofu",), ("sauce", "powder"), "tofu with clean soft edges"),
+    (("rice cake", "rice cakes", "tteok", "garae"), (), "rice cakes chewy and glossy-skinned"),
+    (("potato", "potatoes"), ("starch", "flour", "powder", "chips", "sweet potato"),
+     "potato matte with softly crumbling edges"),
+    (("rice",), ("noodle", "flour", "vinegar", "wine", "paper", "cake", "syrup", "powder"),
+     "rice grains separate and glistening"),
+    (("bread", "bun", "baguette", "ciabatta", "toast", "brioche"),
+     ("crumb", "powder", "flour"), "crust crackly and matte-floured"),
+    (("gochu", "cheongyang", "jalapeno", "bell pepper", "paprika"),
+     ("powder", "oil", "flake", "paste", "sauce"), "peppers taut and waxy-bright"),
+    (("cucumber", "zucchini"), ("pickle", "powder"), "cucumber crisp with a dewy face"),
+    (("carrot", "radish"), ("powder", "juice"), "carrot firm with fine matte grain"),
+    (("bean sprout", "bean sprouts", "sprout", "sprouts"), (),
+     "bean sprouts crisp and pearly"),
+    (("seaweed", "gim", "nori"), ("powder", "soup", "stock"),
+     "seaweed matte and finely crinkled"),
+    (("cream", "butter"), ("powder", "flavor", "flavour", "peanut butter", "butternut"),
+     "cream silky with a dewy sheen"),
+    (("chocolate", "choco", "cocoa"), ("powder", "flavor", "flavour"),
+     "chocolate glossy with fractured edges"),
+    (("strawberry", "berry", "berries", "blueberry", "grape", "cherry", "peach", "mango"),
+     ("syrup", "jam", "powder", "flavor", "flavour", "juice", "extract"),
+     "fruit taut-skinned and juicy-bright"),
+    (("bacon", "ham", "sausage", "prosciutto", "salami"),
+     ("hamburger", "graham", "powder", "flavor", "flavour"), "cured slices thin and glossy"),
 )
+
+# 국물에 잠기는 건더기 — SOUP-PRESERVE 경로에선 질감 지시 제외. 레시피엔 있어도 국물 아래라
+#   안 보이는 경우가 많아, 표면 질감을 요구하면 건더기를 국물 위로 끌어올린다.
+_SUBMERGED_IN_SOUP = ("tofu", "potato", "mushroom", "seafood", "rice grains", "bean sprouts",
+                      "squid")
+
+
+# T5 예산(512) 추정 상수: 실측 토큰/단어 비율 1.44~1.55 → 보수적 상한 1.55 사용.
+#   재료 질감 문구는 압축 유지(6~9토큰) 기준 1종당 10토큰으로 잡는다(안전측).
+_T5_BUDGET = 512
+_T5_TOK_PER_WORD = 1.57   # 실측 최악 1.564 + 여유
+_TEX_TOKENS_EACH = 10
+_TEX_SAFETY = 12          # 자리표시자 치환({props}/{plate} 등)으로 뒤에 더 붙는 몫
+
+
+def _tex_budget_room(full_instruction: str) -> int:
+    """남은 T5 예산으로 실을 수 있는 재료 질감 문구 개수(0~2).
+
+    토크나이저를 런타임에 돌리면 느리고 무거워 실측 비율(최악 1.564) 기반 보수 추정으로 대체한다.
+    추정이 빗나가도 **적게 싣는 쪽**으로 기울도록 상한 비율·안전 여유를 쓴다. 인자는 주입 전
+    **완성 문자열 전체** — 부분 문자열로 재면 접두사·finish 를 놓쳐 과대 주입된다(실측).
+    """
+    est = len(full_instruction.split()) * _T5_TOK_PER_WORD + _TEX_SAFETY
+    room = int((_T5_BUDGET - est) // _TEX_TOKENS_EACH)
+    return max(0, min(2, room))
+
+
+def _ingredient_tex_clause(core_ingredients: list[str] | None, limit: int = 2,
+                           is_soup: bool = False) -> str:
+    """요리에 있는 재료만 골라 질감 문구를 만든다(최대 limit 종, T5 예산 보호).
+
+    매칭은 단어 경계 + 제외어 — substring 은 donut→견과·hamburger→햄처럼 없는 재료를 소환한다.
+    limit<=0 이면 빈 문자열(예산 없음 판정이 무력화되지 않게). is_soup 이면 국물에 잠기는
+    건더기를 제외해 SOUP-PRESERVE 의 '있는 그대로' 원칙을 지킨다.
+    """
+    if limit <= 0:
+        return ""
+    names = [str(i).strip().lower() for i in (core_ingredients or []) if str(i).strip()]
+    if not names:
+        return ""
+    out: list[str] = []
+    for keys, excludes, tex in _INGREDIENT_TEX:    # 표 순 = 시각 임팩트 순
+        if is_soup and any(w in tex for w in _SUBMERGED_IN_SOUP):
+            continue
+        for name in names:
+            if any(x in name for x in excludes):
+                continue
+            if any(re.search(rf"\b{re.escape(k)}\b", name) for k in keys):
+                out.append(tex)
+                break
+        if len(out) >= limit:
+            break
+    return ", ".join(out)
 
 _RETOUCH_TEX_SAVORY = (
     # GARNISH-TEX: 'cheese glossy'(→왁스 덩어리)·'vegetables crisp'(→플라스틱 잎)를 실제 질감으로.
     "meat marbled with fat, muscle grain, cured slices thin, folded and glossy, bread crusty, crumb "
-    "airy, grated cheese dry and granular, leafy greens veined and naturally curled, sauces glossy, "
-    "never dry, matte, uniform, waxy or claylike"
+    "airy, sauces glossy, never dry, matte, uniform, waxy or claylike"
 )
 # 고기 신호 없는 짭짤 요리(비빔밥·샐러드·플레인 라이스/면)엔 marbling 어휘가 고기를 소환할 수 있어
 #   meat 어휘를 뺀 변주(2-tier). build 의 _has_meat 로 분기.
 _RETOUCH_TEX_SAVORY_PLAIN = (
-    "bread crusty with airy crumb, grated cheese dry and granular, leafy greens veined and naturally "
-    "curled, rice and noodles moist and distinct, sauces glossy, never dry, matte, uniform, waxy or "
-    "claylike"
+    "bread crusty with airy crumb, rice and noodles moist and distinct, sauces glossy, never dry, "
+    "matte, uniform, waxy or claylike"
 )
 _RETOUCH_RESTRAINED = (
     "Retouch it like a professional food ad: brighten exposure, remove haze — "
@@ -495,9 +610,10 @@ _RETOUCH_RESTRAINED = (
 #   과일)를 빼고 그 예산으로 본체 충실 절을 넣는다 — append 금지 원칙(초과분은 뒤 씬부터 잘림).
 _RETOUCH_SAVORY = (
     # GARNISH-TEX: styled savory 경로에도 잎·갈은치즈 질감(총칭 어휘는 플라스틱·왁스 렌더).
+    # GARNISH-TEX→INGREDIENT-TEX: 정적 잎·치즈 어휘는 레지스트리로 이관(중복+예산). 여기엔
+    #   재료 무관 공통 지시만 남긴다.
     "Retouch it like a professional food ad: brighten exposure, remove haze, sauces glossy, "
-    "leafy greens veined and naturally curled, grated cheese dry and granular, never dry, matte, "
-    "waxy or plastic. Enhance only what is there, same hues, never restyling. "
+    "never dry, matte, waxy or plastic. Enhance only what is there, same hues, never restyling. "
     "Remove any screenshot UI, icons or watermarks. "
 )
 _FOOD_FIDELITY = (
@@ -534,7 +650,7 @@ _FOOD_SOUP_LOCK = (
     # GARNISH-TEX: 국물 요리의 고명(파·깻잎·부추)도 잎 질감 명시 — 총칭 'fresh and glossy' 는
     #   잎을 플라스틱으로 렌더한다.
     "Retouch it like a professional food ad: brighten exposure, remove haze, broth rich and glossy, "
-    "meat glossy, leafy garnish veined and naturally curled, never dry, matte, waxy or claylike. "
+    "meat glossy, never dry, matte, waxy or claylike. "
     "Enhance only what is there, same hues, never restyling. "
     "You MAY present it in a beautiful deep bowl or earthenware pot, but it stays a deep "
     "broth-holding bowl of the same shape — never a flat plate, cup, mug or takeaway container. It "
@@ -1427,6 +1543,13 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         blob = " ".join([subject.lower()] + [str(i).lower() for i in (core_ingredients or [])])
         if "choco" in blob:
             identity_lock = identity_lock.replace(_IDEALIZE_TEX_GENERIC, _IDEALIZE_TEX_CHOCO, 1)
+    # INGREDIENT-TEX: 그 요리에 실제 있는 재료의 질감을 리터치 절 안에 끼워 넣는다. 모든 락의
+    #   리터치 문장이 "Enhance only what is there" 로 끝나므로 한 지점에서 전 경로에 적용된다.
+    #   재료 미상·미등록이면 빈 문자열 → 치환 미발생(바이트 동일, 회귀 없음).
+    #   디저트 이상화 경로는 이미 전용 질감 어휘(_DESSERT_IDEALIZE: 스펀지 pores·실키 크림·
+    #   글로시 과일 / 초코 스왑)를 갖고 있어 중복이고, 그 경로가 T5 예산상 가장 빡빡하다 → 제외.
+    #   **예산 인지 주입**: 지시문이 이미 긴 조합(예: pastel × 샌드위치)에서는 실을 수 있는 만큼만
+    #   싣는다. 무조건 추가하면 초과분이 뒤(씬 지시)부터 잘려 팔레트·소품이 소실된다(실측 이력).
     # DIV-2: scene_tone 미지정(기본)이면 무변경 → 바이트 동일. 지정 시에만 표면/배경 스팬을
     #   입력 사진 톤에 맞춰 교체(다양성의 원천 = 유저 사진). 자리표시자 치환보다 먼저 수행.
     #   styled 로테이션 변형에는 대응 스팬이 없으므로 비-로테이션 방향에만 적용.
@@ -1464,8 +1587,23 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         fmt_args["container_clause"] = container_clause
     if fmt_args:
         direction = direction.format(**fmt_args)
+    # INGREDIENT-TEX(2026-07-27): 그 요리에 실제 있는 재료의 질감을 리터치 절에 끼워 넣는다.
+    #   모든 락의 리터치 문장이 "Enhance only what is there" 로 끝나 한 지점에서 전 경로 적용.
+    #   **자리표시자 치환 이후**에 수행해야 {props}/{plate} 확장분까지 센 실제 길이로 예산을
+    #   판단할 수 있다(치환 전 주입은 pastel×샌드위치에서 512 초과 실측).
+    #   디저트 이상화 경로는 전용 질감 어휘가 이미 있어 중복 → 제외.
     # REAL-001: finish_profile 미지정 시 plan 기본값("none") → 절 무주입 → 바이트 동일.
     finish = _finish_clause(finish_profile if finish_profile is not None else plan.finish_profile)
+    if "Idealize this dessert" not in identity_lock \
+            and "Enhance only what is there" in identity_lock:
+        # 예산 판정은 **완성될 문자열 전체**(주어 접두사·finish 포함) 기준이어야 한다 —
+        #   락+방향만 세면 접두사·finish 25단어를 놓쳐 과대 주입된다(pastel×샌드위치 실측).
+        _full = f"The photographed subject is {subject}. {identity_lock}{direction} {finish}"
+        _room = _tex_budget_room(_full)
+        _ing_tex = _ingredient_tex_clause(core_ingredients, limit=_room, is_soup=is_soup)
+        if _ing_tex:
+            identity_lock = identity_lock.replace(
+                "Enhance only what is there", f"{_ing_tex}. Enhance only what is there", 1)
     return (
         f"The photographed subject is {subject}. "
         f"{identity_lock}{direction} {finish}"
