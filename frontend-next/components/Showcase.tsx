@@ -30,7 +30,7 @@ export default function Showcase() {
               <div className="relative aspect-square overflow-hidden rounded-2xl border border-white/10 bg-black/20">
                 <Image
                   src="/app-assets/showcase/original.jpg"
-                  alt="카페에서 촬영한 감 디저트와 감 라테 원본 사진"
+                  alt="매장에서 촬영한 블루베리 생크림 케이크 원본 사진"
                   fill
                   sizes="(max-width: 768px) 100vw, 520px"
                   className="object-cover"
@@ -60,7 +60,7 @@ export default function Showcase() {
               <div className="relative aspect-square overflow-hidden rounded-2xl border border-accent/40 bg-black/20 shadow-lg shadow-accent/10">
                 <Image
                   src="/app-assets/showcase/result.png"
-                  alt="밝은 배경과 광고 문구가 적용된 감 라테 광고 결과"
+                  alt="밝은 배경과 광고 문구가 적용된 블루베리 생크림 케이크 광고 결과"
                   fill
                   sizes="(max-width: 768px) 100vw, 520px"
                   className="object-cover"
