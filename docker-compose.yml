@@ -52,8 +52,7 @@ services:
   gpu-worker:
     build:
       context: ./backend
-      args:
-        COMPUTE: gpu            # 원본 requirements(onnxruntime-gpu·bitsandbytes 포함)로 설치
+      dockerfile: Dockerfile.gpu   # CUDA 13 base + torch cu130 (웹 이미지 python:slim 과 분리)
     profiles: ["gpu"]
     command: ["uvicorn", "app.generation_app:app", "--host", "0.0.0.0", "--port", "8100"]
     ports:
@@ -63,9 +62,11 @@ services:
         required: false
     environment:
       PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
+      HF_HUB_CACHE: /models/hub          # 컨테이너 내 모델 캐시 위치(아래 볼륨과 짝)
     volumes:
-      - ${HF_CACHE_DIR:-~/.cache/huggingface}:/root/.cache/huggingface
-      - ${U2NET_DIR:-~/.u2net}:/root/.u2net
+      # 모델 가중치(53G)는 이미지에 굽지 않고 호스트 프로드 캐시를 마운트 — 빌드 경량·재다운로드 방지.
+      - ${MODELS_DIR:-/opt/adnova/models}:/models   # 프로드 HF 캐시(하위 hub/) — HF_HUB_CACHE 와 짝
+      - ${U2NET_DIR:-~/.u2net}:/root/.u2net          # rembg 누끼 모델
       - ./runtime/results:/app/results
     deploy:
       resources:
