@@ -298,6 +298,20 @@ class EmailCodeVerifyRequest(BaseModel):
     code: str
 
 
+class EmailAuthOptionsResponse(BaseModel):
+    email_verification_required: bool
+    demo_password_reset_enabled: bool
+
+
+@router.get("/email-auth-options", response_model=EmailAuthOptionsResponse)
+def email_auth_options() -> EmailAuthOptionsResponse:
+    """회원가입/비밀번호 재설정 화면이 사용할 현재 이메일 인증 정책."""
+    return EmailAuthOptionsResponse(
+        email_verification_required=settings.EMAIL_VERIFICATION_REQUIRED,
+        demo_password_reset_enabled=settings.DEMO_PASSWORD_RESET_ENABLED,
+    )
+
+
 @router.post("/send-verification-code")
 def send_verification_code(request: EmailCodeRequest, db: Session = Depends(get_db)):
     email = request.email.strip().lower()
@@ -401,19 +415,22 @@ def signup(user_data: UserCreate, db: Session = Depends(get_db)):
         )
 
 
-    verified = (
-        db.query(EmailVerification)
-        .filter(
-            func.lower(EmailVerification.email) == user_data.email.lower(),
-            EmailVerification.verified_at.is_not(None),
+    # SMTP 승인 전에는 .env 에서 false 로 두고 테스트할 수 있다.
+    # 실제 이메일 발송이 가능해지면 반드시 true 로 되돌려 본인 확인을 강제한다.
+    if settings.EMAIL_VERIFICATION_REQUIRED:
+        verified = (
+            db.query(EmailVerification)
+            .filter(
+                func.lower(EmailVerification.email) == user_data.email.lower(),
+                EmailVerification.verified_at.is_not(None),
+            )
+            .first()
         )
-        .first()
-    )
-    if verified is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="이메일 인증이 필요합니다.",
-        )
+        if verified is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="이메일 인증이 필요합니다.",
+            )
 
 
     existing_username = db.query(User).filter(User.username == user_data.username).first()
@@ -624,6 +641,13 @@ def request_password_reset(
             )
         )
         db.commit()
+        # SMTP 승인 전 데모 전용 임시 흐름이다. 실제 서비스에서는 반드시 false.
+        if settings.DEMO_PASSWORD_RESET_ENABLED:
+            return {
+                "message": "비밀번호 재설정 화면으로 이동합니다.",
+                "reset_token": raw_token,
+            }
+
         try:
             send_password_reset_email(user.email, raw_token)
         except Exception as exc:

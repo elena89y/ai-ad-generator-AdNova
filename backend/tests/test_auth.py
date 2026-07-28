@@ -20,7 +20,9 @@ from app.api.auth import (
     logout_user,
     refresh,
     request_password_reset,
+    signup,
 )
+from app.core.config import settings
 from app.core.refresh_tokens import hash_refresh_token, issue_user_refresh_token
 from app.core.security import (
     create_admin_access_token,
@@ -36,6 +38,7 @@ from app.schemas.auth import (
     AdminLoginRequest,
     PasswordResetConfirm,
     PasswordResetRequest,
+    UserCreate,
     UserLogin,
     UsernameFindRequest,
 )
@@ -260,6 +263,30 @@ class AuthApiTestCase(unittest.TestCase):
             )
 
         self.assertEqual(context.exception.status_code, 404)
+
+    def test_signup_allows_unverified_email_when_temporarily_disabled(self) -> None:
+        with patch.object(settings, "EMAIL_VERIFICATION_REQUIRED", False):
+            user = signup(
+                user_data=UserCreate(
+                    email="new@example.com",
+                    username="newuser1",
+                    password="Password1!",
+                ),
+                db=self.session,
+            )
+
+        self.assertEqual(user.email, "new@example.com")
+
+    @patch("app.api.auth.send_password_reset_email")
+    def test_demo_password_reset_returns_token_without_sending_email(self, send_email) -> None:
+        with patch.object(settings, "DEMO_PASSWORD_RESET_ENABLED", True):
+            result = request_password_reset(
+                request=PasswordResetRequest(email="login@example.com"),
+                db=self.session,
+            )
+
+        self.assertTrue(result["reset_token"])
+        send_email.assert_not_called()
 
     @patch("app.api.auth.send_password_reset_email")
     def test_password_reset_changes_password_and_invalidates_token(self, send_email) -> None:

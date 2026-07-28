@@ -1,22 +1,41 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { EMAIL_PATTERN, apiFetch, readApiError, readJsonSafely } from "@/lib/api";
 import { useStudio } from "@/components/studio/StudioProvider";
 import { Brand } from "@/components/studio/chrome";
 
 function ForgotContent() {
   const { toast } = useStudio();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [mode, setMode] = useState<"username" | "password">(
     searchParams.get("mode") === "username" ? "username" : "password"
   );
   const [email, setEmail] = useState("");
   const [notice, setNotice] = useState<{ title: string; message: string } | null>(null);
+  const [demoPasswordResetEnabled, setDemoPasswordResetEnabled] = useState(false);
 
   const findingUsername = mode === "username";
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await apiFetch("/api/auth/email-auth-options");
+        const data = (await readJsonSafely(res)) as {
+          demo_password_reset_enabled?: boolean;
+        } | null;
+        if (res.ok && data) {
+          setDemoPasswordResetEnabled(data.demo_password_reset_enabled === true);
+        }
+      } catch {
+        // 설정을 읽지 못하면 기본 이메일 발송 흐름을 유지한다.
+      }
+    })();
+  }, []);
 
   function switchMode(next: "username" | "password") {
     setMode(next);
@@ -34,8 +53,16 @@ function ForgotContent() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: mail }),
         });
-        const data = (await readJsonSafely(res)) as { message?: string } | null;
+        const data = (await readJsonSafely(res)) as {
+          message?: string;
+          reset_token?: string;
+        } | null;
         if (!res.ok) throw new Error(readApiError(data, "재설정 메일을 보내지 못했습니다"));
+        if (data?.reset_token) {
+          toast("새 비밀번호를 설정해 주세요");
+          router.push(`/reset-password?token=${encodeURIComponent(data.reset_token)}`);
+          return;
+        }
         setNotice({
           title: "메일을 확인해 주세요.",
           message: data?.message || "가입된 이메일이라면 재설정 링크를 보냈습니다.",
@@ -112,7 +139,9 @@ function ForgotContent() {
             <>
               가입하신 이메일을 입력하시면
               <br />
-              비밀번호 재설정 링크를 보내드려요.
+              {demoPasswordResetEnabled
+                ? "바로 새 비밀번호를 설정할 수 있어요."
+                : "비밀번호 재설정 링크를 보내드려요."}
             </>
           )}
         </p>
@@ -140,7 +169,11 @@ function ForgotContent() {
           />
         </div>
         <button className="btn-primary" onClick={submit}>
-          {findingUsername ? "아이디 찾기" : "재설정 링크 받기"}
+          {findingUsername
+            ? "아이디 찾기"
+            : demoPasswordResetEnabled
+              ? "비밀번호 재설정"
+              : "재설정 링크 받기"}
         </button>
         <p className="login-foot" style={{ marginTop: 22 }}>
           {findingUsername ? "아이디가 기억나셨나요?" : "비밀번호가 기억나셨나요?"}{" "}
