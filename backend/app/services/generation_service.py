@@ -297,7 +297,10 @@ def run_from_upload_v2(
     import os as _os
     _bon = max(1, int(_os.environ.get("BEST_OF_N", "1") or "1"))
     _steps = int(_os.environ["BEST_OF_STEPS"]) if _os.environ.get("BEST_OF_STEPS") else None
-    actual_seed = 42 if seed is None else seed
+    # 시드 미지정(프론트 기본)이면 매번 새 랜덤 시드 → 같은 입력이라도 생성마다 다른 결과.
+    #   (기존 42 고정은 결정론적 Kontext에서 매 생성 동일 출력 유발 = 재생성 무의미 버그.)
+    #   명시 시드를 넘기면(테스트·재현) 그대로 사용.
+    actual_seed = _next_seed(None) if seed is None else seed
     unified_analysis = _unified_analysis_enabled()
 
     with propagate_attributes(session_id=asset_id):
