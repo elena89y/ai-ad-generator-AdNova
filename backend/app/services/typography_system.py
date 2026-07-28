@@ -32,6 +32,9 @@ TS3B_PANEL = "ts3b_panel"
 #   의존·데드존으로 취약해, dish는 피사체와 겹치지 않는 고정 밴드로 간다 (2026-07-26 지시).
 TS_DISH_BAND = "ts_dish_band"
 
+# 배경 레터링 가독 하한 — 이 아래면 더 열린 띠로 이동(긴 라벨이 히어로에 조각나는 것 방지).
+_BAND_MIN_VIS = 0.55
+
 # TS-1_2 배경 레터링 알파(0~255) — 불투명 솔리드가 아니라 배경에 스며드는 반투명.
 #   접시(마스크 밖)에 걸쳐도 하드 블록이 아닌 은은한 오버레이로 읽히게 한다 (2026-07-26 지시).
 _BG_LETTER_ALPHA = 150
@@ -156,6 +159,32 @@ def _subject_mask_precise(img: Image.Image) -> np.ndarray:
         return _subject_mask(img)
 
 
+# Z-ORDER 히어로 한정(2026-07-28 아트디렉터: "소품은 피사체로 잡지 말고 배경으로 볼 것").
+#   rembg 는 전경 전체를 분할해 금색 오브제·소품까지 피사체로 잡는다 → 배경 레터링이 소품 뒤로
+#   숨어 글자가 잘린 것처럼 보였다(말차베리쿠키 "MATCHA BERRY COO" 실측). 가장 큰 덩어리를
+#   히어로로 보고, 그에 견줘 작은 덩어리(소품)는 배경으로 돌린다.
+#   임계 0.60: 실측 소품은 히어로의 3~26%(금색 오브제 26%가 0.25를 아슬하게 통과해 글자를
+#   먹었다) — 반면 접시 위 여러 개 히어로(쿠키 무더기)는 서로 비슷한 크기라 0.60 위로 남는다.
+_HERO_MIN_RATIO = 0.60
+
+
+def _hero_only(mask: np.ndarray) -> np.ndarray:
+    """마스크에서 히어로 덩어리만 남긴다(소품=배경). scipy 없으면 원본 유지(무해 폴백)."""
+    try:
+        from scipy import ndimage
+    except Exception:
+        return mask
+    lab, n = ndimage.label(mask)
+    if n <= 1:
+        return mask
+    sizes = ndimage.sum(mask, lab, range(1, n + 1))
+    biggest = float(sizes.max())
+    if biggest <= 0:
+        return mask
+    keep = {i + 1 for i, sz in enumerate(sizes) if sz >= _HERO_MIN_RATIO * biggest}
+    return np.isin(lab, list(keep))
+
+
 def _is_light(color: tuple[int, int, int]) -> bool:
     r, g, b = color
     return (0.299 * r + 0.587 * g + 0.114 * b) > 140
@@ -214,8 +243,26 @@ def render_ts1(img: Image.Image, head_en: str,
     bg = _bg_color(im)
     # 스펙: 크림·아이보리·베이지 (순백 금지). 밝은 배경에선 대비 위해 소프트 베이지 딥톤.
     fill = (196, 168, 138) if _is_light(bg) else (240, 233, 220)
-    d.text(((w - tw) / 2, int(h * 0.30) - f.size // 2), head_en, font=f, fill=fill)
-    mask_arr = _subject_mask_precise(im)
+    # READABLE-BAND(2026-07-28): 18자 캡 제거(#332) 후 긴 영문 라벨이 히어로에 가운데를 먹혀
+    #   "BLUE___M CAKE"처럼 조각났다(실측). 짧은 라벨은 기존대로 두고, 기본 띠(y0.30)의 배경
+    #   가시율이 낮을 때만 더 열린 띠로 옮긴다 — TS-1_2 에서 검증된 적응형 배치와 동일 원리.
+    mask_arr = _hero_only(_subject_mask_precise(im))
+    bb = d.textbbox((0, 0), head_en, font=f)
+    ink_top, ink_h = bb[1], max(1, bb[3] - bb[1])
+    x0, x1 = max(0, int((w - tw) / 2)), min(w, int((w + tw) / 2))
+
+    def _band_vis(center_frac: float) -> tuple[float, int]:
+        top = int(h * center_frac) - (ink_top + ink_h // 2)
+        top = max(0, min(h - ink_h - ink_top, top))
+        strip = mask_arr[top + ink_top: top + ink_top + ink_h, x0:x1]
+        return (1.0 - float(strip.mean()) if strip.size else 1.0), top
+
+    vis, draw_top = _band_vis(0.30)
+    if vis < _BAND_MIN_VIS:
+        cands = [(round(v, 2), -fr, t) for fr in (0.30, 0.12, 0.16, 0.20, 0.80, 0.86)
+                 for v, t in [_band_vis(fr)]]
+        draw_top = max(cands)[2]
+    d.text(((w - tw) / 2, draw_top), head_en, font=f, fill=fill)
     mask_img = Image.fromarray((mask_arr * 255).astype(np.uint8))
     layer.paste(im, (0, 0), mask_img)
     return layer
@@ -243,7 +290,7 @@ def render_ts1_2(img: Image.Image, head: str,
     bg = _bg_color(im)
     # 스펙: 크림·아이보리·베이지 (순백 금지). 밝은 배경엔 소프트 베이지 딥톤.
     fill = (196, 168, 138) if _is_light(bg) else (240, 233, 220)
-    mask = _subject_mask_precise(im)
+    mask = _hero_only(_subject_mask_precise(im))
     x = (w - tw) / 2
     x0, x1 = max(0, int(x)), min(w, int(x + tw))
 
@@ -292,7 +339,7 @@ def render_ts_dish_band(img: Image.Image, head: str, sub: str,
     w, h = im.size
     # 음식이 적은 쪽에 밴드 배치(히어로를 안 가리게). 마스크 실패 시 하단 기본.
     try:
-        mask = _subject_mask_precise(im)
+        mask = _hero_only(_subject_mask_precise(im))
         at_top = float(mask[:int(h * 0.26)].mean()) <= float(mask[int(h * 0.74):].mean())
     except Exception:
         at_top = False
