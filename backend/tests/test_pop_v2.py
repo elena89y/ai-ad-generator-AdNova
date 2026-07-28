@@ -495,3 +495,25 @@ def test_cakes_keep_their_texture(subject, core, marker):
     instr = _instr(style="pastel", subject=subject, scene_seed=3, serving_type="dessert",
                    core_ingredients=core)
     assert marker in instr, subject
+
+
+# --- PHOTO-TRUE (2026-07-28: "리얼리즘 질감이 정본, 무드별 편차가 큼") -----------------
+
+@pytest.mark.parametrize("style", ["editorial", "pop", "monotone", "pastel", "warm_organic"])
+@pytest.mark.parametrize("serving,subject,core", [
+    ("dessert", "blueberry cream cake", ["blueberry", "cream"]),
+    ("dish", "grilled pork ribs", ["pork"]),
+])
+def test_photo_true_anchor_shared_across_moods(style, serving, subject, core):
+    """리얼리즘 계보의 '실사진' 앵커가 전 무드 공용 — CGI·플라스틱·찰흙 표면 억제."""
+    instr = _instr(style=style, subject=subject, scene_seed=3,
+                   serving_type=serving, core_ingredients=core)
+    assert "true micro-texture" in instr, (style, subject)
+    assert "never CGI, plastic or clay" in instr
+
+
+def test_photo_true_replaced_weaker_phrasing():
+    """구 문구('Premium food-styling quality, realistic photograph')와 맞교환 — append 아님."""
+    instr = _instr(style="pop", subject="strawberry cream cake", scene_seed=0,
+                   serving_type="dessert", core_ingredients=["strawberry"])
+    assert "Premium food-styling quality, realistic photograph" not in instr
