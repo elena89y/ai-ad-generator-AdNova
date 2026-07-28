@@ -134,7 +134,7 @@ export default function GuidePage() {
                 <div className="relative aspect-[4/3]">
                   <Image
                     src="/app-assets/showcase/original.jpg"
-                    alt="광고 제작에 사용할 감 디저트와 감 라테 원본 사진"
+                    alt="광고 제작에 사용할 블루베리 생크림 케이크 원본 사진"
                     fill
                     sizes="(max-width: 1024px) 100vw, 540px"
                     className="object-cover"
@@ -263,7 +263,7 @@ export default function GuidePage() {
                 <div className="relative aspect-square">
                   <Image
                     src="/app-assets/showcase/result.png"
-                    alt="AdNova로 만든 감 라테 광고 결과"
+                    alt="AdNova로 만든 블루베리 생크림 케이크 광고 결과"
                     fill
                     sizes="(max-width: 1024px) 100vw, 540px"
                     className="object-cover"
