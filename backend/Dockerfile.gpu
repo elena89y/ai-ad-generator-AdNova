@@ -1,0 +1,42 @@
+# AI 생성 워커(GPU) 이미지 — CUDA 13 스택. 웹 이미지(Dockerfile, python:3.11-slim)와 분리한다.
+#   목적: 재현성 박제(opt-in --profile gpu). 프로드 기본은 host systemd :8100 유지(김범수 #334 설계).
+#
+# 왜 CUDA 13 (2026-07-28 검증):
+#   - requirements.txt: onnxruntime-gpu>=1.27 = CUDA 13 빌드(1.27부터 CUDA 12 제거).
+#   - torch: cu130 wheel 존재(2.11부터 PyPI 기본). requirements 의 torch 는 핀이 없어 여기서 cu130 강제.
+#   - 호스트 GPU 드라이버 610.43.02 = CUDA UMD 13.3 → CUDA 13.x 컨테이너 구동 가능.
+#
+# 정적 검증 완료(2026-07-28, 빌드 불필요):
+#   ✅ docker build --check 린트 클린  ✅ nvidia/cuda:13.0.0-runtime-ubuntu24.04 태그 Docker Hub 실재
+#   ✅ onnxruntime-gpu 1.27 = CUDA13   ✅ torch cu130 존재
+#   ✅ bitsandbytes PyPI 휠 CUDA 11.8~13.0 지원(Linux·L4=sm_89 → Blackwell 이슈 무관)
+#   ✅ python3.12(ubuntu24.04) — app 3.11~3.13 호환   ✅ 호스트 드라이버 610.43.02=CUDA13.3(≥13.0)
+# ⚠️ 남은 검증 = 런타임뿐(GPU 호스트 필요, 공유 운영 VM은 디스크·리사이즈 불가라 여기선 못 함):
+#   실빌드 후 `python3 -c "import torch;print(torch.cuda.is_available())"`==True + onnxruntime/bitsandbytes 로드.
+#   모델 가중치는 이미지에 안 굽고 compose 볼륨(/opt/adnova/models → HF_HUB_CACHE)으로.
+FROM nvidia/cuda:13.0.0-runtime-ubuntu24.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_BREAK_SYSTEM_PACKAGES=1 \
+    PYTHONUNBUFFERED=1
+
+# python + 런타임 라이브러리(opencv/rembg 가 libGL·glib 요구).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3 python3-pip \
+        libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# ⚠️ 핵심 함정: requirements.txt 의 `torch` 는 버전·인덱스 핀이 없어 PyPI 기본을 받는다.
+#   CUDA 13 스택을 보장하려면 cu130 인덱스로 torch 를 '먼저' 설치해 고정한다(그 뒤 requirements).
+RUN pip3 install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cu130
+
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt   # onnxruntime-gpu>=1.27 = 이미 CUDA 13
+
+COPY app ./app
+COPY assets ./assets
+
+EXPOSE 8100
+CMD ["uvicorn", "app.generation_app:app", "--host", "0.0.0.0", "--port", "8100"]
