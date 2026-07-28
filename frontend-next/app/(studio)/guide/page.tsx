@@ -133,7 +133,7 @@ export default function GuidePage() {
               <figure className="order-2 overflow-hidden rounded-2xl border border-border bg-background shadow-xl shadow-black/20 lg:order-1">
                 <div className="relative aspect-[4/3]">
                   <Image
-                    src="/app-assets/showcase/original.jpg"
+                    src="/app-assets/showcase/original-blueberry.jpg"
                     alt="광고 제작에 사용할 블루베리 생크림 케이크 원본 사진"
                     fill
                     sizes="(max-width: 1024px) 100vw, 540px"
@@ -262,7 +262,7 @@ export default function GuidePage() {
               <figure className="order-2 overflow-hidden rounded-2xl border border-accent/30 bg-background shadow-xl shadow-accent/10 lg:order-1">
                 <div className="relative aspect-square">
                   <Image
-                    src="/app-assets/showcase/result.png"
+                    src="/app-assets/showcase/result-blueberry.png"
                     alt="AdNova로 만든 블루베리 생크림 케이크 광고 결과"
                     fill
                     sizes="(max-width: 1024px) 100vw, 540px"
