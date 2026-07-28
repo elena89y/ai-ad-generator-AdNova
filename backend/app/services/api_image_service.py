@@ -131,16 +131,24 @@ def build_style_edit_instruction(subject_en: str, style_en: str, domain: str = "
                 "and any labels or logos exactly unchanged; do not distort or recolor it. "
                 f"Restyle only the background, surface, lighting and mood: {style_en}.")
     else:
+        # 연출(style_en)을 맨 앞·지배 목표로, 식기 재플레이팅은 맨 마지막·무드 매칭(다운그레이드 금지)로.
+        #   우리 취향 하드코딩 없음 — 배경·조명·무드·식기까지 전부 사용자 서술에서 파생(사용자 지시 07-28).
         base = (
-            f"Edit this exact photo into an ad for the {subj}. Keep the {subj} itself faithful — "
-            f"the same pieces, the same real ingredients and its own sauce or garnish; do NOT add, "
-            f"multiply or invent any food, ingredient, garnish or prop, and do not change what it "
-            f"is. Focus the composition on the {subj} only: you MAY crop out or leave out other "
-            f"unrelated foods or items in the original that are not part of it (for example a "
-            f"different fruit, dish or plate beside it). Within that, make it look its best for an "
-            f"ad: you MAY re-plate the {subj} on a more premium dish, restage it more attractively, "
-            f"and make it look freshly made and appetizing (natural gloss, vivid true-to-life "
-            f"color, appealing texture). Apply this direction: {style_en}. Keep colors natural and true.")
+            f"Restyle this exact photo of {subj} into an ad led above all by this creative "
+            f"direction: {style_en}. Make {style_en} the dominant goal and style the whole scene "
+            f"to match it — background, surface, lighting, mood, props and the dishware must all "
+            f"express {style_en} as one cohesive look, with no other aesthetic of your own. Keep "
+            f"the {subj} itself faithful: the same pieces, the same real ingredients and its own "
+            f"sauce or garnish; do NOT add, multiply or invent any food, ingredient, garnish or "
+            f"prop, and do not change what it is. Focus the composition on the {subj}, and you may "
+            f"crop out or leave out any unrelated food or item beside it in the original (for "
+            f"example a different fruit, dish or plate) so nothing competes with it. Make the real "
+            f"{subj} look freshly made and appetizing — natural gloss, true-to-life color and "
+            f"appealing texture — as an honest enhancement of what is already there, never a "
+            f"fabrication. Finally, re-plate the {subj} onto tableware that genuinely suits and "
+            f"matches {style_en}: lift the dish to fit that mood if needed, and never a plainer, "
+            f"cheaper or more generic-looking dish than {style_en} calls for. Keep colors natural "
+            f"and true.")
     if headline:
         text = (' Then render this Korean advertising text directly in the image, spelled EXACTLY '
                 f'as given and clearly legible: a large elegant serif headline "{headline}"')
