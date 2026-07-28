@@ -458,9 +458,11 @@ def generate_ad(
                     style_text=style_text,
                 )
             else:
+                # 멀티포맷(배너·카드뉴스·상세, 비-SNS)은 직접입력이라도 클린 히어로로 생성 —
+                # 이후 _compose_banner_response/pipeline_v5 포맷 조판이 유일 텍스트 소스(겹침 방지, 07-28).
                 out = generation_service.run_from_upload_v2(
                     str(src_path), product, style, seed, use_vision, poster,
-                    style_text=style_text,
+                    style_text=style_text, clean_hero=purpose != AdPurpose.SNS,
                 )
                 result = _to_response(out)
 

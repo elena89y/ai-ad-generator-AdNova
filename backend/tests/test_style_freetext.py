@@ -161,6 +161,41 @@ def test_custom_style_image_only_skips_headline(monkeypatch, tmp_path):
     assert r.copy_text == "헤드\n서브"              # 카피는 tail 생성(캡션용)
 
 
+def test_custom_style_multiformat_bakes_clean_hero(monkeypatch, tmp_path):
+    """멀티포맷(clean_hero=True: 배너·카드뉴스·상세)은 직접입력이라도 gpt가 헤드라인을 굽지 않는다.
+
+    gpt baked 글자 위에 하류 pipeline_v5 포맷 조판이 또 얹혀 겹치던 버그(07-28)의 회귀 가드.
+    '이미지만' 서술이 없어도(=SNS면 구웠을) clean_hero 신호만으로 무텍스트 클린 히어로가 나와야
+    포맷 조판이 유일 텍스트 소스가 된다. 대조: 같은 입력이라도 clean_hero=False면 '헤드'를 굽는다
+    (test_custom_style_routes_to_gptimage_not_local).
+    """
+    from app.services import api_image_service, generation_service as gs, gpt_service as gpt, style_gen
+
+    img = str(tmp_path / "in.png"); Image.new("RGB", (16, 16), (200, 150, 100)).save(img)
+    edited = str(tmp_path / "edited.png"); Image.new("RGB", (16, 16)).save(edited)
+    monkeypatch.setattr(gpt, "translate_style_note", lambda t: "warm light")
+    seen = {}
+
+    def fake_edit(image_path, instruction, out_dir=None, run=None, **kw):  # noqa: ANN001
+        seen["instr"] = instruction
+        return edited
+
+    monkeypatch.setattr(api_image_service, "edit_image", fake_edit)
+
+    def no_local(*a, **k):  # noqa: ANN002, ANN003
+        raise AssertionError("gpt 성공인데 로컬 style_gen 호출됨")
+
+    monkeypatch.setattr(style_gen, "generate_scene", no_local)
+    monkeypatch.setattr(gs, "_generate_copy", lambda *a, **k: gpt.CopyResult(copy_text="헤드\n서브"))
+
+    r = gs.process_ad(img, "프렌치토스트", style="editorial", style_text="따뜻하게",
+                      poster=False, log=False, analysis=_fake_analysis(),
+                      output_dir=str(tmp_path / "out"), clean_hero=True)
+    assert r.final_image_path == edited
+    assert "헤드" not in seen["instr"]              # 멀티포맷 → 헤드라인 안 구움(클린 히어로)
+    assert "Do not add any text" in seen["instr"]   # 무텍스트 지시
+
+
 def test_wants_image_only_detection():
     from app.services import generation_service as gs
 
