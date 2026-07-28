@@ -413,7 +413,11 @@ def plan_typography(img: Image.Image, product_name: str, copy_headline: str,
 
     # ---- 원래대로 (음료/베이커리): 영문 라벨 헤드라인 + geometry 분기 ----
     head_en = (subject_en or "").strip().upper()
-    has_english = 0 < len(head_en) <= 18
+    # ENG-LABEL-NO-CAP(2026-07-28): 규약 "음료·디저트=영문 통일"에 맞춰 영문 라벨이 있으면 항상
+    #   영문. 기존 <=18자 캡은 2~3단어 디저트명(BLUEBERRY CREAM CAKE=20·MATCHA BERRY COOKIE=19)을
+    #   탈락시켜 한글로 폴백하던 버그. render_ts1 이 _fit_width 로 폭에 맞춰 축소하므로 길이 무해.
+    #   subject_en 은 analyze_menu 계약상 2~6단어라 초장문도 아님.
+    has_english = len(head_en) > 0
     style = select_style(img, has_english, domain)
     head_kr = (product_name or "").strip() or (copy_headline or "").strip()
     if style == TS2_EDITORIAL_SERIF:
