@@ -274,6 +274,23 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
   return response;
 }
 
+/** 상품명(텍스트)만으로 serving_type/domain 판정 — 스튜디오 타이핑 미리보기용.
+ *  백엔드 analyze_menu(LLM)=생성과 동일 분류라 정규식 어휘 갭을 범용으로 메운다.
+ *  실패·빈입력·비로그인·네트워크 오류는 null → 호출부가 정규식 미리보기로 폴백. */
+export async function classifyProduct(
+  name: string
+): Promise<{ serving_type: string | null; domain: string | null } | null> {
+  const trimmed = name.trim();
+  if (!trimmed) return null;
+  try {
+    const res = await apiFetch(`/ads/classify?name=${encodeURIComponent(trimmed)}`);
+    if (!res.ok) return null;
+    return (await res.json()) as { serving_type: string | null; domain: string | null };
+  } catch {
+    return null;
+  }
+}
+
 interface ValidationItem {
   loc?: unknown[];
   msg?: string;

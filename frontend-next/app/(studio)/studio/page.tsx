@@ -9,6 +9,7 @@ import {
   PlatformCopy,
   STYLE_PRESET_MAP,
   apiFetch,
+  classifyProduct,
   formatDateLabel,
   formatSizeBadge,
   getToken,
@@ -136,6 +137,11 @@ export default function StudioPage() {
   const [uploadInfo, setUploadInfo] = useState(
     "사진만 넣으면 배경·구도는 AI가 알아서 잡아줘요."
   );
+  // 상품명 → 백엔드 LLM 분류(생성 전 미리보기). 정규식 즉시 힌트 위에 덮어써 어휘 갭을 메운다.
+  const [livePreview, setLivePreview] = useState<{ name: string; serving: string | null }>({
+    name: "",
+    serving: null,
+  });
   const stepTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const productNameHasEmoji = containsEmoji(s.prodName);
   const extraRequestHasEmoji = containsEmoji(s.promptText);
@@ -149,6 +155,19 @@ export default function StudioPage() {
     s.refreshDashboardSummary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 상품명 입력이 멈추면(600ms 디바운스) 백엔드 analyze_menu(LLM)로 유형 판정 — 정규식이 못
+  // 잡는 정육·베이커리·지역음식 등을 범용으로 인식(생성과 동일 분류). 로그인 + 2자 이상만 호출,
+  // lru_cache로 같은 이름은 무료. 정규식이 라벨에서 즉시 폴백이라 이 호출 전에도 힌트는 보인다.
+  useEffect(() => {
+    const name = s.prodName.trim();
+    if (!s.token || name.length < 2) return;
+    const timer = setTimeout(async () => {
+      const r = await classifyProduct(name);
+      if (r?.serving_type) setLivePreview({ name, serving: r.serving_type });
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [s.prodName, s.token]);
 
   const platformCopy: PlatformCopy | null = s.currentResult
     ? currentCopyFor(activePlatform, s.currentResult)
@@ -643,7 +662,11 @@ export default function StudioPage() {
                 {(s.currentResult?.serving_type &&
                   s.currentResult?.client_prod_name === s.prodName.trim()
                   ? SERVING_TYPE_LABELS[s.currentResult.serving_type]
-                  : undefined) ?? detectModeText(s.prodName)}
+                  : undefined) ??
+                  (livePreview.serving && livePreview.name === s.prodName.trim()
+                    ? SERVING_TYPE_LABELS[livePreview.serving]
+                    : undefined) ??
+                  detectModeText(s.prodName)}
               </span>
             </div>
             <label className="mini-label">
