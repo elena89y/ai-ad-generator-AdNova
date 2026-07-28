@@ -320,6 +320,14 @@ def classify_container(container_desc: str | None,
 _IDEALIZE_TEX_GENERIC = (
     "moist airy sponge with visible pores, silky luscious cream with a dewy sheen, glossy juicy fruit"
 )
+# BAKE-TEX(2026-07-27 아트디렉터 "쿠키 모양을 너무 바꿔놨어, 장난감 찰흙처럼"): 이상화의 기본
+#   질감이 **케이크 전용**("moist airy sponge with visible pores")이라 쿠키·스콘처럼 바삭하고
+#   균열이 정체성인 구움과자에 적용하면 매끈한 스펀지 돔으로 재드로잉된다. 굽는 과자는 건조·
+#   균열·청크가 살아야 하므로 별도 어휘로 맞교환한다(초코 스왑과 동일 패턴, 등길이).
+_IDEALIZE_TEX_BAKED = (
+    "crisp craggy crust with its cracks and chunky inclusions intact, dense chewy centre, "
+    "never smooth, domed or doughy"
+)
 _IDEALIZE_TEX_CHOCO = (
     "moist fudgy chocolate sponge, its cream silky and glossy like soft ganache, deep cocoa "
     "color, glossy juicy fruit"
@@ -975,6 +983,10 @@ _NOODLE_HINTS = ("noodle", "pasta", "ramen", "udon", "soba", "spaghetti", "lingu
 #   단 빵(크루아상·단팥빵)이 섞여 있다. dessert 이상화("Idealize this dessert")를 짠 빵에 적용하면
 #   Kontext가 빵+토마토를 케이크로 재구성(치아바타 pop 실측 사고) → 이상화는 sweet 힌트가 있는
 #   bakery 에만. 미매칭 bakery 는 안전측(절제형 리터치) — 정직성 리스크 없음.
+# 굽는 과자(바삭·균열이 정체성) — 케이크 질감 어휘를 적용하면 안 되는 부류.
+_BAKED_HINTS = ("cookie", "biscuit", "scone", "shortbread", "cracker", "brownie", "financier",
+                "madeleine", "macaron", "meringue", "tuile", "galette", "crumble", "granola")
+
 _SWEET_BAKERY_HINTS = ("croissant", "scone", "muffin", "pastry", "tart", "pie", "donut",
                        "doughnut", "cake", "macaron", "waffle", "pancake", "brioche",
                        "red bean", "cream bread", "cookie", "brownie", "castella", "roll")
@@ -1541,7 +1553,12 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
     #   비초코·비디저트는 replace 미매치로 바이트 동일.
     if "Idealize this dessert" in identity_lock:
         blob = " ".join([subject.lower()] + [str(i).lower() for i in (core_ingredients or [])])
-        if "choco" in blob:
+        # BAKE-TEX 우선(2026-07-27): 구움과자는 **요리명**으로 판정하고 초코 스왑보다 앞선다.
+        #   말차베리쿠키 실측 — core_ingredients 의 'white chocolate' 이 초코 스왑을 오발동시켜
+        #   쿠키에 "moist fudgy chocolate sponge, deep cocoa color"가 실렸다(찰흙 돔 원인).
+        if any(k in subject.lower() for k in _BAKED_HINTS):
+            identity_lock = identity_lock.replace(_IDEALIZE_TEX_GENERIC, _IDEALIZE_TEX_BAKED, 1)
+        elif "choco" in blob:
             identity_lock = identity_lock.replace(_IDEALIZE_TEX_GENERIC, _IDEALIZE_TEX_CHOCO, 1)
     # INGREDIENT-TEX: 그 요리에 실제 있는 재료의 질감을 리터치 절 안에 끼워 넣는다. 모든 락의
     #   리터치 문장이 "Enhance only what is there" 로 끝나므로 한 지점에서 전 경로에 적용된다.

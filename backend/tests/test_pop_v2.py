@@ -465,3 +465,33 @@ def test_soup_excludes_submerged_ingredients():
     got = _ingredient_tex_clause(["tofu", "potato", "kimchi"], is_soup=True)
     assert "tofu" not in got and "potato" not in got
     assert "kimchi" in got            # 잠기지 않는 재료는 유지
+
+
+# --- BAKE-TEX (2026-07-27 라이브: 말차베리쿠키가 매끈한 찰흙 돔으로) --------------------
+
+@pytest.mark.parametrize("subject,core", [
+    ("matcha berry cookie", ["matcha", "berry", "white chocolate"]),  # 초코 스왑 오발동 케이스
+    ("chocolate chip cookie", ["chocolate", "flour"]),
+    ("butter scone", ["butter", "flour"]),
+    ("almond macaron", ["almond", "cream"]),
+])
+def test_baked_goods_get_crisp_texture(subject, core):
+    """구움과자는 케이크 스펀지 어휘가 아니라 바삭·균열 어휘를 받는다.
+    특히 재료의 'white chocolate' 이 초코 스왑을 오발동시켜 쿠키에 '촉촉한 초코 스펀지'가
+    실리던 라이브 사고(찰흙 돔)를 막는다."""
+    instr = _instr(style="pastel", subject=subject, scene_seed=3,
+                   serving_type="dessert", core_ingredients=core)
+    assert "craggy crust" in instr, subject
+    assert "moist airy sponge" not in instr
+    assert "fudgy chocolate sponge" not in instr
+
+
+@pytest.mark.parametrize("subject,core,marker", [
+    ("strawberry chocolate cream cake", ["chocolate", "cream"], "fudgy chocolate sponge"),
+    ("blueberry fresh cream cake", ["blueberry", "cream"], "moist airy sponge"),
+])
+def test_cakes_keep_their_texture(subject, core, marker):
+    """케이크류는 기존 질감 어휘 유지(구움과자 분기가 과잉이 아님)."""
+    instr = _instr(style="pastel", subject=subject, scene_seed=3, serving_type="dessert",
+                   core_ingredients=core)
+    assert marker in instr, subject
