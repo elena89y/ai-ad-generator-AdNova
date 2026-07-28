@@ -194,9 +194,12 @@ function DetailContent() {
 
   const copy = getItemPlatformCopy(item, platform);
 
+  // 타이포 토글은 '타이포 포함/없음' 두 이미지가 실제로 다를 때만 의미가 있다.
+  // 템플릿은 타이포가 이미 구워진 단일본(with==without 같은 URL)이라 선택 불가 → 토글 숨김.
   const hasTypographyPair = Boolean(
     item.imageWithTypography &&
-      item.imageWithoutTypography,
+      item.imageWithoutTypography &&
+      item.imageWithTypography !== item.imageWithoutTypography,
   );
 
   const detailImageSrc = hasTypographyPair
