@@ -437,8 +437,11 @@ export default function StudioPage() {
   const result = s.currentResult;
   // [html-parity] html applyGeneratedResult/getResultImageUrl 이식 (Next 이관 시 누락).
   // 타이포 페어(포함/무타이포)가 모두 있을 때만 토글 노출. 없으면 image_url 폴백.
+  // 타이포 토글은 '포함/없음' 두 이미지가 실제로 다를 때만 노출(템플릿=구운 단일본 with==without → 숨김).
   const hasTypographyPair = Boolean(
-    result?.image_with_typography_url && result?.image_without_typography_url,
+    result?.image_with_typography_url &&
+      result?.image_without_typography_url &&
+      result.image_with_typography_url !== result.image_without_typography_url,
   );
   const resultImageUrl = (r: GenerateResult | null, on = typographyOn) => {
     if (!r) return undefined;
