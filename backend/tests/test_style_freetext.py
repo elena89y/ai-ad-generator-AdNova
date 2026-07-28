@@ -76,10 +76,12 @@ def test_build_style_edit_instruction_food_and_object():
 
     f = ai.build_style_edit_instruction("french toast", "warm golden light", "food")
     assert "warm golden light" in f
+    assert "led above all by this creative direction" in f  # 연출(사용자 말)이 맨 앞·지배
     assert "do NOT add" in f                     # 허위광고 가드: 증량·재료추가 금지
     assert "french toast" in f                    # subject 반영(광고 대상 명시)
     assert "crop out or leave out" in f           # 무관한 곁들이는 제외(제품 집중)
     assert "re-plate" in f and "appetizing" in f  # 리터치 허용: 재플레이팅·먹음직
+    assert "never a plainer, cheaper or more generic-looking dish" in f  # 식기: 무드매칭·다운그레이드 금지
     assert "Do not add any text" in f             # no-headline 텍스트 가드
     o = ai.build_style_edit_instruction("ceramic mug", "soft light", "object")
     assert "soft light" in o and "labels or logos" in o  # 사물은 여전히 엄격 고정
