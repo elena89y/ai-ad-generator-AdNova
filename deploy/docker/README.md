@@ -16,7 +16,7 @@ GPU 생성 서버(8100)는 기존 systemd 서비스 또는 별도 GPU 컨테이�
 
 ## 최초 실행
 
-기존 systemd 백엔드가 사용하는 SQLite와 이미지 파일이 있다면, Docker 전환 전에 한 번만 복사한다.
+기존 systemd 백엔드가 사용하는 SQLite와 이미지 파일이 있다면, Docker 전환 전에 한 번만 이전한다.
 
 ```bash
 cd ~/ai-ad-generator-AdNova
@@ -24,10 +24,27 @@ mkdir -p runtime/data/uploads runtime/results
 cp -a backend/data/app.db runtime/data/app.db
 cp -a backend/data/admin.db runtime/data/admin.db
 cp -a backend/uploads/. runtime/data/uploads/
-cp -a backend/results/. runtime/results/
+
+sudo python3 backend/app/scripts/migrate_docker_results.py \
+  --database runtime/data/app.db \
+  --source backend/results \
+  --destination runtime/results \
+  --dry-run
+
+sudo python3 backend/app/scripts/migrate_docker_results.py \
+  --database runtime/data/app.db \
+  --source backend/results \
+  --destination runtime/results
 ```
 
-이미 `runtime/`에 운영 데이터가 있다면 위 복사 명령은 다시 실행하지 않는다.
+결과 이미지 마이그레이션은 DB를 자동 백업한 뒤, DB에 연결된 기존 생성 이미지만
+`runtime/results/`로 복사하고 `images.file_path`를 컨테이너 경로인
+`/app/results/`로 변경한다. 파일이 없는 행과 업로드 이미지 경로는 변경하지 않는다.
+
+이미 `runtime/`에 운영 데이터가 있다면 DB와 업로드 파일 복사 명령은 다시 실행하지
+않는다. 기존 결과 이미지 경로만 남아 있다면 마이그레이션 명령의 드라이런 결과를
+확인한 뒤 한 번 실행한다. 마이그레이션 중에는 웹 백엔드가 DB를 변경하지 않도록
+`docker compose down` 또는 `docker compose stop backend-web` 상태를 유지한다.
 
 이미지와 DB를 준비한 뒤 컨테이너 이미지를 빌드한다.
 
@@ -48,7 +65,10 @@ curl -I http://127.0.0.1:3000
 
 `backend/.env`에는 배포용 OAuth, SMTP, JWT, CORS 설정을 유지한다. Compose가 DB와 업로드 경로만 컨테이너 경로로 덮어쓴다.
 
-현재 Compose의 기본값은 웹 기능을 먼저 안정화하기 위해 `GENERATION_SERVICE_URL`을 비운 상태다. 호스트 systemd의 8100 생성 서버를 Docker 백엔드와 연결하는 작업은 GPU 네트워크 접근 방식을 정한 뒤 별도로 진행한다.
+현재 Compose는 기본적으로 `GENERATION_SERVICE_URL=http://host.docker.internal:8100`
+을 사용한다. 호스트 systemd 생성 서버가 `127.0.0.1`에만 바인딩되어 있으면 Docker
+백엔드에서 접근할 수 없으므로, 8100 연결 방식을 준비하기 전에는 광고 생성 요청이
+실패한다. 일반 로그인·조회 API와 8100 생성 서버는 독립적으로 운영한다.
 
 ## Nginx 연결
 
