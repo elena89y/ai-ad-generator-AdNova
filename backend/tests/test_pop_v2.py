@@ -477,11 +477,11 @@ def test_soup_excludes_submerged_ingredients():
 ])
 def test_baked_goods_get_crisp_texture(subject, core):
     """구움과자는 케이크 스펀지 어휘가 아니라 바삭·균열 어휘를 받는다.
-    BAKED-PRESERVE(2026-07-28) 이후로는 보존 락이 그 어휘를 싣는다 — 이상화 절을 타지 않으므로
-    'white chocolate' 이 초코 스왑을 오발동시키던 경로 자체가 사라졌다."""
+    특히 재료의 'white chocolate' 이 초코 스왑을 오발동시켜 쿠키에 '촉촉한 초코 스펀지'가
+    실리던 라이브 사고(찰흙 돔)를 막는다."""
     instr = _instr(style="pastel", subject=subject, scene_seed=3,
                    serving_type="dessert", core_ingredients=core)
-    assert "crust crisp and craggy" in instr, subject
+    assert "craggy crust" in instr, subject
     assert "moist airy sponge" not in instr
     assert "fudgy chocolate sponge" not in instr
 
@@ -533,12 +533,11 @@ def test_baked_goods_exclude_restructuring_variants(style, subject):
         assert "floating weightlessly" not in instr, (style, subject, s)
 
 
-def test_baked_goods_instruction_stable_across_seeds():
-    """BAKED-PRESERVE 이후 구움과자는 보존 라우팅이라 시드로 연출이 흔들리지 않는다
-    (무드별 씬 배경만 다름) — 국물·면과 같은 계약."""
+def test_baked_goods_still_rotate():
+    """구움과자도 남은 변형 사이에서 로테이션 유지(BAKED-SAFE 서브셋 안에서)."""
     outs = {_instr(subject="smores choco cookie", scene_seed=s, serving_type="dessert")
             for s in range(12)}
-    assert len(outs) == 1
+    assert len(outs) >= 2
 
 
 def test_cakes_keep_all_variants():
@@ -548,31 +547,25 @@ def test_cakes_keep_all_variants():
     assert "captured mid-pour" in joined
 
 
-# --- BAKED-PRESERVE (2026-07-28: 쿠키 3연속 사고 — 문구·변형필터로도 못 막음) -------------
+# --- PIECE-ANCHOR (2026-07-28: 같은 쿠키 사진에서 pop·monotone 만 낱개를 하나로 합침) -------
 
-@pytest.mark.parametrize("style", ["pop", "monotone", "pastel", "editorial",
-                                   "warm_organic", "realism"])
-def test_baked_goods_preserved_in_place(style):
-    """구움과자는 전 무드에서 in-place 보존 — styled 접시 연출을 안 탄다.
-    변형 문구 자체가 '한 개를 접시에 올리는' 구성이라 낱개 여러 개가 하나로 합쳐졌다(실측 3건)."""
-    for s in range(8):
-        instr = _instr(style=style, subject="smore chocolate cookie", scene_seed=s,
-                       serving_type="dessert", core_ingredients=["chocolate"])
-        assert "the same number of pieces" in instr, (style, s)
-        assert "gold-rimmed dessert plate" not in instr
-        assert "You MAY replace the plain plate" not in instr
+@pytest.mark.parametrize("style", ["pop", "monotone"])
+def test_failing_moods_get_piece_anchor(style):
+    """editorial·pastel 은 낱개를 유지하는데 pop·monotone 만 합치던 실측 → 두 무드 변형에만
+    개수·분리 단언을 연출 문장 앞에 넣는다(뒤쪽 락보다 앞쪽 긍정문이 강함)."""
+    joined = " ".join(_instr(style=style, subject="smore chocolate cookie", scene_seed=s,
+                             serving_type="dessert", core_ingredients=["chocolate"])
+                      for s in range(12))
+    assert "every piece kept separate and the same number as in the photo" in joined
 
 
-def test_baked_preserve_forbids_merge_and_stack():
-    """개수 병합·쌓기·케이크화를 명시 차단(사고 3건의 실제 실패 형태)."""
-    instr = _instr(subject="butter scone", scene_seed=0, serving_type="bakery")
-    for marker in ("Never merge them into one larger item", "never stack them into a tower",
-                   "never turn them into a cake"):
-        assert marker in instr, marker
+def test_monotone_drops_stacking_word():
+    """mono① 의 'neat stack of gift boxes' — 쌓기 어휘가 음식까지 쌓이게 한 실측 사고."""
+    from app.services.reference_style_plans import _MONO_FOOD_VARIANTS
+    assert all("neat stack" not in v for v in _MONO_FOOD_VARIANTS)
 
 
-def test_cakes_unaffected_by_baked_preserve():
-    """케이크·타르트는 구움과자 보존 대상이 아니다 — 기존 styled 연출 유지(회귀)."""
-    instr = _instr(subject="strawberry cream cake", scene_seed=0, serving_type="dessert")
-    assert "the same number of pieces" not in instr
-    assert "You MAY replace the plain plate" in instr
+def test_working_moods_untouched():
+    """정상 동작하던 editorial·pastel 변형은 건드리지 않는다(회귀 방지)."""
+    from app.services.reference_style_plans import _PASTEL_FOOD_VARIANTS
+    assert all("every piece kept separate" not in v for v in _PASTEL_FOOD_VARIANTS)
