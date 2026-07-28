@@ -41,6 +41,23 @@ export default function SignupPage() {
   const [code, setCode] = useState("");
   const [emailVerified, setEmailVerified] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const [emailVerificationRequired, setEmailVerificationRequired] = useState(true);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await apiFetch("/api/auth/email-auth-options");
+        const data = (await readJsonSafely(res)) as {
+          email_verification_required?: boolean;
+        } | null;
+        if (res.ok && data) {
+          setEmailVerificationRequired(data.email_verification_required !== false);
+        }
+      } catch {
+        // 설정을 읽지 못하면 안전한 기본값(이메일 인증 필요)을 유지한다.
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     const mail = email.trim();
@@ -195,7 +212,7 @@ export default function SignupPage() {
       return;
     }
 
-    if (!emailVerified) {
+    if (emailVerificationRequired && !emailVerified) {
       toast("이메일 인증을 완료해 주세요");
       return;
     }
@@ -309,24 +326,26 @@ export default function SignupPage() {
                 placeholder="you@store.com"
                 autoComplete="email"
                 value={email}
-                disabled={busy || emailVerified}
+                disabled={busy || (emailVerificationRequired && emailVerified)}
                 onChange={(event) => setEmail(event.target.value)}
                 style={{ flex: 1 }}
               />
-              <button
-                type="button"
-                className={emailVerified ? "btn-secondary verified" : "btn-secondary"}
-                disabled={busy || emailVerified || cooldown > 0 || !!emailError}
-                onClick={handleSendCode}
-              >
-                {emailVerified
-                  ? "인증완료"
-                  : cooldown > 0
-                    ? `재발송 (${cooldown}s)`
-                    : codeSent
-                      ? "재발송"
-                      : "인증번호 발송"}
-              </button>
+              {emailVerificationRequired && (
+                <button
+                  type="button"
+                  className={emailVerified ? "btn-secondary verified" : "btn-secondary"}
+                  disabled={busy || emailVerified || cooldown > 0 || !!emailError}
+                  onClick={handleSendCode}
+                >
+                  {emailVerified
+                    ? "인증완료"
+                    : cooldown > 0
+                      ? `재발송 (${cooldown}s)`
+                      : codeSent
+                        ? "재발송"
+                        : "인증번호 발송"}
+                </button>
+              )}
             </div>
 
             {emailError && (
@@ -338,7 +357,7 @@ export default function SignupPage() {
               </div>
             )}
 
-            {codeSent && !emailVerified && (
+            {emailVerificationRequired && codeSent && !emailVerified && (
               <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                 <input
                   type="text"
@@ -358,6 +377,12 @@ export default function SignupPage() {
                 >
                   확인
                 </button>
+              </div>
+            )}
+
+            {!emailVerificationRequired && (
+              <div className="field-help">
+                이메일 인증은 현재 준비 중이며, 입력한 이메일로 바로 가입할 수 있습니다.
               </div>
             )}
           </div>

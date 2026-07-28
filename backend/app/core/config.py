@@ -65,5 +65,13 @@ class Settings:
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
     SMTP_FROM: str = os.getenv("SMTP_FROM", "AdNova <noreply@iridescentseraphim.org>")
 
+    # SMTP 승인 전 임시 테스트용 설정. 운영 전에는 반드시 기본값으로 되돌린다.
+    EMAIL_VERIFICATION_REQUIRED: bool = (
+        os.getenv("EMAIL_VERIFICATION_REQUIRED", "true").lower() == "true"
+    )
+    DEMO_PASSWORD_RESET_ENABLED: bool = (
+        os.getenv("DEMO_PASSWORD_RESET_ENABLED", "false").lower() == "true"
+    )
+
 
 settings = Settings()
