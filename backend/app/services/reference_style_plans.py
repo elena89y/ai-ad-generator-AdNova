@@ -1379,6 +1379,32 @@ _FOOD_NOODLE_LOCK = (
 )
 
 
+# BAKED-PRESERVE(2026-07-28, 쿠키 3연속 사고): 구움과자는 낱개 여러 개가 기본이라 styled 변형의
+#   "the food on a scalloped gold-rimmed dessert plate"(한 개를 접시에 올리는 연출)가 구조적으로
+#   개수를 합친다. 실측 3건 — pop④ 원통 타워, pastel① 3층 케이크, pop 접시 위 한 덩어리 케이크.
+#   COUNT-LOCK(문구)·BAKED-SAFE(변형 서브셋)를 넣고도 뚫렸다 → 국물·면과 동일하게 styled 경로에서
+#   통째로 제외하고 in-place 보존으로 라우팅한다. 무드는 배경·조명으로만 표현된다.
+_FOOD_BAKED_LOCK = (
+    "This is a real photograph of baked goods. Keep every piece exactly as photographed — the same "
+    "number of pieces, the same size, the same spacing and arrangement on the same surface, each "
+    "piece separate. Never merge them into one larger item, never stack them into a tower, never "
+    "move them onto a single small plate, and never turn them into a cake, tart or pie. "
+    "Keep each piece's crackled crust, chunky inclusions and filling exactly as they are, and add "
+    "nothing that is not already there. "
+    "Retouch it like a professional food ad: brighten exposure, remove haze, crust crisp and craggy "
+    "with its cracks intact, filling glossy, never dry, matte, waxy or claylike. Enhance only what "
+    "is there, same hues, never restyling. "
+    "They rest flat under gravity with realistic contact shadows. "
+    "Change only the background, surface, camera framing and environmental lighting to match the "
+    "requested scene. "
+)
+
+
+def _is_baked_dish(subject_en: str) -> bool:
+    """구움과자 판정 → in-place 보존 라우팅(낱개 개수·간격 보존)."""
+    return any(k in (subject_en or "").lower() for k in _BAKED_HINTS)
+
+
 def _is_noodle_dish(subject_en: str) -> bool:
     """면·파스타 요리 판정 → in-place 보존 라우팅(국물 면은 SOUP-PRESERVE 가 선행 처리)."""
     return any(h in (subject_en or "").lower() for h in _NOODLE_HINTS)
@@ -1445,6 +1471,9 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
     # NOODLE-PRESERVE: 국물 면(라멘·쌀국수)은 위 soup 이 이미 잡으므로 마른 면만 여기로.
     is_noodle_dish = (plan.domain == "food" and not is_vessel and not is_soup
                       and _is_noodle_dish(subject))
+    # BAKED-PRESERVE: 구움과자도 in-place 보존(면·국물과 동일). 앞선 두 판정과 상호배타.
+    is_baked_dish = (plan.domain == "food" and not is_vessel and not is_soup
+                     and not is_noodle_dish and _is_baked_dish(subject))
     if is_vessel:
         container = container_desc.strip().lower()  # analyze_photo 계약상 ASCII 보장
         identity_lock = _prompts.fmt(_NS, "container.identity_lock_vessel",
@@ -1456,6 +1485,10 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         identity_lock = _FOOD_SOUP_LOCK
         hero = "the bowl of soup"
         container_clause = "the deep bowl resting flat on the table"
+    elif is_baked_dish:
+        identity_lock = _FOOD_BAKED_LOCK
+        hero = "the baked goods"
+        container_clause = "the pieces resting flat on the surface"
     elif is_noodle_dish:
         # NOODLE-PRESERVE(전 무드): 면 요리도 국물과 동일하게 in-place 보존 — 면 형태가 정체성.
         #   NOODLE-SHAPE-ANCHOR: 면 종류를 구체 명사로 채워 문두 긍정 단언(레지스트리 소프트코딩).
@@ -1500,11 +1533,11 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
                      else _is_dessert_subject(subject))
     is_realism_food = (plan.domain == "food" and plan.style_key == "realism"
                        and not is_vessel and not is_soup and not is_noodle_dish
-                       and not _dessert_flag
+                       and not is_baked_dish and not _dessert_flag
                        and not _replate_unsafe(subject, container_desc))
     styled_v2 = (plan.domain == "food" and plan.style_key in _STYLE_FOOD_VARIANTS
                  and not is_vessel and not is_soup and not is_noodle_dish
-                 and not is_realism_food
+                 and not is_baked_dish and not is_realism_food
                  and not _replate_unsafe(subject, container_desc))
     # ※ 구 SOUP-GUARD 의 is_soup 재계산 라인은 제거(머지 정합) — develop 의 SOUP-PRESERVE 가
     #   위에서 이미 container_desc 까지 반영해 판정한 값을 덮어쓰고 있었다.
@@ -1573,7 +1606,7 @@ def build_reference_instruction(style_key: str, domain: str | None, subject_en: 
         identity_lock = identity_lock.replace(_RETOUCH_TEX_SWEET, _savory, 1)
     # SOUP/REALISM: 씬 방향의 "No ... ingredients, garnish" 부정문이 보존 락의 "원본 곁들임 유지"와
     #   충돌해 원본 반찬을 지울 수 있어, 리얼리즘 방향에서 garnish 금지만 제거(추가 방지는 락이 담당).
-    if is_soup or is_realism_food or is_noodle_dish:
+    if is_soup or is_realism_food or is_noodle_dish or is_baked_dish:
         direction = direction.replace("utensils, ingredients, garnish, hands", "utensils, hands")
     # RETOUCH-004: 초코 디저트는 이상화의 generic 질감 절(스펀지 pores·일반 크림)이 약해
     #   크럼블리하게 남는다(2차 시안 관찰) — 초코 전용 어휘(fudgy·ganache 수사)로 등길이
