@@ -10,6 +10,7 @@ import {
   STYLE_PRESET_MAP,
   apiFetch,
   formatDateLabel,
+  formatSizeBadge,
   getToken,
   normalizePlatformCopy,
   readApiError,
@@ -1025,6 +1026,26 @@ export default function StudioPage() {
                             objectFit: "contain",
                           }}
                         />
+                        {formatSizeBadge(value) && (
+                          <span
+                            style={{
+                              position: "absolute",
+                              top: 8,
+                              left: 8,
+                              padding: "3px 8px",
+                              borderRadius: 6,
+                              background: "rgba(0,0,0,0.62)",
+                              color: "#fff",
+                              fontSize: 12,
+                              fontWeight: 600,
+                              letterSpacing: "0.02em",
+                              pointerEvents: "none",
+                              zIndex: 2,
+                            }}
+                          >
+                            {formatSizeBadge(value)}
+                          </span>
+                        )}
                         <button
                           type="button"
                           className="oa download"

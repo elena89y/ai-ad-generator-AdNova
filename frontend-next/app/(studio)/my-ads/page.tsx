@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { AdItem, FORMAT_LABELS } from "@/lib/api";
+import { AdItem, FORMAT_LABELS, formatSizeBadge } from "@/lib/api";
 import { deleteStoredAd } from "@/lib/sns";
 import { useStudio } from "@/components/studio/StudioProvider";
 import { AppBar } from "@/components/studio/chrome";
@@ -132,6 +132,26 @@ export default function MyAdsPage() {
                     <span className="fmt-tag">
                       {FORMAT_LABELS[a.purpose] || "결과"}
                       {(a.formatOutputs?.length ?? 0) > 1 ? ` ${a.formatOutputs!.length}장` : ""}
+                    </span>
+                  )}
+                  {formatSizeBadge(a.formatOutputs?.[0]) && (
+                    <span
+                      style={{
+                        position: "absolute",
+                        bottom: 8,
+                        left: 8,
+                        padding: "3px 8px",
+                        borderRadius: 6,
+                        background: "rgba(0,0,0,0.62)",
+                        color: "#fff",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        letterSpacing: "0.02em",
+                        pointerEvents: "none",
+                        zIndex: 2,
+                      }}
+                    >
+                      {formatSizeBadge(a.formatOutputs?.[0])}
                     </span>
                   )}
                   {a.formatOutputs?.[0] || a.img ? (
