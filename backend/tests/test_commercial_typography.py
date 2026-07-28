@@ -176,3 +176,46 @@ def test_processed_ad_internal_typography_bridge(tmp_path) -> None:
     )
     assert variants.typography_enabled is True
     assert variants.selected_image_path == variants.with_typography_path
+
+
+# --- Z-ORDER 히어로 한정 + 가독 띠 (2026-07-28 라이브: 글자가 소품·히어로에 먹힘) ---------
+
+def test_hero_only_drops_small_props():
+    """소품(히어로 대비 작은 덩어리)은 배경으로 — 배경 레터링을 먹지 않는다."""
+    import numpy as np
+    from app.services.typography_system import _hero_only
+    m = np.zeros((200, 200), bool)
+    m[40:160, 40:160] = True       # 히어로
+    m[10:30, 170:190] = True       # 소품(≈2.8%)
+    out = _hero_only(m)
+    assert out[100, 100]           # 히어로 유지
+    assert not out[20, 180]        # 소품 제거
+
+
+def test_hero_only_keeps_comparable_heroes():
+    """비슷한 크기의 복수 히어로(쿠키 무더기)는 모두 유지 — 과잉 제거 방지."""
+    import numpy as np
+    from app.services.typography_system import _hero_only
+    m = np.zeros((200, 200), bool)
+    m[40:140, 20:110] = True
+    m[40:140, 120:200] = True      # 87% 크기
+    out = _hero_only(m)
+    assert out[90, 60] and out[90, 160]
+
+
+def test_long_label_relocates_to_readable_band(tmp_path):
+    """긴 영문 라벨이 히어로에 가운데를 먹히면 더 열린 띠로 옮긴다(#332 캡 제거 후 조각남)."""
+    import numpy as np
+    from PIL import Image
+    from app.services import typography_system as T
+    a = np.full((512, 512, 3), 240, np.uint8)
+    a[120:380, 60:452] = (60, 50, 45)          # 중앙 히어로가 기본 띠(y0.30)를 덮음
+    img = Image.fromarray(a)
+    T._subject_mask_precise = lambda im: np.asarray(im.convert("RGB")).sum(2) < 400
+    out = np.asarray(T.render_ts1(img, "BLUEBERRY CREAM CAKE").convert("RGB")).astype(int)
+    base = a.astype(int)
+    ink = (np.abs(out - base).sum(2) > 30)
+    rows = np.where(ink.any(1))[0]
+    assert rows.size, "글자가 전혀 안 보임"
+    # 기본 띠(y≈0.30=154)가 아니라 히어로 밖(위/아래)으로 이동해야 한다
+    assert rows.mean() < 120 or rows.mean() > 380, f"여전히 히어로 위에 그려짐(y={rows.mean():.0f})"
