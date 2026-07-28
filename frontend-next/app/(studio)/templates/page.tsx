@@ -5,6 +5,7 @@
    데이터는 정적 카탈로그(lib/catalog.ts) — 생성 프롬프트는 클라이언트에 싣지 않는다.
    CTA: 카드 → /templates/{id} 전용 페이지(TEMPLATE-PIPE-V2 서버측 연출 레시피). */
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { CATALOG, CatalogTemplate } from "@/lib/catalog";
@@ -39,12 +40,6 @@ export default function TemplatesPage() {
     () => (tag === "전체" ? CATALOG : CATALOG.filter((t) => t.tags.includes(tag))),
     [tag]
   );
-
-  const startWith = (t: CatalogTemplate) => {
-    // TEMPLATE-PIPE-V2: 전용 페이지로 진입 → 서버측 연출 레시피(template_id)로 생성.
-    // studio(스타일 프리셋) 경로로 흘려보내던 기존 배선 폐기.
-    router.push(`/templates/${encodeURIComponent(t.id)}`);
-  };
 
   return (
     <section>
@@ -173,7 +168,8 @@ export default function TemplatesPage() {
               background: "#17151c",
               border: "1px solid var(--line)",
               borderRadius: 18,
-              overflow: "hidden",
+              overflow: "auto",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             <div
@@ -245,9 +241,13 @@ export default function TemplatesPage() {
                   </button>
                 ))}
               </div>
-              <button className="btn-gen" style={{ marginTop: "auto" }} onClick={() => startWith(picked)}>
+              <Link
+                href={`/templates/${encodeURIComponent(picked.id)}`}
+                className="btn-gen"
+                style={{ marginTop: "auto", textDecoration: "none" }}
+              >
                 ✦ 이 템플릿으로 광고 만들기
-              </button>
+              </Link>
             </div>
           </div>
         </div>
