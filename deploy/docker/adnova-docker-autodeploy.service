@@ -1,0 +1,14 @@
+[Unit]
+Description=AdNova Docker auto-deploy (main -> live containers)
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+Environment="ADNOVA_REPO_DIR=/home/spai0803/ai-ad-generator-AdNova"
+Environment="ADNOVA_DEPLOY_USER=spai0803"
+Environment="ADNOVA_DEPLOY_REMOTE=upstream"
+Environment="ADNOVA_DEPLOY_BRANCH=main"
+ExecStart=/usr/local/sbin/adnova-docker-autodeploy
+TimeoutStartSec=1800
+UMask=0027

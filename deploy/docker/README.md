@@ -99,6 +99,46 @@ sudo docker compose exec backend-web python3 -c \
 Nginx에는 8100 프록시를 추가하지 않고, GCP 인바운드 방화벽에도 8100 허용 규칙을
 추가하지 않는다.
 
+## main 자동 배포
+
+최종 운영은 `main`만 자동 배포한다. 기존 `adnova-autodeploy.timer`는 systemd
+백엔드와 프론트를 다시 실행하므로 Docker 전환 후에는 사용하지 않는다.
+
+`main`에 자동 배포 파일이 병합된 뒤 VM에 설치한다.
+
+```bash
+cd ~/ai-ad-generator-AdNova
+
+sudo systemctl disable --now adnova-autodeploy.timer
+sudo install -m 0755 deploy/docker/adnova-docker-autodeploy.sh \
+  /usr/local/sbin/adnova-docker-autodeploy
+sudo install -m 0644 deploy/docker/adnova-docker-autodeploy.service \
+  /etc/systemd/system/adnova-docker-autodeploy.service
+sudo install -m 0644 deploy/docker/adnova-docker-autodeploy.timer \
+  /etc/systemd/system/adnova-docker-autodeploy.timer
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now adnova-docker-autodeploy.timer
+```
+
+타이머는 5분 간격으로 `upstream/main`을 확인한다. 새 커밋이 있을 때만
+fast-forward로 갱신하고, Docker 이미지를 빌드한 뒤 프론트·백엔드·생성 워커 health를
+확인한다. VM 작업 트리에 수정 또는 미추적 파일이 있거나 브랜치가 갈라진 경우에는
+파일을 덮어쓰지 않고 배포를 중단한다. health 확인까지 성공한 커밋만 별도로
+기록하므로, 빌드 또는 실행이 실패한 커밋은 다음 타이머 실행에서 다시 시도한다.
+
+설치 직후 수동으로 한 번 실행해 확인할 수 있다.
+
+```bash
+sudo systemctl start adnova-docker-autodeploy.service
+sudo systemctl status adnova-docker-autodeploy.service --no-pager
+sudo journalctl -u adnova-docker-autodeploy.service -n 100 --no-pager
+sudo systemctl list-timers adnova-docker-autodeploy.timer --no-pager
+```
+
+컨테이너의 `restart: unless-stopped`와 Docker·Nginx·생성 워커의 systemd 자동 시작이
+24시간 서비스 유지를 담당하고, 이 타이머는 `main`의 새 코드 반영만 담당한다.
+
 ## Nginx 연결
 
 기존 도메인용 Nginx `server` 블록에 `deploy/nginx/adnova-docker.locations.conf`의 두 `location` 블록을 넣는다.
