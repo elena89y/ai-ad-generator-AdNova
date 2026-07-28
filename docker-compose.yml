@@ -26,10 +26,12 @@ services:
       DATABASE_URL: sqlite:////data/app.db
       ADMIN_DATABASE_URL: sqlite:////data/admin.db
       UPLOAD_DIR: /data/uploads
-      # GPU 워커가 떠 있으면 배포구조 B(원격 생성), 없으면 비워서 모놀리식(CPU=API 경로만)
-      GENERATION_SERVICE_URL: ${GENERATION_SERVICE_URL:-}
+      # 호스트 systemd의 8100 생성 서버를 호출한다.
+      GENERATION_SERVICE_URL: ${GENERATION_SERVICE_URL:-http://host.docker.internal:8100}
       ENGINE_POLICY: ${ENGINE_POLICY:-api}   # GCP 종료 후 기본 생존값
       API_BUDGET_USD: ${API_BUDGET_USD:-2.0}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./runtime/data:/data                      # 일반·관리자 SQLite, 업로드 파일
       - ./runtime/results:/app/results            # 생성 결과 (results/ai)
