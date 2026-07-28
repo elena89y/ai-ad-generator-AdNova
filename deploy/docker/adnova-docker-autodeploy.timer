@@ -1,0 +1,12 @@
+[Unit]
+Description=Check AdNova main for Docker deployment updates
+
+[Timer]
+OnBootSec=3min
+OnUnitInactiveSec=5min
+RandomizedDelaySec=30
+Persistent=true
+Unit=adnova-docker-autodeploy.service
+
+[Install]
+WantedBy=timers.target

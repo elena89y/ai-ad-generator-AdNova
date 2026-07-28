@@ -30,3 +30,24 @@ class DockerDeploymentContractTests(unittest.TestCase):
     def test_runtime_data_and_results_are_persistent_bind_mounts(self) -> None:
         self.assertIn("./runtime/data:/data", self.compose)
         self.assertIn("./runtime/results:/app/results", self.compose)
+
+    def test_autodeploy_tracks_main_and_uses_safe_fast_forward(self) -> None:
+        deploy_dir = self.repository_root / "deploy" / "docker"
+        script = (deploy_dir / "adnova-docker-autodeploy.sh").read_text(
+            encoding="utf-8"
+        )
+        service = (deploy_dir / "adnova-docker-autodeploy.service").read_text(
+            encoding="utf-8"
+        )
+        timer = (deploy_dir / "adnova-docker-autodeploy.timer").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn('BRANCH="${ADNOVA_DEPLOY_BRANCH:-main}"', script)
+        self.assertIn('merge --ff-only "${target_commit}"', script)
+        self.assertNotIn("reset --hard", script)
+        self.assertIn("docker compose build backend-web frontend", script)
+        self.assertIn("docker compose up -d backend-web frontend", script)
+        self.assertIn("last-successful-commit", script)
+        self.assertIn("ADNOVA_DEPLOY_BRANCH=main", service)
+        self.assertIn("OnUnitInactiveSec=5min", timer)
