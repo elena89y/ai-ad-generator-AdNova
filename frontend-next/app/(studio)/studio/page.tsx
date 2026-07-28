@@ -775,8 +775,8 @@ export default function StudioPage() {
           </button>
         </div>
 
-        {/* CANVAS */}
-        <div style={{ padding: 26, display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* CANVAS — 넓은 화면에서 결과·비교 카드가 통째로 퍼지지 않게 max-width 고정 + 중앙정렬 */}
+        <div style={{ padding: 26, display: "flex", flexDirection: "column", gap: 16, width: "100%", maxWidth: 760, margin: "0 auto" }}>
           <div
             style={{
               display: "flex",
