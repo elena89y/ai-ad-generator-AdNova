@@ -7,42 +7,44 @@
 #      이미지에 굽지 않고 볼륨 마운트 (VRAM/디스크 규칙: CLAUDE.md 참조).
 #
 # 사용:
-#   CPU 스택(생존 경로):  docker compose up backend-web frontend
+#   웹 스택:              docker compose up -d backend-web frontend
 #   GPU 포함(GCP/로컬GPU): docker compose --profile gpu up
-#   비밀키: backend/.env (gitignore) — OPENAI_API_KEY, LANGFUSE_*
+#   비밀키: backend/.env (gitignore) — OPENAI_API_KEY, OAuth, SMTP 등
+#
+# host Nginx가 127.0.0.1:3000 과 127.0.0.1:8000 을 프록시한다.
+# 일반 DB·관리자 DB·업로드 파일은 ./runtime/data 에 영구 저장한다.
 
 services:
   backend-web:
     build: ./backend
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     env_file:
       - path: ./backend/.env      # OPENAI_API_KEY, LANGFUSE_* (없으면 무키 동작 — 관측만 꺼짐)
         required: false
     environment:
       DATABASE_URL: sqlite:////data/app.db
-      CORS_ORIGINS: http://localhost:3000
+      ADMIN_DATABASE_URL: sqlite:////data/admin.db
+      UPLOAD_DIR: /data/uploads
       # GPU 워커가 떠 있으면 배포구조 B(원격 생성), 없으면 비워서 모놀리식(CPU=API 경로만)
       GENERATION_SERVICE_URL: ${GENERATION_SERVICE_URL:-}
       ENGINE_POLICY: ${ENGINE_POLICY:-api}   # GCP 종료 후 기본 생존값
       API_BUDGET_USD: ${API_BUDGET_USD:-2.0}
     volumes:
-      - adnova-data:/data                        # sqlite·업로드 영속
-      - adnova-results:/app/results              # 생성 결과 (results/ai)
+      - ./runtime/data:/data                      # 일반·관리자 SQLite, 업로드 파일
+      - ./runtime/results:/app/results            # 생성 결과 (results/ai)
     restart: unless-stopped
-
   frontend:
     build:
       context: ./frontend-next
       args:
-        # Next 는 NEXT_PUBLIC_* 을 빌드 시점에 굽는다 — 배포 주소에 맞춰 --build-arg 로 교체
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api}
+        # 같은 도메인의 Nginx /api 프록시를 사용한다.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       - backend-web
     restart: unless-stopped
-
   # --- GPU 생성 워커 (프로파일: gpu) ------------------------------------------
   # 요구: NVIDIA 드라이버 + nvidia-container-toolkit. HF 캐시·rembg 모델은 호스트 마운트.
   gpu-worker:
@@ -62,7 +64,7 @@ services:
     volumes:
       - ${HF_CACHE_DIR:-~/.cache/huggingface}:/root/.cache/huggingface
       - ${U2NET_DIR:-~/.u2net}:/root/.u2net
-      - adnova-results:/app/results
+      - ./runtime/results:/app/results
     deploy:
       resources:
         reservations:
@@ -71,7 +73,4 @@ services:
               count: 1
               capabilities: ["gpu"]
     restart: unless-stopped
-
-volumes:
-  adnova-data:
-  adnova-results:
+# GPU worker remains opt-in through the gpu profile.
