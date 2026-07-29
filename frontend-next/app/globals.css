@@ -1,0 +1,218 @@
+@import "tailwindcss";
+
+:root {
+  --background: #071426;
+  --foreground: #f8fafc;
+  --muted: #94a3b8;
+  --soft: #cbd5e1;
+  --border: rgba(148, 163, 184, 0.16);
+  --surface: #102039;
+
+  --accent: #8b5cf6;
+  --accent-deep: #a78bfa;
+
+  --berry: #a78bfa;
+  --berry-deep: #6d4aff;
+
+  --ok: #5be3a0;
+
+  /* 로그인 / 회원가입 공통 */
+  --auth-background: #071426;
+  --auth-panel: rgba(16, 32, 57, 0.94);
+  --auth-input: #0b1729;
+  --auth-border: rgba(167, 139, 250, 0.18);
+
+  --auth-glow: rgba(139, 92, 246, 0.16);
+  --auth-glow-deep: rgba(109, 74, 255, 0.12);
+
+  --auth-gradient: linear-gradient(
+    90deg,
+    #a78bfa 0%,
+    #8b5cf6 50%,
+    #6d4aff 100%
+  );
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-soft: var(--soft);
+  --color-border: var(--border);
+  --color-surface: var(--surface);
+  --color-accent: var(--accent);
+  --color-accent-deep: var(--accent-deep);
+  --color-berry: var(--berry);
+  --color-ok: var(--ok);
+  --font-sans:
+    var(--font-pretendard),
+    -apple-system,
+    sans-serif;
+  --font-display:
+    var(--font-space-grotesk),
+    var(--font-pretendard),
+    sans-serif;
+  --font-serif:
+    var(--font-instrument-serif),
+    var(--font-pretendard),
+    serif;
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background:
+    radial-gradient(
+      130% 90% at 100% -10%,
+      rgba(139, 92, 246, 0.12),
+      transparent 55%
+    ),
+    radial-gradient(
+      120% 80% at 0% 108%,
+      rgba(109, 74, 255, 0.1),
+      transparent 55%
+    ),
+    var(--background);
+
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.serif-accent {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+}
+
+.text-gradient {
+  background: linear-gradient(
+    90deg,
+    #ffffff 0%,
+    #c4b5fd 52%,
+    #8b5cf6 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.accent-gradient {
+  background-image: linear-gradient(
+    135deg,
+    #7c3aed 0%,
+    #a855f7 100%
+  );
+}
+
+.glass {
+  background: rgba(16, 32, 57, 0.78);
+  backdrop-filter: saturate(140%) blur(14px);
+  -webkit-backdrop-filter: saturate(140%) blur(14px);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.noise {
+  position: relative;
+}
+
+.noise::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+
+.auth-input {
+  background: var(--auth-input);
+  border: 1px solid var(--auth-border);
+  color: var(--foreground);
+}
+
+.auth-input::placeholder {
+  color: rgba(248, 250, 252, 0.25);
+}
+
+.auth-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--auth-glow);
+}
+
+/* 관리자 페이지 공통 디자인 */
+.admin-shell
+  :where(
+    input:not([type="checkbox"]):not([type="radio"]),
+    select,
+    textarea,
+    button
+  ) {
+  border-radius: 0.75rem;
+}
+
+.admin-shell
+  :where(
+    [role="alert"],
+    [role="status"]
+  ) {
+  border-radius: 0.75rem;
+}
+
+.admin-shell input,
+.admin-shell select,
+.admin-shell textarea {
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.admin-shell input:focus,
+.admin-shell select:focus,
+.admin-shell textarea:focus {
+  border-color: #a78bfa;
+  box-shadow: 0 0 0 3px rgb(167 139 250 / 12%);
+}
+
+::selection {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.24);
+  border-radius: 999px;
+}
+/* 템플릿 마퀴 — 예시 섹션 아래 무한 가로 슬라이드 (리스트 2배 복제 + -50% 이동) */
+@keyframes template-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee-track {
+  animation: template-marquee var(--marquee-duration, 60s) linear infinite;
+  width: max-content;
+}
+.marquee-track.reverse { animation-direction: reverse; }
+.marquee-viewport:hover .marquee-track { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track { animation: none; }
+}

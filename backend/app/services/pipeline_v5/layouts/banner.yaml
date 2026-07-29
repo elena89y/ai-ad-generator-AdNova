@@ -1,0 +1,24 @@
+# 배너 레이아웃 DSL (DIRECTION_v6-1) — 정적 규격. 담당: 한의정.
+#
+# 2026-07-24 재설계: 솔리드 블록(deep 패널·paper/white 바) 전부 제거 → 방향성 페이드 스크림.
+# CTA 버튼(pill) 제거(사용자 요청, 배너 포함). 헤드라인 폰트=스타일 원장(font_role: head).
+# commerce_vertical 은 하단 역산·동적 폰트라 절차적 → formats/banner.py _render_vertical(하이브리드).
+# margin_basis: 규격별 margin 기준(ch=세로, cw=가로) — banner.render 가 int(basis*safe_margin).
+commerce_wide:
+  margin_basis: ch
+  elements:
+    - {type: scrim, box: [0, 0, [fw, 0.54], [fh, 1]], color: ink, amax: 200, anchor: left, fade_frac: 0.85}
+    - {type: text, at: [[margin], [margin]], bind: product_name, fallback: ADNOVA SELECT, font: 24, color: tint}
+    - {type: text_lines, at: [[margin], [fh, 0.34]], bind: intro_headline, fit_lines: [62, 34], maxw: [fwm, 0.44, -2], color: white, font_role: head}
+commerce_square:
+  margin_basis: cw
+  elements:
+    - {type: scrim, box: [0, [fh, 0.58], [fw, 1], [fh, 1]], color: ink, amax: 205, anchor: bottom, fade_frac: 0.72}
+    - {type: text, at: [[margin], [fh, 0.65]], bind: product_name, fallback: SIGNATURE, font: 22, color: tint}
+    - {type: text_lines, at: [[margin], [fh, 0.72]], bind: intro_headline, fit_lines: [54, 31], maxw: [fwm, 1, -2], color: white, font_role: head}
+smartstore_detail:
+  margin_basis: cw
+  elements:
+    - {type: scrim, box: [0, [fh, 0.60], [fw, 1], [fh, 1]], color: ink, amax: 205, anchor: bottom, fade_frac: 0.7}
+    - {type: text, at: [[margin], [fh, 0.67]], bind: product_name, fallback: 상품, font: 24, color: tint}
+    - {type: text, at: [[margin], [fh, 0.75]], bind: intro_headline, font: {fit_headline: [40, 26]}, maxw: [fwm, 1, -2], color: white, font_role: head}

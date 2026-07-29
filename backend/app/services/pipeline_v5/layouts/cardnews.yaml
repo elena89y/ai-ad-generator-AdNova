@@ -1,0 +1,27 @@
+# 카드뉴스 레이아웃 DSL (DIRECTION_v6-1) — layout_engine.render_slide 가 해석. 담당: 한의정.
+#
+# 2026-07-24 재설계: 솔리드 블록(표지 paper 바·story deep 패널·detail 라이트 채움·cta accent 버튼)
+# 전부 제거. 4슬라이드 모두 풀블리드 컷 + 이미지 인식 오버레이(overlay):
+#   - 글자 위치=컷의 여백 밴드(top/bottom) 자동 선택(B), 정렬·명암=스타일 아키타입(A).
+#   - 폰트=스타일 원장 head_font(font_role: head). 키커=영문(grotesk, 한글 금지—Latin 폰트).
+#   - CTA '구매하기' 버튼 제거(사용자 요청). 카피는 detail_copy_for 전용 문구.
+cover:
+  bg: {cut: hero}
+  overlay:
+    kicker: {bind: subject_en, transform: upper, font: 22, font_family: grotesk}
+    headline: {bind: intro_headline, font: {fit: [62, 38]}, font_role: head}
+story:
+  bg: {cut: top_view}
+  overlay:
+    kicker: {text: STORY, font: 22, font_family: grotesk}
+    headline: {bind: story_title, font: {fit: [58, 34]}, font_role: head}
+detail:
+  bg: {cut: texture_closeup}
+  overlay:
+    kicker: {text: DETAIL, font: 21, font_family: grotesk}
+    headline: {bind: profile_title, font: {fit: [56, 34]}, font_role: head}
+cta:
+  bg: {cut: lifestyle}
+  overlay:
+    kicker: {bind: subject_en, transform: upper, font: 22, font_family: grotesk}
+    headline: {bind: cta_title, font: {fit: [58, 34]}, font_role: head}

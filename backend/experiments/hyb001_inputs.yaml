@@ -1,0 +1,133 @@
+# HYB-001 — 하이브리드 3암 A/B 입력셋 (DIRECTION_v6 T3, 게이트 G3)
+#
+# 3암 = 서비스 3버전 비교: ①local=로컬 이미지 파이프라인 ②api=전-LLM(이미지까지 API)
+#   ③hybrid=상용화 후보(혼합으로 비용 절감). 분석·문구는 3버전 공통 GPT — summary 가 분리 집계.
+# 원칙: 클린 단일변수 A/B — 동일 입력 12장 × 3암.
+#   입력·knob·seed 고정, 이미지 엔진만 변수. 포스터/문구는 코드 경로(불변)라 비교에서 제외(poster=False).
+# 입력 = **골든 평가셋 v1 그대로** (~/Desktop/AdNova/golden_src, 2026-07-09 동결, A5·B4·C3):
+#   - 이미 육안 검수·함정 주석·expected_route 정답이 있는 유일한 신뢰 셋.
+#   - P6_coldbatch/inputs 풀은 2026-07-20 육안 검수 결과 50장 중 다수가 파일명·내용 불일치
+#     (거리 풍경·인물·인포그래픽 등)로 실험 입력 부적격 판정 → 사용 금지.
+# hybrid_engine = v6 §T3 라우팅 가설의 사전 배정:
+#   정체성 민감(texture_hero·사물 SKU) → api / 배경·씬 연출(A generative, B 씬) → local.
+# subject_en: dry-run·지시문 조립용 사전 라벨. 실측에선 analyze_menu 결과를 쓰고 이 값과 대조 기록.
+# 주의: cup.jpeg 는 입력가이드 위반(손째 촬영) 의도 포함 케이스 — 3암 모두 동일 조건이므로 유지.
+
+knob: 0.5
+seed: 1234
+
+# --- APIQ-001: API 모델×quality 매트릭스 미니 실험 (HYB-001 선행) --------------------
+# 목적: ① HYB-001 api 암 대표 설정을 근거로 확정 ② mini 정체성 보존 검증(성립 시 하이브리드
+#   원가 1/3) ③ 초고퀄(프리미엄 티어) 샘플 + 비용↔품질 프런티어 4점 확보(발표).
+# 입력 = 모드별 최난이도 3장. 판정 = 육안 2단계(Claude 1차 구조화 관찰: 결함·정체성·라벨 →
+#   아트디렉터 최종 판정이 정본, JDG-002 규약) + judge 참고. 예산 ≤$1 (보수 추정 $0.66).
+# 실행: hyb001_three_arm_ab.py apiq --inputs-dir ... → 실측 후 아래 chosen 을 채우고
+#   HYB-001 api/hybrid 암은 chosen 설정으로 돌린다(러너 기본값이 chosen 을 읽음).
+apiq:
+  items: [beef_marbled.png, drink_ade.png, mouse.jpeg]   # A 마블링 / B 투명잔 / C 로고 SKU
+  matrix:
+    - {model: gpt-image-1-mini, quality: low}
+    - {model: gpt-image-2, quality: low}      # 현행 기본(07-17 검증 설정)
+    - {model: gpt-image-2, quality: high}     # 초고퀄(프리미엄 티어 후보)
+  chosen: {model: gpt-image-2, quality: low}  # APIQ-001 판정(07-21): g2/low 유지 확정 — mini 3/3
+                                              # 정체성 실패(로고 위조 포함) 탈락, high 는 13배 비용
+                                              # 대비 우위가 케이스별로 갈려 프리미엄 티어 후보로만 보관.
+
+# --- APIQ-002: 지시문 강화 A/B (APIQ-001 후속, 07-21) ---------------------------------
+# 발견: APIQ-001 은 "튜닝 20일 로컬 vs 4문장 초안 지시문 API" 비교였음 — API 밋밋함의 유력 원인.
+# 단일변수 = 지시문. 모델·quality 는 chosen(g2/low) 고정, 입력 = apiq.items 3장 동일.
+#   draft    = 현행 초안(모드별 한 줄 힌트) — APIQ-001 과 동일 경로
+#   enhanced = ① 6무드 scene_prompt(T1 스타일 레지스트리, 실측 튜닝 자산) 이식
+#              ② analyze_photo(Vision) 파트별 보존등급(identity/flexible) 주입
+# 예산: 6장 × $0.015 + Vision 3회 ≈ ≤$0.15. 판정 = 육안 2단계(동일 프로토콜).
+# 승자 확정 시: enhanced 승이면 러너 api 경로 기본을 enhanced 로 승격 후 HYB-001 진행.
+apiq2:
+  variants: [draft, enhanced]
+  style_map:            # enhanced 의 무드 배정 (스타일 레지스트리 키)
+    beef_marbled.png: realism        # scene_prompt 에 마블링 보존 문구 내장
+    drink_ade.png: warm_vintage      # 카페 시그니처 음료 무드 (STY-003 선호 계열)
+    mouse.jpeg: object_studio        # 사물 SKU 중립 스튜디오
+# [APIQ-002 판정 확정 07-21, 아트디렉터] 승자 = enhanced_v2 (enhanced + 가드 2종).
+#   꽃등심·마우스 enhanced 명확 승 / 에이드는 v2 가드로 브랜드 카드·빨대·도일리 복원 + 무단 소품 해소.
+#   경미 편차 기록: 빨대 재질 금속→회백(g2 공통), 배경 갈대 블러는 배경 연출로 허용 판정.
+# ↓ HYB-001 api/hybrid 암의 지시문 조립 = enhanced_v2. 모드→무드 기본 배정:
+api_style_by_mode: {dish: realism, cafe: warm_vintage, object: object_studio}
+
+items:
+  # --- A 음식점 (in-place, 누끼 없음) ---
+  - file: beef_marbled.png
+    name: 꽃등심
+    subject_en: marbled beef ribeye
+    expected_mode: dish
+    expected_route: A-grade
+    hybrid_engine: api        # texture_hero(마블링) — 로컬 생성 리터치는 마블링 표준화 위험
+  - file: yukgaejang.png
+    name: 육개장
+    subject_en: yukgaejang spicy beef soup
+    expected_mode: dish
+    expected_route: A-generative
+    hybrid_engine: local
+  - file: chicken_snowcheese.png
+    name: 눈꽃치즈치킨
+    subject_en: fried chicken with snow cheese powder
+    expected_mode: dish
+    expected_route: A-grade
+    hybrid_engine: api        # texture_hero(파우더) — 강도↑ 시 일반 후라이드로 표준화
+  - file: plate_brunch.png
+    name: 브런치 플레이트
+    subject_en: brunch plate
+    expected_mode: dish
+    expected_route: A-generative
+    hybrid_engine: local
+  - file: soup_cream.png
+    name: 버섯크림스프
+    subject_en: mushroom cream soup
+    expected_mode: dish
+    expected_route: A-generative
+    hybrid_engine: local
+
+  # --- B 카페 (누끼+리터치+씬/에디토리얼) ---
+  - file: drink_ade.png
+    name: 자몽에이드
+    subject_en: grapefruit ade
+    expected_mode: cafe
+    expected_route: B-cafe
+    hybrid_engine: local
+  - file: scone_strawberry.png
+    name: 딸기크림스콘
+    subject_en: strawberry cream scone
+    expected_mode: cafe
+    expected_route: B-cafe
+    hybrid_engine: local
+  - file: cookie.png
+    name: 수제쿠키
+    subject_en: handmade cookies
+    expected_mode: cafe
+    expected_route: B-cafe
+    hybrid_engine: local
+  - file: toast.png
+    name: 토스트
+    subject_en: cafe brunch toast
+    expected_mode: cafe
+    expected_route: B-cafe
+    hybrid_engine: local
+
+  # --- C 사물 (누끼+클린보정+스튜디오, SKU 형태·색 왜곡 금지) ---
+  - file: mouse.jpeg
+    name: 무선마우스
+    subject_en: wireless mouse
+    expected_mode: object
+    expected_route: C-object
+    hybrid_engine: api
+  - file: guasha.jpeg
+    name: 문어괄사
+    subject_en: pink octopus gua sha massage tool
+    expected_mode: object
+    expected_route: C-object
+    hybrid_engine: api
+  - file: cup.jpeg
+    name: 머그컵
+    subject_en: white ceramic mug
+    expected_mode: object
+    expected_route: C-object
+    hybrid_engine: api

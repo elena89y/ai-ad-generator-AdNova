@@ -1,0 +1,33 @@
+# Docker 웹 백엔드 전용 의존성.
+# 이미지 생성 모델 의존성은 기존 requirements.txt에 남기고 8100 생성 서버에서만 사용한다.
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+sqlalchemy==2.0.36
+bcrypt==4.2.1
+PyJWT==2.10.1
+pydantic[email]==2.10.4
+passlib[bcrypt]
+python-jose[cryptography]
+email-validator
+python-multipart
+python-dotenv
+requests
+pyotp
+cryptography
+qrcode[pil]
+
+# Google OAuth
+authlib
+itsdangerous
+
+openai
+langfuse
+Pillow
+pillow-heif
+
+# 문구 품질 게이트와 고객센터 챗봇
+langgraph
+langchain-openai
+langchain
+kiwipiepy
+rapidfuzz

@@ -1,0 +1,79 @@
+# AdNova 컨테이너 구성 (DIRECTION_v6 T5) — 초안: 한의정 (인프라 도메인: 유연정 — 막바지 합의로 작성, PR 기록)
+#
+# 목적 (GCP 종료 대비):
+#   ① 재현성 박제 — 발표·이력용으로 전체 스택이 어느 머신에서든 다시 뜬다.
+#   ② 생존 경로 — GPU 없는 환경에서 backend-web(CPU) + ENGINE_POLICY=api 로 완전 동작.
+#   ③ gpu-worker 는 프로파일(--profile gpu)로만 — GPU 호스트에서만 켠다. 모델(HF 캐시 53G)은
+#      이미지에 굽지 않고 볼륨 마운트 (VRAM/디스크 규칙: CLAUDE.md 참조).
+#
+# 사용:
+#   웹 스택:              docker compose up -d backend-web frontend
+#   GPU 포함(GCP/로컬GPU): docker compose --profile gpu up
+#   비밀키: backend/.env (gitignore) — OPENAI_API_KEY, OAuth, SMTP 등
+#
+# host Nginx가 127.0.0.1:3000 과 127.0.0.1:8000 을 프록시한다.
+# 일반 DB·관리자 DB·업로드 파일은 ./runtime/data 에 영구 저장한다.
+
+services:
+  backend-web:
+    build: ./backend
+    ports:
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - path: ./backend/.env      # OPENAI_API_KEY, LANGFUSE_* (없으면 무키 동작 — 관측만 꺼짐)
+        required: false
+    environment:
+      DATABASE_URL: sqlite:////data/app.db
+      ADMIN_DATABASE_URL: sqlite:////data/admin.db
+      UPLOAD_DIR: /data/uploads
+      # 호스트 systemd의 8100 생성 서버를 호출한다.
+      GENERATION_SERVICE_URL: ${GENERATION_SERVICE_URL:-http://host.docker.internal:8100}
+      ENGINE_POLICY: ${ENGINE_POLICY:-api}   # GCP 종료 후 기본 생존값
+      API_BUDGET_USD: ${API_BUDGET_USD:-2.0}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./runtime/data:/data                      # 일반·관리자 SQLite, 업로드 파일
+      - ./runtime/results:/app/results            # 생성 결과 (results/ai)
+    restart: unless-stopped
+  frontend:
+    build:
+      context: ./frontend-next
+      args:
+        # 같은 도메인의 Nginx /api 프록시를 사용한다.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - backend-web
+    restart: unless-stopped
+  # --- GPU 생성 워커 (프로파일: gpu) ------------------------------------------
+  # 요구: NVIDIA 드라이버 + nvidia-container-toolkit. HF 캐시·rembg 모델은 호스트 마운트.
+  gpu-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.gpu   # CUDA 13 base + torch cu130 (웹 이미지 python:slim 과 분리)
+    profiles: ["gpu"]
+    command: ["uvicorn", "app.generation_app:app", "--host", "0.0.0.0", "--port", "8100"]
+    ports:
+      - "8100:8100"
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
+      HF_HUB_CACHE: /models/hub          # 컨테이너 내 모델 캐시 위치(아래 볼륨과 짝)
+    volumes:
+      # 모델 가중치(53G)는 이미지에 굽지 않고 호스트 프로드 캐시를 마운트 — 빌드 경량·재다운로드 방지.
+      - ${MODELS_DIR:-/opt/adnova/models}:/models   # 프로드 HF 캐시(하위 hub/) — HF_HUB_CACHE 와 짝
+      - ${U2NET_DIR:-~/.u2net}:/root/.u2net          # rembg 누끼 모델
+      - ./runtime/results:/app/results
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: ["gpu"]
+    restart: unless-stopped
+# GPU worker remains opt-in through the gpu profile.

@@ -1,0 +1,35 @@
+# AdNova 골든 평가셋 v1 — 동결 2026-07-09 (한의정)
+# ⚠️ 이 셋은 불변. 이미지 교체·추가 시 버전(v2)을 올리고 기준선을 재캡처한다.
+# 각 장: mode(A음식점/B카페/C사물) · category · texture_hero(픽셀보존 필요) · material(C) · 알려진 함정
+# expected_route = 라우팅 검증용 정답. baseline/평가에서 analyze_menu 결과와 대조.
+version: v1
+frozen: 2026-07-09
+count: 12
+golden:
+  # --- A 음식점 (in-place, 누끼 없음) ---
+  - {file: beef_marbled.png,      name: "꽃등심",         mode: A, category: beef,    texture_hero: true,  expected_route: "A-grade",
+     note: "마블링=상품. 생성 리터치가 마블링을 뭉갬 → grade 필수. 정체성 보존 최난이도(hero DINO≥0.92 목표)."}
+  - {file: yukgaejang.png,        name: "육개장",         mode: A, category: soup,    texture_hero: false, expected_route: "A-generative",
+     note: "국물+젓가락 리프트샷. 맨손으로 면 움켜쥠 생성 위험 → bare-hand negative. RealVis str 0.4~0.45."}
+  - {file: chicken_snowcheese.png,name: "눈꽃치즈치킨",   mode: A, category: fried,   texture_hero: true,  expected_route: "A-grade",
+     note: "눈꽃치즈 파우더=정체성. 강도↑ 시 일반 후라이드로 표준화(파우더 소실) → 저강도/grade."}
+  - {file: plate_brunch.png,      name: "브런치 플레이트", mode: A, category: default, texture_hero: false, expected_route: "A-generative",
+     note: "복잡 다구성 접시(와플·베이컨·반숙란·샐러드). generative 0.45에서 초현실 붕괴 실측. 복잡도 최상 케이스."}
+  - {file: soup_cream.png,        name: "버섯크림스프",   mode: A, category: soup,    texture_hero: false, expected_route: "A-generative",
+     note: "크림스프+크루통+치즈. 토핑이 버섯 청크로 재해석되는 드리프트 주의."}
+  # --- B 카페 (누끼 + 리터치 + 씬/에디토리얼) ---
+  - {file: drink_ade.png,         name: "자몽에이드",     mode: B, category: default, texture_hero: false, expected_route: "B-cafe",
+     note: "투명 유리잔 = 누끼 최난이도(원판 탁한 톤). FLUX 씬 or editorial. 카드 글자 gibberish 주의."}
+  - {file: scone_strawberry.png,  name: "딸기크림스콘",   mode: B, category: bakery,  texture_hero: false, expected_route: "B-cafe",
+     note: "3/4 각도 디저트. editorial(단색+중앙히어로) 룩 적합. 체리 꼭지 삐죽 주의."}
+  - {file: cookie.png,            name: "수제쿠키",       mode: B, category: bakery,  texture_hero: false, expected_route: "B-cafe",
+     note: "쿠키 다수 트레이 = 단일 히어로 아님. 배경교체 시 여러개 재해석 위험. editorial이 더 안전."}
+  - {file: toast.png,             name: "토스트",         mode: B, category: bakery,  texture_hero: false, expected_route: "B-cafe",
+     note: "카페 브런치 토스트. 무난한 B 대상."}
+  # --- C 사물 (누끼 + 클린보정 + 스튜디오) ---
+  - {file: mouse.jpeg,            name: "무선마우스",     mode: C, material: reflective, texture_hero: false, expected_route: "C-object",
+     note: "Philips 실버 마우스. 로고 뒤집힘(입력 방향). SKU 정직도 — 형태·색 왜곡 금지."}
+  - {file: guasha.jpeg,           name: "문어괄사",       mode: C, material: transparent, texture_hero: false, expected_route: "C-object",
+     note: "핑크 반투명 문어 괄사. 투명/유광 혼합 재질. Vision 재질판정 애매 케이스."}
+  - {file: cup.jpeg,              name: "머그컵",         mode: C, material: matte,    texture_hero: false, expected_route: "C-object",
+     note: "손에 든 흰 머그(금속 림). 손째 누끼됨 = 입력가이드 위반 케이스(의도적 포함 — 실패 모드 시연용)."}

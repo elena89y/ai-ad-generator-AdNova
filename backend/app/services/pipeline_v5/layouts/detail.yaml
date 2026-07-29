@@ -1,0 +1,61 @@
+# 상세페이지 레이아웃 DSL — render_page 해석. 담당: 한의정.
+#
+# 세로 롱스크롤 8섹션. story/benefits 는 카피 길이로 높이 가변. cover_mode: int.
+#
+# 2026-07-24 사용자 요청:
+#   - 글자 뒤 솔리드 배경 제거(페이퍼 바·색 패널·색 채움) → 미니멀. 사진 위 글자는 페이드 스크림.
+#   - 단조로움 해소: 폰트 다양화(영문=grotesk/condensed, 한글 헤드라인=serif 명조), 크기 대비.
+#   - 라벨에 상품 영문(subject_en) 병기. PRODUCT STORY 키커 제거. CTA '구매하기' 버튼 제거.
+bg_fill: white
+cover_mode: int
+sections:
+  - name: hero
+    height: 940
+    margin_ratio: 0.07
+    bg: {cut: hero}
+    overlay:
+      kicker: {bind: subject_en, transform: upper, font: 19, font_family: grotesk}
+      headline: {bind: intro_headline, font: {fit: [56, 34]}, font_role: head}
+  - name: story
+    height: {calc: story}
+    bg: {fill: white}
+    elements:
+      - {type: text, at: [[margin], 70], bind: story_title, font: {fit: [46, 30]}, font_role: head, color: [25, 25, 25]}
+      - {type: text, at: [[margin], 168], bind: story_body, font: 22, color: [90, 90, 90], wrap_px: true, line_h: 38}
+      - {type: rule, box: [[margin], [fh, 1, -56], [rmargin], [fh, 1, -56]], color: [220, 218, 212], width: 1}
+  - name: benefits
+    height: {calc: benefits}
+    bg: {fill: white}
+    elements:
+      - {type: text, at: [[margin], 42], text: WHY THIS, font: 32, font_family: condensed, color: accent}
+      - {type: bullets, bind: benefit_bullets, y0: 104, row_h: 72, font: 27, dot: accent, num: white, color: [30, 30, 30]}
+  - name: top_view
+    height: 760
+    bg: {cut: top_view}
+    overlay:
+      kicker: {bind: subject_en, transform: upper, font: 18, font_family: grotesk}
+      headline: {bind: top_view_label, font: {fit: [40, 26]}, font_role: head}
+  - name: closeup
+    height: 720
+    bg: {cut: texture_closeup}
+    overlay:
+      kicker: {bind: subject_en, transform: upper, font: 18, font_family: grotesk}
+      headline: {bind: closeup_caption, font: {fit: [40, 26]}, font_role: head}
+  - name: split
+    height: 650
+    images:
+      - {cut: side_profile, at: [0, 0], size: [[fw, 0.56], [resth]]}
+    elements:
+      - {type: text, at: [[fwm, 0.56, 1], 85], text: PROFILE, font: 24, font_family: condensed, color: accent}
+      - {type: text, at: [[fwm, 0.56, 1], 138], bind: profile_title, font: 42, font_role: head, color: [22, 22, 22], spacing: 8}
+      - {type: text, at: [[fwm, 0.56, 1], 300], bind: profile_caption, font: 21, color: [90, 90, 90], wrap_px: true, maxw: [wsub, 0.56, -2], line_h: 34, max_lines: 3}
+  - name: lifestyle
+    height: 820
+    bg: {cut: lifestyle}
+    overlay:
+      kicker: {text: MOMENT, font: 20, font_family: grotesk}
+      headline: {bind: lifestyle_line, font: {fit: [46, 29]}, font_role: head}
+  - name: cta
+    height: 240
+    elements:
+      - {type: text, at: [[margin], 70], bind: cta_title, font: {fit: [50, 34]}, font_role: head, color: [22, 22, 22]}

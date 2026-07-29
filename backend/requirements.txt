@@ -1,0 +1,47 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+sqlalchemy==2.0.36
+bcrypt==4.2.1
+PyJWT==2.10.1
+pydantic[email]==2.10.4
+passlib[bcrypt]
+python-jose[cryptography]
+email-validator
+python-multipart
+python-dotenv
+requests
+pyotp
+cryptography
+qrcode[pil]
+
+# Google OAuth
+authlib
+itsdangerous
+
+openai
+langfuse  # Langfuse 트레이싱 — app/core/observability.py 에서 초기화
+Pillow
+pillow-heif
+rembg
+
+# onnxruntime-gpu 1.27+ = CUDA 13 빌드 — torch(CU13 스택)와 라이브러리 공유. 1.26 이하(CU12)와 혼용 금지
+onnxruntime-gpu>=1.27; sys_platform == "linux"
+onnxruntime; sys_platform != "linux"
+
+# LangGraph 문구 품질 게이트 루프 (생성 서비스 측). 제거 가능 — copy_graph.py 삭제 + USE_COPY_GATE=0
+# pydantic 2.10.4 유지 확인됨(충돌 없음, pip check clean)
+langgraph
+langchain-openai
+langchain  # langfuse.langchain.CallbackHandler 가 import 시점에 요구(judge_service.py 트레이싱)
+
+# 고객센터 챗봇 하이브리드 검색 한국어 형태소 분석 (services/chatbot/retrieval.py).
+# 미설치여도 문자 bigram 폴백으로 동작하지만 검색 품질이 떨어짐 (골든셋 실측 기준 채택)
+kiwipiepy
+rapidfuzz  # 챗봇 오타 정규화(자모 fuzzy) — 미설치 시 해당 기능만 비활성 (typo hit@1 100→75%)
+
+torch
+diffusers
+transformers
+accelerate
+bitsandbytes
+safetensors

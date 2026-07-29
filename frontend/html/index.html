@@ -1,0 +1,3285 @@
+<!DOCTYPE html>
+<html lang="ko"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<title>AdNova — 소상공인 AI 광고 생성</title>
+<style>/*
+Copyright (c) 2021 Kil Hyung-jin, with Reserved Font Name Pretendard.
+https://github.com/orioncactus/pretendard
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at:
+http://scripts.sil.org/OFL
+*/
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 900;
+	font-display: swap;
+	src: local('Pretendard Black'), url("assets/fonts/pretendard-900.woff2") format('woff2');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 800;
+	font-display: swap;
+	src: local('Pretendard ExtraBold'), url("assets/fonts/pretendard-800.woff2") format('woff2');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 700;
+	font-display: swap;
+	src: local('Pretendard Bold'), url("assets/fonts/pretendard-700.woff2") format('woff2');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 600;
+	font-display: swap;
+	src: local('Pretendard SemiBold'), url("assets/fonts/pretendard-600.woff2") format('woff2');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 500;
+	font-display: swap;
+	src: local('Pretendard Medium'), url("assets/fonts/pretendard-500.woff2") format('woff2');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 400;
+	font-display: swap;
+	src: local('Pretendard Regular'), url("assets/fonts/pretendard-400.woff2") format('woff2');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 300;
+	font-display: swap;
+	src: local('Pretendard Light'), url("assets/fonts/pretendard-300.woff2") format('woff2');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 200;
+	font-display: swap;
+	src: local('Pretendard ExtraLight'), url("assets/fonts/pretendard-200.woff2") format('woff2');
+}
+
+@font-face {
+	font-family: 'Pretendard';
+	font-weight: 100;
+	font-display: swap;
+	src: local('Pretendard Thin'), url("assets/fonts/pretendard-100.woff2") format('woff2');
+}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<style>/* latin-ext */
+@font-face {
+  font-family: 'Instrument Serif';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("assets/fonts/instrument-serif-italic-latin-ext.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Instrument Serif';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("assets/fonts/instrument-serif-italic-latin.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Instrument Serif';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("assets/fonts/instrument-serif-regular-latin-ext.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Instrument Serif';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("assets/fonts/instrument-serif-regular-latin.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("assets/fonts/space-grotesk-500-vietnamese.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("assets/fonts/space-grotesk-500-latin-ext.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("assets/fonts/space-grotesk-500-latin.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("assets/fonts/space-grotesk-500-vietnamese.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("assets/fonts/space-grotesk-500-latin-ext.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("assets/fonts/space-grotesk-500-latin.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("assets/fonts/space-grotesk-500-vietnamese.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("assets/fonts/space-grotesk-500-latin-ext.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("assets/fonts/space-grotesk-500-latin.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+</style>
+<style>
+  :root{
+    --paper:#16151A;
+    --paper-2:#232128;
+    --ink:#EDEBF0;
+    --ink-soft:#B8B4C0;
+    --ink-mute:#8B8794;
+    --line:rgba(255,255,255,.09);
+    --card:#1F1E25;
+    --gold:#F2A93B;
+    --gold-deep:#F2B65A;
+    --berry:#E0567F;
+    --berry-deep:#C42E5C;
+    --plum:#3B2F55;
+    --ok:#5BE3A0;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.5);
+    --shadow-lg:0 16px 54px rgba(0,0,0,.6);
+    --r:16px;
+    --r-sm:11px;
+    --disp:'Space Grotesk', 'Pretendard', sans-serif;
+    --serif:'Instrument Serif', 'Pretendard', serif;
+    --sans:'Pretendard', -apple-system, sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    font-family:var(--sans);
+    background:radial-gradient(130% 90% at 100% -10%, rgba(242,169,59,.07), transparent 55%), radial-gradient(120% 80% at 0% 108%, rgba(196,46,92,.08), transparent 55%), var(--paper);
+    background-attachment:fixed;
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    line-height:1.5;
+  }
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  input,textarea{font-family:inherit}
+  ::selection{background:var(--gold);color:var(--ink)}
+  .screen{display:none}
+  .screen.active{display:block}
+
+  /* ---------- top app bar ---------- */
+  .appbar{
+    position:sticky;top:0;z-index:40;
+    display:flex;align-items:center;gap:20px;
+    padding:14px 26px;
+    background:rgba(245,243,236,.82);
+    backdrop-filter:saturate(140%) blur(12px);
+    border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex;align-items:center;gap:9px;font-family:var(--disp);font-weight:700;font-size:18px;letter-spacing:-.5px}
+  .brand .wm{color:var(--ink)}
+  .brand-mark{height:30px;width:auto;object-fit:contain;display:block;flex:none}
+  .brand-mark-lg{height:40px;width:auto;object-fit:contain;display:block;flex:none}
+  .studio-tag{font-family:var(--serif);font-style:italic;font-weight:400;font-size:20px;color:var(--gold-deep);margin-left:-2px;line-height:1}
+  .studio-tag.lg{font-size:26px}
+  .brand-word{display:flex;flex-direction:column;line-height:1}
+  .bw-name{font-family:var(--disp);font-weight:700;font-size:25px;letter-spacing:-1px;color:var(--ink)}
+  .bw-tag{font-size:9.5px;font-weight:700;letter-spacing:3px;color:var(--gold-deep);margin-top:4px}
+  .login-logo{height:46px;width:auto;display:block;margin-bottom:22px}
+  .brand .spark{
+    width:26px;height:26px;border-radius:8px;
+    background:linear-gradient(135deg,var(--gold),var(--berry));
+    display:grid;place-items:center;color:#fff;font-size:14px;
+    box-shadow:0 3px 10px rgba(196,46,92,.35);
+  }
+  .brand small{color:var(--gold-deep)}
+  .nav{display:flex;gap:4px;margin-left:8px}
+  .nav button{
+    padding:9px 15px;border-radius:10px;font-size:14.5px;font-weight:600;color:var(--ink-mute);
+    transition:.15s;
+  }
+  .nav button:hover{color:var(--ink);background:var(--paper-2)}
+  .nav button.on{color:var(--ink);background:var(--card);box-shadow:var(--shadow)}
+  .appbar .right{margin-left:auto;display:flex;align-items:center;gap:14px}
+  .credits{
+    display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--ink-soft);
+    background:var(--card);padding:7px 13px;border-radius:999px;box-shadow:var(--shadow);
+  }
+  .credits b{color:var(--gold-deep)}
+  .avatar{
+    width:36px;height:36px;border-radius:50%;padding:0;
+    background:linear-gradient(135deg,var(--plum),var(--berry));
+    color:#fff;display:grid;place-items:center;font-weight:700;font-size:14px;
+  }
+  .av-lg{border-radius:50%;background:linear-gradient(135deg,var(--plum),var(--berry));color:#fff;display:grid;place-items:center;font-weight:700;overflow:hidden}
+  .avatar,.av-lg{background-size:cover;background-position:center;background-repeat:no-repeat}
+  .pf-wrap{position:relative}
+  .profile-menu{
+    position:absolute;top:calc(100% + 10px);right:0;width:250px;
+    background:var(--card);border:1px solid var(--line);border-radius:14px;
+    box-shadow:var(--shadow-lg);padding:8px;display:none;z-index:60;
+  }
+  .profile-menu.on{display:block}
+  .pf-head{display:flex;gap:11px;align-items:center;padding:8px 10px 12px;border-bottom:1px solid var(--line);margin-bottom:6px}
+  .pf-head .av-lg{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--plum),var(--berry));color:#fff;display:grid;place-items:center;font-weight:700;font-size:16px;flex:none}
+  .pf-head .info{min-width:0}
+  .pf-head .nm{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pf-head .em{font-size:12px;color:var(--ink-mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+  .pf-plan{display:inline-block;margin-top:5px;font-size:11px;font-weight:700;color:var(--gold-deep);background:#fbf1de;padding:2px 8px;border-radius:6px}
+  .pf-item{display:flex;align-items:center;gap:11px;width:100%;padding:9px 11px;border-radius:9px;font-size:13.5px;font-weight:600;color:var(--ink-soft);transition:.12s;text-align:left}
+  .pf-item:hover{background:var(--paper-2);color:var(--ink)}
+  .pf-item .pf-ic{font-size:15px;width:18px;text-align:center;flex:none}
+  .pf-item.danger{color:var(--berry)}
+  .pf-item.danger:hover{background:#fbe9ee}
+  .pf-div{height:1px;background:var(--line);margin:6px 4px}
+
+  /* ---------- LOGIN / SIGNUP / FORGOT ---------- */
+  #login, #signup, #forgot{min-height:100vh;grid-template-columns:1fr 1fr}
+  #login.active, #signup.active, #forgot.active{display:grid}
+  .login-left{
+    display:flex;flex-direction:column;justify-content:center;
+    padding:40px clamp(40px,6vw,80px);
+  }
+  .login-brand{display:inline-flex;align-items:center;gap:12px;margin-bottom:22px;align-self:flex-start}
+  .login-brand .spark{width:32px;height:32px;border-radius:10px;font-size:16px}
+  .login-left h1{font-size:29px;line-height:1.22;letter-spacing:-1px;font-weight:800;margin-bottom:8px}
+  .login-left h1 em{font-style:normal;color:var(--berry)}
+  .login-left .sub{color:var(--ink-soft);font-size:14.5px;margin-bottom:20px;max-width:360px;line-height:1.55}
+  .field{margin-bottom:11px}
+  .field label{display:block;font-size:13px;font-weight:600;color:var(--ink-soft);margin-bottom:6px}
+  .field input{
+    width:100%;padding:13px 15px;border:1.5px solid var(--line);border-radius:12px;
+    font-size:15px;background:var(--card);transition:.15s;
+    color:var(--ink);-webkit-text-fill-color:var(--ink);
+  }
+
+  .field input::placeholder{color:var(--ink-mute)}
+  .field input:-webkit-autofill,.field input:-webkit-autofill:focus{
+    -webkit-text-fill-color:var(--ink);-webkit-box-shadow:0 0 0 1000px var(--card) inset;caret-color:var(--ink);
+  }
+  .field input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 4px rgba(242,169,59,.16)}
+  .password-input{position:relative;width:100%}
+  .password-input input{box-sizing:border-box;width:100%;padding-right:48px}
+  .password-toggle{position:absolute;top:50%;right:8px;transform:translateY(-50%);width:32px;height:32px;border:0;border-radius:8px;background:transparent;color:var(--ink-mute);font-size:16px;cursor:pointer;display:grid;place-items:center}
+  .password-toggle:hover{background:rgba(255,255,255,.08);color:var(--ink)}
+  .password-toggle.is-visible{color:var(--gold)}
+  #passwordFields .password-input{width:min(100%,520px)}
+  .field-help{margin-top:6px;font-size:12.5px;line-height:1.45;color:var(--ink-mute)}
+  .btn-primary{
+    width:100%;padding:14px;border-radius:12px;font-size:15.5px;font-weight:700;color:#fff;
+    background:var(--ink);transition:.15s;margin-top:6px;
+  }
+  .btn-primary:hover{background:var(--plum)}
+  .row-min{display:flex;justify-content:space-between;align-items:center;font-size:13px;margin:10px 2px 16px;color:var(--ink-mute)}
+  .row-min a{color:var(--ink-soft);text-decoration:none;font-weight:600}
+  .divider{display:flex;align-items:center;gap:14px;color:var(--ink-mute);font-size:13px;margin:8px 0 18px}
+  .divider::before,.divider::after{content:"";height:1px;flex:1;background:var(--line)}
+  .socials{display:flex;flex-direction:column;gap:10px}
+  .socials.compact{flex-direction:row;gap:9px}
+  .socials.compact .soc{flex:1;padding:11px 4px;font-size:13px;gap:7px}
+  .soc{
+    display:flex;align-items:center;justify-content:center;gap:9px;
+    padding:12px;border-radius:12px;font-size:14.5px;font-weight:600;border:1.5px solid var(--line);
+    background:var(--card);transition:.15s;
+  }
+  .soc:hover{border-color:var(--ink-mute)}
+  .soc .ic{width:18px;height:18px;border-radius:5px;display:grid;place-items:center;font-size:11px;font-weight:800;color:#fff}
+  .soc.google .ic {background: transparent;border: none; padding: 0;}
+  .soc.google .ic img {width: 18px;height: 18px;display: block;}
+  .soc.kakao .ic{background: transparent;}
+  .soc.kakao .ic img{width:18px;height:18px;display:block;}
+  .soc.naver .ic{background: transparent;}
+  .soc.naver .ic img{width:18px;height:18px;display:block;}
+  .login-foot{margin-top:18px;font-size:13.5px;color:var(--ink-mute)}
+  .login-foot a{color:var(--berry);font-weight:700;text-decoration:none}
+
+  .login-right{
+    position:relative;overflow:hidden;
+    background:
+      radial-gradient(120% 90% at 80% 10%, rgba(242,169,59,.35), transparent 55%),
+      radial-gradient(120% 90% at 20% 90%, rgba(196,46,92,.32), transparent 55%),
+      var(--plum);
+    display:grid;place-items:center;
+  }
+  .spotlight{
+    position:absolute;width:150%;height:150%;left:-25%;top:-25%;
+    background:conic-gradient(from 200deg at 60% 40%, transparent 0deg, rgba(242,169,59,.14) 40deg, transparent 90deg);
+    animation:spin 22s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .showcase{position:relative;z-index:2;width:min(78%,380px)}
+  .showcase .tag{
+    display:inline-flex;align-items:center;gap:7px;color:#fff;font-size:12.5px;font-weight:600;
+    background:rgba(255,255,255,.14);padding:6px 12px;border-radius:999px;margin-bottom:16px;
+    border:1px solid rgba(255,255,255,.2);
+  }
+  .ad-preview{
+    background:#fff;border-radius:20px;overflow:hidden;box-shadow:var(--shadow-lg);transform:rotate(-2deg);
+  }
+  .ad-preview .pic{
+    height:210px;position:relative;
+    background:linear-gradient(150deg,#3B2F55,#7A3E5E 60%,#C77B3A);
+    display:grid;place-items:center;
+  }
+  .ad-preview .prod{
+    width:110px;height:130px;border-radius:14px;
+    background:linear-gradient(160deg,#fff5e6,#f2c98a);
+    box-shadow:0 20px 40px rgba(0,0,0,.35);
+    display:grid;place-items:center;font-size:40px;
+    transform:rotate(4deg);
+  }
+  .ad-preview .badge{
+    position:absolute;top:14px;left:14px;background:var(--berry);color:#fff;
+    font-size:12px;font-weight:800;padding:5px 11px;border-radius:8px;transform:rotate(-4deg);
+  }
+  .ad-preview .cap{padding:16px 18px}
+  .ad-preview .cap h4{font-size:17px;font-weight:800;letter-spacing:-.4px;margin-bottom:4px}
+  .ad-preview .cap p{font-size:13px;color:var(--ink-mute)}
+  .float-copy{
+    position:absolute;z-index:3;right:-6px;bottom:34px;
+    background:#fff;border-radius:12px;padding:11px 14px;box-shadow:var(--shadow-lg);
+    font-size:12.5px;font-weight:700;transform:rotate(3deg);display:flex;align-items:center;gap:8px;
+  }
+  .float-copy .dot{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+
+  /* ---------- shared page shell ---------- */
+  .page{max-width:1180px;margin:0 auto;padding:30px 26px 70px}
+  .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:26px;flex-wrap:wrap}
+  .page-head h2{font-size:25px;font-weight:800;letter-spacing:-.8px}
+  .page-head .lead{color:var(--ink-soft);font-size:14.5px;margin-top:4px}
+
+  /* ---------- DASHBOARD ---------- */
+  .studio{display:grid;grid-template-columns:minmax(0,420px) 1fr;gap:24px;align-items:start}
+  .dashboard-layout{display:grid;grid-template-columns:300px minmax(0,1fr);min-height:calc(100vh - 61px)}
+  .control-rail{border-right:1px solid var(--line)}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+  .panel-h{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+  .panel-h .n{width:24px;height:24px;border-radius:7px;background:var(--paper-2);display:grid;place-items:center;font-size:12px;font-weight:800;font-family:var(--disp);color:var(--gold-deep)}
+  .panel-h h3{font-size:15px;font-weight:700}
+  .panel-b{padding:20px}
+  .lbl{display:block;font-size:13px;font-weight:700;color:var(--ink-soft);margin:0 0 8px}
+  .lbl .hint{font-weight:500;color:var(--ink-mute);font-size:12px;margin-left:6px}
+
+  .drop{
+    border:2px dashed var(--line);border-radius:14px;padding:26px 18px;text-align:center;
+    background:var(--paper);transition:.15s;cursor:pointer;margin-bottom:22px;
+  }
+  .drop:hover{border-color:var(--gold);background:#fbf6ec}
+  .drop.filled{border-style:solid;border-color:var(--line);padding:0;overflow:hidden;background:none}
+  .drop .up-ic{width:44px;height:44px;border-radius:12px;background:var(--paper-2);display:grid;place-items:center;margin:0 auto 10px;font-size:20px}
+  .drop .up-t{font-size:14px;font-weight:700}
+  .drop .up-s{font-size:12.5px;color:var(--ink-mute);margin-top:3px}
+  .thumb{position:relative;height:172px;background:linear-gradient(150deg,#e9e2d3,#cdbfa4);display:grid;place-items:center}
+  .thumb .prod{width:84px;height:100px;border-radius:11px;background:linear-gradient(160deg,#fff,#e7cfa0);box-shadow:0 12px 26px rgba(0,0,0,.2);display:grid;place-items:center;font-size:34px}
+  .thumb .re{position:absolute;top:10px;right:10px;background:rgba(33,28,46,.72);color:#fff;font-size:12px;font-weight:600;padding:6px 11px;border-radius:8px;backdrop-filter:blur(4px)}
+
+  textarea.prompt{
+    width:100%;min-height:82px;resize:vertical;padding:13px 14px;border:1.5px solid var(--line);
+    border-radius:12px;font-size:14.5px;background:var(--card);transition:.15s;line-height:1.55;
+  }
+  textarea.prompt:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 4px rgba(242,169,59,.16)}
+  .prompt-tips{display:flex;gap:6px;flex-wrap:wrap;margin:9px 0 22px}
+  .chip-tip{font-size:12px;color:var(--ink-soft);background:var(--paper-2);padding:5px 10px;border-radius:8px;cursor:pointer;transition:.15s}
+  .chip-tip:hover{background:var(--gold);color:var(--ink)}
+
+  .styles{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:24px}
+  .style{
+    border:1.5px solid var(--line);border-radius:12px;padding:11px 8px;text-align:center;transition:.15s;background:var(--card);
+  }
+  .style:hover{border-color:var(--ink-mute)}
+  .style.on{border-color:var(--gold);background:#fdf6ea;box-shadow:0 0 0 3px rgba(242,169,59,.15)}
+  .style .em{font-size:22px;display:block;margin-bottom:5px}
+  .style .nm{font-size:12.5px;font-weight:700}
+  .style .on-mark{display:none}
+  .style.on .on-mark{display:inline}
+
+  .model-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--paper);border:1px solid var(--line);border-radius:11px;padding:11px 13px;margin-bottom:16px}
+  .model-bar .m-l{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:700}
+  .model-bar .lamp{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 4px rgba(47,163,107,.16)}
+  .model-bar .soon{font-size:11.5px;font-weight:700;color:var(--gold-deep);background:#fbf1de;padding:4px 9px;border-radius:7px}
+
+  .btn-gen{
+    width:100%;padding:15px;border-radius:13px;font-size:15.5px;font-weight:800;color:#fff;
+    background:linear-gradient(120deg,var(--berry),var(--gold-deep));transition:.15s;
+    box-shadow:0 8px 22px rgba(196,46,92,.28);display:flex;align-items:center;justify-content:center;gap:9px;
+  }
+  .btn-gen:hover{filter:brightness(1.05)}
+  .btn-gen:disabled{opacity:.55;cursor:default;box-shadow:none;filter:none}
+
+  /* result panel */
+  .result{min-height:520px;display:flex;flex-direction:column}
+  .result-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px;color:var(--ink-mute)}
+  .result-empty .big{width:66px;height:66px;border-radius:18px;background:var(--paper);display:grid;place-items:center;font-size:30px;margin-bottom:16px;border:1px solid var(--line)}
+  .result-empty h3{font-size:16px;font-weight:700;color:var(--ink-soft);margin-bottom:5px}
+  .result-empty p{font-size:13.5px;max-width:260px}
+
+  .loading{flex:1;display:none;flex-direction:column;align-items:center;justify-content:center;padding:40px;text-align:center}
+  .loading.on{display:flex}
+  .ring{width:52px;height:52px;border-radius:50%;border:4px solid var(--paper-2);border-top-color:var(--berry);animation:spin 1s linear infinite;margin-bottom:18px}
+  .loading .st{font-size:14.5px;font-weight:700;margin-bottom:4px}
+  .loading .stp{font-size:13px;color:var(--ink-mute)}
+
+  .output{flex:1;display:none;flex-direction:column;padding:20px}
+  .output.on{display:flex}
+  /* before/after slider — signature */
+  .compare{position:relative;border-radius:14px;overflow:hidden;aspect-ratio:3/2;user-select:none;box-shadow:var(--shadow)}
+  .compare .layer img{position:absolute;inset:0;width:100%;height:100%}
+  .compare .before{background:#fff}
+  .compare .before img{object-fit:contain}
+  .compare .after img{object-fit:cover}
+  .compare .layer{position:absolute;inset:0}
+  .compare .before-legacy{}
+  .compare .before .prod{width:120px;height:150px;border-radius:12px;background:linear-gradient(160deg,#efe6d4,#c9ab7d);box-shadow:0 10px 24px rgba(0,0,0,.2);display:grid;place-items:center;font-size:44px}
+  .compare .after{clip-path:inset(0 0 0 50%)}
+  .compare .after .stage{position:relative;text-align:center;color:#fff;padding:20px}
+  .compare .after .prod{width:120px;height:150px;border-radius:12px;background:linear-gradient(160deg,#fff6e6,#f4c988);box-shadow:0 22px 44px rgba(0,0,0,.45);display:grid;place-items:center;font-size:46px;margin:0 auto 14px}
+  .compare .after h3{font-family:var(--disp);font-weight:700;font-size:23px;letter-spacing:-.5px;text-shadow:0 2px 12px rgba(0,0,0,.3)}
+  .compare .after .pr{position:absolute;top:14px;left:14px;background:var(--gold);color:var(--ink);font-weight:800;font-size:13px;padding:5px 11px;border-radius:8px;transform:rotate(-3deg)}
+  .compare .lbltag{position:absolute;bottom:12px;font-size:11px;font-weight:800;color:#fff;background:rgba(0,0,0,.4);padding:4px 9px;border-radius:7px;backdrop-filter:blur(3px)}
+  .compare .lbltag.l{left:12px}.compare .lbltag.r{right:12px}
+  .type-option{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.035)}
+  .type-option label{display:flex;align-items:center;gap:9px;font-size:12.5px;font-weight:700;color:var(--ink);cursor:pointer}
+  .type-option input{width:17px;height:17px;accent-color:var(--gold);cursor:pointer}
+  .type-option small{font-size:10.5px;color:var(--ink-mute);text-align:right;line-height:1.35}
+  .handle{position:absolute;top:0;bottom:0;left:50%;width:3px;background:#fff;transform:translateX(-50%);cursor:ew-resize;box-shadow:0 0 12px rgba(0,0,0,.3);z-index:3}
+  .handle::after{content:"⇄";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:34px;height:34px;background:#fff;border-radius:50%;display:grid;place-items:center;font-size:15px;color:var(--ink);box-shadow:var(--shadow)}
+  .range{position:absolute;inset:0;width:100%;opacity:0;cursor:ew-resize;z-index:4;margin:0}
+
+  .copy-block{margin-top:18px;background:var(--paper);border:1px solid var(--line);border-radius:13px;padding:16px}
+  .copy-block .ct{font-size:11.5px;font-weight:800;color:var(--gold-deep);letter-spacing:.4px;text-transform:uppercase;margin-bottom:9px;display:flex;align-items:center;gap:6px}
+  .copy-block h4{font-size:19px;font-weight:800;letter-spacing:-.4px;margin-bottom:6px}
+  .copy-block p{font-size:14px;color:var(--ink-soft);line-height:1.6}
+  .copy-block .tags{margin-top:10px;font-size:13px;font-weight:600;color:var(--berry)}
+  .out-actions{display:flex;gap:9px;margin-top:16px;flex-wrap:wrap}
+
+  /* 상품명 입력 + 광고 유형 자동 감지 */
+  .name-input{
+    width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;
+    font-size:15px;font-weight:600;background:var(--card);transition:.15s;margin-bottom:8px;
+  }
+  .name-input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 4px rgba(242,169,59,.16)}
+  .auto-mode{
+    display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;
+    color:var(--gold-deep);background:#fbf1de;padding:5px 11px;border-radius:8px;margin-bottom:22px;
+  }
+  .auto-mode .lamp{width:7px;height:7px;border-radius:50%;background:var(--gold-deep)}
+
+  /* 매체별 카피 탭 */
+  .plat-tabs{display:flex;gap:5px;margin-bottom:13px;flex-wrap:wrap}
+  .ptab{
+    padding:6px 11px;border-radius:9px;font-size:12.5px;font-weight:700;color:var(--ink-mute);
+    background:var(--card);border:1.5px solid var(--line);transition:.15s;display:flex;align-items:center;gap:5px;cursor:pointer;
+  }
+  .ptab:hover{border-color:var(--ink-mute);color:var(--ink-soft)}
+  .ptab.on{color:#fff;border-color:var(--ink);background:var(--ink)}
+  .ptab .si{width:16px;height:16px;border-radius:5px;display:grid;place-items:center;font-size:9px;font-weight:800;color:#fff}
+  .ptab .si.ig{background:linear-gradient(135deg,#f9ce34,#ee2a7b,#6228d7)}
+  .ptab .si.fb{background:#1877f2}
+  .ptab .si.x{background:#000}
+  .ptab .si.th{background:#000}
+  .copy-body-wrap{min-height:104px}
+  .oa{display:flex;align-items:center;gap:7px;padding:11px 15px;border-radius:11px;font-size:14px;font-weight:700;border:1.5px solid var(--line);background:var(--card);transition:.15s}
+  .oa:hover{border-color:var(--ink-mute)}
+  .oa.save{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .oa.save:hover{background:var(--plum)}
+
+  /* ---------- MY PAGE ---------- */
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
+  .fchip{padding:8px 15px;border-radius:999px;font-size:13.5px;font-weight:700;border:1.5px solid var(--line);background:var(--card);color:var(--ink-soft);transition:.15s}
+  .fchip:hover{border-color:var(--ink-mute)}
+  .fchip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow);transition:.18s;position:relative}
+  .card:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg)}
+  .card .cpic{height:170px;position:relative;display:grid;place-items:center;overflow:hidden}
+  .card .cpic .prod{width:76px;height:94px;border-radius:10px;box-shadow:0 12px 26px rgba(0,0,0,.3);display:grid;place-items:center;font-size:32px}
+  .card .cpic .hl{position:absolute;bottom:12px;left:12px;right:12px;color:#fff;font-family:var(--disp);font-weight:700;font-size:16px;letter-spacing:-.3px;text-shadow:0 2px 10px rgba(0,0,0,.4)}
+  .card .cpic .cimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .card .cpic .st-tag{position:absolute;top:11px;left:11px;background:rgba(255,255,255,.9);font-size:11px;font-weight:800;padding:4px 9px;border-radius:7px;color:var(--ink)}
+  .card .cbody{padding:13px 15px 15px}
+  .card .cmeta{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px}
+  .card .cmeta .dt{font-size:12.5px;color:var(--ink-mute);font-weight:600}
+  .card .cmeta .st{font-size:12px;font-weight:700;color:var(--ink-soft)}
+  .card-actions{display:flex;align-items:center;gap:6px}
+  .share-wrap{position:relative;flex:1}
+  .a-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:7px;padding:9px;border-radius:10px;font-size:13px;font-weight:700;border:1.5px solid var(--line);background:var(--card);transition:.15s}
+  .a-btn:hover{border-color:var(--ink-mute)}
+  .a-btn.del{width:40px;flex:none;color:var(--berry);border-color:#f0d3dc}
+  .a-btn.del:hover{background:var(--berry);color:#fff;border-color:var(--berry)}
+  .sns-menu{
+    position:absolute;bottom:calc(100% + 8px);left:0;right:0;background:var(--card);border:1px solid var(--line);
+    border-radius:12px;box-shadow:var(--shadow-lg);padding:6px;display:none;z-index:20;
+  }
+  .sns-menu.on{display:block}
+  .sns-menu button{display:flex;align-items:center;gap:10px;width:100%;padding:9px 11px;border-radius:8px;font-size:13.5px;font-weight:600;transition:.12s}
+  .sns-menu button:hover{background:var(--paper-2)}
+  .sns-menu .si{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:11px;font-weight:800;color:#fff}
+  .si.ig{background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#bc1888)}
+  .si.fb{background:#1877F2}
+  .si.x{background:#000}
+  .si.th{background:#000}
+
+  .empty-my{text-align:center;padding:70px 20px;color:var(--ink-mute)}
+  .empty-my .big{width:70px;height:70px;border-radius:18px;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;font-size:32px;margin:0 auto 16px}
+
+  /* toast */
+  .toast{
+    position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:#fff;padding:13px 20px;border-radius:12px;font-size:14px;font-weight:600;
+    box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:.25s;z-index:100;display:flex;align-items:center;gap:9px;
+  }
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .dot{width:8px;height:8px;border-radius:50%;background:var(--gold)}
+
+  /* back link + notice (signup / forgot) */
+  .back-link{display:inline-flex;align-items:center;gap:6px;font-size:13.5px;font-weight:700;color:var(--ink-mute);text-decoration:none;margin-bottom:26px;transition:.15s;background:none;border:none;cursor:pointer;padding:0}
+  .back-link:hover{color:var(--ink)}
+  .notice{display:none;align-items:flex-start;gap:11px;background:#e9f6ef;border:1px solid #bfe6d1;border-radius:12px;padding:14px 16px;margin-bottom:6px}
+  .notice.on{display:flex}
+  .notice .ck{width:24px;height:24px;border-radius:50%;background:var(--ok);color:#fff;display:grid;place-items:center;font-size:13px;flex:none;margin-top:1px}
+  .notice .nt{font-size:13.5px;color:#1f6b47;line-height:1.55}
+  .notice .nt b{color:#15452e}
+  .terms{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:var(--ink-soft);line-height:1.5;margin:4px 2px 18px}
+  .terms a{color:var(--berry);font-weight:700;text-decoration:none}
+  .detail-layout{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:22px}
+  .detail-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .detail-actions .oa{flex:1;justify-content:center;min-width:0;color:var(--ink-soft);cursor:pointer}
+  .detail-actions .oa.download{flex:0 0 auto;color:var(--gold);border-color:rgba(242,169,59,.45)}
+  .detail-actions .oa.delete{flex:0 0 auto;color:var(--berry);border-color:rgba(224,86,127,.4)}
+  .share-actions button{min-width:0}
+  .image-fallback{position:absolute;inset:0;display:grid;place-items:center;padding:20px;background:#25232b;color:var(--ink-mute);font-size:12px;font-weight:600;text-align:center}
+  .card .cpic .st-tag{z-index:2}
+
+  /* responsive */
+  @media(max-width:900px){
+    #login, #signup, #forgot{grid-template-columns:minmax(0,1fr)}
+    .login-left{min-width:0}
+    .login-right{display:none}
+    .studio{grid-template-columns:1fr}
+    .dashboard-layout{grid-template-columns:minmax(0,1fr)}
+    .detail-layout{grid-template-columns:minmax(0,1fr)}
+    .control-rail{border-right:0;border-bottom:1px solid var(--line)}
+    [data-role="compare"]{grid-template-columns:1fr!important}
+    .nav button span.txt{display:none}
+  }
+  @media(max-width:560px){
+    .login-left{width:100%;padding:32px 20px}
+    .row-min{gap:12px;flex-wrap:wrap}
+    .socials.compact{flex-wrap:wrap}
+    .socials.compact .soc{min-width:92px}
+    .appbar{padding:12px 16px;gap:10px}
+    .credits,.usage{display:none}
+    .page{padding:22px 16px 60px}
+    .styles{grid-template-columns:repeat(3,1fr)}
+    .brand span.wm{display:none}
+    .plans{grid-template-columns:1fr}
+    .share-actions{flex-direction:column}
+    .share-premium{align-items:flex-start!important;flex-wrap:wrap}
+    .share-premium button{width:100%;text-align:left}
+  }
+
+  /* usage pill + freemium */
+  .usage{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--ink-soft);background:var(--card);padding:7px 13px;border-radius:999px;box-shadow:var(--shadow)}
+  .usage b{color:var(--gold-deep)}
+  .udots{display:inline-flex;gap:3px}
+  .udots i{width:7px;height:7px;border-radius:50%;background:var(--line)}
+  .udots i.on{background:var(--gold)}
+  .wm-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding:11px 14px;background:#fbf1de;border:1px solid #f0dcae;border-radius:11px;flex-wrap:wrap}
+  .wm-l{font-size:13px;font-weight:600;color:var(--gold-deep)}
+  .wm-up{font-size:13px;font-weight:800;color:var(--berry)}
+  .wm-up:hover{text-decoration:underline}
+  /* upgrade modal */
+  .modal-overlay{position:fixed;inset:0;background:rgba(33,28,46,.5);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:200;padding:20px}
+  .modal-overlay.on{display:flex}
+  .modal{background:var(--card);border-radius:20px;max-width:560px;width:100%;padding:28px;position:relative;box-shadow:var(--shadow-lg);max-height:90vh;overflow:auto}
+  .modal-x{position:absolute;top:16px;right:16px;width:32px;height:32px;border-radius:8px;color:var(--ink-mute);font-size:15px}
+  .modal-x:hover{background:var(--paper-2)}
+  .modal-head{text-align:center;margin-bottom:22px;padding:0 10px}
+  .modal-badge{display:inline-block;font-size:12px;font-weight:800;color:var(--gold-deep);background:#fbf1de;padding:5px 12px;border-radius:999px;margin-bottom:12px}
+  .modal-head h3{font-size:22px;font-weight:800;letter-spacing:-.6px;margin-bottom:7px}
+  .modal-head p{font-size:14px;color:var(--ink-soft)}
+  .plans{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .plan{border:1.5px solid var(--line);border-radius:16px;padding:20px;position:relative}
+  .plan.hot{border-color:var(--gold);box-shadow:0 0 0 3px rgba(242,169,59,.15)}
+  .plan-tag{position:absolute;top:-10px;right:16px;background:var(--berry);color:#fff;font-size:11px;font-weight:800;padding:4px 10px;border-radius:7px}
+  .plan-name{font-size:14px;font-weight:700;color:var(--ink-soft)}
+  .plan-price{font-size:26px;font-weight:800;letter-spacing:-1px;margin:6px 0 14px}
+  .plan-price span{font-size:14px;font-weight:600;color:var(--ink-mute)}
+  .plan ul{list-style:none;margin-bottom:18px}
+  .plan li{font-size:13.5px;padding:6px 0 6px 22px;position:relative;color:var(--ink-soft);line-height:1.4}
+  .plan li::before{content:"✓";position:absolute;left:0;color:var(--ok);font-weight:800}
+  .plan li.muted{color:var(--ink-mute)}
+  .plan li.muted::before{content:"•";color:var(--ink-mute)}
+  .plan-btn{width:100%;padding:12px;border-radius:11px;font-weight:700;font-size:14px;color:#fff;background:linear-gradient(120deg,var(--berry),var(--gold-deep));transition:.15s}
+  .plan-btn:hover{filter:brightness(1.05)}
+  .plan-btn.ghost{background:var(--paper-2);color:var(--ink-mute);cursor:default}
+  .plan-btn.ghost:hover{filter:none}
+
+  /* ===================== DARK THEME (1c) OVERRIDES ===================== */
+  ::selection{background:var(--gold);color:#16151A}
+  .appbar{background:rgba(22,21,26,.72);border-bottom:1px solid var(--line)}
+  .nav button.on{color:var(--ink);background:rgba(255,255,255,.07);box-shadow:none}
+  .nav button:hover{color:var(--ink);background:rgba(255,255,255,.05)}
+  .pf-plan{color:var(--gold-deep);background:rgba(242,169,59,.14)}
+  .credits b,.usage b{color:var(--gold-deep)}
+  .btn-primary{background:linear-gradient(120deg,var(--gold),var(--berry-deep));color:#fff}
+  .btn-primary:hover{filter:brightness(1.07);background:linear-gradient(120deg,var(--gold),var(--berry-deep))}
+  .field input:focus,.name-input:focus,textarea.prompt:focus{border-color:var(--gold);box-shadow:0 0 0 4px rgba(242,169,59,.18)}
+  .drop:hover{border-color:var(--gold);background:rgba(242,169,59,.06)}
+  .chip-tip:hover{background:var(--gold);color:#16151A}
+  .style.on{border-color:var(--gold);background:rgba(242,169,59,.1);box-shadow:0 0 0 3px rgba(242,169,59,.14)}
+  .model-bar .soon,.auto-mode{color:var(--gold-deep);background:rgba(242,169,59,.14)}
+  .auto-mode .lamp{background:var(--gold)}
+  .ptab.on{color:#16151A;border-color:var(--gold);background:var(--gold)}
+  .oa.save{background:var(--gold);color:#16151A;border-color:var(--gold)}
+  .oa.save:hover{filter:brightness(1.06);background:var(--gold)}
+  .fchip.on{background:var(--gold);color:#16151A;border-color:var(--gold)}
+  .a-btn.del{color:var(--berry);border-color:rgba(224,86,127,.4)}
+  .a-btn.del:hover{background:var(--berry);color:#16151A;border-color:var(--berry)}
+  .toast{background:#2A2831;border:1px solid var(--line)}
+  .notice{background:rgba(91,227,160,.1);border:1px solid rgba(91,227,160,.28)}
+  .notice .nt{color:#8fe6bd}
+  .notice .nt b{color:#c6f5dd}
+  .wm-row{background:rgba(242,169,59,.1);border:1px solid rgba(242,169,59,.28)}
+  .wm-l{color:var(--gold-deep)}
+  .wm-up{color:var(--berry)}
+  .modal-overlay{background:rgba(0,0,0,.62);backdrop-filter:blur(4px)}
+  .modal-badge{color:var(--gold-deep);background:rgba(242,169,59,.14)}
+  .plan-btn,.btn-gen{color:#fff}
+  /* signature serif copy head (1c) */
+  .copy-block h4,.compare .after h3{font-family:var(--serif);font-style:italic;font-weight:400;letter-spacing:0}
+  .copy-block .ct{color:var(--gold-deep)}
+  .copy-block .tags{color:var(--gold-deep)}
+  /* light mock-surfaces keep dark text */
+  .ad-preview .cap h4{color:#211C2E}
+  .ad-preview .cap p{color:#7a7284}
+  .float-copy{color:#211C2E}
+  #login,#signup,#forgot{background:radial-gradient(85% 75% at 80% 32%, rgba(242,169,59,.13), transparent 60%), radial-gradient(70% 65% at 90% 88%, rgba(196,46,92,.11), transparent 60%), #131217}
+  .login-right{background:transparent}
+  .card .cpic .st-tag{background:rgba(255,255,255,.92);color:#16151A}
+  .handle::after{color:#16151A}
+  .compare .after .pr{color:#16151A}
+  .soc .ic[style]{border-color:var(--line)!important}
+  .shtab{font-size:12px;font-weight:600;color:var(--ink-mute);background:rgba(255,255,255,.06);padding:7px 12px;border-radius:9px;cursor:pointer;display:flex;align-items:center;gap:6px;border:none;transition:.12s}
+  .shtab:hover{color:var(--ink-soft)}
+  .shtab.on{background:var(--gold);color:#16151A;font-weight:700}
+  /* channel chips + sub-page helpers */
+  .use{padding:8px 14px;border-radius:999px;font-size:12.5px;font-weight:600;border:1px solid var(--line);background:transparent;color:var(--ink-soft);cursor:pointer;transition:.15s}
+  .use:hover{border-color:var(--ink-mute)}
+  .use.on{background:var(--gold);color:#16151A;border-color:var(--gold);font-weight:700}
+  .subbar{display:flex;align-items:center;gap:12px;padding:13px 26px;background:rgba(22,21,26,.72);backdrop-filter:saturate(140%) blur(12px);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:40}
+  .set-grid{display:grid;grid-template-columns:180px 1fr;gap:24px;align-items:start}
+  .set-nav{display:flex;flex-direction:column;gap:3px}
+  .set-nav-item{padding:10px 13px;border-radius:10px;font-size:13px;font-weight:600;color:var(--ink-soft);cursor:pointer;transition:.12s}
+  .set-nav-item.on{background:rgba(242,169,59,.14);color:var(--gold);font-weight:700}
+  .set-nav-item:hover{color:var(--ink)}
+  .set-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:18px}
+  .set-card h4{font-size:13px;font-weight:700;margin-bottom:14px}
+  .mini-in{padding:11px 13px;background:#26242D;border:1px solid rgba(255,255,255,.1);border-radius:10px;font-size:13.5px;font-weight:600;color:var(--ink)}
+  .mini-in.ph{color:#6b6775;font-weight:400}
+  .fl{font-size:11.5px;color:var(--ink-mute);margin-bottom:6px}
+  .toggle{width:38px;height:22px;border-radius:999px;position:relative;display:inline-block;cursor:pointer;flex:none}
+  .toggle.on{background:var(--gold)}.toggle.off{background:rgba(255,255,255,.14)}
+  .toggle .k{position:absolute;top:2px;width:18px;height:18px;border-radius:50%}
+  .toggle.on .k{right:2px;background:#16151A}.toggle.off .k{left:2px;background:#8B8794}
+  .faq{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;cursor:pointer;margin-bottom:9px}
+  .faq .q{display:flex;align-items:center;justify-content:space-between;font-size:13.5px;font-weight:600}
+  .faq .a{margin:10px 0 0;font-size:12.5px;line-height:1.65;color:var(--ink-soft);display:none}
+  .faq.open .a{display:block}.faq.open{border-color:rgba(242,169,59,.3)}
+  .faq .pm::after{content:'＋';color:var(--gold)}.faq.open .pm::after{content:'－'}
+  .inquiry-area{margin-top:22px;padding-top:22px;border-top:1px solid var(--line)}
+  .inquiry-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:14px}
+  .inquiry-heading h3{font-size:16px;font-weight:800;margin-bottom:3px}
+  .inquiry-heading p{font-size:12.5px;color:var(--ink-soft)}
+  .inquiry-form{display:grid;grid-template-columns:160px 1fr;gap:10px;padding:18px;background:var(--card);border:1px solid var(--line);border-radius:14px}
+  .inquiry-form select,.inquiry-form input,.inquiry-form textarea{width:100%;padding:12px 14px;color:var(--ink);background:#26242D;border:1px solid rgba(255,255,255,.1);border-radius:10px;outline:none;font:inherit}
+  .inquiry-form select:focus,.inquiry-form input:focus,.inquiry-form textarea:focus{border-color:var(--gold)}
+  .inquiry-form input{grid-column:2}
+  .inquiry-form textarea{grid-column:1/-1;min-height:120px;resize:vertical}
+  .inquiry-form-actions{grid-column:1/-1;display:flex;justify-content:flex-end;align-items:center;gap:12px}
+  .inquiry-form-actions span{margin-right:auto;color:var(--ink-mute);font-size:11.5px}
+  .inquiry-submit{padding:11px 18px;border:0;border-radius:10px;background:var(--gold);color:#16151A;font-size:13px;font-weight:800}
+  .inquiry-submit:disabled{cursor:wait;opacity:.65}
+  .inquiry-list{display:grid;gap:10px;margin-top:18px}
+  .inquiry-item{padding:16px 18px;background:var(--card);border:1px solid var(--line);border-radius:12px}
+  .inquiry-item-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .inquiry-item-head strong{font-size:13.5px}
+  .inquiry-meta{margin-top:4px;color:var(--ink-mute);font-size:11px}
+  .inquiry-content{margin-top:11px;color:var(--ink-soft);font-size:12.5px;line-height:1.65;white-space:pre-wrap}
+  .inquiry-answer{margin-top:12px;padding:12px 14px;background:rgba(242,169,59,.08);border-left:3px solid var(--gold);border-radius:0 9px 9px 0;color:var(--ink-soft);font-size:12.5px;line-height:1.65;white-space:pre-wrap}
+  .inquiry-answer strong{display:block;margin-bottom:4px;color:var(--gold);font-size:11.5px}
+  .inquiry-status{flex:none;padding:4px 8px;border-radius:999px;background:rgba(118,184,255,.12);color:#76b8ff;font-size:10.5px;font-weight:800}
+  .inquiry-status.answered,.inquiry-status.closed{background:rgba(91,227,160,.12);color:#5be3a0}
+  .inquiry-empty{padding:24px;text-align:center;color:var(--ink-mute);font-size:12.5px}
+  @media(max-width:640px){.inquiry-form{grid-template-columns:1fr}.inquiry-form input{grid-column:1}.inquiry-form-actions{align-items:stretch;flex-direction:column}.inquiry-form-actions span{margin-right:0}.inquiry-submit{width:100%}}
+  .onb-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px 20px}
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<section id="login" class="screen active">
+  <div class="login-left">
+    <div class="login-brand"><img class="brand-mark-lg" src="assets/brand-logo.png" alt="AdNova — AI Ad Creator"><span class="studio-tag lg">studio</span></div>
+    <h1>제품 사진 한 장이<br><em>광고</em>가 되기까지, 몇 초.</h1>
+    <p class="sub">사진 올리고, 원하는 걸 한 줄 적고, 스타일만 고르세요.<br>광고 문구와 이미지를 AI가 만들어 드려요.</p>
+
+    <div class="field">
+      <label>아이디</label>
+      <input id="loginUsername" type="text" placeholder="아이디를 입력하세요" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>비밀번호</label>
+      <input id="loginPassword" type="password" placeholder="비밀번호를 입력하세요" autocomplete="current-password">
+    </div>
+    <div class="row-min">
+      <label style="display:flex;align-items:center;gap:6px;font-weight:600;color:var(--ink-soft)"><input type="checkbox" checked=""> 로그인 상태 유지</label>
+      <span><a href="#" onclick="setRecoveryMode('username');go('forgot');return false">아이디 찾기</a><span style="color:var(--ink-mute)"> | </span><a href="#" onclick="setRecoveryMode('password');go('forgot');return false">비밀번호 찾기</a></span>
+    </div>
+    <button class="btn-primary" onclick="handleLogin(event)">로그인</button>
+
+    <div class="divider">또는</div>
+    <div class="socials">
+      <button id="google-login-btn" class="soc google"><span class="ic"><img src="assets/icons/google.svg" alt="Google"></span>Google로 계속하기</button>
+      <button id="kakao-login-btn" class="soc kakao"><span class="ic"><img src="assets/icons/kakao.png" alt="Kakao"></span> 카카오로 계속하기</button>
+      <button id="naver-login-btn" class="soc naver"><span class="ic"><img src="assets/icons/naver.png" alt="Naver"></span> 네이버로 계속하기</button>
+    </div>
+    <p class="login-foot">아직 계정이 없으세요? <a href="#" onclick="go('signup');return false">무료로 시작하기</a></p>
+  </div>
+
+  <div class="login-right">
+    <div class="spotlight"></div>
+    <div class="showcase">
+      <span class="tag">✦ AI가 방금 만든 광고</span>
+      <div class="ad-preview">
+        <div class="pic" style="height:auto;aspect-ratio:3/2;background:none;padding:0">
+          <img src="assets/sample-ad.png" alt="AI가 만든 흑당 밀크티 광고" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block">
+        </div>
+        <div class="cap">
+          <h4>여름을 한 잔에 담다</h4>
+          <p>시원한 흑당 밀크티, 지금 첫 잔 무료</p>
+          <p style="color:var(--gold-deep);font-weight:600;margin-top:7px">#흑당밀크티 #공차 #여름신메뉴 #버블티 #시원한한잔</p>
+        </div>
+      </div>
+      <div class="float-copy"><span class="dot"></span> 광고 문구 3초 완성</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SIGNUP ============ -->
+<section id="signup" class="screen">
+  <div class="login-left">
+    <button class="back-link" onclick="go('login')">← 로그인으로</button>
+    <div class="login-brand"><img class="brand-mark-lg" src="assets/brand-logo.png" alt="AdNova — AI Ad Creator"><span class="studio-tag lg">studio</span></div>
+    <h1>무료로 시작하기</h1>
+    <p class="sub">가입하고 첫 광고를 만들어보세요.<br>매달 무료 크레딧으로 바로 시작할 수 있어요.</p>
+
+    <div class="field">
+      <label>이메일</label>
+      <input id="signupEmail" type="email" placeholder="you@store.com" autocomplete="email">
+    </div>
+    <div class="field">
+      <label>아이디</label>
+      <input id="signupUsername" type="text" placeholder="영문/숫자 7~12자" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>가게 / 상호명 <span style="font-weight:500;color:var(--ink-mute)">(선택)</span></label>
+      <input id="signupBusinessName" type="text" placeholder="예: 아드노바 카페">
+    </div>
+    <div class="field">
+      <label>비밀번호</label>
+      <input id="signupPassword" type="password" placeholder="8~20자, 대소문자·숫자·특수문자 포함" autocomplete="new-password">
+      <div class="field-help">8~20자이며 대문자, 소문자, 숫자, 특수문자를 각각 1개 이상 포함해야 합니다.</div>
+    </div>
+    <div class="field">
+      <label>비밀번호 확인</label>
+      <input id="signupPasswordConfirm" type="password" placeholder="다시 한 번 입력" autocomplete="new-password">
+    </div>
+    <label class="terms"><input id="signupTerms" type="checkbox" checked="" style="margin-top:3px"> <span><a href="#" onclick="openModal('terms');return false">이용약관</a> 및 <a href="#" onclick="openModal('privacy');return false">개인정보처리방침</a>에 동의합니다.</span></label>
+    <button class="btn-primary" onclick="handleSignup(event)">무료로 시작하기</button>
+
+    <div class="divider">또는</div>
+    <div class="socials compact">
+      <button class="soc" onclick="toast('Google 회원가입은 준비 중입니다')"><span class="ic" style="background:#fff;color:#4285F4;border:1px solid var(--line)">G</span> Google</button>
+      <button class="soc kakao" onclick="toast('카카오 회원가입은 준비 중입니다')"><span class="ic">K</span> 카카오</button>
+      <button class="soc naver" onclick="toast('네이버 회원가입은 준비 중입니다')"><span class="ic">N</span> 네이버</button>
+    </div>
+    <p class="login-foot">이미 계정이 있으세요? <a href="#" onclick="go('login');return false">로그인</a></p>
+  </div>
+
+  <div class="login-right">
+    <div class="spotlight"></div>
+    <div class="showcase">
+      <span class="tag">✦ 가입하면 바로</span>
+      <div class="ad-preview">
+        <div class="pic">
+          <span class="badge">첫 광고 무료</span>
+          <div class="prod">🍞</div>
+        </div>
+        <div class="cap">
+          <h4>갓 구운 아침을 팝니다</h4>
+          <p>오늘 구운 빵, 오후 2시 타임세일</p>
+        </div>
+      </div>
+      <div class="float-copy"><span class="dot"></span> 매달 무료 크레딧 제공</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FORGOT PASSWORD ============ -->
+<section id="forgot" class="screen">
+  <div class="login-left">
+    <button class="back-link" onclick="go('login')">← 로그인으로</button>
+    <div class="login-brand"><img class="brand-mark-lg" src="assets/brand-logo.png" alt="AdNova — AI Ad Creator"><span class="studio-tag lg">studio</span></div>
+    <div style="display:flex;gap:8px;margin-bottom:18px">
+      <button id="findUsernameMode" type="button" onclick="setRecoveryMode('username')" style="padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--ink-soft);font-size:12px;font-weight:700;cursor:pointer">아이디 찾기</button>
+      <button id="resetPasswordMode" type="button" onclick="setRecoveryMode('password')" style="padding:8px 12px;border:1px solid var(--gold);border-radius:8px;background:var(--gold);color:#16151A;font-size:12px;font-weight:700;cursor:pointer">비밀번호 찾기</button>
+    </div>
+    <h1 id="recoveryTitle">비밀번호를<br>잊으셨나요?</h1>
+    <p class="sub" id="recoveryDescription">가입하신 이메일을 입력하시면<br>비밀번호 재설정 링크를 보내드려요.</p>
+
+    <div class="notice" id="resetNotice">
+      <span class="ck">✓</span>
+      <span class="nt"><b id="recoveryNoticeTitle">가입된 아이디</b><br><span id="recoveryNoticeMessage"></span></span>
+    </div>
+
+    <div class="field">
+      <label>이메일</label>
+      <input type="email" placeholder="you@store.com" id="resetEmail">
+    </div>
+    <button class="btn-primary" id="recoverySubmit" onclick="sendReset()">재설정 링크 받기</button>
+    <p class="login-foot" id="recoveryFooter" style="margin-top:22px">비밀번호가 기억나셨나요? <a href="#" onclick="go('login');return false">로그인</a></p>
+  </div>
+
+  <div class="login-right">
+    <div class="spotlight"></div>
+    <div class="showcase">
+      <span class="tag">✦ 걱정 마세요</span>
+      <div class="ad-preview">
+        <div class="pic">
+          <span class="badge">다시 시작</span>
+          <div class="prod">☕</div>
+        </div>
+        <div class="cap">
+          <h4>하루의 첫 여유</h4>
+          <p>따뜻한 한 잔으로 다시 시작해요</p>
+        </div>
+      </div>
+      <div class="float-copy"><span class="dot"></span> 링크는 30분간 유효해요</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DASHBOARD ============ -->
+<section id="dashboard" class="screen">
+  <div class="appbar">
+    <div class="brand"><img class="brand-mark" src="assets/brand-logo.png" alt="AdNova — AI Ad Creator"><span class="studio-tag">studio</span></div>
+    <nav class="nav">
+      <button class="on" onclick="setTab(this,'dashboard')">✏️ <span class="txt">광고 만들기</span></button>
+      <button onclick="setTab(this,'mypage')">🗂 <span class="txt">내 광고</span></button>
+    </nav>
+    <div class="right">
+      <div class="usage"></div>
+      <div class="pf-wrap">
+        <button class="avatar" onclick="toggleProfile(this,event)">아</button>
+        <div class="profile-menu">
+          <div class="pf-head">
+            <div class="av-lg">아</div>
+            <div class="info">
+              <div class="nm">아드노바 카페</div>
+              <div class="em">sajang@adnova.kr</div>
+              <span class="pf-plan">무료 체험 · 3회 남음</span>
+            </div>
+          </div>
+          <button class="pf-item" onclick="closeProfile();go('mypage')"><span class="pf-ic">🗂</span> 내 광고</button>
+          <button class="pf-item" onclick="closeProfile();go('settings')"><span class="pf-ic">👤</span> 계정 설정</button>
+          <button class="pf-item" onclick="closeProfile();goBilling('dashboard')"><span class="pf-ic">✦</span> 프리미엄 업그레이드</button>
+          <button class="pf-item" onclick="closeProfile();go('support')"><span class="pf-ic">💬</span> 고객센터</button>
+          <div class="pf-div"></div>
+        <button class="pf-item danger" onclick="handleLogout()"><span class="pf-ic">🚪</span> 로그아웃</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dashboard-layout">
+    <!-- CONTROL RAIL -->
+    <div class="control-rail" style="padding:22px 20px;display:flex;flex-direction:column;gap:20px">
+      <div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;color:var(--ink-mute);text-transform:uppercase;margin-bottom:11px">01 · 재료</div>
+        <div style="position:relative;border-radius:12px;overflow:hidden;border:1px solid var(--line);cursor:pointer" onclick="selectProductImage()">
+          <img id="railThumb" src="assets/demo-product.jpg" style="width:100%;height:150px;object-fit:cover;display:block" alt="제품 사진">
+          <span style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.6);color:#fff;font-size:11px;font-weight:600;padding:5px 10px;border-radius:8px">사진 바꾸기</span>
+        </div>
+        <div id="uploadInfo" style="font-size:11px;color:var(--ink-mute);margin-top:8px;line-height:1.5">사진만 넣으면 배경·구도는 AI가 알아서 잡아줘요.</div>
+        <label style="display:block;font-size:12px;font-weight:700;color:var(--ink-soft);margin:14px 0 6px">상품명 <span style="font-weight:500;color:var(--ink-mute)">· 입력하면 분위기를 자동으로</span></label>
+        <input id="prodName" oninput="detectMode(this.value)" placeholder="예: 카페 라떼, 흑당 밀크티" style="width:100%;padding:10px 12px;background:#26242D;border:1px solid rgba(255,255,255,.1);border-radius:10px;font-size:13.5px;font-weight:600;color:var(--ink)">
+        <div class="auto-mode" id="autoMode" style="margin:9px 0 0"><span class="lamp"></span><span id="autoModeTxt">상품명을 입력하면 광고 유형을 자동 판단해요</span></div>
+        <label style="display:block;font-size:12px;font-weight:700;color:var(--ink-soft);margin:14px 0 6px">추가 요청 <span style="font-weight:500;color:var(--ink-mute)">· 선택</span></label>
+        <textarea id="prompt" placeholder="예: 시원한 여름 느낌 강조, 20대 타깃" style="width:100%;min-height:58px;resize:vertical;padding:10px 12px;background:#26242D;border:1px solid rgba(255,255,255,.1);border-radius:10px;font-size:13px;color:var(--ink);line-height:1.5"></textarea>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+          <span class="chip-tip" onclick="addTip('할인 이벤트 강조')">+ 할인 이벤트</span>
+          <span class="chip-tip" onclick="addTip('신메뉴 출시')">+ 신메뉴 출시</span>
+          <span class="chip-tip" onclick="addTip('인스타 감성')">+ 인스타 감성</span>
+        </div>
+        <input id="productImageFile" type="file" accept="image/*" hidden="" onchange="handleImageUpload(event)">
+      </div>
+      <div style="height:1px;background:var(--line)"></div>
+      <div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;color:var(--ink-mute);text-transform:uppercase;margin-bottom:11px">02 · 스타일</div>
+        <div style="display:flex;background:rgba(255,255,255,.05);border-radius:9px;padding:3px;margin-bottom:11px">
+          <div style="flex:1;text-align:center;padding:7px;border-radius:7px;font-size:11.5px;font-weight:700;background:rgba(242,169,59,.16);color:var(--gold)">✨ AI 추천</div>
+          <div style="flex:1;text-align:center;padding:7px;border-radius:7px;font-size:11.5px;font-weight:600;color:var(--ink-mute);cursor:pointer" onclick="toast('직접 입력 모드 (목업)')">✍️ 직접 입력</div>
+        </div>
+        <div id="styles" style="display:flex;flex-direction:column;gap:8px">
+          <button class="style on" data-s="웜 빈티지" onclick="pickStyle(this)" style="display:flex;align-items:center;gap:9px;width:100%;text-align:left"><span style="width:34px;height:34px;border-radius:7px;background:linear-gradient(135deg,#F2A93B,#C42E5C);flex:none"></span><span class="nm" style="font-size:12.5px;font-weight:700">웜 빈티지</span></button>
+          <button class="style" data-s="모노톤" onclick="pickStyle(this)" style="display:flex;align-items:center;gap:9px;width:100%;text-align:left"><span style="width:34px;height:34px;border-radius:7px;background:linear-gradient(135deg,#e8e6ea,#9a95a5);flex:none"></span><span class="nm" style="font-size:12.5px;font-weight:700">모노톤</span></button>
+          <button class="style" data-s="팝 비비드" onclick="pickStyle(this)" style="display:flex;align-items:center;gap:9px;width:100%;text-align:left"><span style="width:34px;height:34px;border-radius:7px;background:linear-gradient(135deg,#5BC0EB,#C42E5C);flex:none"></span><span class="nm" style="font-size:12.5px;font-weight:700">팝 비비드</span></button>
+          <button class="style" data-s="에디토리얼" onclick="pickStyle(this)" style="display:flex;align-items:center;gap:9px;width:100%;text-align:left"><span style="width:34px;height:34px;border-radius:7px;background:linear-gradient(135deg,#17151C,#8A7C9A);flex:none"></span><span class="nm" style="font-size:12.5px;font-weight:700">에디토리얼</span></button>
+          <button class="style" data-s="리얼리즘" onclick="pickStyle(this)" style="display:flex;align-items:center;gap:9px;width:100%;text-align:left"><span style="width:34px;height:34px;border-radius:7px;background:linear-gradient(135deg,#6B8F71,#D8C8A8);flex:none"></span><span class="nm" style="font-size:12.5px;font-weight:700">리얼리즘</span></button>
+          <button class="style" data-s="파스텔" onclick="pickStyle(this)" style="display:flex;align-items:center;gap:9px;width:100%;text-align:left"><span style="width:34px;height:34px;border-radius:7px;background:linear-gradient(135deg,#F6D8E4,#D9F0E6);flex:none"></span><span class="nm" style="font-size:12.5px;font-weight:700">파스텔</span></button>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;color:var(--ink-mute);text-transform:uppercase;margin-bottom:10px">03 · 용도</div>
+        <div id="uses" style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="use on" data-u="sns" onclick="pickUse(this)">SNS</button>
+          <button class="use" data-u="card" onclick="pickUse(this)">카드뉴스</button>
+          <button class="use" data-u="banner" onclick="pickUse(this)">배너</button>
+          <button class="use" data-u="detail" onclick="pickUse(this)">상세페이지</button>
+        </div>
+      </div>
+      <button class="btn-gen" id="genBtn" onclick="generate()" style="margin-top:auto">✦ 광고 생성</button>
+    </div>
+
+    <!-- CANVAS -->
+    <div style="padding:26px;display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="font-size:13px;color:var(--ink-mute)">결과 <span style="color:var(--ink);font-weight:600">· 원본 ⟷ AI 생성</span></div>
+      </div>
+
+      <div class="result-empty" id="rEmpty" style="flex:1;min-height:420px;border:1px solid var(--line);border-radius:16px;background:var(--card)">
+        <div class="big">🖼</div>
+        <h3>아직 만든 광고가 없어요</h3>
+        <p>왼쪽에서 재료를 넣고 <b>광고 생성</b>을 눌러보세요.</p>
+      </div>
+
+      <div class="loading" id="rLoad" style="flex:1;min-height:420px;border:1px solid var(--line);border-radius:16px;background:var(--card)">
+        <div class="ring"></div>
+        <div class="st" id="loadStep">사진을 분석하는 중…</div>
+        <div class="stp" id="loadSub">광고를 만들고 있어요 (보통 1분 내외)</div>
+      </div>
+
+      <div class="output" id="rOut" style="padding:0">
+        <div class="type-option" id="resultTypeOption" style="margin-bottom:12px;display:none">
+          <label for="typographyToggle"><input id="typographyToggle" type="checkbox" checked onchange="changeTypography()">타이포 포함</label>
+          <small id="typeOptionHint">같은 이미지의 무타이포 버전도 함께 제공</small>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" data-role="compare">
+          <div style="position:relative;border-radius:14px;overflow:hidden;min-height:360px;background:#0d0d10"><img src="assets/demo-product.jpg" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" id="beforeImg" alt="원본"><span style="position:absolute;left:12px;top:12px;background:rgba(0,0,0,.55);color:var(--ink-soft);font-size:10px;font-weight:800;letter-spacing:.05em;padding:4px 9px;border-radius:6px">BEFORE</span></div>
+          <div style="position:relative;border-radius:14px;overflow:hidden;min-height:360px;background:#0d0d10"><img src="assets/demo-ad.jpg" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" id="afterImg" alt="AI 광고"><span style="position:absolute;left:12px;top:12px;background:var(--gold);color:#16151A;font-size:10px;font-weight:800;letter-spacing:.05em;padding:4px 9px;border-radius:6px">AFTER</span><span style="position:absolute;right:12px;bottom:12px;background:rgba(0,0,0,.6);color:var(--ink-soft);font-size:9px;font-weight:700;padding:4px 8px;border-radius:6px">🔖 워터마크</span></div>
+        </div>
+        <div id="formatGallery" style="display:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px"></div>
+        <div class="copy-block" style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-top:16px">
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">
+            <span style="font-size:12px;font-weight:800;color:var(--gold-deep)">✦ 매체별 카피</span>
+            <div class="plat-tabs" style="margin:0 0 0 auto">
+              <button class="ptab on" data-p="instagram" onclick="pickPlat(this)"><span class="si ig">IG</span>Instagram</button>
+              <button class="ptab" data-p="facebook" onclick="pickPlat(this)"><span class="si fb">f</span>Facebook</button>
+              <button class="ptab" data-p="x" onclick="pickPlat(this)"><span class="si x">X</span>X</button>
+              <button class="ptab" data-p="threads" onclick="pickPlat(this)"><span class="si th">@</span>Threads</button>
+            </div>
+          </div>
+          <h4 id="copyHead">한 모금이면 여름이 더 시원해져요 ☁️🧋</h4>
+          <p id="copyBody">갈색 설탕의 달콤한 결, 우유의 부드러움, 차의 산뜻함이 얼음과 만나 시원하게 퍼져요. 컵 맺힌 물방울까지 몽글몽글한 여름 무드 완성.</p>
+          <div class="tags" id="copyTags">#흑당밀크티 #여름신메뉴 #시원한한잔 #카페신메뉴</div>
+        </div>
+        <div class="out-actions">
+          <button class="oa save" onclick="saveCurrentResult()">💾 저장</button>
+          <button class="oa" id="dlBtn" onclick="downloadResult()">⬇️ 다운로드 🔒</button>
+          <button class="oa" onclick="shareCurrentResult()">↗️ 공유</button>
+          <button class="oa" id="regenBtn" onclick="regenerate()">🔄 다시 생성</button>
+        </div>
+        <div class="wm-row">
+          <span class="wm-l">🔖 무료는 워터마크 미리보기만 제공돼요</span>
+          <button class="wm-up" onclick="downloadResult()">원본 다운로드 (프리미엄) →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MY PAGE ============ -->
+<section id="mypage" class="screen">
+  <div class="appbar">
+    <div class="brand"><img class="brand-mark" src="assets/brand-logo.png" alt="AdNova — AI Ad Creator"><span class="studio-tag">studio</span></div>
+    <nav class="nav">
+      <button onclick="setTab(this,'dashboard')">✏️ <span class="txt">광고 만들기</span></button>
+      <button class="on" onclick="setTab(this,'mypage')">🗂 <span class="txt">내 광고</span></button>
+    </nav>
+    <div class="right">
+      <div class="usage"></div>
+      <div class="pf-wrap">
+        <button class="avatar" onclick="toggleProfile(this,event)">아</button>
+        <div class="profile-menu">
+          <div class="pf-head">
+            <div class="av-lg">아</div>
+            <div class="info">
+              <div class="nm">아드노바 카페</div>
+              <div class="em">sajang@adnova.kr</div>
+              <span class="pf-plan">무료 체험 · 3회 남음</span>
+            </div>
+          </div>
+          <button class="pf-item" onclick="closeProfile();go('mypage')"><span class="pf-ic">🗂</span> 내 광고</button>
+          <button class="pf-item" onclick="closeProfile();go('settings')"><span class="pf-ic">👤</span> 계정 설정</button>
+          <button class="pf-item" onclick="closeProfile();goBilling('dashboard')"><span class="pf-ic">✦</span> 프리미엄 업그레이드</button>
+          <button class="pf-item" onclick="closeProfile();go('support')"><span class="pf-ic">💬</span> 고객센터</button>
+          <div class="pf-div"></div>
+        <button class="pf-item danger" onclick="handleLogout()"><span class="pf-ic">🚪</span> 로그아웃</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page">
+    <div class="page-head">
+      <div>
+        <h2>내 광고</h2>
+        <p class="lead">만든 광고를 다시 보고, SNS에 공유하거나 정리할 수 있어요.</p>
+      </div>
+    </div>
+
+    <div class="filters">
+      <button class="fchip on" onclick="filterCards(this,'all')">전체</button>
+      <button class="fchip" onclick="filterCards(this,'모노톤')">모노톤</button>
+      <button class="fchip" onclick="filterCards(this,'웜 빈티지')">웜 빈티지</button>
+      <button class="fchip" onclick="filterCards(this,'팝 비비드')">팝 비비드</button>
+      <button class="fchip" onclick="filterCards(this,'에디토리얼')">에디토리얼</button>
+      <button class="fchip" onclick="filterCards(this,'리얼리즘')">리얼리즘</button>
+      <button class="fchip" onclick="filterCards(this,'파스텔')">파스텔</button>
+    </div>
+
+    <div class="grid" id="grid"></div>
+  </div>
+</section>
+
+<!-- ============ ONBOARDING ============ -->
+<section id="onboarding" class="screen">
+  <div class="onb-wrap">
+    <div style="width:min(100%,520px);background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow-lg);padding:30px">
+      <div style="display:flex;justify-content:center;align-items:center;margin-bottom:20px"><img class="brand-mark-lg" src="assets/brand-logo.png" alt="AdNova"><span class="studio-tag lg">studio</span></div>
+      <div style="text-align:center;margin-bottom:24px"><h2 style="font-size:22px;font-weight:800;letter-spacing:-.5px;margin-bottom:6px">환영해요! 3단계면 끝나요</h2><p style="font-size:13px;color:var(--ink-mute)">가입 축하 <b style="color:var(--gold)">크레딧 3개</b>를 드렸어요.</p></div>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px">
+        <div style="display:flex;gap:14px;align-items:center;padding:14px;background:#26242D;border:1px solid rgba(242,169,59,.25);border-radius:13px"><div style="width:38px;height:38px;border-radius:10px;background:rgba(242,169,59,.16);color:var(--gold);display:grid;place-items:center;font-weight:800;font-family:var(--disp);flex:none">1</div><div><div style="font-size:14px;font-weight:700">제품 사진 올리기</div><div style="font-size:12px;color:var(--ink-mute)">배경은 자동으로 제거돼요</div></div></div>
+        <div style="display:flex;gap:14px;align-items:center;padding:14px;background:#26242D;border:1px solid var(--line);border-radius:13px"><div style="width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.06);color:var(--ink-soft);display:grid;place-items:center;font-weight:800;font-family:var(--disp);flex:none">2</div><div><div style="font-size:14px;font-weight:700">스타일 &amp; 용도 고르기</div><div style="font-size:12px;color:var(--ink-mute)">AI 추천 또는 직접 입력</div></div></div>
+        <div style="display:flex;gap:14px;align-items:center;padding:14px;background:#26242D;border:1px solid var(--line);border-radius:13px"><div style="width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.06);color:var(--ink-soft);display:grid;place-items:center;font-weight:800;font-family:var(--disp);flex:none">3</div><div><div style="font-size:14px;font-weight:700">생성 · 저장 · 공유</div><div style="font-size:12px;color:var(--ink-mute)">이력에 저장, 프리미엄은 원본 다운로드</div></div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px"><div style="display:flex;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold)"></span><span style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16)"></span><span style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.16)"></span></div><button class="back-link" style="margin:0" onclick="go('dashboard')">건너뛰기</button><button style="margin-left:auto;padding:12px 22px;border:none;border-radius:11px;background:var(--gold);color:#16151A;font-size:14px;font-weight:700;cursor:pointer" onclick="go('dashboard')">첫 광고 만들기 →</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 계정 설정 ============ -->
+<section id="settings" class="screen">
+  <div class="subbar">
+    <div class="brand"><img class="brand-mark" src="assets/brand-logo.png" alt="AdNova"><span class="studio-tag">studio</span></div>
+    <button class="back-link" style="margin:0 0 0 6px" onclick="go('dashboard')">← 대시보드</button>
+    <div class="pf-wrap" style="margin-left:auto">
+      <button class="avatar" onclick="toggleProfile(this,event)">아</button>
+      <div class="profile-menu">
+        <div class="pf-head">
+          <div class="av-lg">아</div>
+          <div class="info">
+            <div class="nm">아드노바 카페</div>
+            <div class="em">sajang@adnova.kr</div>
+            <span class="pf-plan">무료 체험 · 3회 남음</span>
+          </div>
+        </div>
+        <button class="pf-item" onclick="closeProfile();go('mypage')"><span class="pf-ic">🗂</span> 내 광고</button>
+        <button class="pf-item" onclick="closeProfile();go('settings')"><span class="pf-ic">👤</span> 계정 설정</button>
+        <button class="pf-item" onclick="closeProfile();goBilling('settings')"><span class="pf-ic">✦</span> 프리미엄 업그레이드</button>
+        <button class="pf-item" onclick="closeProfile();go('support')"><span class="pf-ic">💬</span> 고객센터</button>
+        <div class="pf-div"></div>
+        <button class="pf-item danger" onclick="handleLogout()"><span class="pf-ic">🚪</span> 로그아웃</button>
+      </div>
+    </div>
+  </div>
+  <div class="page">
+    <div class="page-head"><div><h2>계정 설정</h2><p class="lead">프로필과 보안, 알림 설정을 관리하세요.</p></div></div>
+    <div class="set-grid">
+      <div class="set-nav">
+        <div class="set-nav-item on" onclick="setSet(this,'setProfile')">프로필</div>
+        <div class="set-nav-item" onclick="setSet(this,'setPw')">비밀번호</div>
+        <div class="set-nav-item" onclick="setSet(this,'setNoti')">알림</div>
+        <div class="set-nav-item" onclick="goBilling('settings')">플랜 &amp; 결제</div>
+        <div class="pf-div" style="margin:8px 4px"></div>
+        <div class="set-nav-item" style="color:var(--berry)" onclick="handleLogout()">로그아웃</div>
+        <div class="set-nav-item" style="color:var(--ink-mute)" onclick="setSet(this,'setDelete')">회원 탈퇴</div>
+      </div>
+      <div>
+        <div class="set-card" id="setProfile"><h4>프로필</h4>
+          <div style="display:flex;gap:14px;align-items:center;margin-bottom:16px"><div class="av-lg" style="width:56px;height:56px;font-size:20px">애</div><button style="padding:8px 14px;border:1px solid rgba(255,255,255,.14);border-radius:9px;background:transparent;color:var(--ink-soft);font-size:12.5px;font-weight:600;cursor:pointer" onclick="document.getElementById('avatarFile').click()">사진 변경</button><input type="file" id="avatarFile" accept="image/*" style="display:none" onchange="handleAvatarUpload(event)"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div><div class="fl">가게 / 상호명</div><div class="mini-in" id="settingsBusinessName">정보 없음</div></div><div><div class="fl">아이디</div><div class="mini-in" id="settingsUsername">정보 없음</div></div><div style="grid-column:1/3"><div class="fl">이메일</div><div class="mini-in" id="settingsEmail">정보 없음</div></div></div>
+        </div>
+        <div class="set-card" id="setPw"><h4>비밀번호 변경</h4><p id="socialPasswordNotice" style="display:none;font-size:12.5px;line-height:1.65;color:var(--ink-mute)">소셜 로그인 계정의 비밀번호는 Google, Kakao 또는 Naver에서 관리합니다.</p><div id="passwordFields" style="display:flex;flex-direction:column;gap:10px"><input class="mini-in" id="currentPassword" type="password" autocomplete="current-password" placeholder="현재 비밀번호"><input class="mini-in" id="newPassword" type="password" autocomplete="new-password" placeholder="새 비밀번호 입력 · 8~20자, 대소문자·숫자·특수문자 포함"><input class="mini-in" id="newPasswordConfirm" type="password" autocomplete="new-password" placeholder="새 비밀번호 확인"><button id="changePasswordBtn" style="align-self:flex-end;padding:10px 16px;border:none;border-radius:10px;background:var(--gold);color:#16151A;font-size:12.5px;font-weight:700;cursor:pointer" onclick="handlePasswordChange()">비밀번호 변경</button></div></div>
+        <div class="set-card" id="setNoti"><h4>알림</h4><div style="display:flex;flex-direction:column;gap:13px">
+          <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px;color:var(--ink-soft)">광고 생성 완료 이메일</span><span class="toggle on" onclick="this.classList.toggle('on');this.classList.toggle('off')"><span class="k"></span></span></div>
+          <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px;color:var(--ink-soft)">크레딧 소진 알림</span><span class="toggle on" onclick="this.classList.toggle('on');this.classList.toggle('off')"><span class="k"></span></span></div>
+          <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px;color:var(--ink-soft)">마케팅 소식 받기</span><span class="toggle off" onclick="this.classList.toggle('on');this.classList.toggle('off')"><span class="k"></span></span></div>
+        </div></div>
+        <div class="set-card" id="setDelete" style="border-color:rgba(224,86,127,.35)"><h4 style="color:var(--berry)">회원 탈퇴</h4><p style="font-size:12.5px;line-height:1.65;color:var(--ink-mute);margin-bottom:12px">탈퇴하면 계정과 광고 이력, 업로드 이미지, 생성 이미지, 결제 내역이 모두 삭제되며 복구할 수 없습니다.</p><p id="socialDeleteNotice" style="display:none;font-size:12.5px;line-height:1.65;color:var(--ink-mute);margin-bottom:12px">소셜 로그인 계정은 비밀번호 확인 없이 탈퇴할 수 있습니다.</p><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><input class="mini-in" id="deleteAccountPassword" type="password" autocomplete="current-password" placeholder="현재 비밀번호" style="flex:1;min-width:220px"><button id="deleteAccountBtn" style="padding:10px 16px;border:1px solid rgba(224,86,127,.45);border-radius:10px;background:transparent;color:var(--berry);font-size:12.5px;font-weight:700;cursor:pointer" onclick="handleDeleteAccount()">회원 탈퇴</button></div></div>
+        <div style="display:flex;gap:10px;justify-content:flex-end"><button style="padding:12px 18px;border:1px solid rgba(255,255,255,.14);border-radius:11px;background:transparent;color:var(--ink-soft);font-size:13.5px;font-weight:600;cursor:pointer" onclick="go('dashboard')">취소</button><button style="padding:12px 20px;border:none;border-radius:11px;background:var(--gold);color:#16151A;font-size:13.5px;font-weight:700;cursor:pointer" onclick="toast('변경 사항을 저장했어요');go('dashboard')">변경 사항 저장</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 고객센터 ============ -->
+<section id="support" class="screen">
+  <div class="subbar">
+    <div class="brand"><img class="brand-mark" src="assets/brand-logo.png" alt="AdNova"><span class="studio-tag">studio</span></div>
+    <button class="back-link" style="margin:0 0 0 6px" onclick="go('dashboard')">← 대시보드</button>
+    <div class="pf-wrap" style="margin-left:auto">
+      <button class="avatar" onclick="toggleProfile(this,event)">아</button>
+      <div class="profile-menu">
+        <div class="pf-head">
+          <div class="av-lg">아</div>
+          <div class="info">
+            <div class="nm">아드노바 카페</div>
+            <div class="em">sajang@adnova.kr</div>
+            <span class="pf-plan">무료 체험 · 3회 남음</span>
+          </div>
+        </div>
+        <button class="pf-item" onclick="closeProfile();go('mypage')"><span class="pf-ic">🗂</span> 내 광고</button>
+        <button class="pf-item" onclick="closeProfile();go('settings')"><span class="pf-ic">👤</span> 계정 설정</button>
+        <button class="pf-item" onclick="closeProfile();goBilling('support')"><span class="pf-ic">✦</span> 프리미엄 업그레이드</button>
+        <button class="pf-item" onclick="closeProfile();go('support')"><span class="pf-ic">💬</span> 고객센터</button>
+        <div class="pf-div"></div>
+        <button class="pf-item danger" onclick="handleLogout()"><span class="pf-ic">🚪</span> 로그아웃</button>
+      </div>
+    </div>
+  </div>
+  <div class="page" style="max-width:760px">
+    <div style="text-align:center;margin:10px 0 24px"><h2 style="font-size:24px;font-weight:800;letter-spacing:-.5px;margin-bottom:6px">무엇을 도와드릴까요?</h2><p style="font-size:13px;color:var(--ink-mute);margin-bottom:16px">자주 묻는 질문에서 먼저 찾아보세요.</p><div style="display:flex;align-items:center;gap:9px;max-width:440px;margin:0 auto;padding:12px 15px;background:#26242D;border:1px solid rgba(255,255,255,.1);border-radius:12px"><span>🔍</span><input id="faqSearch" type="search" placeholder="궁금한 점을 검색하세요" oninput="filterFaqs(this.value)" style="flex:1;border:0;outline:0;background:transparent;color:var(--ink);font-size:13.5px"></div></div>
+    <div style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-mute);margin:0 0 10px">자주 묻는 질문</div>
+    <div class="faq" onclick="this.classList.toggle('open')"><div class="q">크레딧은 어떻게 충전하나요?<span class="pm"></span></div><p class="a">프리미엄 플랜에 가입하면 매월 30크레딧이 지급돼요. 부족하면 10크레딧당 4,900원에 추가 구매할 수 있어요.</p></div>
+    <div class="faq open" onclick="this.classList.toggle('open')"><div class="q">다운로드가 안 돼요.<span class="pm"></span></div><p class="a">원본 다운로드는 <b style="color:var(--gold)">프리미엄 플랜</b>에서만 제공돼요. 무료 체험에서는 워터마크 미리보기와 사이트 이력 저장까지 가능합니다.</p></div>
+    <div class="faq" onclick="this.classList.toggle('open')"><div class="q">생성한 광고는 어디에 저장되나요?<span class="pm"></span></div><p class="a">모든 생성 결과는 '내 광고' 이력에 자동 저장돼요. 언제든 다시 보고 공유할 수 있어요.</p></div>
+    <div class="faq" onclick="this.classList.toggle('open')"><div class="q">상품 사진은 어떻게 찍으면 좋나요?<span class="pm"></span></div><p class="a">제품이 화면 중앙에 크게, 밝은 곳에서 단색 배경으로 찍으면 배경 제거와 합성 품질이 좋아져요.</p></div>
+    <div id="faqEmpty" style="display:none;text-align:center;padding:24px;color:var(--ink-mute);font-size:13px">검색 결과가 없습니다.</div>
+    <div class="inquiry-area">
+      <div class="inquiry-heading">
+        <div><h3>1:1 문의</h3><p>문의 내용을 남기면 관리자 답변을 여기에서 확인할 수 있어요.</p></div>
+      </div>
+      <form id="inquiryForm" class="inquiry-form" onsubmit="submitInquiry(event)">
+        <select id="inquiryCategory" aria-label="문의 유형">
+          <option value="general">일반 문의</option>
+          <option value="generation">광고 생성 문의</option>
+          <option value="billing">결제·구독 문의</option>
+          <option value="account">계정 문의</option>
+        </select>
+        <input id="inquiryTitle" type="text" maxlength="255" placeholder="문의 제목" required>
+        <textarea id="inquiryContent" maxlength="5000" placeholder="궁금한 내용을 자세히 적어 주세요." required></textarea>
+        <div class="inquiry-form-actions">
+          <span>답변이 등록되면 문의 상태가 답변 완료로 변경됩니다.</span>
+          <button id="inquirySubmitButton" class="inquiry-submit" type="submit">문의 등록</button>
+        </div>
+      </form>
+      <div class="inquiry-heading" style="margin-top:24px"><div><h3>내 문의</h3><p>최근 문의부터 확인할 수 있어요.</p></div></div>
+      <div id="myInquiryList" class="inquiry-list"><div class="inquiry-empty">로그인하면 문의 내역을 확인할 수 있어요.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 결제 / 플랜 ============ -->
+<section id="billing" class="screen">
+  <div class="subbar">
+    <div class="brand"><img class="brand-mark" src="assets/brand-logo.png" alt="AdNova"><span class="studio-tag">studio</span></div>
+    <button class="back-link" style="margin:0 0 0 6px" onclick="go(billingFrom||'dashboard')">← 뒤로</button>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:12px">
+      <span class="credits">크레딧 <b>3</b></span>
+      <div class="pf-wrap">
+        <button class="avatar" onclick="toggleProfile(this,event)">아</button>
+        <div class="profile-menu">
+          <div class="pf-head">
+            <div class="av-lg">아</div>
+            <div class="info">
+              <div class="nm">아드노바 카페</div>
+              <div class="em">sajang@adnova.kr</div>
+              <span class="pf-plan">무료 체험 · 3회 남음</span>
+            </div>
+          </div>
+          <button class="pf-item" onclick="closeProfile();go('mypage')"><span class="pf-ic">🗂</span> 내 광고</button>
+          <button class="pf-item" onclick="closeProfile();go('settings')"><span class="pf-ic">👤</span> 계정 설정</button>
+          <button class="pf-item" onclick="closeProfile()"><span class="pf-ic">✦</span> 프리미엄 업그레이드</button>
+          <button class="pf-item" onclick="closeProfile();go('support')"><span class="pf-ic">💬</span> 고객센터</button>
+          <div class="pf-div"></div>
+          <button class="pf-item danger" onclick="handleLogout()"><span class="pf-ic">🚪</span> 로그아웃</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page" style="max-width:720px">
+    <div id="billingUpgrade">
+      <div style="text-align:center;margin:6px 0 22px"><span style="display:inline-block;font-size:11px;font-weight:800;color:var(--gold);background:rgba(242,169,59,.14);padding:5px 12px;border-radius:999px;margin-bottom:10px">✦ 업그레이드</span><h2 style="font-size:22px;font-weight:800;letter-spacing:-.5px;margin-bottom:6px">워터마크 없이, 고해상도 원본으로</h2><p style="font-size:13px;color:var(--ink-mute)">무료 체험 3회 이후에는 크레딧으로 광고를 만들 수 있어요.</p></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px">
+        <div style="background:var(--card);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:20px"><div style="font-size:13px;font-weight:700;color:var(--ink-soft)">무료 체험</div><div style="font-size:26px;font-weight:800;letter-spacing:-1px;margin:6px 0 14px">₩0</div><div style="display:flex;flex-direction:column;gap:9px;font-size:12.5px;color:var(--ink-soft)"><div>✓ 가입 시 <b style="color:var(--ink)">크레딧 3개</b></div><div style="color:var(--ink-mute)">· 광고 생성마다 1개 차감</div><div style="color:var(--ink-mute)">· 미리보기 · 로고 워터마크</div><div style="color:var(--ink-mute)">· 이력 저장 (다운로드 X)</div></div><button style="width:100%;margin-top:16px;padding:11px;border:1px solid rgba(255,255,255,.12);border-radius:11px;background:rgba(255,255,255,.04);color:var(--ink-mute);font-size:13px;font-weight:700;cursor:default">현재 플랜</button></div>
+        <div style="background:linear-gradient(160deg,#26222b,#1F1E25);border:1.5px solid var(--gold);border-radius:16px;padding:20px;position:relative;box-shadow:0 0 0 3px rgba(242,169,59,.12)"><span style="position:absolute;top:-11px;right:16px;background:var(--gold);color:#16151A;font-size:11px;font-weight:800;padding:4px 10px;border-radius:7px">추천</span><div style="font-size:13px;font-weight:700;color:var(--gold-deep)">프리미엄</div><div style="font-size:26px;font-weight:800;letter-spacing:-1px;margin:6px 0 14px">₩9,900<span style="font-size:13px;font-weight:600;color:var(--ink-mute)">/월</span></div><div style="display:flex;flex-direction:column;gap:9px;font-size:12.5px;color:var(--ink-soft)"><div>✓ 매월 <b style="color:var(--ink)">크레딧 30개</b></div><div>✓ <b style="color:var(--ink)">워터마크 없음</b></div><div>✓ 고해상도 원본 다운로드</div><div>✓ 크레딧 추가 구매 가능</div></div><button style="width:100%;margin-top:16px;padding:11px;border:none;border-radius:11px;background:var(--gold);color:#16151A;font-size:13px;font-weight:700;cursor:pointer" onclick="startPremium()">프리미엄 시작하기</button></div>
+      </div>
+      <p style="margin:12px 2px 0;font-size:11.5px;color:#6b6775;text-align:center">※ 현재는 실제 청구 없이 결제 버튼을 누르면 프리미엄이 적용되는 테스트 방식입니다.</p>
+    </div>
+    <div id="billingManage" style="display:none">
+      <div style="display:flex;align-items:center;gap:10px;margin:6px 0 20px"><span id="billingStatusBadge" style="font-size:11px;font-weight:800;color:#16151A;background:var(--gold);padding:5px 12px;border-radius:999px">✦ 프리미엄 이용 중</span><h2 style="font-size:20px;font-weight:800;letter-spacing:-.5px">구독 관리</h2></div>
+      <div class="set-card"><h4>구독 정보</h4><div style="display:flex;flex-direction:column;gap:10px;font-size:13px"><div style="display:flex;justify-content:space-between"><span style="color:var(--ink-mute)">플랜</span><b id="billingPlanName">프리미엄</b></div><div style="display:flex;justify-content:space-between"><span id="billingPeriodLabel" style="color:var(--ink-mute)">다음 결제일</span><span id="billingPeriodEnd">확인 중</span></div><p id="billingCancelNotice" style="display:none;color:var(--berry);font-size:12px;line-height:1.6"></p></div></div>
+      <div class="set-card"><h4>결제 내역</h4><div id="billingPurchaseList" style="font-size:13px;color:var(--ink-mute)">결제 내역을 불러오는 중입니다.</div></div>
+      <div class="set-card"><h4>결제 방법</h4><div style="display:flex;align-items:center;gap:12px"><span id="billingPaymentMethod" style="font-size:13px;font-weight:600">결제 방법을 불러오는 중입니다.</span><button style="margin-left:auto;padding:9px 14px;border:1px solid rgba(255,255,255,.14);border-radius:10px;background:transparent;color:var(--ink-soft);font-size:12.5px;font-weight:700;cursor:pointer" onclick="changePaymentMethod()">변경</button></div></div>
+      <div style="display:flex;justify-content:flex-end"><button id="subscriptionActionBtn" style="padding:12px 18px;border:1px solid rgba(224,86,127,.4);border-radius:11px;background:transparent;color:var(--berry);font-size:13px;font-weight:700;cursor:pointer" onclick="toggleSubscriptionCancellation()">구독 해지</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 테스트 결제 ============ -->
+<section id="demoCheckout" class="screen">
+  <div class="subbar">
+    <div class="brand"><img class="brand-mark" src="assets/brand-logo.png" alt="AdNova"><span class="studio-tag">studio</span></div>
+    <button class="back-link" style="margin:0 0 0 6px" onclick="go('billing')">← 구독 관리</button>
+  </div>
+  <div class="page" style="max-width:620px">
+    <div style="margin:6px 0 22px">
+      <span style="display:inline-block;font-size:11px;font-weight:800;color:var(--gold);background:rgba(242,169,59,.14);padding:5px 12px;border-radius:999px;margin-bottom:10px">테스트 결제</span>
+      <h2 id="demoCheckoutTitle" style="font-size:24px;font-weight:800;margin-bottom:7px">프리미엄 시작하기</h2>
+      <p id="demoCheckoutDescription" style="font-size:13px;color:var(--ink-mute);line-height:1.6">카드 정보를 확인하면 프리미엄 테스트 권한이 바로 적용됩니다.</p>
+    </div>
+    <div class="set-card">
+      <div id="demoCheckoutPlan" style="display:flex;justify-content:space-between;align-items:center;gap:14px;padding-bottom:16px;margin-bottom:18px;border-bottom:1px solid var(--line)">
+        <div><div style="font-size:14px;font-weight:800">프리미엄 월 구독</div><div style="font-size:12px;color:var(--ink-mute);margin-top:4px">테스트 이용 기간 30일</div></div>
+        <b style="font-size:18px;color:var(--gold)">₩9,900</b>
+      </div>
+      <div class="field"><label for="demoCardholder">카드 소유자 이름</label><input id="demoCardholder" type="text" maxlength="40" autocomplete="off" placeholder="홍길동"></div>
+      <div class="field"><label for="demoCardNumber">카드 번호</label><input id="demoCardNumber" type="text" inputmode="numeric" maxlength="19" autocomplete="off" placeholder="0000 0000 0000 0000" oninput="formatDemoCardNumber(this)"></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+        <div class="field"><label for="demoCardExpiry">유효기간</label><input id="demoCardExpiry" type="text" inputmode="numeric" maxlength="5" autocomplete="off" placeholder="MM/YY" oninput="formatDemoCardExpiry(this)"></div>
+        <div class="field"><label for="demoCardCvc">CVC</label><input id="demoCardCvc" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="3~4자리" oninput="this.value=this.value.replace(/\D/g,'').slice(0,4)"></div>
+      </div>
+      <p style="font-size:11.5px;color:var(--ink-mute);line-height:1.65;margin:2px 0 16px">실제 결제는 발생하지 않습니다. 입력한 카드 번호, 유효기간, CVC는 서버로 전송하거나 저장하지 않습니다.</p>
+      <button id="demoCheckoutSubmit" class="btn-primary" style="width:100%" onclick="submitDemoCheckout()">테스트 결제 완료</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 전처리 미리보기 ============ -->
+<section id="preprocess" class="screen">
+  <div class="subbar"><div class="brand"><img class="brand-mark" src="assets/brand-logo.png" alt="AdNova"><span class="studio-tag">studio</span></div><button class="back-link" style="margin:0 0 0 6px" onclick="go('dashboard')">← 대시보드</button></div>
+  <div class="page" style="max-width:720px">
+    <div class="page-head"><div><h2>전처리 확인</h2><p class="lead">배경을 제거하고 제품 마스크를 만들었어요. 결과가 괜찮으면 이어서 진행하세요.</p></div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:18px">
+      <div><div style="aspect-ratio:1;border-radius:12px;background:repeating-linear-gradient(45deg,#232128 0 10px,#1c1b21 10px 20px);display:flex;align-items:center;justify-content:center;color:#6b6775;font:600 10px ui-monospace,monospace;border:1px solid var(--line)">원본</div><div style="text-align:center;font-size:11.5px;color:var(--ink-mute);margin-top:7px">원본 사진</div></div>
+      <div><div style="aspect-ratio:1;border-radius:12px;background:conic-gradient(#2a2830 25%,#232128 0 50%,#2a2830 0 75%,#232128 0);background-size:18px 18px;display:flex;align-items:center;justify-content:center;color:var(--ink-soft);font:600 10px ui-monospace,monospace;border:1px solid var(--line)">배경 제거</div><div style="text-align:center;font-size:11.5px;color:var(--ok);margin-top:7px">✓ 배경 제거</div></div>
+      <div><div style="aspect-ratio:1;border-radius:12px;background:#0d0d10;display:flex;align-items:center;justify-content:center;border:1px solid var(--line)"><span style="width:46%;height:60%;border-radius:10px;background:#fff;opacity:.92"></span></div><div style="text-align:center;font-size:11.5px;color:var(--ok);margin-top:7px">✓ 제품 마스크</div></div>
+    </div>
+    <div class="set-card"><div style="display:flex;flex-direction:column;gap:10px"><div style="display:flex;align-items:center;gap:9px;font-size:12.5px"><span style="color:var(--ok)">✓</span><span style="color:var(--ink-soft)">배경 제거 (rembg · u2net)</span><span style="margin-left:auto;color:var(--ink-mute);font-size:11px">1.2s</span></div><div style="display:flex;align-items:center;gap:9px;font-size:12.5px"><span style="color:var(--ok)">✓</span><span style="color:var(--ink-soft)">리사이즈 · 품질 보정</span><span style="margin-left:auto;color:var(--ink-mute);font-size:11px">0.4s</span></div><div style="display:flex;align-items:center;gap:9px;font-size:12.5px"><span style="color:var(--ok)">✓</span><span style="color:var(--ink-soft)">제품 마스크 생성</span><span style="margin-left:auto;color:var(--ink-mute);font-size:11px">0.8s</span></div></div></div>
+    <div style="display:flex;gap:10px"><button style="padding:13px 18px;border:1px solid rgba(255,255,255,.14);border-radius:11px;background:transparent;color:var(--ink-soft);font-size:13.5px;font-weight:600;cursor:pointer" onclick="toast('다시 처리했어요')">🔄 다시 처리</button><button style="flex:1;padding:13px;border:none;border-radius:11px;background:var(--gold);color:#16151A;font-size:14px;font-weight:700;cursor:pointer" onclick="go('dashboard')">스타일 선택으로 →</button></div>
+  </div>
+</section>
+
+<!-- ============ 광고 상세 ============ -->
+<section id="detail" class="screen">
+  <div class="subbar"><button class="back-link" style="margin:0" onclick="go('mypage')">← 내 광고</button><span id="detailDate" style="margin-left:auto;font-size:12px;color:var(--ink-mute)"></span></div>
+  <div class="page" style="max-width:820px">
+    <div class="detail-layout">
+      <div>
+        <div style="position:relative;aspect-ratio:4/5;border-radius:14px;overflow:hidden;background:#0d0d10"><img id="detailAfterImg" alt="생성된 광고" style="width:100%;height:100%;object-fit:contain;display:block"><span style="position:absolute;left:12px;top:12px;background:var(--gold);color:#16151A;font-size:10px;font-weight:800;padding:4px 9px;border-radius:6px">AI 생성</span><div id="detailInputWrap" style="position:absolute;left:12px;bottom:12px;width:82px;aspect-ratio:1;border:2px solid rgba(255,255,255,.7);border-radius:9px;overflow:hidden;background:#16151A"><img id="detailBeforeImg" alt="입력 이미지" style="width:100%;height:100%;object-fit:cover;display:block"></div></div>
+        <div id="detailTypographyOption" style="display:none;align-items:center;justify-content:space-between;margin-top:12px;padding:10px 13px;border:1px solid var(--line);border-radius:10px;background:#1d1c22"><span style="font-size:12px;font-weight:700;color:var(--ink-soft)">타이포</span><label for="detailTypographyToggle" style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer"><input id="detailTypographyToggle" type="checkbox" checked onchange="changeDetailTypography()">포함</label></div>
+        <div class="detail-actions"><button class="oa" onclick="reuseDetailAd()">🔄 이 광고로 다시 만들기</button><button class="oa" onclick="openDetailShare()">↗ 공유</button><button class="oa download" id="detailDownloadBtn" style="display:none" onclick="downloadDetailResult()">⬇ 다운로드</button><button class="oa delete" onclick="deleteDetailAd()">삭제</button></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div><div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:10px">정보</div><div style="display:flex;flex-direction:column;gap:9px;font-size:12.5px"><div style="display:flex;justify-content:space-between;gap:16px"><span style="color:var(--ink-mute)">상품명</span><b id="detailProductName" style="text-align:right"></b></div><div style="display:flex;justify-content:space-between"><span style="color:var(--ink-mute)">스타일</span><span id="detailStyle" style="color:var(--gold);font-weight:700"></span></div><div style="display:flex;justify-content:space-between"><span style="color:var(--ink-mute)">형식</span><span id="detailAdType"></span></div></div></div>
+        <div style="height:1px;background:var(--line)"></div>
+        <div style="flex:1"><div id="detailPlatformTabs" style="display:flex;gap:4px;margin-bottom:11px"><button class="shtab on" onclick="selectDetailPlatform(this,'instagram')">IG</button><button class="shtab" onclick="selectDetailPlatform(this,'facebook')">FB</button><button class="shtab" onclick="selectDetailPlatform(this,'x')">X</button><button class="shtab" onclick="selectDetailPlatform(this,'threads')">Threads</button></div><div id="detailCopyHead" style="font-size:15px;font-weight:700;font-family:var(--serif);font-style:italic;margin-bottom:7px"></div><div id="detailCopyBody" style="font-size:12.5px;line-height:1.6;color:var(--ink-soft)"></div><div id="detailCopyTags" style="font-size:11.5px;color:var(--gold);margin-top:8px;font-weight:600"></div></div>
+        <div id="detailPremiumNotice" style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:rgba(242,169,59,.08);border:1px solid rgba(242,169,59,.24);border-radius:11px"><span>🔒</span><span style="flex:1;font-size:11.5px;color:var(--gold-deep);font-weight:600">원본 다운로드는 프리미엄</span><button style="padding:7px 12px;border:none;border-radius:9px;background:var(--gold);color:#16151A;font-size:11.5px;font-weight:800;cursor:pointer" onclick="go('billing')">업그레이드</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SNS 공유 / Export ============ -->
+<section id="share" class="screen">
+  <div class="subbar"><div class="brand"><img class="brand-mark" src="assets/brand-logo.png" alt="AdNova"><span class="studio-tag">studio</span></div><button class="back-link" style="margin:0 0 0 6px" onclick="go(shareFrom||'dashboard')">← 뒤로</button></div>
+  <div class="page" style="max-width:560px">
+    <div style="display:flex;align-items:center;gap:9px;margin-bottom:16px"><h2 style="font-size:20px;font-weight:800;letter-spacing:-.5px">공유 &amp; 내보내기</h2><span style="margin-left:auto;font-size:11px;color:var(--ink-mute)">이력에 저장됨 ✓</span></div>
+    <div style="display:flex;gap:6px;margin-bottom:16px"><span class="shtab on" data-p="instagram" onclick="shareTab(this,'instagram')"><span style="width:15px;height:15px;border-radius:4px;background:linear-gradient(135deg,#f9ce34,#ee2a7b,#6228d7);display:grid;place-items:center;font-size:8px;color:#fff;font-weight:800">IG</span>Instagram</span><span class="shtab" data-p="facebook" onclick="shareTab(this,'facebook')">Facebook</span><span class="shtab" data-p="x" onclick="shareTab(this,'x')">X</span><span class="shtab" data-p="threads" onclick="shareTab(this,'threads')">Threads</span></div>
+    <div style="background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:16px"><div style="aspect-ratio:1;background:#0d0d10;position:relative"><img id="shareImage" alt="공유할 광고" style="width:100%;height:100%;object-fit:contain;display:block"><span style="position:absolute;left:11px;top:11px;background:rgba(0,0,0,.5);color:var(--ink-soft);font-size:10px;font-weight:700;padding:4px 8px;border-radius:6px">AI 광고</span></div><div style="padding:14px 16px"><div id="shHead" style="font-size:14px;font-weight:700;font-family:var(--serif);font-style:italic;margin-bottom:5px"></div><div id="shBody" style="font-size:12.5px;line-height:1.6;color:var(--ink-soft);margin-bottom:7px"></div><div id="shTags" style="font-size:12px;color:var(--gold);font-weight:600"></div></div></div>
+    <div class="share-actions" style="display:flex;gap:8px;margin-bottom:12px"><button id="shBtn" style="width:100%;padding:12px;border:none;border-radius:11px;background:var(--gold);color:#16151A;font-size:13px;font-weight:700;cursor:pointer" onclick="shareSelectedAd()">↗ Instagram 공유</button></div>
+    <div id="sharePremiumNotice" class="share-premium" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:rgba(242,169,59,.08);border:1px solid rgba(242,169,59,.24);border-radius:11px"><span>🔒</span><span style="flex:1;font-size:12px;color:var(--gold-deep);font-weight:600">고해상도 원본 다운로드는 프리미엄</span><button style="padding:8px 13px;border:none;border-radius:9px;background:transparent;color:var(--gold);font-size:12px;font-weight:800;cursor:pointer" onclick="go('billing')">업그레이드 →</button></div>
+  </div>
+</section>
+
+<div class="modal-overlay" id="upgradeModal">
+  <div class="modal">
+    <button class="modal-x" onclick="closeUpgrade()">✕</button>
+    <div class="modal-head">
+      <div class="modal-badge">✦ 업그레이드</div>
+      <h3>워터마크 없이, 원본 그대로</h3>
+      <p>무료 체험 3회 이후에는 크레딧으로 광고를 만들 수 있어요.</p>
+    </div>
+    <div class="plans">
+      <div class="plan">
+        <div class="plan-name">무료 체험</div>
+        <div class="plan-price">₩0</div>
+        <ul>
+          <li>가입 시 <b>3회</b> 체험</li>
+          <li class="muted">미리보기 · 로고 워터마크</li>
+          <li class="muted">다운로드는 프리미엄</li>
+        </ul>
+        <button class="plan-btn ghost" disabled="">현재 플랜</button>
+      </div>
+      <div class="plan hot">
+        <span class="plan-tag">추천</span>
+        <div class="plan-name">프리미엄</div>
+        <div class="plan-price">₩9,900<span>/월</span></div>
+        <ul>
+          <li>매월 <b>크레딧 30회</b> 포함</li>
+          <li><b>워터마크 없음</b></li>
+          <li>고해상도 원본 다운로드</li>
+          <li>크레딧 추가 구매 가능</li>
+        </ul>
+        <button class="plan-btn" onclick="closeUpgrade();startPremium()">프리미엄 시작하기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+
+<script src="runtime-config.js"></script>
+<script>
+/* ---------- backend api ---------- */
+const API_BASE_URL = (window.ADNOVA_CONFIG?.API_BASE_URL||'http://localhost:8000').replace(/\/$/,'');
+const ACCESS_TOKEN_KEY = 'adnova_access_token';
+const USER_KEY = 'adnova_user';
+const SNS_PLATFORM_MAP = {
+  Instagram:'instagram',
+  Facebook:'facebook',
+  'X (Twitter)':'x',
+  Threads:'threads'
+};
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const USERNAME_PATTERN = /^[A-Za-z0-9]{7,12}$/;
+const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&^#()_\-+=])[A-Za-z\d@$!%*?&^#()_\-+=]{8,20}$/;
+const ALLOWED_IMAGE_TYPES = ['image/jpeg','image/png','image/webp'];
+const STYLE_PRESET_MAP = {
+  '모노톤':'monotone',
+  '웜 빈티지':'warm_vintage',
+  '팝 비비드':'pop',
+  '에디토리얼':'editorial',
+  '리얼리즘':'retro_paper',
+  '파스텔':'pastel_float'
+};
+const STYLE_LABEL_MAP = {
+  monotone:'모노톤',
+  warm_vintage:'웜 빈티지',
+  pop:'팝 비비드',
+  editorial:'에디토리얼',
+  retro_paper:'리얼리즘',
+  pastel_float:'파스텔'
+};
+const FIELD_LABELS = {
+  email:'이메일',
+  username:'아이디',
+  password:'비밀번호',
+  business_name:'상호명'
+};
+let selectedImageId = null;
+let selectedImageUrl = null;
+let currentResult = null;
+let dashboardSummary = null;
+let activeDetailItem = null;
+let activeDetailPlatform = 'instagram';
+let activeShareItem = null;
+let activeSharePlatform = 'instagram';
+let shareFrom = 'dashboard';
+let recoveryMode = 'password';
+let userInquiries = [];
+
+function getToken(){
+  return localStorage.getItem(ACCESS_TOKEN_KEY);
+}
+function getStoredUser(){
+  try{return JSON.parse(localStorage.getItem(USER_KEY)||'null');}
+  catch(_){return null;}
+}
+function getAuthProvider(){
+  const storedProvider=getStoredUser()?.auth_provider;
+  if(storedProvider)return storedProvider;
+  try{
+    const payload=getToken()?.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    const padded=payload+'='.repeat((4-payload.length%4)%4);
+    const decoded=JSON.parse(atob(padded));
+    return decoded.auth_provider||decoded.provider||'local';
+  }catch(_){return 'local';}
+}
+function isSocialAuthUser(){
+  return ['google','kakao','naver'].includes(getAuthProvider());
+}
+function syncAccountSecurityUI(){
+  const isSocial=isSocialAuthUser();
+  const passwordFields=document.getElementById('passwordFields');
+  const passwordNotice=document.getElementById('socialPasswordNotice');
+  const deletePassword=document.getElementById('deleteAccountPassword');
+  const deleteNotice=document.getElementById('socialDeleteNotice');
+  if(passwordFields)passwordFields.style.display=isSocial?'none':'flex';
+  if(passwordNotice)passwordNotice.style.display=isSocial?'block':'none';
+  if(deletePassword){
+    deletePassword.style.display=isSocial?'none':'block';
+    if(isSocial)deletePassword.value='';
+  }
+  if(deleteNotice)deleteNotice.style.display=isSocial?'block':'none';
+}
+function setAuth(token,user){
+  localStorage.setItem(ACCESS_TOKEN_KEY,token);
+  if(user) localStorage.setItem(USER_KEY,JSON.stringify(user));
+  syncUserUI();
+  loadDashboardSummary(false);
+  loadBilling(false);
+}
+function clearAuth(){
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+  dashboardSummary=null;
+  billingSummary=null;
+  billingPurchases=[];
+  isPremium=false;
+  freeTotal=3;
+  freeLeft=3;
+  freeNextRefillAt=null;
+  userInquiries=[];
+  syncUserUI();
+  renderBilling();
+  renderMyInquiries();
+}
+async function apiFetch(path,options={}){
+  const token=getToken();
+  return fetch(`${API_BASE_URL}${path}`,{
+    ...options,
+    headers:{
+      ...(options.headers||{}),
+      ...(token?{Authorization:`Bearer ${token}`}:{})
+    }
+  });
+}
+function readApiError(data,fallback){
+  if(!data) return fallback;
+  if(typeof data.detail==='string') return data.detail;
+  if(Array.isArray(data.detail)) return data.detail.map(formatValidationError).join('\n');
+  return fallback;
+}
+function escapeMarkup(value){
+  return String(value??'')
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'",'&#039;');
+}
+function fieldNameFromError(item){
+  const loc=Array.isArray(item.loc)?item.loc:[];
+  const field=loc[loc.length-1];
+  return FIELD_LABELS[field]||'입력값';
+}
+function formatValidationError(item){
+  const field=fieldNameFromError(item);
+  const msg=item.msg||item.message||'형식이 올바르지 않습니다';
+  if(field==='이메일') return '이메일 형식이 올바르지 않습니다.';
+  if(field==='아이디') return '아이디는 영문과 숫자만 사용해서 7~12자로 입력해 주세요.';
+  if(field==='비밀번호') return '비밀번호는 8~20자이며 대문자, 소문자, 숫자, 특수문자를 각각 1개 이상 포함해야 합니다.';
+  if(msg.includes('String should have at most')) return `${field}이 너무 깁니다.`;
+  if(msg.includes('String should have at least')) return `${field}이 너무 짧습니다.`;
+  return `${field}: ${msg}`;
+}
+function isValidEmail(email){
+  return EMAIL_PATTERN.test(email);
+}
+function initializePasswordToggles(){
+  ['loginPassword','signupPassword','signupPasswordConfirm','currentPassword','newPassword','newPasswordConfirm','deleteAccountPassword'].forEach(id=>{
+    const input=document.getElementById(id);
+    if(!input||input.parentElement.classList.contains('password-input'))return;
+    const wrapper=document.createElement('div');
+    wrapper.className='password-input';
+    if(id==='deleteAccountPassword'){
+      wrapper.style.flex='1';
+      wrapper.style.minWidth='220px';
+    }
+    input.parentNode.insertBefore(wrapper,input);
+    wrapper.appendChild(input);
+    const button=document.createElement('button');
+    button.type='button';
+    button.className='password-toggle';
+    button.textContent='👁';
+    button.title='비밀번호 보기';
+    button.setAttribute('aria-label','비밀번호 보기');
+    button.addEventListener('click',()=>{
+      const visible=input.type==='text';
+      input.type=visible?'password':'text';
+      button.classList.toggle('is-visible',!visible);
+      button.title=visible?'비밀번호 보기':'비밀번호 숨기기';
+      button.setAttribute('aria-label',button.title);
+    });
+    wrapper.appendChild(button);
+  });
+}
+function initializeLoginEnterKey(){
+  ['loginUsername','loginPassword'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('keydown',event=>{
+      if(event.key==='Enter'&&!event.isComposing){
+        event.preventDefault();
+        handleLogin(event);
+      }
+    });
+  });
+}
+function getDisplayName(user){
+  return user?.business_name||user?.name||user?.username||'AdNova';
+}
+function getDisplayEmail(user){
+  return user?.email||'';
+}
+function avatarHue(str){let h=0;const s=(str||'A');for(let i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i))>>>0;}return h%360;}
+function getStoredAvatarPhoto(){try{return localStorage.getItem('adnova_avatar_photo')||'';}catch(e){return '';}}
+function applyAvatars(name){
+  const photo=getStoredAvatarPhoto();
+  const hue=avatarHue(name);
+  const bg=`linear-gradient(135deg,hsl(${hue} 48% 42%),hsl(${(hue+42)%360} 58% 56%))`;
+  document.querySelectorAll('.avatar,.av-lg').forEach(el=>{
+    if(photo){el.style.backgroundImage=`url("${photo}")`;el.style.backgroundSize='cover';el.style.backgroundPosition='center';el.style.color='transparent';el.textContent='';}
+    else{el.style.backgroundImage='none';el.style.background=bg;el.style.color='#fff';}
+  });
+}
+function handleAvatarUpload(e){
+  const file=e.target&&e.target.files&&e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(){try{localStorage.setItem('adnova_avatar_photo',reader.result);}catch(err){}
+    const user=getStoredUser();applyAvatars(getDisplayName(user));if(typeof toast==='function')toast('프로필 사진이 변경되었습니다');};
+  reader.readAsDataURL(file);
+}
+function syncUserUI(){
+  const user=getStoredUser();
+  const name=getDisplayName(user);
+  const email=getDisplayEmail(user);
+  const initial=(name||'A').trim().charAt(0).toUpperCase();
+  document.querySelectorAll('.profile-menu .nm').forEach(el=>{el.textContent=name;});
+  document.querySelectorAll('.profile-menu .em').forEach(el=>{el.textContent=email;});
+  document.querySelectorAll('.avatar,.av-lg').forEach(el=>{el.textContent=initial;});
+  applyAvatars(name);
+  const business=document.getElementById('settingsBusinessName');
+  const username=document.getElementById('settingsUsername');
+  const settingsEmail=document.getElementById('settingsEmail');
+  if(business) business.textContent=user?.business_name||user?.name||'정보 없음';
+  if(username) username.textContent=user?.username||'정보 없음';
+  if(settingsEmail) settingsEmail.textContent=email||'정보 없음';
+  syncAccountSecurityUI();
+}
+function syncDashboardSummaryUI(){
+  const summary=dashboardSummary;
+  if(!summary) return;
+  const count=summary.monthly_ad_count||0;
+  const last=summary.last_worked_at?formatDateLabel(summary.last_worked_at):null;
+  const text=last?`이번 달 ${count}개 · 최근 ${last}`:`이번 달 ${count}개 생성`;
+  document.querySelectorAll('.usage-summary').forEach(el=>{el.textContent=text;});
+}
+async function loadDashboardSummary(showMessage=false){
+  if(!getToken()) return;
+  try{
+    const res=await apiFetch('/api/dashboard/summary?recent_limit=5');
+    let data=null;
+    try{data=await res.json();}catch(_){}
+    if(!res.ok) throw new Error(readApiError(data,'대시보드 정보를 불러오지 못했습니다'));
+    dashboardSummary=data;
+    syncDashboardSummaryUI();
+  }catch(err){
+    if(showMessage) toast(err.message||'대시보드 정보를 불러오지 못했습니다');
+  }
+}
+function selectProductImage(){
+  if(!getToken()){
+    toast('로그인 후 이미지를 업로드해 주세요');
+    go('login');
+    return;
+  }
+  document.getElementById('productImageFile').click();
+}
+async function handleImageUpload(e){
+  const file=e.target.files&&e.target.files[0];
+  if(!file) return;
+  if(!ALLOWED_IMAGE_TYPES.includes(file.type)){
+    toast('jpg, png, webp 이미지만 업로드할 수 있습니다');
+    e.target.value='';
+    return;
+  }
+
+  const formData=new FormData();
+  formData.append('file',file);
+
+  try{
+    toast('이미지를 업로드하는 중입니다');
+    const res=await apiFetch('/api/images/upload',{
+      method:'POST',
+      body:formData
+    });
+    let data=null;
+    try{data=await res.json();}catch(_){}
+    if(!res.ok) throw new Error(readApiError(data,'이미지 업로드에 실패했습니다'));
+
+    selectedImageId=data.image_id;
+    selectedImageUrl=data.image_url;
+    updateUploadPreview(file,data);
+    toast('이미지가 업로드되었습니다');
+  }catch(err){
+    selectedImageId=null;
+    selectedImageUrl=null;
+    toast(err.message||'이미지 업로드에 실패했습니다');
+  }finally{
+    e.target.value='';
+  }
+}
+function updateUploadPreview(file,data){
+  const t=document.getElementById('railThumb');
+  if(t) t.src=URL.createObjectURL(file);
+  const info=document.getElementById('uploadInfo');
+  if(info) info.textContent=`업로드 완료: ${data.filename||file.name}`;
+}
+function toAbsoluteUrl(url){
+  if(!url) return '';
+  if(url.startsWith('http://')||url.startsWith('https://')||url.startsWith('data:')) return url;
+  return `${API_BASE_URL}${url.startsWith('/')?'':'/'}${url}`;
+}
+function showImageFallback(image,message='이미지를 불러올 수 없습니다'){
+  const parent=image?.parentElement;
+  if(!parent) return;
+  image.style.display='none';
+  let fallback=parent.querySelector(':scope > .image-fallback');
+  if(!fallback){
+    fallback=document.createElement('div');
+    fallback.className='image-fallback';
+    parent.appendChild(fallback);
+  }
+  fallback.textContent=message;
+}
+let imageLoadSequence=0;
+function isProtectedImageUrl(url){
+  if(!url) return false;
+  try{
+    const pathname=new URL(url,window.location.href).pathname;
+    return pathname.includes('/ads/image/')||pathname.includes('/images/');
+  }
+  catch(_){return false;}
+}
+function releaseImageObjectUrl(image){
+  const objectUrl=image?.dataset?.objectUrl;
+  if(objectUrl){
+    URL.revokeObjectURL(objectUrl);
+    delete image.dataset.objectUrl;
+  }
+}
+function setImageSource(image,url,message){
+  if(!image) return;
+  const requestId=String(++imageLoadSequence);
+  image.dataset.loadRequestId=requestId;
+  releaseImageObjectUrl(image);
+  image.parentElement?.querySelector(':scope > .image-fallback')?.remove();
+  image.style.display='block';
+  image.onerror=()=>showImageFallback(image,message);
+  if(!url){
+    image.removeAttribute('src');
+    showImageFallback(image,message);
+    return;
+  }
+  if(isProtectedImageUrl(url)){
+    image.removeAttribute('src');
+    const token=getToken();
+    fetch(url,{headers:token?{Authorization:`Bearer ${token}`}:{}})
+      .then(response=>{
+        if(!response.ok)throw new Error('이미지를 불러오지 못했습니다');
+        return response.blob();
+      })
+      .then(blob=>{
+        if(image.dataset.loadRequestId!==requestId)return;
+        const objectUrl=URL.createObjectURL(blob);
+        image.dataset.objectUrl=objectUrl;
+        image.src=objectUrl;
+      })
+      .catch(()=>{
+        if(image.dataset.loadRequestId===requestId)showImageFallback(image,message);
+      });
+    return;
+  }
+  image.src=url;
+}
+function getSelectedStyleLabel(){
+  return document.querySelector('#styles .style.on')?.dataset.s||'팝 비비드';
+}
+function getSelectedStyleValue(){
+  return STYLE_PRESET_MAP[getSelectedStyleLabel()]||'pop';
+}
+function toStyleLabel(style){
+  return STYLE_LABEL_MAP[style]||style||'팝 비비드';
+}
+function splitCopyText(text){
+  const lines=(text||'').split('\n').map(v=>v.trim()).filter(Boolean);
+  return {
+    head:lines[0]||'새 광고가 완성됐어요',
+    body:lines.slice(1).join('\n')||lines[0]||'생성된 광고 문구를 확인해 주세요.'
+  };
+}
+function formatDateLabel(value){
+  if(!value) return '';
+  const date=new Date(value);
+  if(Number.isNaN(date.getTime())) return '';
+  return `${date.getMonth()+1}월 ${date.getDate()}일`;
+}
+function normalizePlatformCopy(value,fallback){
+  if(!value) return fallback;
+  const rawTags=value.hashtags||value.tags||fallback.tags||'';
+  return {
+    head:(value.headline||value.head||fallback.head||'').trim()||fallback.head,
+    body:(value.body||fallback.body||'').trim()||fallback.body,
+    tags:Array.isArray(rawTags)?rawTags.join(' '):String(rawTags||fallback.tags)
+  };
+}
+function applyGeneratedCopy(copyText,style,platformCopies={}){
+  const copy=splitCopyText(copyText);
+  const fallback={head:copy.head,body:copy.body,tags:`#AI광고 #AdNova #${toStyleLabel(style)}`};
+  Object.keys(platCopy).forEach(key=>{
+    platCopy[key]=normalizePlatformCopy(platformCopies[key],fallback);
+  });
+  const current=platCopy[getActivePlatform()]||fallback;
+  document.getElementById('copyHead').textContent=current.head;
+  document.getElementById('copyBody').textContent=current.body;
+  document.getElementById('copyTags').textContent=current.tags;
+}
+function applyGeneratedResult(data){
+  currentResult=data;
+  const typeOption=document.getElementById('resultTypeOption');
+  const toggle=document.getElementById('typographyToggle');
+  const hasPair=Boolean(data.image_with_typography_url&&data.image_without_typography_url);
+  if(typeOption)typeOption.style.display=hasPair?'flex':'none';
+  if(toggle){toggle.disabled=!hasPair;toggle.checked=true;}
+  const beforeImg=document.getElementById('beforeImg');
+  const afterImg=document.getElementById('afterImg');
+  if(beforeImg&&selectedImageUrl) setImageSource(beforeImg,toAbsoluteUrl(selectedImageUrl),'입력 이미지를 불러올 수 없습니다');
+  if(afterImg) setImageSource(afterImg,toAbsoluteUrl(getResultImageUrl(data)),'생성 이미지를 불러올 수 없습니다');
+  renderFormatGallery(data.format_outputs||[],data.purpose);
+  applyGeneratedCopy(data.copy_text,data.style,data.platform_copies);
+  document.getElementById('rEmpty').style.display='none';
+  document.getElementById('rLoad').classList.remove('on');
+  document.getElementById('rOut').classList.add('on');
+  applyPremiumUI();
+}
+function typographyEnabled(){return document.getElementById('typographyToggle')?.checked!==false;}
+function getResultImageUrl(data=currentResult){
+  if(!data)return '';
+  return typographyEnabled()
+    ?(data.image_with_typography_url||data.image_url)
+    :(data.image_without_typography_url||data.image_url);
+}
+function changeTypography(){
+  const image=document.getElementById('afterImg');
+  if(currentResult&&image)setImageSource(image,toAbsoluteUrl(getResultImageUrl()),'생성 이미지를 불러올 수 없습니다');
+}
+const FORMAT_GALLERY_LABELS={sns:'이미지',card_news:'카드뉴스',banner:'배너 규격',detail_page:'상세페이지',flyer:'전단지'};
+function renderFormatGallery(outputs,purpose){
+  const gallery=document.getElementById('formatGallery');
+  if(!gallery)return;
+  gallery.innerHTML='';
+  if(!outputs.length){gallery.style.display='none';return;}
+  const label=FORMAT_GALLERY_LABELS[purpose]||'결과';
+  outputs.forEach((value,index)=>{
+    const url=toAbsoluteUrl(value);
+    const item=document.createElement('div');
+    item.style.cssText='position:relative;overflow:hidden;border:1px solid var(--line);border-radius:12px;background:#0d0d10;min-height:180px';
+    const img=document.createElement('img');
+    img.src=url;img.alt=outputs.length>1?`${label} ${index+1}`:label;
+    img.style.cssText='display:block;width:100%;height:100%;min-height:180px;object-fit:contain';
+    const button=document.createElement('button');
+    button.className='oa download';button.textContent='다운로드';
+    button.style.cssText='position:absolute;right:10px;bottom:10px;background:rgba(22,21,26,.88)';
+    button.onclick=()=>downloadImageFile(url,`adnova-${purpose||'format'}-${index+1}.jpg`);
+    item.append(img,button);gallery.appendChild(item);
+  });
+  gallery.style.display='grid';
+}
+function getActivePlatform(){
+  return document.querySelector('.ptab.on')?.dataset.p||'instagram';
+}
+function buildCurrentOutputItem(){
+  if(!currentResult) return null;
+  const productName=document.getElementById('prodName').value.trim()||'광고 상품';
+  const copy=platCopy[getActivePlatform()]||splitCopyText(currentResult.copy_text||'');
+  return {
+    hl:copy.head||productName,
+    copyHead:copy.head||productName,
+    copyBody:copy.body||currentResult.copy_text||'',
+    copyTags:copy.tags||'',
+    platformCopies:currentResult.platform_copies||{},
+    style:toStyleLabel(currentResult.style),
+    rawStyle:currentResult.style,
+    img:toAbsoluteUrl(currentResult.image_url),
+    imageWithoutTypography:toAbsoluteUrl(currentResult.image_without_typography_url),
+    imageWithTypography:toAbsoluteUrl(currentResult.image_with_typography_url),
+    inputImg:toAbsoluteUrl(selectedImageUrl),
+    assetId:currentResult.asset_id,
+    seed:currentResult.seed,
+    adType:currentResult.poster?'poster':'image',
+    date:formatDateLabel(new Date().toISOString()),
+    productName
+  };
+}
+async function copyTextSafely(text){
+  if(navigator.clipboard){
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const area=document.createElement('textarea');
+  area.value=text;
+  area.style.position='fixed';
+  area.style.left='-9999px';
+  document.body.appendChild(area);
+  area.focus();
+  area.select();
+  document.execCommand('copy');
+  document.body.removeChild(area);
+}
+async function exportSnsPost(platform,item){
+  if(!getToken()){
+    toast('로그인 후 공유해 주세요');
+    go('login');
+    return;
+  }
+  if(!item||!item.img){
+    toast('공유할 광고 이미지가 없습니다');
+    return;
+  }
+  try{
+    const res=await apiFetch('/api/export/sns',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        platform,
+        image_url:item.img,
+        product_name:item.productName||item.hl||'광고 상품',
+        headline:item.copyHead||item.hl||null,
+        description:item.copyBody||null,
+        style:item.style||null
+      })
+    });
+    let data=null;
+    try{data=await res.json();}catch(_){}
+    if(!res.ok) throw new Error(readApiError(data,'SNS 공유 문구를 만들지 못했습니다'));
+    await copyTextSafely(data.post_text);
+    const shareUrls={
+      x:`https://twitter.com/intent/tweet?text=${encodeURIComponent(data.post_text)}`,
+      facebook:`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(item.img)}`,
+      instagram:'https://www.instagram.com/',
+      threads:'https://www.threads.net/'
+    };
+    const shareUrl=shareUrls[platform];
+    if(!shareUrl) throw new Error('지원하지 않는 SNS입니다');
+    if(shareWindow){
+      shareWindow.opener=null;
+      shareWindow.location.href=shareUrl;
+    }else{
+      window.open(shareUrl,'_blank','noopener,noreferrer');
+    }
+    const siteName={x:'X',facebook:'Facebook',instagram:'Instagram',threads:'Threads'}[platform]||platform;
+    toast(`${siteName}용 문구를 복사하고 공유 페이지를 열었어요`);
+  }catch(err){
+    if(shareWindow) shareWindow.close();
+    toast(err.message||'SNS 공유 문구를 만들지 못했습니다');
+  }
+}
+function saveCurrentResult(){
+  if(!currentResult){
+    toast('먼저 광고를 생성해 주세요');
+    return;
+  }
+  toast('생성 결과는 내 광고에 자동 저장돼요');
+}
+function shareCurrentResult(){
+  const item=buildCurrentOutputItem();
+  if(!item){
+    toast('먼저 광고를 생성해 주세요');
+    return;
+  }
+  openShare(item,'dashboard',getActivePlatform());
+}
+async function loginWithCredentials(username,password){
+  const res=await apiFetch('/api/auth/login',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username,password})
+  });
+  let data=null;
+  try{data=await res.json();}catch(_){}
+  if(!res.ok) throw new Error(readApiError(data,'로그인에 실패했습니다'));
+  setAuth(data.access_token,data.user);
+  return data;
+}
+async function handleLogin(e){
+  if(e) e.preventDefault();
+
+  const username=document.getElementById('loginUsername').value.trim();
+  const password=document.getElementById('loginPassword').value;
+
+  if(!username){
+    toast('아이디를 입력해주세요.');
+    return;
+  }
+
+  if(!password){
+    toast('비밀번호를 입력해주세요.');
+    return;
+  }
+
+  /*
+   * 일반 회원은 7~12자이며,
+   * DB에 등록된 기본 관리자 admin은 예외로 허용합니다.
+   */
+  if(username!=='admin' && !USERNAME_PATTERN.test(username)){
+    toast('아이디는 영문과 숫자를 사용해 7~12자로 입력해주세요.');
+    return;
+  }
+
+  try{
+    const data=await loginWithCredentials(username,password);
+    const user=data?.user || getStoredUser();
+
+    if(
+      user?.is_admin===true ||
+      user?.role==='admin'
+    ){
+      toast('관리자로 로그인되었습니다.');
+      window.location.href='./admin/';
+      return;
+    }
+
+    toast('로그인되었습니다.');
+    go('dashboard');
+  }catch(err){
+    toast(err.message || '로그인에 실패했습니다.');
+  }
+}
+
+async function handleSignup(e){
+  if(e) e.preventDefault();
+  const email=document.getElementById('signupEmail').value.trim();
+  const username=document.getElementById('signupUsername').value.trim();
+  const businessName=document.getElementById('signupBusinessName').value.trim();
+  const password=document.getElementById('signupPassword').value;
+  const passwordConfirm=document.getElementById('signupPasswordConfirm').value;
+  const terms=document.getElementById('signupTerms').checked;
+
+  if(!email){toast('이메일을 입력해 주세요');return;}
+  if(!isValidEmail(email)){toast('이메일 형식이 올바르지 않습니다');return;}
+  if(!username){toast('아이디를 입력해 주세요');return;}
+  if(!USERNAME_PATTERN.test(username)){
+      toast('아이디는 영문과 숫자를 사용해 7~12자로 입력해주세요.');
+      return;
+  }
+  if(!password){toast('비밀번호를 입력해 주세요');return;}
+  if(!PASSWORD_PATTERN.test(password)){toast('비밀번호는 8~20자이며 대문자, 소문자, 숫자, 특수문자를 각각 1개 이상 포함해야 합니다');return;}
+  if(password!==passwordConfirm){toast('비밀번호가 서로 다릅니다');return;}
+  if(!terms){toast('약관에 동의해 주세요');return;}
+
+  try{
+    const res=await apiFetch('/api/auth/signup',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        email,
+        username,
+        password,
+        business_name:businessName||null
+      })
+    });
+    let data=null;
+    try{data=await res.json();}catch(_){}
+    if(!res.ok) throw new Error(readApiError(data,'회원가입에 실패했습니다'));
+
+    await loginWithCredentials(username,password);
+    toast('회원가입이 완료되었습니다');
+    go('onboarding');
+  }catch(err){
+    toast(err.message||'회원가입에 실패했습니다');
+  }
+}
+function handleLogout(){
+  clearAuth();
+  go('login');
+}
+function clearAccountPasswordFields(){
+  ['currentPassword','newPassword','newPasswordConfirm','deleteAccountPassword'].forEach(id=>{
+    const input=document.getElementById(id);
+    if(input)input.value='';
+  });
+}
+async function handlePasswordChange(){
+  if(isSocialAuthUser()){toast('소셜 로그인 계정의 비밀번호는 해당 서비스에서 관리됩니다');return;}
+  const currentPassword=document.getElementById('currentPassword').value;
+  const newPassword=document.getElementById('newPassword').value;
+  const newPasswordConfirm=document.getElementById('newPasswordConfirm').value;
+  if(!currentPassword){toast('현재 비밀번호를 입력해주세요');return;}
+  if(!PASSWORD_PATTERN.test(newPassword)){toast('새 비밀번호는 8~20자이며 대문자, 소문자, 숫자, 특수문자를 각각 1개 이상 포함해야 합니다');return;}
+  if(newPassword!==newPasswordConfirm){toast('새 비밀번호가 서로 다릅니다');return;}
+
+  const button=document.getElementById('changePasswordBtn');
+  if(button)button.disabled=true;
+  try{
+    const res=await apiFetch('/api/account/password',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({current_password:currentPassword,new_password:newPassword})
+    });
+    let data=null;try{data=await res.json();}catch(_){}
+    if(!res.ok)throw new Error(readApiError(data,'비밀번호를 변경하지 못했습니다'));
+    clearAccountPasswordFields();
+    clearAuth();
+    go('login');
+    toast('비밀번호가 변경되었습니다. 새 비밀번호로 다시 로그인해주세요');
+  }catch(err){toast(err.message||'비밀번호를 변경하지 못했습니다');}
+  finally{if(button)button.disabled=false;}
+}
+async function handleDeleteAccount(){
+  const password=document.getElementById('deleteAccountPassword').value;
+  const isSocial=isSocialAuthUser();
+  if(!isSocial&&!password){toast('현재 비밀번호를 입력해주세요');return;}
+  if(!confirm('정말 회원 탈퇴할까요? 계정과 모든 광고 데이터가 삭제되며 복구할 수 없습니다.'))return;
+
+  const button=document.getElementById('deleteAccountBtn');
+  if(button)button.disabled=true;
+  try{
+    const res=await apiFetch('/api/account',{
+      method:'DELETE',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(isSocial?{}:{current_password:password})
+    });
+    if(!res.ok){
+      let data=null;try{data=await res.json();}catch(_){}
+      throw new Error(readApiError(data,'회원 탈퇴에 실패했습니다'));
+    }
+    clearAccountPasswordFields();
+    clearAuth();
+    localStorage.removeItem('adnova_avatar_photo');
+    selectedImageId=null;
+    selectedImageUrl=null;
+    currentResult=null;
+    ads.splice(0,ads.length);
+    go('login');
+    toast('회원 탈퇴가 완료되었습니다');
+  }catch(err){toast(err.message||'회원 탈퇴에 실패했습니다');}
+  finally{if(button)button.disabled=false;}
+}
+
+/* ---------- navigation ---------- */
+function go(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const n=document.getElementById('resetNotice');
+  if(n) n.classList.remove('on');
+  closeProfile();
+  document.querySelectorAll('.sns-menu').forEach(m=>m.classList.remove('on'));
+  if(id==='dashboard'||id==='mypage') loadDashboardSummary(false);
+  if(id==='mypage') loadHistory(false);
+  if(id==='billing') loadBilling(false);
+  if(id==='support') loadMyInquiries(false);
+  window.scrollTo(0,0);
+}
+
+/* ---------- profile dropdown ---------- */
+function toggleProfile(el,e){
+  e.stopPropagation();
+  const menu=el.parentElement.querySelector('.profile-menu');
+  const open=menu.classList.contains('on');
+  document.querySelectorAll('.profile-menu').forEach(m=>m.classList.remove('on'));
+  document.querySelectorAll('.sns-menu').forEach(m=>m.classList.remove('on'));
+  if(!open) menu.classList.add('on');
+}
+function closeProfile(){document.querySelectorAll('.profile-menu').forEach(m=>m.classList.remove('on'));}
+
+function setRecoveryMode(mode){
+  recoveryMode=mode;
+  const findingUsername=mode==='username';
+  document.getElementById('recoveryTitle').innerHTML=findingUsername?'아이디를<br>잊으셨나요?':'비밀번호를<br>잊으셨나요?';
+  document.getElementById('recoveryDescription').innerHTML=findingUsername?'가입하신 이메일을 입력하시면<br>등록된 아이디를 확인할 수 있어요.':'가입하신 이메일을 입력하시면<br>비밀번호 재설정 링크를 보내드려요.';
+  document.getElementById('recoverySubmit').textContent=findingUsername?'아이디 찾기':'재설정 링크 받기';
+  document.getElementById('recoveryFooter').innerHTML=findingUsername?'아이디가 기억나셨나요? <a href="#" onclick="go(\'login\');return false">로그인</a>':'비밀번호가 기억나셨나요? <a href="#" onclick="go(\'login\');return false">로그인</a>';
+  const usernameButton=document.getElementById('findUsernameMode');
+  const passwordButton=document.getElementById('resetPasswordMode');
+  usernameButton.style.background=findingUsername?'var(--gold)':'transparent';
+  usernameButton.style.color=findingUsername?'#16151A':'var(--ink-soft)';
+  usernameButton.style.borderColor=findingUsername?'var(--gold)':'var(--line)';
+  passwordButton.style.background=findingUsername?'transparent':'var(--gold)';
+  passwordButton.style.color=findingUsername?'var(--ink-soft)':'#16151A';
+  passwordButton.style.borderColor=findingUsername?'var(--line)':'var(--gold)';
+  document.getElementById('resetNotice').classList.remove('on');
+}
+async function sendReset(){
+  const email=document.getElementById('resetEmail').value.trim();
+  if(!email){toast('이메일을 입력해 주세요');return;}
+  if(!isValidEmail(email)){toast('이메일 형식이 올바르지 않습니다');return;}
+  if(recoveryMode==='password'){
+    document.getElementById('recoveryNoticeTitle').textContent='메일을 보냈어요.';
+    document.getElementById('recoveryNoticeMessage').textContent='받은 편지함에서 재설정 링크를 확인해 주세요. 몇 분 내로 도착합니다.';
+    document.getElementById('resetNotice').classList.add('on');
+    toast('재설정 메일을 보냈어요');
+    return;
+  }
+  try{
+    const res=await apiFetch('/api/auth/find-username',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email})
+    });
+    let data=null;try{data=await res.json();}catch(_){}
+    if(!res.ok)throw new Error(readApiError(data,'아이디를 찾지 못했습니다'));
+    document.getElementById('recoveryNoticeTitle').textContent='가입된 아이디';
+    document.getElementById('recoveryNoticeMessage').textContent=data.username;
+    document.getElementById('resetNotice').classList.add('on');
+  }catch(err){toast(err.message||'아이디를 찾지 못했습니다');}
+}
+function openModal(type){
+  document.getElementById(type==='terms'?'termsModal':'privacyModal').classList.add('on');
+}
+function closeModal(type){
+  document.getElementById(type==='terms'?'termsModal':'privacyModal').classList.remove('on');
+}
+
+function setTab(btn,id){
+  go(id);
+  document.querySelectorAll('#'+id+' .nav button').forEach(b=>b.classList.remove('on'));
+  // sync nav highlight on the target screen
+  document.querySelectorAll('#'+id+' .nav button').forEach(b=>{
+    if(b.textContent.trim().includes(id==='dashboard'?'광고 만들기':'내 광고')) b.classList.add('on');
+  });
+}
+
+/* ---------- toast ---------- */
+let tTimer;
+function toast(msg){
+  const t=document.getElementById('toast');
+  document.getElementById('toastMsg').textContent=msg;
+  t.classList.add('on');
+  clearTimeout(tTimer);
+  tTimer=setTimeout(()=>t.classList.remove('on'),2200);
+}
+
+/* ---------- dashboard inputs ---------- */
+function pickStyle(el){
+  document.querySelectorAll('#styles .style').forEach(s=>s.classList.remove('on'));
+  el.classList.add('on');
+}
+function addTip(txt){
+  const p=document.getElementById('prompt');
+  p.value=(p.value.trim()+' '+txt).trim();
+  p.focus();
+}
+
+/* ---------- 상품명 → 광고 유형 자동 감지 (백엔드 analyze_menu 라우팅 시연) ---------- */
+function detectMode(name){
+  const n=(name||'').trim();
+  const cafe=/(라떼|밀크티|커피|아메리카노|스무디|에이드|주스|쿠키|스콘|케이크|음료|티\b)/;
+  const obj=/(마우스|키보드|컵|잔|텀블러|화장품|케이스|가방|시계|이어폰|스탠드|괄사|기기|용품)/;
+  let txt;
+  if(!n) txt='상품명을 입력하면 광고 유형을 자동 판단해요';
+  else if(obj.test(n)) txt='사물·제품으로 인식 · 스튜디오 배경 모드';
+  else if(cafe.test(n)) txt='카페 음료로 인식 · 배경 연출 모드';
+  else txt='음식으로 인식 · 정체성 보존 향상 모드';
+  const el=document.getElementById('autoModeTxt'); if(el) el.textContent=txt;
+}
+
+/* ---------- 4매체 카피 (실제 AI 생성물 예시: 흑당 밀크티) ---------- */
+const platCopy={
+  instagram:{head:'한 모금이면 여름이 더 시원해져요 ☁️🧋',
+    body:'갈색 설탕의 달콤한 결, 우유의 부드러움, 차의 산뜻함이 얼음과 만나 시원하게 퍼져요. 컵 맺힌 물방울까지 몽글몽글한 여름 무드 완성. 타피오카 펄까지 톡톡 더해져 한 잔이 더 설레요.',
+    tags:'#흑당밀크티 #여름신메뉴 #시원한한잔 #밀크티 #흑당 #타피오카펄 #카페신메뉴 #여름음료'},
+  facebook:{head:'시원하게 즐기는 여름 신메뉴, 흑당 밀크티',
+    body:'얼음 가득 담긴 흑당 밀크티에 갈색 설탕의 달콤함과 우유, 차의 부드러운 조합을 더했어요. 컵에 맺힌 물방울까지 보기만 해도 시원한 한 잔입니다. 타피오카 펄의 톡톡한 식감까지 함께 즐겨보세요. 오늘 기분 전환이 필요하다면, 가까운 곳에서 만나보세요.',
+    tags:'#흑당밀크티 #여름신메뉴 #카페음료 #타피오카펄'},
+  x:{head:'오늘의 시원한 설렘, 흑당 밀크티 🧋',
+    body:'얼음 맺힌 컵만 봐도 벌써 시원해요. 달콤하고 부드러운 한 모금에 타피오카 펄까지 톡톡!',
+    tags:'#흑당밀크티 #여름신메뉴 #타피오카펄'},
+  threads:{head:'이런 날엔 시원한 흑당 밀크티 한 잔?',
+    body:'달콤한 흑당에 우유랑 차가 부드럽게 어우러지고, 타피오카 펄까지 들어가서 괜히 기분 좋아져요. 컵에 맺힌 물방울도 여름 느낌 제대로예요. 그냥 가볍게 마시기 딱 좋다 싶어요.',
+    tags:'#흑당밀크티 #여름신메뉴'}
+};
+function pickPlat(el){
+  document.querySelectorAll('.ptab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  const c=platCopy[el.dataset.p]||platCopy.instagram;
+  document.getElementById('copyHead').textContent=c.head;
+  document.getElementById('copyBody').textContent=c.body;
+  document.getElementById('copyTags').textContent=c.tags;
+}
+/* ---------- generate flow ---------- */
+const steps=['사진을 분석하는 중…','스타일을 입히는 중…','광고 문구를 쓰는 중…','마무리하는 중…'];
+async function generate(){
+  if(freeLeft<=0){if(isPremium)toast('이번 달 프리미엄 크레딧을 모두 사용했습니다');else openUpgrade();return;}
+  if(!getToken()){
+    toast('로그인 후 광고를 생성해 주세요');
+    go('login');
+    return;
+  }
+  if(!selectedImageId){
+    toast('먼저 제품 사진을 업로드해 주세요');
+    return;
+  }
+  const productName=document.getElementById('prodName').value.trim();
+  const productDescription=document.getElementById('prompt').value.trim();
+  if(!productName){
+    toast('상품명을 입력해 주세요');
+    return;
+  }
+
+  const btn=document.getElementById('genBtn');
+  btn.disabled=true;
+  document.getElementById('rEmpty').style.display='none';
+  document.getElementById('rOut').classList.remove('on');
+  const load=document.getElementById('rLoad');
+  load.classList.add('on');
+  let i=0;
+  document.getElementById('loadStep').textContent=steps[0];
+  const iv=setInterval(()=>{
+    i++;
+    if(i<steps.length){document.getElementById('loadStep').textContent=steps[i];}
+  },900);
+
+  const formData=new FormData();
+  formData.append('image_id',selectedImageId);
+  formData.append('product_name',productName);
+  formData.append('product_description',productDescription);
+  formData.append('style',getSelectedStyleValue());
+  formData.append('use_vision','false');
+  formData.append('poster',String(getSelectedPurpose()==='sns'));
+  formData.append('purpose',getSelectedPurpose());
+
+  try{
+    const res=await apiFetch('/api/ads/generate',{
+      method:'POST',
+      body:formData
+    });
+    let data=null;
+    try{data=await res.json();}catch(_){}
+    if(!res.ok) throw new Error(readApiError(data,'광고 생성에 실패했습니다'));
+    applyGeneratedResult(data);
+    loadBilling(false);
+    loadDashboardSummary(false);
+    loadHistory(false);
+    toast('광고가 생성되었습니다');
+  }catch(err){
+    document.getElementById('rEmpty').style.display='flex';
+    toast(err.message||'광고 생성에 실패했습니다');
+  }finally{
+    clearInterval(iv);
+    load.classList.remove('on');
+    btn.disabled=false;
+  }
+}
+
+async function regenerate(){
+  if(freeLeft<=0){if(isPremium)toast('이번 달 프리미엄 크레딧을 모두 사용했습니다');else openUpgrade();return;}
+  if(!getToken()){
+    toast('로그인 후 광고를 다시 생성해 주세요');
+    go('login');
+    return;
+  }
+  if(!currentResult?.asset_id){
+    toast('먼저 광고를 생성해 주세요');
+    return;
+  }
+  const productName=document.getElementById('prodName').value.trim();
+  const productDescription=document.getElementById('prompt').value.trim();
+  if(!productName){
+    toast('상품명을 입력해 주세요');
+    return;
+  }
+
+  const btn=document.getElementById('regenBtn');
+  if(btn?.disabled) return;
+  if(btn) btn.disabled=true;
+  document.getElementById('rOut').classList.remove('on');
+  const load=document.getElementById('rLoad');
+  load.classList.add('on');
+  let i=0;
+  document.getElementById('loadStep').textContent=steps[0];
+  const iv=setInterval(()=>{
+    i++;
+    if(i<steps.length){document.getElementById('loadStep').textContent=steps[i];}
+  },900);
+
+  const payload={
+    asset_id:currentResult.asset_id,
+    style:getSelectedStyleValue(),
+    product_name:productName,
+    product_description:productDescription,
+    prev_seed:currentResult.seed,
+    use_vision:false,
+    poster:getSelectedPurpose()==='sns',
+    purpose:getSelectedPurpose()
+  };
+
+  try{
+    const res=await apiFetch('/api/ads/regenerate',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    let data=null;
+    try{data=await res.json();}catch(_){}
+    if(!res.ok) throw new Error(readApiError(data,'다시 생성에 실패했습니다'));
+    applyGeneratedResult(data);
+    loadBilling(false);
+    loadDashboardSummary(false);
+    loadHistory(false);
+    toast('광고를 다시 생성했습니다');
+  }catch(err){
+    document.getElementById('rOut').classList.add('on');
+    toast(err.message||'다시 생성에 실패했습니다');
+  }finally{
+    clearInterval(iv);
+    load.classList.remove('on');
+    if(btn) btn.disabled=false;
+  }
+}
+
+/* ---------- before/after slider ---------- */
+function slide(v){var a=document.getElementById('afterLayer');var hd=document.getElementById('handle');if(a)a.style.clipPath='inset(0 0 0 '+v+'%)';if(hd)hd.style.left=v+'%';}
+function resetSlider(){var r=document.getElementById('range');if(r){r.value=50;slide(50);}}
+
+/* ---------- freemium usage ---------- */
+let freeTotal=3, freeLeft=3, freeNextRefillAt=null;
+function formatCreditRefillCountdown(){
+  if(!isPremium&&freeLeft>=freeTotal)return '충전 완료';
+  if(!freeNextRefillAt)return '';
+  const target=new Date(freeNextRefillAt).getTime();
+  if(Number.isNaN(target))return '';
+  const remaining=Math.max(0,target-Date.now());
+  if(remaining===0)return isPremium?'월 크레딧 갱신 확인 중':'충전 확인 중';
+  const totalMinutes=Math.ceil(remaining/60000);
+  const hours=Math.floor(totalMinutes/60);
+  const minutes=totalMinutes%60;
+  if(isPremium){
+    const days=Math.floor(hours/24);
+    const remainingHours=hours%24;
+    return days>0?`${days}일 ${remainingHours}시간 후 30개 갱신`:`${hours}시간 ${minutes}분 후 30개 갱신`;
+  }
+  return hours>0?`${hours}시간 ${minutes}분 후 +1`:`${minutes}분 후 +1`;
+}
+function updateUsage(){
+  document.querySelectorAll('.usage').forEach(u=>{
+    if(isPremium){
+      const refillText=formatCreditRefillCountdown();
+      u.innerHTML='<span class="udots premium-dot">✦</span> 프리미엄 크레딧 <b>'+freeLeft+' / '+freeTotal+'</b>'+(refillText?' · '+refillText:'');
+      return;
+    }
+    let dots='';
+    for(let k=0;k<freeTotal;k++) dots+='<i class="'+(k<freeLeft?'on':'')+'"></i>';
+    const refillText=formatCreditRefillCountdown();
+    u.innerHTML='<span class="udots">'+dots+'</span> 체험 <b>'+freeLeft+'</b>회'+(refillText?' · '+refillText:'');
+  });
+  document.querySelectorAll('.credits').forEach(el=>{
+    el.innerHTML='크레딧 <b>'+freeLeft+'</b>';
+  });
+}
+function openUpgrade(){closeProfile();document.getElementById('upgradeModal').classList.add('on');}
+function closeUpgrade(){document.getElementById('upgradeModal').classList.remove('on');}
+
+/* ---------- my page cards ---------- */
+const ads=[];
+const snsList=[
+  {k:'ig',n:'Instagram'},{k:'fb',n:'Facebook'},{k:'x',n:'X (Twitter)'},{k:'th',n:'Threads'}
+];
+function historyToCard(history){
+  const ad=history.advertisement||{};
+  const inputImage=ad.input_image||{};
+  const outputImage=ad.output_image||{};
+  let responseData={};
+  let requestData={};
+  try{responseData=history.response_data?JSON.parse(history.response_data):{};}catch(_){}
+  try{requestData=history.request_data?JSON.parse(history.request_data):{};}catch(_){}
+  const copy=splitCopyText(ad.generated_text||responseData.copy_text||'');
+  const style=toStyleLabel(ad.style);
+  return {
+    historyId:history.id,
+    advertisementId:ad.id,
+    emoji:'✦',
+    hl:ad.title||copy.head,
+    copyHead:copy.head,
+    copyBody:copy.body,
+    platformCopies:responseData.platform_copies||{},
+    productName:ad.title||copy.head,
+    style,
+    rawStyle:ad.style,
+    date:formatDateLabel(history.created_at),
+    createdAt:history.created_at,
+    inputImageId:ad.input_image_id,
+    inputImg:toAbsoluteUrl(inputImage.image_url),
+    img:toAbsoluteUrl(outputImage.image_url||responseData.image_url),
+    imageWithoutTypography:toAbsoluteUrl(responseData.image_without_typography_url),
+    imageWithTypography:toAbsoluteUrl(responseData.image_with_typography_url),
+    assetId:responseData.asset_id,
+    seed:responseData.seed,
+    adType:ad.ad_type,
+    productDescription:requestData.product_description||'',
+    g:'linear-gradient(150deg,#2C2140,#8A3A5A 55%,#E0912F)',
+    prod:'linear-gradient(160deg,#fff6e6,#f4c988)'
+  };
+}
+function getItemPlatformCopy(item,platform){
+  const fallback={
+    head:item?.copyHead||item?.hl||item?.productName||'광고 문구',
+    body:item?.copyBody||'',
+    tags:item?.copyTags||`#AI광고 #AdNova #${item?.style||'광고'}`
+  };
+  return normalizePlatformCopy(item?.platformCopies?.[platform],fallback);
+}
+function formatAdType(type){
+  if(type==='poster') return '포스터';
+  if(type==='image') return '이미지';
+  return type||'이미지';
+}
+function renderDetailCopy(platform){
+  if(!activeDetailItem) return;
+  activeDetailPlatform=platform;
+  const copy=getItemPlatformCopy(activeDetailItem,platform);
+  document.getElementById('detailCopyHead').textContent=copy.head;
+  document.getElementById('detailCopyBody').textContent=copy.body;
+  document.getElementById('detailCopyTags').textContent=copy.tags;
+}
+function selectDetailPlatform(el,platform){
+  document.querySelectorAll('#detailPlatformTabs .shtab').forEach(tab=>tab.classList.remove('on'));
+  el.classList.add('on');
+  renderDetailCopy(platform);
+}
+function openAdDetail(i){
+  const item=ads[i];
+  if(!item) return;
+  activeDetailItem=item;
+  activeDetailPlatform='instagram';
+  document.getElementById('detailDate').textContent=item.date?`${item.date} 생성`:'';
+  document.getElementById('detailProductName').textContent=item.productName||item.hl||'광고 상품';
+  document.getElementById('detailStyle').textContent=item.style||'정보 없음';
+  document.getElementById('detailAdType').textContent=formatAdType(item.adType);
+  const hasPair=Boolean(item.imageWithTypography&&item.imageWithoutTypography);
+  const option=document.getElementById('detailTypographyOption');
+  const toggle=document.getElementById('detailTypographyToggle');
+  if(option)option.style.display=hasPair?'flex':'none';
+  if(toggle){toggle.disabled=!hasPair;toggle.checked=true;}
+  setImageSource(document.getElementById('detailAfterImg'),hasPair?item.imageWithTypography:item.img,'생성 이미지를 불러올 수 없습니다');
+  const inputWrap=document.getElementById('detailInputWrap');
+  const inputImg=document.getElementById('detailBeforeImg');
+  inputWrap.style.display=item.inputImg?'block':'none';
+  if(item.inputImg){
+    inputImg.onerror=()=>{inputWrap.style.display='none';};
+    inputImg.src=item.inputImg;
+  }
+  document.querySelectorAll('#detailPlatformTabs .shtab').forEach((tab,index)=>tab.classList.toggle('on',index===0));
+  renderDetailCopy('instagram');
+  applyPremiumUI();
+  go('detail');
+}
+function getDetailImageUrl(){
+  if(!activeDetailItem)return '';
+  const toggle=document.getElementById('detailTypographyToggle');
+  return toggle?.checked
+    ?(activeDetailItem.imageWithTypography||activeDetailItem.img)
+    :(activeDetailItem.imageWithoutTypography||activeDetailItem.img);
+}
+function changeDetailTypography(){
+  const image=document.getElementById('detailAfterImg');
+  if(image)setImageSource(image,getDetailImageUrl(),'생성 이미지를 불러올 수 없습니다');
+}
+function reuseDetailAd(){
+  const item=activeDetailItem;
+  if(!item?.inputImageId||!item.inputImg){
+    toast('이 광고의 입력 이미지를 다시 사용할 수 없습니다');
+    return;
+  }
+  selectedImageId=item.inputImageId;
+  selectedImageUrl=item.inputImg;
+  document.getElementById('railThumb').src=item.inputImg;
+  document.getElementById('uploadInfo').textContent='이전 입력 이미지를 불러왔습니다.';
+  document.getElementById('prodName').value=item.productName||'';
+  document.getElementById('prompt').value=item.productDescription||'';
+  const styleButton=[...document.querySelectorAll('#styles .style')]
+    .find(button=>STYLE_PRESET_MAP[button.dataset.s]===item.rawStyle);
+  if(styleButton) pickStyle(styleButton);
+  go('dashboard');
+  detectMode(item.productName||'');
+  toast('이전 광고 설정을 불러왔습니다');
+}
+function openDetailShare(){
+  if(!activeDetailItem) return;
+  openShare(activeDetailItem,'detail',activeDetailPlatform);
+}
+async function deleteStoredAd(item){
+  if(!item?.historyId) throw new Error('삭제할 광고 이력을 찾을 수 없습니다');
+  const res=await apiFetch(`/api/history/${item.historyId}/result`,{method:'DELETE'});
+  if(!res.ok){
+    let data=null;
+    try{data=await res.json();}catch(_){}
+    throw new Error(readApiError(data,'광고 삭제에 실패했습니다'));
+  }
+}
+async function deleteDetailAd(){
+  const item=activeDetailItem;
+  if(!item||!confirm('이 광고를 삭제할까요?')) return;
+  try{
+    await deleteStoredAd(item);
+    const index=ads.indexOf(item);
+    if(index>=0) ads.splice(index,1);
+    activeDetailItem=null;
+    renderCards(currentFilter);
+    loadDashboardSummary(false);
+    go('mypage');
+    toast('광고를 삭제했어요');
+  }catch(err){
+    toast(err.message||'광고 삭제에 실패했습니다');
+  }
+}
+function openShare(item,from='dashboard',platform='instagram'){
+  if(!item?.img){
+    toast('공유할 광고 이미지가 없습니다');
+    return;
+  }
+  activeShareItem=item;
+  shareFrom=from;
+  go('share');
+  const tabs=[...document.querySelectorAll('#share .shtab')];
+  const selected=tabs.find(tab=>tab.dataset.p===platform)||tabs[0];
+  tabs.forEach(tab=>tab.classList.toggle('on',tab===selected));
+  renderSharePlatform(selected?.dataset.p||'instagram');
+}
+function renderSharePlatform(platform){
+  if(!activeShareItem) return;
+  activeSharePlatform=platform;
+  const copy=getItemPlatformCopy(activeShareItem,platform);
+  setImageSource(document.getElementById('shareImage'),activeShareItem.img,'공유 이미지를 불러올 수 없습니다');
+  document.getElementById('shHead').textContent=copy.head;
+  document.getElementById('shBody').textContent=copy.body;
+  document.getElementById('shTags').textContent=copy.tags;
+  const names={instagram:'Instagram',facebook:'Facebook',x:'X',threads:'Threads'};
+  document.getElementById('shBtn').textContent=`↗ ${names[platform]||platform} 공유`;
+}
+function shareSelectedAd(){
+  if(!activeShareItem) return;
+  const copy=getItemPlatformCopy(activeShareItem,activeSharePlatform);
+  exportSnsPost(activeSharePlatform,{
+    ...activeShareItem,
+    copyHead:copy.head,
+    copyBody:copy.body,
+    copyTags:copy.tags
+  });
+}
+async function loadHistory(showMessage=true){
+  const grid=document.getElementById('grid');
+  if(!grid) return;
+  if(!getToken()){
+    ads.splice(0,ads.length);
+    grid.innerHTML='<div class="empty-my" style="grid-column:1/-1"><div class="big">🔐</div><h3 style="font-size:16px;color:var(--ink-soft);font-weight:700;margin-bottom:5px">로그인이 필요해요</h3><p style="font-size:13.5px">로그인하면 생성한 광고 목록을 볼 수 있어요.</p></div>';
+    return;
+  }
+
+  try{
+    const res=await apiFetch('/api/history?limit=50');
+    let data=null;
+    try{data=await res.json();}catch(_){}
+    if(!res.ok) throw new Error(readApiError(data,'내 광고 목록을 불러오지 못했습니다'));
+
+    const cards=(data||[])
+      .filter(item=>item.advertisement&&item.status==='completed')
+      .map(historyToCard);
+    ads.splice(0,ads.length,...cards);
+    renderCards(currentFilter);
+  }catch(err){
+    ads.splice(0,ads.length);
+    renderCards(currentFilter);
+    if(showMessage) toast(err.message||'내 광고 목록을 불러오지 못했습니다');
+  }
+}
+function renderCards(filter='all'){
+  const grid=document.getElementById('grid');
+  const list=ads.filter(a=>filter==='all'||a.style===filter);
+  grid.querySelectorAll('.cimg').forEach(releaseImageObjectUrl);
+  if(list.length===0){
+    grid.innerHTML='<div class="empty-my" style="grid-column:1/-1"><div class="big">🗂</div><h3 style="font-size:16px;color:var(--ink-soft);font-weight:700;margin-bottom:5px">이 스타일 광고가 없어요</h3><p style="font-size:13.5px">다른 스타일을 골라보거나 새 광고를 만들어보세요.</p></div>';
+    return;
+  }
+  grid.innerHTML=list.map((a,idx)=>{
+    const gi=ads.indexOf(a);
+    const sns=snsList.map(s=>`<button onclick="event.stopPropagation();share('${s.n}',${gi})"><span class="si ${s.k}">${s.n[0]}</span>${s.n}에 공유</button>`).join('');
+    return `
+    <div class="card" id="card-${gi}" role="button" tabindex="0" onclick="openAdDetail(${gi})" onkeydown="if(event.key==='Enter'){openAdDetail(${gi})}">
+      <div class="cpic" style="background:${a.g}">
+        <span class="st-tag">${a.style}</span>
+        ${a.img
+          ? `<img class="cimg" data-ad-index="${gi}" alt="${a.hl}">`
+          : `<div class="prod" style="background:${a.prod}">${a.emoji}</div><div class="hl">${a.hl}</div>`}
+      </div>
+      <div class="cbody">
+        <div class="cmeta"><span class="st">${a.style} 스타일</span><span class="dt">${a.date}</span></div>
+        <div class="card-actions">
+          <div class="share-wrap">
+            <button class="a-btn" onclick="toggleSns(${gi},event)">↗️ SNS 공유</button>
+            <div class="sns-menu" id="sns-${gi}">${sns}</div>
+          </div>
+          <button class="a-btn del" onclick="event.stopPropagation();delCard(${gi})" title="삭제">🗑</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  grid.querySelectorAll('.cimg[data-ad-index]').forEach(image=>{
+    const item=ads[Number(image.dataset.adIndex)];
+    setImageSource(image,item?.img,'광고 이미지를 불러올 수 없습니다');
+  });
+}
+function toggleSns(i,e){
+  e.stopPropagation();
+  document.querySelectorAll('.sns-menu').forEach(m=>{if(m.id!=='sns-'+i)m.classList.remove('on')});
+  document.getElementById('sns-'+i).classList.toggle('on');
+}
+function share(name,i){
+  document.getElementById('sns-'+i).classList.remove('on');
+  const platform=SNS_PLATFORM_MAP[name];
+  if(!platform){
+    toast(name+' 공유는 아직 준비 중입니다');
+    return;
+  }
+  const item={...ads[i]};
+  const platformCopy=normalizePlatformCopy(item.platformCopies?.[platform],{
+    head:item.copyHead||item.hl||'',
+    body:item.copyBody||'',
+    tags:item.copyTags||''
+  });
+  item.copyHead=platformCopy.head;
+  item.copyBody=platformCopy.body;
+  item.copyTags=platformCopy.tags;
+  exportSnsPost(platform,item);
+}
+async function delCard(i){
+  const item=ads[i];
+  if(!item) return;
+  try{
+    await deleteStoredAd(item);
+  }catch(err){
+    toast(err.message||'광고 삭제에 실패했습니다');
+    return;
+  }
+  const c=document.getElementById('card-'+i);
+  c.style.transition='.2s';c.style.opacity='0';c.style.transform='scale(.92)';
+  setTimeout(()=>{
+    ads.splice(i,1);
+    renderCards(currentFilter);
+    loadDashboardSummary(false);
+  },200);
+  toast('광고를 삭제했어요');
+}
+let currentFilter='all';
+function filterCards(btn,f){
+  document.querySelectorAll('.fchip').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  currentFilter=f;renderCards(f);
+}
+document.addEventListener('click',()=>{
+  document.querySelectorAll('.sns-menu').forEach(m=>m.classList.remove('on'));
+  document.querySelectorAll('.profile-menu').forEach(m=>m.classList.remove('on'));
+});
+
+/* ---------- new pages / UI ---------- */
+var isPremium=false, billingFrom='dashboard', billingSummary=null, billingPurchases=[], demoCheckoutMode='subscribe';
+function getSelectedPurpose(){
+  const value=document.querySelector('#uses .use.on')?.dataset.u||'sns';
+  return value==='banner'?'banner':value==='card'?'card_news':value==='detail'?'detail_page':'sns';
+}
+function pickUse(el){
+  document.querySelectorAll('#uses .use').forEach(function(s){s.classList.remove('on');});
+  el.classList.add('on');
+}
+function goBilling(from){billingFrom=from||'dashboard';go('billing');}
+function formatBillingDate(value){
+  if(!value)return '일정 미정';
+  const date=new Date(value);
+  if(Number.isNaN(date.getTime()))return '일정 미정';
+  return new Intl.DateTimeFormat('ko-KR',{year:'numeric',month:'numeric',day:'numeric'}).format(date);
+}
+function formatBillingAmount(amount,currency){
+  try{return new Intl.NumberFormat('ko-KR',{style:'currency',currency:currency||'KRW',maximumFractionDigits:0}).format(amount||0);}
+  catch(_){return `${Number(amount||0).toLocaleString('ko-KR')}원`;}
+}
+function renderPurchaseHistory(){
+  const list=document.getElementById('billingPurchaseList');
+  if(!list)return;
+  list.replaceChildren();
+  if(!billingPurchases.length){
+    list.textContent='아직 결제 내역이 없습니다.';
+    return;
+  }
+  billingPurchases.forEach((purchase,index)=>{
+    const row=document.createElement('div');
+    row.style.cssText=`display:flex;justify-content:space-between;gap:14px;padding:10px 0;${index<billingPurchases.length-1?'border-bottom:1px solid var(--line)':''}`;
+    const description=document.createElement('span');
+    const statusText=purchase.status==='paid'?'':` · ${purchase.status}`;
+    description.textContent=`${formatBillingDate(purchase.purchased_at)} · ${purchase.description}${statusText}`;
+    const amount=document.createElement('b');
+    amount.textContent=formatBillingAmount(purchase.amount,purchase.currency);
+    row.append(description,amount);
+    list.appendChild(row);
+  });
+}
+function renderBilling(){
+  const upgrade=document.getElementById('billingUpgrade');
+  const manage=document.getElementById('billingManage');
+  const subscription=billingSummary&&billingSummary.subscription;
+  const paymentMethod=billingSummary&&billingSummary.payment_method;
+  isPremium=Boolean(billingSummary&&billingSummary.is_premium);
+  const creditLimit=isPremium
+    ? billingSummary?.premium_credit_limit
+    : billingSummary?.free_credit_limit;
+  const creditsRemaining=isPremium
+    ? billingSummary?.premium_credits_remaining
+    : billingSummary?.free_credits_remaining;
+  if(Number.isInteger(creditLimit))freeTotal=Math.max(1,creditLimit);
+  if(Number.isInteger(creditsRemaining))freeLeft=Math.max(0,creditsRemaining);
+  freeNextRefillAt=isPremium
+    ? billingSummary?.next_premium_credit_at||null
+    : billingSummary?.next_free_credit_at||null;
+  renderMembershipUI();
+  const hasBillingData=Boolean(subscription||paymentMethod||billingPurchases.length);
+  if(upgrade)upgrade.style.display=isPremium?'none':'block';
+  if(manage)manage.style.display=(isPremium||hasBillingData)?'block':'none';
+  if(!manage||(!isPremium&&!hasBillingData)){applyPremiumUI();return;}
+
+  const cancelPending=Boolean(subscription&&subscription.cancel_at_period_end);
+  const badge=document.getElementById('billingStatusBadge');
+  const plan=document.getElementById('billingPlanName');
+  const periodLabel=document.getElementById('billingPeriodLabel');
+  const periodEnd=document.getElementById('billingPeriodEnd');
+  const notice=document.getElementById('billingCancelNotice');
+  const action=document.getElementById('subscriptionActionBtn');
+  const method=document.getElementById('billingPaymentMethod');
+
+  if(badge)badge.textContent=isPremium?(cancelPending?'해지 예정':'✦ 프리미엄 이용 중'):'구독 종료';
+  if(plan)plan.textContent=subscription?.plan==='premium'?'프리미엄':subscription?.plan||'무료';
+  if(periodLabel)periodLabel.textContent=(cancelPending||subscription?.status!=='active')?'이용 종료일':'다음 결제일';
+  if(periodEnd)periodEnd.textContent=formatBillingDate(subscription?.current_period_end);
+  if(notice){
+    notice.style.display=cancelPending?'block':'none';
+    notice.textContent=cancelPending?`${formatBillingDate(subscription?.current_period_end)}까지 프리미엄 기능을 이용할 수 있습니다.`:'';
+  }
+  if(action){
+    action.style.display=isPremium?'block':'none';
+    action.textContent=cancelPending?'해지 예약 취소':'구독 해지';
+  }
+  if(method){
+    method.textContent=paymentMethod
+      ? `💳 ${paymentMethod.card_brand||'카드'} •••• ${paymentMethod.card_last4||'----'}`
+      : '등록된 결제 방법이 없습니다.';
+  }
+  renderPurchaseHistory();
+  applyPremiumUI();
+}
+async function loadBilling(showMessage=true){
+  if(!getToken())return;
+  try{
+    const [summaryRes,purchasesRes]=await Promise.all([
+      apiFetch('/api/billing/summary'),
+      apiFetch('/api/billing/purchases?limit=50')
+    ]);
+    let summary=null,purchases=[];
+    try{summary=await summaryRes.json();}catch(_){}
+    try{purchases=await purchasesRes.json();}catch(_){}
+    if(!summaryRes.ok)throw new Error(readApiError(summary,'구독 정보를 불러오지 못했습니다'));
+    if(!purchasesRes.ok)throw new Error(readApiError(purchases,'결제 내역을 불러오지 못했습니다'));
+    billingSummary=summary;
+    billingPurchases=Array.isArray(purchases)?purchases:[];
+    renderBilling();
+  }catch(err){
+    if(showMessage)toast(err.message||'결제 정보를 불러오지 못했습니다');
+  }
+}
+function clearDemoCardFields(){
+  ['demoCardholder','demoCardNumber','demoCardExpiry','demoCardCvc'].forEach(id=>{
+    const input=document.getElementById(id);
+    if(input)input.value='';
+  });
+}
+function formatDemoCardNumber(input){
+  const digits=input.value.replace(/\D/g,'').slice(0,16);
+  input.value=digits.replace(/(.{4})/g,'$1 ').trim();
+}
+function formatDemoCardExpiry(input){
+  const digits=input.value.replace(/\D/g,'').slice(0,4);
+  input.value=digits.length>2?`${digits.slice(0,2)}/${digits.slice(2)}`:digits;
+}
+function openDemoCheckout(mode){
+  if(!getToken()){go('login');toast('로그인이 필요합니다');return;}
+  demoCheckoutMode=mode==='payment-method'?'payment-method':'subscribe';
+  const changing=demoCheckoutMode==='payment-method';
+  document.getElementById('demoCheckoutTitle').textContent=changing?'결제 방법 변경':'프리미엄 시작하기';
+  document.getElementById('demoCheckoutDescription').textContent=changing?'새 카드 정보를 확인하면 등록된 결제 방법이 변경됩니다.':'카드 정보를 확인하면 프리미엄 테스트 권한이 바로 적용됩니다.';
+  document.getElementById('demoCheckoutPlan').style.display=changing?'none':'flex';
+  document.getElementById('demoCheckoutSubmit').textContent=changing?'결제 방법 변경':'테스트 결제 완료';
+  clearDemoCardFields();
+  go('demoCheckout');
+}
+function startPremium(){openDemoCheckout('subscribe');}
+function changePaymentMethod(){openDemoCheckout('payment-method');}
+async function submitDemoCheckout(){
+  const cardholder=document.getElementById('demoCardholder').value.trim();
+  const cardNumber=document.getElementById('demoCardNumber').value.replace(/\D/g,'');
+  const expiry=document.getElementById('demoCardExpiry').value;
+  const cvc=document.getElementById('demoCardCvc').value;
+  if(!cardholder){toast('카드 소유자 이름을 입력해주세요');return;}
+  if(!/^\d{16}$/.test(cardNumber)){toast('카드 번호 16자리를 확인해주세요');return;}
+  const expiryMatch=expiry.match(/^(0[1-9]|1[0-2])\/(\d{2})$/);
+  if(!expiryMatch){toast('유효기간을 MM/YY 형식으로 입력해주세요');return;}
+  if(!/^\d{3,4}$/.test(cvc)){toast('CVC 3~4자리를 확인해주세요');return;}
+
+  const button=document.getElementById('demoCheckoutSubmit');
+  const endpoint=demoCheckoutMode==='payment-method'?'/api/billing/demo/payment-method':'/api/billing/demo/subscribe';
+  const cardBrand=cardNumber.startsWith('4')?'Visa':cardNumber.startsWith('5')?'Mastercard':'테스트카드';
+  if(button)button.disabled=true;
+  try{
+    const res=await apiFetch(endpoint,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({card_brand:cardBrand,card_last4:cardNumber.slice(-4)})
+    });
+    let data=null;try{data=await res.json();}catch(_){}
+    if(!res.ok)throw new Error(readApiError(data,'테스트 결제를 완료하지 못했습니다'));
+    billingSummary=data;
+    renderBilling();
+    go('billing');
+    toast(demoCheckoutMode==='payment-method'?'결제 방법을 변경했습니다':'테스트 결제가 완료되어 프리미엄이 적용됐습니다');
+  }catch(err){toast(err.message||'테스트 결제를 완료하지 못했습니다');}
+  finally{
+    clearDemoCardFields();
+    if(button)button.disabled=false;
+  }
+}
+async function toggleSubscriptionCancellation(){
+  const subscription=billingSummary&&billingSummary.subscription;
+  if(!subscription)return;
+  const cancelPending=Boolean(subscription.cancel_at_period_end);
+  if(!cancelPending&&!confirm(`${formatBillingDate(subscription.current_period_end)}에 구독을 해지할까요?`))return;
+  const button=document.getElementById('subscriptionActionBtn');
+  if(button)button.disabled=true;
+  try{
+    const endpoint=cancelPending?'/api/billing/subscription/resume':'/api/billing/subscription/cancel';
+    const res=await apiFetch(endpoint,{method:'POST'});
+    let data=null;try{data=await res.json();}catch(_){}
+    if(!res.ok)throw new Error(readApiError(data,'구독 상태를 변경하지 못했습니다'));
+    billingSummary=data;
+    renderBilling();
+    toast(cancelPending?'해지 예약을 취소했습니다':'구독 해지를 예약했습니다');
+  }catch(err){toast(err.message||'구독 상태를 변경하지 못했습니다');}
+  finally{if(button)button.disabled=false;}
+}
+async function downloadImageFile(url,filename){
+  if(!url){toast('다운로드할 광고 이미지가 없습니다');return;}
+  try{
+    const res=await fetch(url,{headers:getToken()?{Authorization:`Bearer ${getToken()}`}:{}});
+    if(!res.ok)throw new Error('이미지를 불러오지 못했습니다');
+    const blob=await res.blob();
+    const objectUrl=URL.createObjectURL(blob);
+    const link=document.createElement('a');
+    link.href=objectUrl;
+    link.download=filename||'adnova-ad.png';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+    toast('고해상도 원본을 다운로드했어요');
+  }catch(err){toast(err.message||'광고 이미지를 다운로드하지 못했습니다');}
+}
+async function downloadHistoryResult(historyId){
+  if(!historyId){toast('다운로드할 광고 이력을 찾을 수 없습니다');return;}
+  try{
+    const res=await apiFetch(`/api/history/${historyId}/result/download`);
+    if(!res.ok){
+      let data=null;
+      try{data=await res.json();}catch(_){}
+      throw new Error(readApiError(data,'광고 이미지를 다운로드하지 못했습니다'));
+    }
+    const blob=await res.blob();
+    const objectUrl=URL.createObjectURL(blob);
+    const link=document.createElement('a');
+    link.href=objectUrl;
+    link.download='adnova-ad.png';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+    toast('고해상도 원본을 다운로드했어요');
+  }catch(err){toast(err.message||'광고 이미지를 다운로드하지 못했습니다');}
+}
+function downloadResult(){
+  if(!isPremium){goBilling('dashboard');return;}
+  const suffix=typographyEnabled()?'with-type':'image-only';
+  downloadImageFile(toAbsoluteUrl(getResultImageUrl()),`adnova-${suffix}.png`);
+}
+function downloadDetailResult(){
+  if(!isPremium){goBilling('detail');return;}
+  const hasPair=Boolean(activeDetailItem?.imageWithTypography&&activeDetailItem?.imageWithoutTypography);
+  if(hasPair){
+    const suffix=document.getElementById('detailTypographyToggle')?.checked?'with-type':'image-only';
+    downloadImageFile(getDetailImageUrl(),`adnova-${suffix}.png`);
+    return;
+  }
+  downloadHistoryResult(activeDetailItem?.historyId);
+}
+function applyPremiumUI(){
+  document.querySelectorAll('.wm-row').forEach(function(e){e.style.display=isPremium?'none':'flex';});
+  const dl=document.getElementById('dlBtn');
+  if(dl)dl.innerHTML=isPremium?'⬇️ 다운로드':'⬇️ 다운로드 🔒';
+  const detailDl=document.getElementById('detailDownloadBtn');
+  if(detailDl)detailDl.style.display=isPremium?'block':'none';
+}
+function renderMembershipUI(){
+  const refillText=formatCreditRefillCountdown();
+  const planText=isPremium?'프리미엄':`무료 체험 · ${freeLeft}회${refillText?` · ${refillText}`:''}`;
+  document.querySelectorAll('.pf-plan').forEach(el=>{el.textContent=planText;});
+  document.querySelectorAll('#detailPremiumNotice,#sharePremiumNotice').forEach(el=>{el.style.display=isPremium?'none':'flex';});
+  updateUsage();
+}
+function setSet(el,id){document.querySelectorAll('#settings .set-nav-item').forEach(function(x){x.classList.remove('on');});el.classList.add('on');var t=document.getElementById(id);if(t)window.scrollTo({top:t.getBoundingClientRect().top+window.scrollY-90,behavior:'smooth'});}
+function shareTab(el,platform){document.querySelectorAll('#share .shtab').forEach(tab=>tab.classList.remove('on'));el.classList.add('on');renderSharePlatform(platform);}
+function getInquiryStatusLabel(status){
+  return {pending:'접수 완료',in_progress:'확인 중',answered:'답변 완료',closed:'처리 종료'}[status]||status;
+}
+function getInquiryCategoryLabel(category){
+  return {general:'일반 문의',generation:'광고 생성 문의',billing:'결제·구독 문의',account:'계정 문의'}[category]||category;
+}
+function formatInquiryDate(value){
+  if(!value)return '';
+  const date=new Date(value);
+  if(Number.isNaN(date.getTime()))return String(value);
+  return new Intl.DateTimeFormat('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).format(date);
+}
+function renderMyInquiries(){
+  const container=document.getElementById('myInquiryList');
+  if(!container)return;
+  if(!getToken()){
+    container.innerHTML='<div class="inquiry-empty">로그인하면 문의 내역을 확인할 수 있어요.</div>';
+    return;
+  }
+  if(userInquiries.length===0){
+    container.innerHTML='<div class="inquiry-empty">아직 등록한 문의가 없습니다.</div>';
+    return;
+  }
+  container.innerHTML=userInquiries.map(item=>`
+    <article class="inquiry-item">
+      <div class="inquiry-item-head">
+        <div>
+          <strong>${escapeMarkup(item.title)}</strong>
+          <div class="inquiry-meta">${escapeMarkup(getInquiryCategoryLabel(item.category))} · ${escapeMarkup(formatInquiryDate(item.created_at))}</div>
+        </div>
+        <span class="inquiry-status ${escapeMarkup(item.status)}">${escapeMarkup(getInquiryStatusLabel(item.status))}</span>
+      </div>
+      <div class="inquiry-content">${escapeMarkup(item.content)}</div>
+      ${item.answer?`<div class="inquiry-answer"><strong>관리자 답변</strong>${escapeMarkup(item.answer)}</div>`:''}
+    </article>
+  `).join('');
+}
+async function loadMyInquiries(showMessage=false){
+  if(!getToken()){
+    userInquiries=[];
+    renderMyInquiries();
+    return;
+  }
+  try{
+    const res=await apiFetch('/api/inquiries?limit=50');
+    let data=null;try{data=await res.json();}catch(_){ }
+    if(!res.ok)throw new Error(readApiError(data,'문의 내역을 불러오지 못했습니다.'));
+    userInquiries=Array.isArray(data?.items)?data.items:[];
+    renderMyInquiries();
+  }catch(err){
+    if(showMessage)toast(err.message||'문의 내역을 불러오지 못했습니다.');
+  }
+}
+async function submitInquiry(event){
+  event.preventDefault();
+  if(!getToken()){
+    toast('로그인 후 문의를 등록해 주세요.');
+    go('login');
+    return;
+  }
+  const category=document.getElementById('inquiryCategory').value;
+  const title=document.getElementById('inquiryTitle').value.trim();
+  const content=document.getElementById('inquiryContent').value.trim();
+  const button=document.getElementById('inquirySubmitButton');
+  if(!title){toast('문의 제목을 입력해 주세요.');return;}
+  if(!content){toast('문의 내용을 입력해 주세요.');return;}
+  button.disabled=true;
+  button.textContent='등록 중...';
+  try{
+    const res=await apiFetch('/api/inquiries',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({category,title,content})
+    });
+    let data=null;try{data=await res.json();}catch(_){ }
+    if(!res.ok)throw new Error(readApiError(data,'문의를 등록하지 못했습니다.'));
+    event.target.reset();
+    await loadMyInquiries(false);
+    toast('문의가 등록되었습니다.');
+  }catch(err){
+    toast(err.message||'문의를 등록하지 못했습니다.');
+  }finally{
+    button.disabled=false;
+    button.textContent='문의 등록';
+  }
+}
+function filterFaqs(value){
+  const query=(value||'').trim().toLowerCase();
+  let visible=0;
+  document.querySelectorAll('#support .faq').forEach(faq=>{
+    const match=!query||faq.textContent.toLowerCase().includes(query);
+    faq.style.display=match?'block':'none';
+    if(match) visible++;
+  });
+  const empty=document.getElementById('faqEmpty');
+  if(empty) empty.style.display=visible?'none':'block';
+}
+/* init */
+initializePasswordToggles();
+initializeLoginEnterKey();
+syncUserUI();
+if(getToken()){
+  loadDashboardSummary(false);
+  loadHistory(false);
+  loadBilling(false);
+}
+else{ads.splice(0,ads.length);renderCards();}
+slide(50);
+updateUsage();
+renderBilling();applyPremiumUI();
+setInterval(()=>{
+  if(!getToken()||!freeNextRefillAt)return;
+  const target=new Date(freeNextRefillAt).getTime();
+  if(!Number.isNaN(target)&&target<=Date.now())loadBilling(false);
+  else renderMembershipUI();
+},60000);
+document.getElementById('upgradeModal').addEventListener('click',e=>{if(e.target.id==='upgradeModal')closeUpgrade();});
+const API_BASE =
+    window.location.hostname === "localhost"
+        ? "http://localhost:8000"
+        : "https://adnova.iridescentseraphim.org";
+document.getElementById("google-login-btn")?.addEventListener("click", () => {
+    window.location.href =
+        `${API_BASE}/api/auth/google/login`;
+});
+document
+  .getElementById("kakao-login-btn")
+  ?.addEventListener("click", () => {
+    window.location.href =
+      `${API_BASE}/api/auth/kakao/login`;
+  });
+document
+  .getElementById("naver-login-btn")
+  ?.addEventListener("click", () => {
+    window.location.href =
+      `${API_BASE}/api/auth/naver/login`;
+  });
+(function handleSocialOAuthCallback() {
+  const hashParams = new URLSearchParams(
+    window.location.hash.slice(1)
+  );
+
+  const accessToken = hashParams.get("access_token");
+  const userId = hashParams.get("user_id");
+  let provider = hashParams.get("provider") || "social";
+  
+  const isNewUser =
+  hashParams.get("is_new_user") === "true";
+  
+  console.log("[OAuth 신규 사용자 확인]", {
+  rawValue: hashParams.get("is_new_user"),
+  isNewUser: isNewUser,
+  provider: provider,
+  userId: userId
+});
+
+  if (!accessToken) {
+    return;
+  }
+
+  let socialUser = {
+    id: userId ? Number(userId) : null,
+    email: "",
+    name: "소셜 로그인 사용자",
+    business_name: null,
+    business_type: null,
+    is_active: true
+  };
+
+  try {
+    const encodedPayload = accessToken.split(".")[1];
+
+    const normalizedPayload = encodedPayload
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
+
+    const paddedPayload =
+      normalizedPayload +
+      "=".repeat((4 - normalizedPayload.length % 4) % 4);
+
+    const decodedPayload = JSON.parse(
+      decodeURIComponent(
+        atob(paddedPayload)
+          .split("")
+          .map(char =>
+            "%" +
+            ("00" + char.charCodeAt(0).toString(16)).slice(-2)
+          )
+          .join("")
+      )
+    );
+
+    socialUser.email = decodedPayload.email || "";
+    socialUser.name =
+      decodedPayload.name ||
+      decodedPayload.email?.split("@")[0] ||
+      "소셜 로그인 사용자";
+    socialUser.auth_provider =
+      decodedPayload.auth_provider || decodedPayload.provider || provider;
+    provider = socialUser.auth_provider;
+  } catch (error) {
+    console.warn("소셜 로그인 JWT 사용자 정보 해석 실패:", error);
+  }
+
+  setAuth(accessToken, socialUser);
+
+  window.history.replaceState(
+    {},
+    document.title,
+    window.location.pathname + window.location.search
+  );
+
+  const providerLabel = {
+    google: "Google",
+    kakao: "카카오",
+    naver: "네이버"
+  }[provider] || "소셜";
+
+  toast(
+  isNewUser
+    ? `${providerLabel} 회원가입이 완료되었습니다`
+    : `${providerLabel} 로그인이 완료되었습니다`
+  );
+
+  go(isNewUser ? "onboarding" : "dashboard");
+  
+})();
+</script>
+
+<div class="modal-overlay" id="termsModal" onclick="if(event.target.id==='termsModal')closeModal('terms')">
+  <div class="modal">
+    <button class="modal-x" onclick="closeModal('terms')">✕</button>
+    <div class="modal-head"><h3>이용약관</h3></div>
+    <div style="font-size:13.5px;line-height:1.7;color:var(--ink-soft)">
+      <p><b>제1조 (목적)</b><br>본 약관은 AdNova(이하 "서비스")가 제공하는 AI 광고 생성 서비스의 이용 조건 및 절차에 관한 사항을 규정합니다.</p>
+      <br>
+      <p><b>제2조 (서비스 이용)</b><br>서비스는 소상공인을 대상으로 AI 기반 광고 이미지 및 문구 생성 기능을 제공합니다. 생성된 광고물의 저작권은 이용자에게 귀속됩니다.</p>
+      <br>
+      <p><b>제3조 (크레딧 및 결제)</b><br>무료 체험 크레딧은 가입 시 3회 제공되며, 프리미엄 플랜 가입 시 매월 30크레딧이 지급됩니다.</p>
+      <br>
+      <p><b>제4조 (서비스 중단)</b><br>서비스는 시스템 점검, 장애 등의 사유로 일시 중단될 수 있으며, 이 경우 사전 공지합니다.</p>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="privacyModal" onclick="if(event.target.id==='privacyModal')closeModal('privacy')">
+  <div class="modal">
+    <button class="modal-x" onclick="closeModal('privacy')">✕</button>
+    <div class="modal-head"><h3>개인정보처리방침</h3></div>
+    <div style="font-size:13.5px;line-height:1.7;color:var(--ink-soft)">
+      <p><b>수집하는 개인정보</b><br>이메일 주소, 아이디, 상호명, 업로드한 제품 이미지</p>
+      <br>
+      <p><b>수집 목적</b><br>회원 가입 및 서비스 제공, 광고 생성 결과 이력 관리</p>
+      <br>
+      <p><b>보유 기간</b><br>회원 탈퇴 시까지 보유하며, 탈퇴 후 즉시 파기합니다.</p>
+      <br>
+      <p><b>제3자 제공</b><br>이용자의 동의 없이 개인정보를 제3자에게 제공하지 않습니다.</p>
+    </div>
+  </div>
+</div>
+
+
+
+</body></html>

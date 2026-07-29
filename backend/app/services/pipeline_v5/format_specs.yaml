@@ -1,0 +1,62 @@
+# 포맷 규격 원장 — format_spec._SPECS 데이터화 (DIRECTION_v6-1 L1, T1 소프트코딩) — 담당: 한의정.
+#
+# purpose(AdPurpose value) → 규격 리스트. 리스트 = 자동 생성 팩(순서 = 대표 우선순위).
+# 새 규격 추가·사이즈 조정은 여기 항목 수정만(코드 불변). 값 변경은 test_format_specs_snapshot 이 감지.
+# 필드: canvas [W,H] px | hero_fit(cover|contain|reflow) | copy_density(minimal|medium|dense)
+#       safe_margin(세이프존 비율) | label(규격 별칭) | note(채널 메모, 선택)
+specs:
+  sns:
+    - canvas: [1080, 1080]
+      hero_fit: cover
+      copy_density: medium
+      safe_margin: 0.06
+      label: square
+  # 배너 = 커머스/스마트스토어 디지털 전용. 자동 팩(히어로 1장 → 전 규격 동시 생성).
+  banner:
+    - canvas: [1080, 1080]
+      hero_fit: cover
+      copy_density: minimal
+      safe_margin: 0.05
+      label: commerce_square
+      note: 스마트스토어 썸네일·피드 카드 (1:1)
+    - canvas: [1920, 600]
+      hero_fit: cover
+      copy_density: minimal
+      safe_margin: 0.05
+      label: commerce_wide
+      note: 웹/이벤트 상단 와이드 배너 (3.2:1)
+    - canvas: [860, 860]
+      hero_fit: cover
+      copy_density: minimal
+      safe_margin: 0.05
+      label: smartstore_detail
+      note: 스마트스토어 상세 상단(폭860 관례)
+    - canvas: [1080, 1350]
+      hero_fit: cover
+      copy_density: minimal
+      safe_margin: 0.06
+      label: commerce_vertical
+      note: 모바일 커머스 세로 프로모 (4:5)
+  card_news:
+    # 4:5 세로. slides 는 compose 단계에서 카피 블록 수로 결정(표지+본문N+CTA).
+    - canvas: [1080, 1350]
+      hero_fit: cover
+      copy_density: medium
+      safe_margin: 0.07
+      label: cover
+  flyer:
+    # A4 300dpi 세로. 범위 제외(v6-1)지만 enum·규격은 유지.
+    - canvas: [2480, 3508]
+      hero_fit: contain
+      copy_density: dense
+      safe_margin: 0.08
+      label: A4
+  # 상세페이지 = 커머스 핵심. 스마트스토어 폭 860 세로 롱스크롤(섹션 조판).
+  # canvas H 는 섹션 수로 가변 → 여기 값은 최소 높이 힌트, 실제는 detail_page 가 결정.
+  detail_page:
+    - canvas: [860, 2600]
+      hero_fit: reflow
+      copy_density: dense
+      safe_margin: 0.06
+      label: smartstore
+      note: 스마트스토어 상세 롱스크롤(폭860·섹션 가변)

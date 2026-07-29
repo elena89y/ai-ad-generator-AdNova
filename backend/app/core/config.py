@@ -1,0 +1,77 @@
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+DEFAULT_UPLOAD_DIR = Path(__file__).resolve().parents[2] / "uploads"
+
+
+class Settings:
+    PROJECT_NAME: str = "AdNova_AI Ad Generator"
+    API_PREFIX: str = "/api"
+    ADMIN_DATABASE_URL: str = os.getenv(
+        "ADMIN_DATABASE_URL",
+        "sqlite:///./data/admin.db",
+    )
+
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "change-this-secret-key")
+    ADMIN_TOTP_ENCRYPTION_KEY: str = os.getenv("ADMIN_TOTP_ENCRYPTION_KEY", "")
+    ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
+        os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
+    )
+    ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
+        os.getenv("ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES", "15")
+    )
+    ADMIN_SESSION_EXPIRE_MINUTES: int = int(
+        os.getenv("ADMIN_SESSION_EXPIRE_MINUTES", "30")
+    )
+    REFRESH_TOKEN_EXPIRE_DAYS: int = int(
+        os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "30")
+    )
+    SESSION_HTTPS_ONLY: bool = os.getenv("SESSION_HTTPS_ONLY", "false").lower() == "true"
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+    UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", str(DEFAULT_UPLOAD_DIR))
+    # 15MB: 폰 원본(12MB급) 수용 — 업로드 즉시 정규화(장변 2048)로 축소 저장되므로 부담 없음
+    MAX_IMAGE_SIZE_MB: int = int(os.getenv("MAX_IMAGE_SIZE_MB", "15"))
+    TEMP_UPLOAD_RETENTION_HOURS: int = int(
+        os.getenv("TEMP_UPLOAD_RETENTION_HOURS", "24")
+    )
+    CORS_ORIGINS: tuple[str, ...] = tuple(
+        origin.strip()
+        for origin in os.getenv(
+            "CORS_ORIGINS",
+            "http://localhost:5500,http://127.0.0.1:5500",
+        ).split(",")
+        if origin.strip()
+    )
+
+    # 생성 서비스 위치 (배포 구조 B). 비면 로컬(모놀리식) 실행, URL 이면 HTTP 호출.
+    #   예) 웹 백엔드(Docker): GENERATION_SERVICE_URL=http://<gpu-vm>:8100
+    GENERATION_SERVICE_URL: str = os.getenv("GENERATION_SERVICE_URL", "")
+    GENERATION_TIMEOUT_S: int = int(os.getenv("GENERATION_TIMEOUT_S", "180"))
+
+    # LangGraph 문구 품질 게이트 루프 사용 (1=사용, 0=끄고 gpt_service 직접 호출로 폴백).
+    # langgraph 미설치 시에도 자동 폴백 — 제거 가능 설계.
+    USE_COPY_GATE: bool = os.getenv("USE_COPY_GATE", "1") == "1"
+
+
+    # 이메일 발송 (AWS SES SMTP)
+    SMTP_HOST: str = os.getenv("SMTP_HOST", "email-smtp.ap-northeast-2.amazonaws.com")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USER: str = os.getenv("SMTP_USER", "")
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
+    SMTP_FROM: str = os.getenv("SMTP_FROM", "AdNova <noreply@iridescentseraphim.org>")
+
+    # SMTP 승인 전 임시 테스트용 설정. 운영 전에는 반드시 기본값으로 되돌린다.
+    EMAIL_VERIFICATION_REQUIRED: bool = (
+        os.getenv("EMAIL_VERIFICATION_REQUIRED", "true").lower() == "true"
+    )
+    DEMO_PASSWORD_RESET_ENABLED: bool = (
+        os.getenv("DEMO_PASSWORD_RESET_ENABLED", "false").lower() == "true"
+    )
+
+
+settings = Settings()

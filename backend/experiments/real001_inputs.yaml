@@ -1,0 +1,5 @@
+seed: 42
+items:
+  - {file: 김치찌개.jpg, expected_mode: dish, subject_en: kimchi stew, name: 김치찌개}
+  - {file: 까르보나라.jpg, expected_mode: dish, subject_en: carbonara pasta, name: 까르보나라}
+  - {file: 핑크레모네이드.jpg, expected_mode: cafe, subject_en: pink lemonade, name: 핑크레모네이드}

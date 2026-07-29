@@ -1,0 +1,87 @@
+# HOLDOUT-001 — 일반화 홀드아웃 3암 입력셋 (2026-07-21 동결 · 1회용) — 담당: 한의정.
+#
+# 배경: HYB-001은 개발셋(골든 12장) 양방향 오염(로컬 20일 튜닝 + api enhanced_v2 승자 선정)
+#   → 일반화 판정용 미사용 신규 사진 11장. 전량 Wikimedia Commons, 전수 육안 검수 완료
+#   (출처·라이선스: ~/Desktop/AdNova/HOLDOUT_inputs/출처_라이선스.md). 실측 후 튜닝 사용 금지.
+# hybrid_engine = HYB-002 규칙(아트디렉터 정본 도출): domain==object → local, 나머지 → api.
+# 특수 검증 케이스: 한정식상차림(api 상차림 소실), 핑크레모네이드(각인 텍스트·빨대 가드),
+#   텀블러·향수(손·로고 — C 로컬 정체성), 크루아상(부속 소품 에스프레소 보존).
+
+knob: 0.5
+seed: 1234
+
+apiq:
+  chosen: {model: gpt-image-2, quality: low}   # APIQ-001 확정 설정 계승
+
+items:
+  # --- A 음식점 ---
+  - file: 김치찌개.jpg
+    name: 김치찌개
+    subject_en: kimchi jjigae stew pot
+    expected_mode: dish
+    expected_route: A-generative
+    hybrid_engine: api
+  - file: 한정식상차림.jpg
+    name: 한정식 한상차림
+    subject_en: korean full course table setting
+    expected_mode: dish
+    expected_route: A-generative
+    hybrid_engine: api        # 상차림 소실 결함 검증 — APIQ-003 가드 필요성 판정
+  - file: 떡볶이.jpg
+    name: 떡볶이
+    subject_en: tteokbokki rice cakes plate
+    expected_mode: dish
+    expected_route: A-generative
+    hybrid_engine: api
+  - file: 까르보나라.jpg
+    name: 까르보나라 파스타
+    subject_en: carbonara pasta plate
+    expected_mode: dish
+    expected_route: A-generative
+    hybrid_engine: api
+
+  # --- B 카페 ---
+  - file: 딸기롤케이크.jpg
+    name: 딸기 롤케이크
+    subject_en: strawberry roll cake slice
+    expected_mode: cafe
+    expected_route: B-cafe
+    hybrid_engine: api
+  - file: 딸기생크림케이크.jpg
+    name: 딸기 생크림케이크
+    subject_en: strawberry cream layer cake
+    expected_mode: cafe
+    expected_route: B-cafe
+    hybrid_engine: api
+  - file: 크루아상.jpg
+    name: 크루아상
+    subject_en: croissant with espresso
+    expected_mode: cafe
+    expected_route: B-cafe
+    hybrid_engine: api
+  - file: 핑크레모네이드.jpg
+    name: 핑크 레모네이드
+    subject_en: pink lemonade mason jar
+    expected_mode: cafe
+    expected_route: B-cafe
+    hybrid_engine: api        # 각인 텍스트(HUG/KISS)·빨대·얼음 보존 가드 검증
+
+  # --- C 사물 (HYB-002: object → local) ---
+  - file: 향수.jpg
+    name: 향수
+    subject_en: crystal perfume bottle
+    expected_mode: object
+    expected_route: C-object
+    hybrid_engine: local
+  - file: 헤드폰.jpg
+    name: 게이밍 헤드셋
+    subject_en: gaming headset
+    expected_mode: object
+    expected_route: C-object
+    hybrid_engine: local
+  - file: 텀블러.jpg
+    name: 보온 텀블러
+    subject_en: white insulated tumbler bottle
+    expected_mode: object
+    expected_route: C-object
+    hybrid_engine: local      # 손·로고 포함 실사 — C 로컬 정체성 검증
