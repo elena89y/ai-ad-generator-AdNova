@@ -424,6 +424,8 @@ OpenAI GPT
 - [📋 회의록 (Notion)](https://app.notion.com/p/Daily-Logs-b201fffab02c8269a55c01286e7eed21?source=copy_link)
 - [고급프로젝트 가이드라인](https://app.notion.com/p/AI8-_-_3-AdNova-2481fffab02c823bbed781ab8fe32242?source=copy_link)
 - [📄 최종 보고서](https://github.com/elena89y/ai-ad-generator-AdNova/blob/main/AdNova_3%ED%8C%80_%ED%86%B5%ED%95%A9%EC%B5%9C%EC%A2%85%EB%B3%B4%EA%B3%A0%EC%84%9C_%EC%83%81%EC%84%B8%EB%B3%B8_v3.pdf)
+- [📄 최종 보고서(요약)](https://github.com/elena89y/ai-ad-generator-AdNova/blob/main/AdNova_3%ED%8C%80_%ED%86%B5%ED%95%A9%EC%B5%9C%EC%A2%85%EB%B3%B4%EA%B3%A0%EC%84%9C_%EC%9A%94%EC%95%BD.pdf)
+- [📄 최종 발표자료](https://github.com/elena89y/ai-ad-generator-AdNova/blob/main/AdNova_3%ED%8C%80_%ED%86%B5%ED%95%A9%EC%B5%9C%EC%A2%85%EB%B0%9C%ED%91%9C%EC%9E%90%EB%A3%8C_v11.pdf)
 - [📚 OpenAI API Documentation](https://platform.openai.com/docs)
 - [📚 FastAPI Documentation](https://fastapi.tiangolo.com/)
 - [📚 Next.js Documentation](https://nextjs.org/docs)
