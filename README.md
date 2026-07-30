@@ -3,7 +3,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white"/>
   <img src="https://img.shields.io/badge/FastAPI-Backend-009688?style=flat-square&logo=fastapi&logoColor=white"/>
-  <img src="https://img.shields.io/badge/Streamlit-Frontend-FF4B4B?style=flat-square&logo=streamlit&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Next.js-Frontend-000000?style=flat-square&logo=nextdotjs&logoColor=white"/>
   <img src="https://img.shields.io/badge/SDXL-Inpainting-8A2BE2?style=flat-square"/>
   <img src="https://img.shields.io/badge/OpenAI-GPT_API-412991?style=flat-square"/>
   <img src="https://img.shields.io/badge/SQLite-Database-003B57?style=flat-square"/>
@@ -202,106 +202,121 @@ ai-ad-generator-AdNova/
 
 ## 🚀 실행 방법
 
-### 환경 설치
+정식 프론트엔드는 `frontend-next`의 Next.js 애플리케이션입니다. 운영 환경은
+Nginx가 외부 요청을 받고, Docker Compose가 Next.js(3000)와 FastAPI(8000)를
+실행하며, GPU 이미지 생성 워커(8100)는 systemd 서비스로 별도 실행합니다.
 
-```
+기존 systemd 환경에서 Docker로 처음 이전하거나 DB·생성 이미지를 옮겨야 한다면
+명령을 실행하기 전에 [Docker 웹 배포 안내](deploy/docker/README.md)를 먼저
+확인하세요. 이미 운영 중인 `runtime/`에 기존 DB를 다시 복사하면 새 데이터가
+사라질 수 있습니다.
+
+### 저장소와 환경 변수 준비
+
+```bash
 git clone https://github.com/elena89y/ai-ad-generator-AdNova.git
-
 cd ai-ad-generator-AdNova
-
-pip install -r backend/requirements.txt
-npm install --prefix frontend
+cp .env.example backend/.env
 ```
 
-### 환경 변수
+Windows PowerShell에서는 마지막 명령 대신 다음 명령을 사용합니다.
 
-```
-SECRET_KEY=xxxxx
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=60
-
-# database
-DATABASE_URL=sqlite:///./data/app.db
-
-# upload
-UPLOAD_DIR=./uploads
-MAX_IMAGE_SIZE_MB=10
-
-# ai
-OPENAI_API_KEY=xxxxxx
-HF_TOKEN=xxxxxx
-
-# 운영 환경에서 세션 쿠키를 HTTPS 전용으로 설정하려면 true로 변경
-SESSION_HTTPS_ONLY=true
-
-# =========================
-# Social Login 공통 키
-# =========================
-
-GOOGLE_CLIENT_ID=xxxxx
-GOOGLE_CLIENT_SECRET=xxxxx
-SESSION_SECRET_KEY=xxxxx
-
-KAKAO_REST_API_KEY=xxxxx
-KAKAO_CLIENT_SECRET=xxxxx
-
-NAVER_CLIENT_ID=xxxxx
-NAVER_CLIENT_SECRET=xxxxx
-
-# =========================
-# 로컬 개발 환경
-# 사용할 때 아래 4줄의 #을 제거
-# =========================
-
-# FRONTEND_URL=http://localhost:5500 # html
-# FRONTEND_URL=http://localhost:3000 # Next.js
-# GOOGLE_REDIRECT_URI=http://localhost:8000/api/auth/google/callback
-# KAKAO_REDIRECT_URI=http://localhost:8000/api/auth/kakao/callback
-# NAVER_REDIRECT_URI=http://localhost:8000/api/auth/naver/callback
-
-# =========================
-# GCP 테스트 환경
-# =========================
-
-# FRONTEND_URL=http://34.70.32.192:5500 # html
-# FRONTEND_URL=http://localhost:3000 # Next.js
-# KAKAO_REDIRECT_URI=http://34.70.32.192:8000/api/auth/kakao/callback
-# NAVER_REDIRECT_URI=http://34.70.32.192:8000/api/auth/naver/callback
-
-# =========================
-# 도메인 환경 (배포/테스트는 앞으로 여기)
-# =========================
-
-FRONTEND_URL=https://adnova.iridescentseraphim.org
-GOOGLE_REDIRECT_URI=https://adnova.iridescentseraphim.org/api/auth/google/callback
-KAKAO_REDIRECT_URI=https://adnova.iridescentseraphim.org/api/auth/kakao/callback
-NAVER_REDIRECT_URI=https://adnova.iridescentseraphim.org/api/auth/naver/callback
-
-# Google OAuth는 퍼블릭 IP를 Redirect URI로 사용할 수 없으므로
-# GCP 퍼블릭 IP 테스트에서는 활성화하지 않음
-# GOOGLE_REDIRECT_URI=http://34.70.32.192:8000/api/auth/google/callback
-
-CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:5500,http://127.0.0.1:5500,https://adnova.iridescentseraphim.org
+```powershell
+Copy-Item .env.example backend/.env
 ```
 
-### 실행 (개발)
+`backend/.env`에 JWT, OAuth, SMTP, AI 및 관리자 TOTP 설정을 입력합니다.
+비밀키와 실제 `.env` 파일은 Git에 올리지 않습니다. 로컬 개발에서는 다음 값도
+확인합니다.
 
-```
-uvicorn app.main:app --reload
-```
-
-```
-npm run dev --prefix frontend
+```dotenv
+FRONTEND_URL=http://localhost:3000
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+SESSION_HTTPS_ONLY=false
 ```
 
-### 배포 (운영)
+운영 환경에서는 `FRONTEND_URL`, OAuth 리다이렉트 주소와 `CORS_ORIGINS`를 실제
+HTTPS 도메인으로 설정하고 `SESSION_HTTPS_ONLY=true`를 사용합니다.
 
-```
-npm run build --prefix frontend
+### 로컬 개발 실행
 
-sudo systemctl restart adnova
-sudo systemctl restart adnova-frontend
+백엔드는 Python 3.11 환경에서 실행합니다.
+
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.web.txt
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
+
+Windows PowerShell의 가상환경 활성화 명령은
+`.venv\Scripts\Activate.ps1`입니다.
+
+두 번째 터미널에서 Node.js 22 환경으로 프론트엔드를 실행합니다.
+
+```bash
+cd frontend-next
+npm install
+npm run dev
+```
+
+접속 주소는 프론트 `http://localhost:3000`, API 문서
+`http://localhost:8000/docs`입니다. 이미지 생성까지 테스트하려면 8100 생성
+워커 또는 별도의 생성 API가 준비되어 있어야 합니다.
+
+### Docker 운영 실행
+
+VM의 `backend/.env`와 `runtime/` 데이터가 준비된 상태에서 실행합니다.
+
+```bash
+cd ~/ai-ad-generator-AdNova
+sudo docker compose config -q
+sudo docker compose up -d --build backend-web frontend
+sudo docker compose ps
+```
+
+컨테이너를 재생성해도 DB·업로드·결과 파일은 `runtime/data`와
+`runtime/results`에 남습니다. 운영 중에는 `runtime/`을 삭제하거나 기존 DB를
+그 위에 다시 복사하지 않습니다.
+
+### 실행 상태 확인
+
+```bash
+curl -fsS http://127.0.0.1:8000/health
+curl -fsS http://127.0.0.1:8100/health
+curl -I http://127.0.0.1:3000
+
+sudo docker compose exec backend-web python3 -c \
+  "import requests; print(requests.get('http://host.docker.internal:8100/health', timeout=10).json())"
+```
+
+로그는 다음 명령으로 확인합니다.
+
+```bash
+sudo docker compose logs --tail=100 backend-web
+sudo docker compose logs --tail=100 frontend
+sudo journalctl -u adnova-generation -n 100 --no-pager
+```
+
+### 자동 배포(CD) 확인
+
+운영 CD는 `upstream/main`의 새 커밋을 약 5분마다 확인하고, 변경이 있을 때만
+프론트·백엔드 이미지를 다시 빌드해 배포합니다. 저장소에 자동 배포 파일이 있는
+것만으로는 실행되지 않으며, VM에 타이머가 설치되고 활성화되어 있어야 합니다.
+
+```bash
+sudo systemctl status adnova-docker-autodeploy.timer --no-pager
+sudo systemctl list-timers adnova-docker-autodeploy.timer --no-pager
+sudo systemctl status adnova-docker-autodeploy.service --no-pager
+sudo journalctl -u adnova-docker-autodeploy.service -n 100 --no-pager
+```
+
+타이머가 `active (waiting)`이고 다음 실행 시간이 표시되면 CD가 작동 중입니다.
+`Unit ... could not be found`가 나오면 아직 VM에 설치되지 않은 상태이므로
+[Docker 웹 배포 안내의 main 자동 배포 절차](deploy/docker/README.md#main-자동-배포)를
+따릅니다. 기존 `adnova.service`, `adnova-frontend.service`,
+`adnova-autodeploy.timer`는 Docker 운영과 동시에 실행하지 않습니다.
 
 ---
 
